@@ -37,6 +37,40 @@ class CheckoutOrchestrator {
         return call_user_func($this->requestExecutor, $route, $method, $body);
     }
 
+    /**
+     * WooCommerce owns public WC-API URL construction (permalinks, home/site
+     * divergence, subdirectory and index layouts). SUPCheckout only appends its
+     * own query markers and never rebuilds the origin from raw request headers.
+     *
+     * @return string|null
+     */
+    private static function resolve_wc_api_callback_base() {
+        $woocommerce = null;
+        if (function_exists('WC')) {
+            $woocommerce = WC();
+        }
+        if (!is_object($woocommerce) || !method_exists($woocommerce, 'api_request_url')) {
+            return null;
+        }
+
+        $base = $woocommerce->api_request_url('wc_upayments');
+        if (!is_string($base) || $base === '') {
+            return null;
+        }
+
+        $parsed = wp_parse_url($base);
+        if (!$parsed
+            || !isset($parsed['scheme'])
+            || !isset($parsed['host'])
+            || ($parsed['scheme'] !== 'http' && $parsed['scheme'] !== 'https')
+            || $parsed['host'] === ''
+        ) {
+            return null;
+        }
+
+        return $base;
+    }
+
         public function process($order_id) {
             $gateway = $this->gateway;
             global $woocommerce;
@@ -68,9 +102,18 @@ class CheckoutOrchestrator {
             $order_data = $order->get_data();
             $order_total = $order->get_total();
 
-            $success_url = site_url() . "/?wc-api=wc_upayments&page=success&wc_order_id=" . $order_id;
-            $error_url = site_url() . "/?wc-api=wc_upayments&page=error&wc_order_id=" . $order_id;
-            $ipn_url = site_url() . "/?wc-api=wc_upayments&wc_order_id=" . $order_id;
+            $callback_base = self::resolve_wc_api_callback_base();
+            if ($callback_base === null) {
+                $gateway->log('Callback URL unavailable from WooCommerce API abstraction.', 'warning');
+                wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
+                return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
+            }
+
+            $success_url = add_query_arg('page', 'success', $callback_base);
+            $success_url = add_query_arg('wc_order_id', (string) $order_id, $success_url);
+            $error_url = add_query_arg('page', 'error', $callback_base);
+            $error_url = add_query_arg('wc_order_id', (string) $order_id, $error_url);
+            $ipn_url = add_query_arg('wc_order_id', (string) $order_id, $callback_base);
 
             $unique_order_id = md5(wp_generate_uuid4());
             $product_name = [];
