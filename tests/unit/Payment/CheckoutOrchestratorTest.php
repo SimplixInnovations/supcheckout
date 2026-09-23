@@ -65,7 +65,8 @@ final class CheckoutOrchestratorTest extends TestCase {
         $orchestrator = new CheckoutOrchestrator(
             new CheckoutOrchestratorGateway(),
             static function () { return ''; },
-            static function () { return array(); }
+            static function () { return array(); },
+            supcheckout_test_callback_url_resolver()
         );
 
         foreach (array("42\n", '42 ', '+42', '42.0', '4e1', '042') as $invalid) {
@@ -95,7 +96,8 @@ final class CheckoutOrchestratorTest extends TestCase {
             static function ($route, $method, $body) use (&$requests) {
                 $requests[] = array($route, $method, $body);
                 return null;
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -123,7 +125,8 @@ final class CheckoutOrchestratorTest extends TestCase {
             static function ($route, $method, $body) use (&$requests) {
                 $requests[] = array($route, $method, $body);
                 return null;
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -152,7 +155,8 @@ final class CheckoutOrchestratorTest extends TestCase {
             static function ($route, $method, $body) use (&$requests) {
                 $requests[] = array($route, $method, $body);
                 return null;
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -165,7 +169,8 @@ final class CheckoutOrchestratorTest extends TestCase {
         $orchestrator = new CheckoutOrchestrator(
             new CheckoutOrchestratorGateway(),
             static function () { return ''; },
-            static function () { return array(); }
+            static function () { return array(); },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -203,7 +208,8 @@ final class CheckoutOrchestratorTest extends TestCase {
             static function ($route, $method, $body) use (&$provider_requests) {
                 $provider_requests[] = array($route, $method, $body);
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -255,7 +261,8 @@ final class CheckoutOrchestratorTest extends TestCase {
             static function ($route, $method, $body) use (&$provider_requests) {
                 $provider_requests[] = array($route, $method, $body);
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -293,7 +300,8 @@ final class CheckoutOrchestratorTest extends TestCase {
                     }
                 }
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $first = $orchestrator->process(42);
@@ -330,7 +338,8 @@ final class CheckoutOrchestratorTest extends TestCase {
                     $charge_body = json_decode($body, true);
                 }
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -378,7 +387,8 @@ final class CheckoutOrchestratorTest extends TestCase {
                     $charge_body = json_decode($body, true);
                 }
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -418,7 +428,8 @@ final class CheckoutOrchestratorTest extends TestCase {
             static function ($route, $method, $body) use (&$provider_requests) {
                 $provider_requests[] = array($route, $method, $body);
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);
@@ -446,7 +457,8 @@ final class CheckoutOrchestratorTest extends TestCase {
             static function ($route, $method, $body) use (&$provider_requests) {
                 $provider_requests[] = array($route, $method, $body);
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);

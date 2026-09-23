@@ -95,7 +95,6 @@ final class SUPCheckout_Test_Payment_Runtime_WC {
     public $session;
     public $api_request_url_value = 'https://shop.example.test/store/wc-api/wc_upayments/';
     public $api_request_url_calls = array();
-    public $api_request_url_available = true;
 
     public function __construct() {
         $this->cart = new SUPCheckout_Test_Payment_Runtime_Cart();
@@ -148,6 +147,20 @@ if (!function_exists('wp_parse_url')) {
     function wp_parse_url($url, $component = -1) {
         return parse_url((string) $url, $component);
     }
+}
+
+/**
+ * Explicit platform URL seam for unit tests. Production injects this from
+ * WC_Upayments; tests never put WC() inside CheckoutOrchestrator.
+ */
+function supcheckout_test_callback_url_resolver() {
+    return static function () {
+        $wc = WC();
+        if (!is_object($wc) || !method_exists($wc, 'api_request_url')) {
+            return null;
+        }
+        return $wc->api_request_url('wc_upayments');
+    };
 }
 
 supcheckout_test_reset_payment_runtime();

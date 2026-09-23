@@ -51,7 +51,8 @@ final class CheckoutEconomicsPrecisionTest extends TestCase {
             static function ($route, $method, $body) use (&$requests) {
                 $requests[] = array($route, $method, $body);
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $result = $orchestrator->process(42);

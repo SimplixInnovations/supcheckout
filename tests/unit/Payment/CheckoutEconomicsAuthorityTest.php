@@ -53,7 +53,8 @@ final class CheckoutEconomicsAuthorityTest extends TestCase {
             static function ($route, $method, $body) use (&$requests) {
                 $requests[] = array($route, $method, $body);
                 return array();
-            }
+            },
+            supcheckout_test_callback_url_resolver()
         );
 
         $orchestrator->process(42);
