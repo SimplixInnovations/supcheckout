@@ -84,9 +84,11 @@ Control-plane/tests only. No production source or package-byte change.
 ## Current Approach 3 execution state
 
 - T1 architecture guardrails/active callback characterization: **DONE / VERIFIED**, merged main `beb89ac0c4d8c0e9b7c8b2de1e13c237bbd37b15`.
-- T2 legacy callback routing consolidation: **DONE / VERIFIED**, merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`.
-- T2 changed only the historical `WC_Upayments::check_ipn_response()` fallback to delegate to `PaymentLifecycle::handle_callback()`; direct public legacy return/webhook methods and private verification were intentionally untouched.
-- Fresh T2 merged-main checks: **41/41 SUCCESS**.
-- T2 deterministic candidate package: **51 files**, SHA-256 `368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04`.
+- T2 legacy callback routing consolidation: **DONE / VERIFIED / runtime-bearing**, merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`.
+- T3 direct legacy callback/private-verifier characterization: **DONE / VERIFIED / runtime-neutral**, merged main `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`.
+- Post-T3 R0/R1/E1-E3 integration milestone: **DONE / VERIFIED / MERGED** through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`.
+- Repository-executable E3 checkpoint: `540b733c29656758f2392817649fc3d4a4db585d`; deterministic candidate package: **55 files**, SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
+- The temporary PR #108 feature branch was deleted after merge. No feature branch is intentionally retained between bounded tranches.
 - Frozen owner-accepted Approach 2 baseline remains `0c883d609906676966002eb022a82a9656eeacc5` with accepted package SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
-- Next architecture evidence task: directly characterize `return_from_upayments()`, `web_hook_handler()`, and legacy `verify_payment_status()` behavior/call surface before any further consolidation.
+- Current next engineering gate: **R2 callback portability / cache safety**.
+- R5/T4 callback consolidation remains separately architecture-gated; the merged T3/post-T3 evidence does not by itself authorize that runtime consolidation.
