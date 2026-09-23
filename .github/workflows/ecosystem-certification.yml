@@ -416,12 +416,14 @@ jobs:
     steps:
       - name: Require ecosystem runtime matrices
         env:
+          R2_RESULT: ${{ needs.r2-callback-cache-http.result }}
           E2_RESULT: ${{ needs.e2-current-runtime.result }}
           E3_THEME_RESULT: ${{ needs.e3-free-theme-runtime.result }}
           E3_CACHE_RESULT: ${{ needs.e3-cache-plugin-runtime.result }}
         shell: bash
         run: |
           set -euo pipefail
+          test "$R2_RESULT" = "success"
           test "$E2_RESULT" = "success"
           test "$E3_THEME_RESULT" = "success"
           test "$E3_CACHE_RESULT" = "success"

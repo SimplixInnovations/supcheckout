@@ -111,18 +111,30 @@ try {
     );
 
     $orchestrator_source = file_get_contents(dirname(__DIR__, 2) . '/src/Payment/CheckoutOrchestrator.php');
+    $adapter_source = file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
     supcheckout_cert_assert(is_string($orchestrator_source), 'CheckoutOrchestrator source is readable');
+    supcheckout_cert_assert(is_string($adapter_source), 'WC_Upayments adapter source is readable');
     supcheckout_cert_assert(
-        strpos($orchestrator_source, "api_request_url('wc_upayments')") !== false
-        || strpos($orchestrator_source, 'api_request_url("wc_upayments")') !== false
-        || strpos($orchestrator_source, "api_request_url(\$callback_route") !== false
-        || preg_match('/api_request_url\s*\(/', $orchestrator_source) === 1,
-        'CheckoutOrchestrator consumes WooCommerce api_request_url abstraction'
+        strpos($adapter_source, "api_request_url('wc_upayments')") !== false
+        || strpos($adapter_source, 'api_request_url("wc_upayments")') !== false,
+        'WC_Upayments platform adapter owns WooCommerce api_request_url'
+    );
+    supcheckout_cert_assert(
+        strpos($orchestrator_source, 'api_request_url') === false,
+        'CheckoutOrchestrator does not call WooCommerce api_request_url directly'
+    );
+    supcheckout_cert_assert(
+        strpos($orchestrator_source, 'callable $callback_url_resolver') !== false,
+        'CheckoutOrchestrator requires the injected callback URL resolver'
     );
     foreach (array('HTTP_X_FORWARDED', 'HTTP_FORWARDED', 'FORWARDED_HOST', 'FORWARDED_PROTO', 'HTTP_HOST') as $header_token) {
         supcheckout_cert_assert(
             strpos($orchestrator_source, $header_token) === false,
             'CheckoutOrchestrator does not read raw forwarded/host header ' . $header_token
+        );
+        supcheckout_cert_assert(
+            strpos($adapter_source, $header_token) === false,
+            'WC_Upayments adapter does not read raw forwarded/host header ' . $header_token
         );
     }
     supcheckout_cert_assert(
