@@ -65,6 +65,7 @@ class WC_Order {
     }
 
     public function get_total() { return $this->total; }
+    public function needs_payment() { return (float) $this->total > 0; }
     public function get_items($type = '') { return $this->items; }
     public function get_billing_phone() { return $this->billing_phone; }
     public function get_meta($key) { return ''; }
@@ -117,6 +118,17 @@ function wc_get_checkout_url() {
 
 function site_url($path = '', $scheme = null) {
     return 'https://example.test' . (string) $path;
+}
+
+if (!function_exists('wp_generate_uuid4')) {
+    function wp_generate_uuid4() {
+        $next = isset($GLOBALS['supcheckout_test_payment_runtime_uuid_sequence'])
+            ? (int) $GLOBALS['supcheckout_test_payment_runtime_uuid_sequence'] + 1
+            : 1;
+        $GLOBALS['supcheckout_test_payment_runtime_uuid_sequence'] = $next;
+
+        return sprintf('00000000-0000-4000-8000-%012x', $next);
+    }
 }
 
 if (!function_exists('wp_parse_url')) {

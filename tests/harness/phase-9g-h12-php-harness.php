@@ -2054,17 +2054,21 @@ foreach ($pe_cases as $name => $case) {
                 $name . ' Charge price is unquoted 0.125 JSON number', 'semantic_runtime');
         }
     } elseif ($name === 'PE-13') {
-        // 10.00 / 3 = impossible exact representation
-        upay_assert_eq($res['result'] ?? null, 'failure', 'PE-13 result=failure (non-terminating decimal)', 'semantic_runtime');
-        upay_assert_eq($state['charge_calls'], 0, 'PE-13 Charge=0 (non-terminating decimal)', 'semantic_runtime');
-        upay_assert_eq($state['create_token_calls'], 0, 'PE-13 Create=0', 'semantic_runtime');
-        upay_assert_eq($state['retrieve_calls'], 0, 'PE-13 Retrieve=0', 'semantic_runtime');
+    // Descriptive unit economics are not exactly representable. Woo order
+    // amount/currency remain authoritative; products[] must be omitted.
+    upay_assert_eq($res['result'] ?? null, 'success', 'PE-13 result=success (non-terminating descriptor degrades)', 'semantic_runtime');
+    upay_assert_eq($state['charge_calls'], 1, 'PE-13 Charge=1 (authoritative Woo order remains payable)', 'semantic_runtime');
+    upay_assert_eq([$state['create_token_calls'], $state['retrieve_calls']], [0, 0], 'PE-13 no token/retrieve side path', 'semantic_runtime');
+    $pe13_body = isset($state['last_charge_body']) ? $state['last_charge_body'] : '';
+    upay_assert(is_string($pe13_body) && strpos($pe13_body, '"products"') === false, 'PE-13 unrepresentable descriptor omits products[] wholesale', 'semantic_runtime');
     } elseif ($name === 'PE-11') {
-        // quantity 10,000,000 = forbidden
-        upay_assert_eq($res['result'] ?? null, 'failure', 'PE-11 result=failure (forbidden quantity)', 'semantic_runtime');
-        upay_assert_eq($state['charge_calls'], 0, 'PE-11 Charge=0 (forbidden quantity)', 'semantic_runtime');
-        upay_assert_eq($state['create_token_calls'], 0, 'PE-11 Create=0', 'semantic_runtime');
-        upay_assert_eq($state['retrieve_calls'], 0, 'PE-11 Retrieve=0', 'semantic_runtime');
+    // Provider descriptor quantity exceeds the serialization ceiling. Woo
+    // order amount/currency remain authoritative; products[] must be omitted.
+    upay_assert_eq($res['result'] ?? null, 'success', 'PE-11 result=success (descriptor quantity ceiling degrades)', 'semantic_runtime');
+    upay_assert_eq($state['charge_calls'], 1, 'PE-11 Charge=1 (authoritative Woo order remains payable)', 'semantic_runtime');
+    upay_assert_eq([$state['create_token_calls'], $state['retrieve_calls']], [0, 0], 'PE-11 no token/retrieve side path', 'semantic_runtime');
+    $pe11_body = isset($state['last_charge_body']) ? $state['last_charge_body'] : '';
+    upay_assert(is_string($pe11_body) && strpos($pe11_body, '"products"') === false, 'PE-11 oversized descriptor quantity omits products[] wholesale', 'semantic_runtime');
     } elseif ($name === 'PE-15') {
         // zero-price line: failure because order total is 0 (can't charge)
         upay_assert_eq($res['result'] ?? null, 'failure', 'PE-15 result=failure (zero total)', 'semantic_runtime');
@@ -2166,7 +2170,7 @@ $VALID_IBAN = 'KW81CBKU0000000000001234560101';
 $mm_scenarios = [
     'MM-VALID-FIXED'      => ['type' => 'fixed',      'charge' => '0.900',  'iban' => $VALID_IBAN, 'valid' => true],
     'MM-VALID-PERCENTAGE' => ['type' => 'percentage', 'charge' => '10',     'iban' => $VALID_IBAN, 'valid' => true],
-    'MM-INVALID-ZERO'     => ['type' => 'fixed',      'charge' => '0',      'iban' => $VALID_IBAN, 'valid' => false],
+    'MM-VALID-ZERO'       => ['type' => 'fixed',      'charge' => '0',      'iban' => $VALID_IBAN, 'valid' => false, 'zero_valid' => true],
     'MM-INVALID-TYPE'     => ['type' => 'flat',       'charge' => '0.900',  'iban' => $VALID_IBAN, 'valid' => false],
     'MM-INVALID-IBAN'     => ['type' => 'fixed',      'charge' => '0.900',  'iban' => 'invalid_iban_xx', 'valid' => false],
     'MM-INVALID-EXPONENT' => ['type' => 'fixed',      'charge' => '1e2',    'iban' => $VALID_IBAN, 'valid' => false],
@@ -2191,7 +2195,22 @@ foreach ($mm_scenarios as $name => $scenario) {
     ]);
     $order = upay_make_order(20000 + $_pass_semantic_runtime + $_pass_static_source, '5.00', null, true);
     $res = upay_run_process_payment($gateway, $order, false, '/checkout/', 'POST');
-    if ($scenario['valid']) {
+    if (!empty($scenario['zero_valid'])) {
+        $mm_zero_charge_str = (string) ($state['last_charge_body'] ?? '');
+        $mm_zero_charge = json_decode($mm_zero_charge_str, true);
+        $mm_zero_entry = (is_array($mm_zero_charge) && isset($mm_zero_charge['extraMerchantData'][0]) && is_array($mm_zero_charge['extraMerchantData'][0]))
+            ? $mm_zero_charge['extraMerchantData'][0]
+            : array();
+        upay_assert_eq($res['result'] ?? null, 'success', $name . ' result=success', 'semantic_runtime');
+        upay_assert_eq($state['charge_calls'], 1, $name . ' Charge=1', 'semantic_runtime');
+        upay_assert_eq($state['create_token_calls'], 0, $name . ' Create=0', 'semantic_runtime');
+        upay_assert_eq($state['retrieve_calls'], 0, $name . ' Retrieve=0', 'semantic_runtime');
+        upay_assert_eq(is_array($mm_zero_charge) && count($mm_zero_charge['extraMerchantData'] ?? array()) === 1, true, $name . ' extraMerchantData count=1', 'semantic_runtime');
+        upay_assert_eq(($mm_zero_entry['knetCharge'] ?? null) === 0, true, $name . ' knetCharge is strict integer zero', 'semantic_runtime');
+        upay_assert_eq(($mm_zero_entry['ccCharge'] ?? null) === 0, true, $name . ' ccCharge is strict integer zero', 'semantic_runtime');
+        upay_assert_eq(preg_match('/"knetCharge"\s*:\s*0(?=\s*[,}])/', $mm_zero_charge_str), 1, $name . ' knetCharge raw token === 0', 'semantic_runtime');
+        upay_assert_eq(preg_match('/"ccCharge"\s*:\s*0(?=\s*[,}])/', $mm_zero_charge_str), 1, $name . ' ccCharge raw token === 0', 'semantic_runtime');
+    } elseif ($scenario['valid']) {
         upay_assert_eq($res['result'] ?? null, 'success', $name . ' result=success', 'semantic_runtime');
         upay_assert_eq($state['charge_calls'], 1, $name . ' Charge=1', 'semantic_runtime');
         upay_assert_eq($state['create_token_calls'], 0, $name . ' Create=0', 'semantic_runtime');
@@ -3873,9 +3892,9 @@ upay_assert(
     'semantic_runtime'
 );
 
-// ECON-E2E-3: 10.00 / 3 — non-terminating within the 7-digit cap.
-// Production must fail closed: result=failure, ZERO token mutations,
-// ZERO provider mutations (no Charge body sent, no Create Token sent).
+// ECON-E2E-3: 10.00 / 3 — non-terminating descriptor economics.
+// The finalized Woo order remains payment authority. Descriptor conversion
+// failure must omit products[] rather than veto, round or fabricate Charge.
 upay_reset_state();
 $state =& upay_test_state();
 $state['current_user_id'] = 88;
@@ -3903,31 +3922,31 @@ $charge_calls_before = $state['charge_calls'];
 $res = upay_run_process_payment($gw, $order, false, '/checkout/', 'POST');
 upay_assert_eq(
     $res['result'],
-    'failure',
-    'ECON-E2E-3 10.00/3 -> non-terminating -> result=failure (got ' . var_export($res['result'], true) . ')',
+    'success',
+    'ECON-E2E-3 10.00/3 -> descriptor degrades without vetoing payment',
     'semantic_runtime'
 );
 upay_assert_eq(
     $state['create_token_calls'],
     $token_calls_before,
-    'ECON-E2E-4 10.00/3 -> ZERO create_token provider mutations',
+    'ECON-E2E-4 10.00/3 -> no create_token side path',
     'semantic_runtime'
 );
 upay_assert_eq(
     $state['charge_calls'],
-    $charge_calls_before,
-    'ECON-E2E-5 10.00/3 -> ZERO charge provider mutations',
+    $charge_calls_before + 1,
+    'ECON-E2E-5 10.00/3 -> exactly one Charge mutation',
     'semantic_runtime'
 );
-upay_assert_eq(
-    $state['last_charge_body'],
-    null,
-    'ECON-E2E-6 10.00/3 -> last_charge_body is null (no Charge body sent)',
+$raw_charge_body = isset($state['last_charge_body']) ? $state['last_charge_body'] : '';
+upay_assert(
+    is_string($raw_charge_body) && strpos($raw_charge_body, '"products"') === false,
+    'ECON-E2E-6 10.00/3 -> Charge body omits products[] wholesale',
     'semantic_runtime'
 );
 
-// ECON-E2E-7: qty 10,000,000 with line_total=9999999.00 — overflow / cap.
-// Production must fail closed with ZERO provider mutations.
+// ECON-E2E-7: qty 10,000,000 exceeds provider descriptor quantity ceiling.
+// The finalized Woo order remains payable; the optional descriptor is omitted.
 upay_reset_state();
 $state =& upay_test_state();
 $state['current_user_id'] = 88;
@@ -3955,20 +3974,20 @@ $charge_calls_before = $state['charge_calls'];
 $res = upay_run_process_payment($gw, $order, false, '/checkout/', 'POST');
 upay_assert_eq(
     $res['result'],
-    'failure',
-    'ECON-E2E-7 qty=10000000 line=9999999.00 -> overflow -> result=failure (got ' . var_export($res['result'], true) . ')',
+    'success',
+    'ECON-E2E-7 qty=10000000 -> descriptor ceiling degrades without vetoing payment',
     'semantic_runtime'
 );
 upay_assert_eq(
     $state['create_token_calls'],
     $token_calls_before,
-    'ECON-E2E-8 qty=10000000 -> ZERO create_token provider mutations',
+    'ECON-E2E-8 qty=10000000 -> no create_token side path',
     'semantic_runtime'
 );
-upay_assert_eq(
-    $state['charge_calls'],
-    $charge_calls_before,
-    'ECON-E2E-9 qty=10000000 -> ZERO charge provider mutations',
+$raw_charge_body = isset($state['last_charge_body']) ? $state['last_charge_body'] : '';
+upay_assert(
+    $state['charge_calls'] === $charge_calls_before + 1 && is_string($raw_charge_body) && strpos($raw_charge_body, '"products"') === false,
+    'ECON-E2E-9 qty=10000000 -> one Charge and products[] omitted wholesale',
     'semantic_runtime'
 );
 
@@ -6005,7 +6024,16 @@ if (class_exists('Simplixi\\SUPCheckout\\Payment\\SavedCardPresentation', false)
     upay_assert_eq(strpos($classic_saved_card_html, '4111') === false, true, 'CLASSIC-PAN-1 hostile leading PAN group absent from rendered Classic HTML', 'semantic_runtime');
     upay_assert_eq(strpos($classic_saved_card_html, '1111') === false, true, 'CLASSIC-PAN-2 hostile middle PAN group absent from rendered Classic HTML', 'semantic_runtime');
     upay_assert_eq(strpos($classic_saved_card_html, '•••• 4242') !== false, true, 'CLASSIC-PAN-3 rendered Classic HTML contains bounded last-four label', 'semantic_runtime');
-    upay_assert_eq(substr_count($classic_saved_card_html, 'onclick="supCheckout.submitSavedCard(this)"'), 1, 'CLASSIC-PAN-4 Classic renders exactly one saved-card submission control', 'semantic_runtime');
+    upay_assert_eq(
+    preg_match_all(
+        '/<button\b(?=[^>]*\btype="button")(?=[^>]*\bvalue="sc1_[0-9a-f]{64}")(?=[^>]*\bonclick="[^"]*window\.supCheckout\.submitSavedCard\(this\)[^"]*window\.supcheckoutPendingAction=\{type:\'saved_card\',value:this\.value\}[^"]*")[^>]*>/',
+        $classic_saved_card_html,
+        $classic_saved_card_controls
+    ),
+    1,
+    'CLASSIC-PAN-4 Classic renders exactly one guarded saved-card submission control',
+    'semantic_runtime'
+);
     upay_assert_eq(substr_count($classic_saved_card_html, 'id="upay-button-cc"'), 1, 'CLASSIC-PAN-5 Classic saved-card controls do not duplicate the normal CC DOM id', 'semantic_runtime');
     upay_assert_eq(strpos($classic_saved_card_html, '1234567890123456') === false, true, 'CLASSIC-PAN-6 provider card token absent from rendered Classic HTML', 'semantic_runtime');
     upay_assert_eq(preg_match('/value="sc1_[0-9a-f]{64}"/', $classic_saved_card_html) === 1, true, 'CLASSIC-PAN-7 Classic saved-card control carries only an opaque selection handle', 'semantic_runtime');

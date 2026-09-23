@@ -21,6 +21,19 @@ final class CheckoutPayloadTest extends TestCase {
         self::assertNull(CheckoutPayload::build_amount_json_token(1.0));
     }
 
+    public function test_nonnegative_number_token_allows_zero_without_weakening_order_amount(): void {
+        self::assertTrue(method_exists(CheckoutPayload::class, 'build_nonnegative_json_number_token'));
+        self::assertSame('0', CheckoutPayload::build_nonnegative_json_number_token('0'));
+        self::assertSame('0.000', CheckoutPayload::build_nonnegative_json_number_token('0.000'));
+        self::assertSame('10.500', CheckoutPayload::build_nonnegative_json_number_token('10.500'));
+        self::assertNull(CheckoutPayload::build_nonnegative_json_number_token('01.00'));
+        self::assertNull(CheckoutPayload::build_nonnegative_json_number_token('1e3'));
+        self::assertNull(CheckoutPayload::build_nonnegative_json_number_token(' 0'));
+        self::assertNull(CheckoutPayload::build_nonnegative_json_number_token(0));
+        self::assertNull(CheckoutPayload::build_amount_json_token('0'));
+        self::assertNull(CheckoutPayload::build_amount_json_token('0.000'));
+    }
+
     public function test_json_number_injection_never_quotes_provider_amount(): void {
         $sentinel = '__UPAY_ORDER_AMOUNT_SENTINEL__';
         $encoded = '{"order":{"amount":"' . $sentinel . '"}}';
@@ -52,9 +65,6 @@ final class CheckoutPayloadTest extends TestCase {
             'https://pay.example/redirect',
             CheckoutPayload::normalize_upayments_redirect_url(' https://pay.example/redirect ')
         );
-        // UPayments currently documents HTTP sandbox links for some whitelabel
-        // wallet methods; preserve provider compatibility while rejecting URL
-        // authority credentials that can visually obscure the actual host.
         self::assertSame(
             'http://sandboxapi.upayments.com/get-pay-by-apple',
             CheckoutPayload::normalize_upayments_redirect_url('http://sandboxapi.upayments.com/get-pay-by-apple')

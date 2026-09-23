@@ -56,7 +56,10 @@ foreach (array(
 }
 q6_assert(substr_count($settings, "'type' =>") === 21, 'gateway settings retain exactly 21 ordered fields');
 q6_assert(q6_contains($settings, "\$settings['enable_save_card'] = 'yes';"), 'subscriptions still force saved-card support');
-q6_assert(q6_contains($settings, "empty(\$post_data['woocommerce_upayments_api_key'])"), 'API credential remains required before save');
+q6_assert(
+    q6_contains($settings, "!is_string(\$api_key) || trim(\$api_key) === ''"),
+    'API credential uses the runtime-equivalent nonblank string boundary before save'
+);
 $api_key_field_start = strpos($settings, "'api_key' => array(");
 $debug_field_start = strpos($settings, "'debug' => array(");
 $api_key_field_source = ($api_key_field_start !== false && $debug_field_start !== false && $debug_field_start > $api_key_field_start)
@@ -111,8 +114,11 @@ foreach (array(
     'fields_preserve_exact_keys_order_and_runtime_defaults',
     'dependency_normalization_forces_save_card_only_for_enabled_subscriptions',
     'prepare_post_data_rejects_missing_credentials_before_allocation_validation',
+    'prepare_post_data_uses_the_same_nonblank_string_api_key_boundary_as_runtime_eligibility',
     'prepare_post_data_requires_every_enabled_allocation_field',
-    'prepare_post_data_clears_all_runtime_allocation_fields_when_disabled',
+    'prepare_post_data_accepts_provider_permitted_zero_main_merchant_commissions',
+    'prepare_post_data_clears_all_runtime_allocation_fields_when_checkbox_is_absent',
+    'prepare_post_data_rejects_noncanonical_present_multimerchant_checkbox_tokens',
     'json_presentation_field_keeps_only_five_sanitized_non_secret_values',
     'renderer_escapes_dynamic_values_and_emits_one_allocation_row',
     'asset_loading_requires_exact_gateway_and_settings_scopes',

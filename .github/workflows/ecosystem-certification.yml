@@ -1,0 +1,348 @@
+name: Ecosystem Certification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ECOSYSTEM_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+  SUPCHECKOUT_PLUGIN_SLUG: supcheckout
+
+concurrency:
+  group: ecosystem-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2-current-runtime:
+    name: E2 mixed tax classes / ${{ matrix.storage }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        storage: [legacy, hpos]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.ECOSYSTEM_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip
+          coverage: none
+          tools: none
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar \
+            -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+          /tmp/wp-cli.phar --version
+
+      - name: Install current real WordPress and WooCommerce runtime
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: >-
+          bash scripts/install-wp-test-environment.sh
+          "7.1"
+          "11.1.0"
+          "$RUNNER_TEMP/wordpress"
+
+      - name: Activate SUPCheckout
+        run: /tmp/wp-cli.phar plugin activate "$SUPCHECKOUT_PLUGIN_SLUG" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Select authoritative order store
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ matrix.storage }}" == "hpos" ]]; then
+            /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled yes --path="$RUNNER_TEMP/wordpress"
+          else
+            /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled no --path="$RUNNER_TEMP/wordpress"
+          fi
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_data_sync_enabled no --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar cache flush --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify mixed standard/reduced/zero tax-class economics
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/MixedTaxEconomicsRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+  e3-free-theme-runtime:
+    name: E3 free theme / ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Twenty Twenty-Five 1.5
+            slug: twentytwentyfive
+            version: '1.5'
+          - label: Storefront 4.6.2
+            slug: storefront
+            version: '4.6.2'
+          - label: Astra 4.13.11
+            slug: astra
+            version: '4.13.11'
+          - label: Blocksy 2.1.56
+            slug: blocksy
+            version: '2.1.56'
+          - label: Kadence 1.5.2
+            slug: kadence
+            version: '1.5.2'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.ECOSYSTEM_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip
+          coverage: none
+          tools: none
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar \
+            -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+          /tmp/wp-cli.phar --version
+
+      - name: Install current real WordPress and WooCommerce runtime
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: >-
+          bash scripts/install-wp-test-environment.sh
+          "7.1"
+          "11.1.0"
+          "$RUNNER_TEMP/wordpress"
+
+      - name: Activate SUPCheckout
+        run: /tmp/wp-cli.phar plugin activate "$SUPCHECKOUT_PLUGIN_SLUG" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Enable HPOS for the theme runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled yes --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_data_sync_enabled no --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar cache flush --path="$RUNNER_TEMP/wordpress"
+
+      - name: Install and activate pinned theme
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar theme install "${{ matrix.slug }}" \
+            --version="${{ matrix.version }}" \
+            --force \
+            --activate \
+            --path="$RUNNER_TEMP/wordpress"
+
+          active_slug="$(/tmp/wp-cli.phar theme list --status=active --field=name --path="$RUNNER_TEMP/wordpress")"
+          test "$active_slug" = "${{ matrix.slug }}"
+
+          active_version="$(/tmp/wp-cli.phar theme get "${{ matrix.slug }}" --field=version --path="$RUNNER_TEMP/wordpress")"
+          test "$active_version" = "${{ matrix.version }}"
+
+      - name: Verify gateway registration and checkout notice isolation
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CheckoutRegistrationTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify theme-safe frontend asset scope
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/FrontendAssetScopeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify repeated embedded render ownership
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/EmbeddedRenderOwnershipTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify child-theme WooCommerce override precedence
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: bash "$GITHUB_WORKSPACE/tests/integration/child-theme-override-runtime.sh" "$RUNNER_TEMP/wordpress"
+
+      - name: Verify Woo checkout validation remains authoritative
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CheckoutValidationBoundaryRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify finalized order economics remain theme-independent
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/OrderEconomicsRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+  e3-cache-plugin-runtime:
+    name: E3 cache optimizer coexistence / ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: LiteSpeed Cache 7.9.1
+            slug: litespeed-cache
+            version: '7.9.1'
+          - label: W3 Total Cache 2.10.6
+            slug: w3-total-cache
+            version: '2.10.6'
+          - label: Breeze 2.5.13
+            slug: breeze
+            version: '2.5.13'
+          - label: SiteGround Speed Optimizer 7.8.2
+            slug: sg-cachepress
+            version: '7.8.2'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.ECOSYSTEM_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip
+          coverage: none
+          tools: none
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar \
+            -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+          /tmp/wp-cli.phar --version
+
+      - name: Install current real WordPress and WooCommerce runtime
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: >-
+          bash scripts/install-wp-test-environment.sh
+          "7.1"
+          "11.1.0"
+          "$RUNNER_TEMP/wordpress"
+
+      - name: Activate SUPCheckout and HPOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar plugin activate "$SUPCHECKOUT_PLUGIN_SLUG" --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled yes --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_data_sync_enabled no --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar cache flush --path="$RUNNER_TEMP/wordpress"
+
+      - name: Install and activate pinned cache or optimizer plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar plugin install "${{ matrix.slug }}" \
+            --version="${{ matrix.version }}" \
+            --force \
+            --activate \
+            --path="$RUNNER_TEMP/wordpress"
+
+          /tmp/wp-cli.phar plugin is-active "${{ matrix.slug }}" --path="$RUNNER_TEMP/wordpress"
+          installed_version="$(/tmp/wp-cli.phar plugin get "${{ matrix.slug }}" --field=version --path="$RUNNER_TEMP/wordpress")"
+          test "$installed_version" = "${{ matrix.version }}"
+
+      - name: Verify gateway registration under cache plugin
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CheckoutRegistrationTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify dynamic frontend asset scope under cache plugin
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/FrontendAssetScopeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify embedded render ownership under cache plugin
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/EmbeddedRenderOwnershipTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify Woo checkout validation under cache plugin
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CheckoutValidationBoundaryRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify real HTTP checkout and API contexts under cache plugin
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: bash "$GITHUB_WORKSPACE/tests/integration/checkout-request-context-http.sh" "$RUNNER_TEMP/wordpress"
+
+      - name: Verify finalized economics under cache plugin
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/OrderEconomicsRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+  ecosystem-gate:
+    name: Ecosystem Gate
+    if: ${{ always() }}
+    needs: [e2-current-runtime, e3-free-theme-runtime, e3-cache-plugin-runtime]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require ecosystem runtime matrices
+        env:
+          E2_RESULT: ${{ needs.e2-current-runtime.result }}
+          E3_THEME_RESULT: ${{ needs.e3-free-theme-runtime.result }}
+          E3_CACHE_RESULT: ${{ needs.e3-cache-plugin-runtime.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$E2_RESULT" = "success"
+          test "$E3_THEME_RESULT" = "success"
+          test "$E3_CACHE_RESULT" = "success"

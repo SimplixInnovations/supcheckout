@@ -73,6 +73,7 @@ a5_assert(!a5_contains($orchestrator, 'CURLOPT_'), 'orchestrator excludes direct
 a5_assert(!a5_contains($orchestrator, 'Scheduler::'), 'orchestrator excludes subscription scheduler ownership');
 a5_assert(!a5_contains($orchestrator, 'CycleClaim::'), 'orchestrator excludes cycle-claim ownership');
 
+require_once $root . '/src/Provider/MultiMerchantContract.php';
 require_once $payloadPath;
 
 a5_same(true, CheckoutPayload::field_present(array('x' => null), 'x'), 'field presence distinguishes explicit null');

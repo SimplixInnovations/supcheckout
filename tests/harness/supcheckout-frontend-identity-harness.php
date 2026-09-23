@@ -132,7 +132,7 @@ sufi_assert(strpos($gateway, 'upayment-status-holder-strong') === false, 'dead h
 sufi_assert(strpos($gateway, 'upayment-id-holder-strong') === false, 'dead hidden thank-you payment-ID holder is absent');
 sufi_assert(strpos($gateway, '$order->is_paid()') !== false, 'thank-you success rendering follows WooCommerce paid-state semantics');
 sufi_assert(strpos($new_js, 'ApplePaySession') === false, 'classic checkout performs no no-op Apple Pay capability polling');
-sufi_assert(strpos($new_js, "trigger('click')") === false, 'classic checkout never forces UPayments selection client-side');
+sufi_assert(strpos($new_js, '#payment_method_upayments') === false, 'classic checkout never targets the UPayments payment option for forced client-side selection');
 sufi_assert(strpos($new_js, 'ajaxComplete') === false, 'classic checkout avoids global ajaxComplete polling');
 sufi_assert(strpos($new_js, 'updated_checkout') !== false, 'classic checkout reacts to the WooCommerce checkout update event');
 sufi_assert(strpos($subscription_js, "\$intervalSelect.append(\$('<option></option>').val('one_time'))") === false, 'subscription interval never receives the invalid one_time token');

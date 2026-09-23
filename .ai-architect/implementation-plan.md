@@ -1,129 +1,115 @@
 # Approach 3 coding handoff
 
-## Goal
+## Authority
 
-Begin Approach 3 with a runtime-neutral safety tranche that freezes the actual active callback topology and provider-egress/security boundaries before any payment-authority code is modified.
+Repository: `SimplixInnovations/supcheckout`
+Frozen owner-accepted Approach 2 baseline: `0c883d609906676966002eb022a82a9656eeacc5`
+Accepted package: 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
+Latest merged Approach 3 main: `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`
+Latest runtime-bearing merged main: `047cc86060efb97761d7a0cc4a3806f971ab6fe1`
 
-## Required baseline
+Historical tranche design/evidence remains in the T1-T3 plans, ADRs and Git history. This file is the current implementation handoff and intentionally avoids duplicating their full narratives.
 
-- Live main at architecture record time: `0b153c661314669924c81e89fd71bfd2c734310b`
-- Frozen owner-accepted Approach 2 baseline: `0c883d609906676966002eb022a82a9656eeacc5`
-- Accepted package SHA-256: `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
-- Accepted package file count: `51`
-- `UPayments.php`: exactly `87,995` bytes
+## Architecture decision
 
-## T1 — architecture guardrails and active callback characterization
+Approach 3 uses incremental strangler modernization around proven A1-A5 seams and the existing `PaymentLifecycle` callback strangler.
 
-### Scope
+Permanent rules:
 
-Control-plane/tests only.
+- SUPCheckout remains UPayments-only.
+- Do not add a service locator/heavy DI container/generic provider framework.
+- No new parallel Return/Webhook controller architecture beside `PaymentLifecycle`.
+- No new provider HTTP egress site without architecture review.
+- Protected persisted/provider identities require a separately approved migration.
+- `UPayments.php` remains a compatibility adapter; do not grow it with new responsibilities.
 
-Expected touched files:
+## Closed tranches
 
-- add a durable dependency-boundary harness under `tests/harness/`;
-- add an executable active-callback characterization harness under `tests/harness/`;
-- register them in `.github/workflows/quality-gates.yml`;
-- update architecture/living docs only if required to make the new permanent controls discoverable.
+### T1 — architecture guardrails and active callback characterization
 
-### Explicit non-scope
+**DONE / VERIFIED**, merged main `beb89ac0c4d8c0e9b7c8b2de1e13c237bbd37b15`.
 
-Do not modify:
+Permanent evidence pins active callback topology, priority/termination semantics, verification/locking responsibility and the accepted provider-egress inventory.
 
-- `UPayments.php`;
-- `src/Payment/PaymentLifecycle.php`;
-- `src/Payment/StatusVerifier.php`;
-- `src/Payment/CheckoutOrchestrator.php`;
-- `src/Payment/CheckoutPayload.php`;
-- `src/Payment/OrderLock.php`;
-- `includes/Token/CustomerTokenIdentity.php`;
-- `includes/Subscription/Cron/Scheduler.php`;
-- `includes/Subscription/Cron/CycleClaim.php`;
-- any provider/persisted identity;
-- Composer runtime dependencies.
+### T2 — legacy callback fallback consolidation
 
-### Required characterization
+**DONE / VERIFIED / runtime-bearing**, merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`.
 
-1. `UPayments.php` loads `Release\Identity`.
-2. `Release\Identity` bootstraps `PaymentLifecycle` when hooks are available.
-3. `PaymentLifecycle` registers `woocommerce_api_wc_upayments` at priority `5`.
-4. `WC_Upayments::check_ipn_response()` remains registered at default priority `10`.
-5. Public `get_order_status` routing goes through `PublicOrderStatus` and terminates.
-6. Browser callback routing goes through `PaymentLifecycle::process_order_status()`.
-7. Webhook callback routing goes through `PaymentLifecycle::process_order_status()`.
-8. `PaymentLifecycle::finish_callback()` terminates the request so the legacy priority-10 callback is normally shadowed on the canonical route.
-9. Active lifecycle status verification uses `StatusVerifier::verify()`.
-10. Active lifecycle concurrency protection uses `OrderLock`.
-11. Legacy gateway return/webhook/private verification method identities remain present as compatibility surfaces and are inventoried separately; their direct behavior is not characterized by T1 and must be characterized before those methods are modified. They are not described as the primary callback runtime path.
-12. Provider HTTP egress locations remain exactly the accepted set:
-    - gateway transport;
-    - StatusVerifier;
-    - protected Scheduler renewal dispatch.
+Only the legacy `check_ipn_response()` fallback was delegated to `PaymentLifecycle::handle_callback()`; direct return/webhook/private verifier behavior remained untouched.
 
-### Test design
+### T3 — legacy direct callback/private-verifier characterization
 
-The dependency harness should be token-aware/static where practical and must not depend on harmless formatting.
+**DONE / VERIFIED / runtime-neutral**, certified PR #107 head `f7c7d596dc4a2c8464d1acdf13dfe51028a5f9e0`, merged main `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`.
 
-The callback characterization harness must execute behavior using controlled WordPress/WooCommerce doubles/stubs. It must go RED if routing priority, termination semantics, authority path, or expected state/redirect behavior is broken.
+T3 proved direct `return_from_upayments()` callers may lack the GET `page` marker used by the active lifecycle to infer browser mode. T3 therefore does **not** authorize naive direct T4 delegation.
 
-### Package invariants
+## Current successor — post-T3 ecosystem hardening
 
-Because T1 creates no packaged runtime file:
+Canonical plan:
 
-- ZIP file count remains `51`;
-- ZIP SHA-256 remains `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`;
-- `UPayments.php` remains exactly `87,995` bytes.
+`docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`
 
-### Verification
+Active integration: draft PR #108 / `audit/post-t3-ecosystem-hardening`.
 
-Require all repository gates triggered by the PR and inspect each required check individually. Do not merge with failures, pending required checks, unresolved valid review threads, package drift, or unexpected runtime-file changes.
+Execution state:
 
-## T1 completion evidence
+- R0 — **DONE / VERIFIED**
+- R1 — **DONE / VERIFIED**
+- E1 — **DONE / VERIFIED**
+- E2 repository-executable generic — **DONE / CERTIFIED**
+- E3 repository-executable runtime evidence — **DONE / VERIFIED**
 
-**Status: DONE / VERIFIED.**
+E3 repository-executable exact-head checkpoint: `540b733c29656758f2392817649fc3d4a4db585d`.
 
-- PR #102 certified exact head `aed57ca4ce3402362de65f604756bde5c256385c` with 40/40 successful checks.
-- Dependency-boundary harness: 11 PASS / 0 FAIL.
-- Active-callback characterization harness: 41 PASS / 0 FAIL.
-- Squash-merged main: `beb89ac0c4d8c0e9b7c8b2de1e13c237bbd37b15`, GitHub signature verified.
-- PR-head and merged-main Git trees are identical: `d158ec92ab83e849e5325cfa1dad4a01b5842efd`.
-- All 28 checks triggered on merged main succeeded.
-- Canonical/Linux/Windows release evidence remained exactly 51 files with SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
-- Runtime/package source changes in T1: zero.
+At that exact E3 head, Quality/H12, all 20 Compatibility cells + Compatibility Gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact and the complete repository-owned Ecosystem Certification matrix succeeded. Delayed/combined/repeated Classic JS characterization is 26 PASS / 0 FAIL; analytics-return characterization is 27 PASS / 0 FAIL. Deterministic candidate package: 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 
-## Next runtime decision after T1
+GitHub default CodeQL JavaScript/TypeScript did not reach a terminal verdict for that historical SHA. Descendant merge/release qualification still requires CodeQL/security green.
 
-Do not automatically create new Return/Webhook controllers.
+Current executable gate: **R2 callback portability / cache safety**.
 
-First compare:
+## R2 implementation contract
 
-- retaining compatibility gateway methods as thin delegates to `PaymentLifecycle`;
-- consolidating legacy private verification onto the active `StatusVerifier`/lifecycle path;
-- only then, if evidence justifies it, extracting a concrete UPayments transport without erasing endpoint-specific status security policy.
+Payment-critical, test-first.
 
-The default desired result is **legacy callback consolidation behind preserved public compatibility methods**, not a parallel controller architecture.
+Required behavior:
 
+1. Replace hand-built `site_url()` callback construction with WooCommerce's public WC-API URL abstraction.
+2. Preserve valid callback generation when `home_url != site_url`, WordPress is in a subdirectory, and plain/index/permalink layouts differ.
+3. Preserve trusted HTTPS/public-origin behavior through WordPress/WooCommerce configuration; do not trust arbitrary raw forwarded headers.
+4. Emit explicit no-cache response semantics for public callback/status surfaces without altering payment authority, redirect behavior or webhook termination.
+5. Add the narrowest permanent `ecosystem-callback-cache` regression that fails on the existing code.
 
-## T2 — legacy callback routing consolidation
+TDD discipline:
 
-**Status: DONE / VERIFIED.**
+1. characterize/reproduce;
+2. add meaningful RED;
+3. prove RED fails for intended reason;
+4. implement minimum GREEN;
+5. run focused GREEN;
+6. run full exact-head workflow stack + CodeQL;
+7. reconcile living records only after evidence is stable.
 
-- Base main: `97bc88518550d02e4c9f38f766b583dd78e88986`.
-- PR #104 exact certified head: `4cff2dc6e6d11a4b3232a6d3d70d6280a59741c4`.
-- TDD RED head: `09b2c1758652ce57fb5ef39008b168dad347e927`; the unchanged gateway reached the browser/webhook/public-status legacy sentinels with empty stderr.
-- GREEN implementation: only `WC_Upayments::check_ipn_response()` was changed to delegate to `PaymentLifecycle::handle_callback()`, retaining terminal `exit()`.
-- Direct legacy public methods `return_from_upayments()`, `web_hook_handler()` and private `verify_payment_status()` were not modified.
-- Exact-head PR certification: **42/42 SUCCESS**.
-- T1 dependency/provider-egress guardrail: **11 PASS / 0 FAIL**.
-- T1 active callback characterization: **41 PASS / 0 FAIL**.
-- T2 direct-entrypoint characterization: **25 PASS / 0 FAIL**.
-- Gateway architecture ratchet: **87,724 bytes** (from historical Approach 2/T1 87,995 bytes).
-- Candidate package: **51 files**, canonical/Linux/Windows SHA-256 `368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04`.
-- Squash-merged main: `047cc86060efb97761d7a0cc4a3806f971ab6fe1`; merge commit verified and Git-tree identical to the certified PR head.
-- Fresh merged-main certification: **41/41 SUCCESS**.
-- External Codex review was requested but unavailable because the account code-review quota was exhausted; no independent Codex approval is claimed. GitHub had zero unresolved review conversations and a separate exact-diff coordinator audit found exactly one production file changed and no protected identity migration.
-- Frozen owner-accepted Approach 2 baseline/package remain unchanged until Approach 3 closeout owner re-acceptance.
-- Public release remains not authorized.
+## R3 / R4 after R2
 
-## Next decision after T2
+R3: exact auto-deduct response/economic/identity binding, no first-card fallback, valid parent discovery beyond `completed`, customer control policy, provider-confirmed token retention, held-cycle reconciliation and immutable cycle economics.
 
-Do not delete or rewrite the direct public legacy callback methods by assumption. The next tranche must first characterize their direct compatibility behavior and call surface, including the old private verification path, then decide whether any further consolidation has positive risk-adjusted value. Provider transport extraction remains unapproved.
+R4: due-work orchestration with Action Scheduler preference, bounded batches, durable cycle journal as idempotency authority, queue/held-cycle observability, representative load/concurrency/failure-injection evidence.
+
+## R5/T4 gate
+
+R5/T4 callback consolidation is **not pre-approved**.
+
+Before implementation:
+
+- E1/E2/R2 request-shape and callback evidence must be stable;
+- compare thin compatibility adapters with lifecycle consolidation;
+- solve direct-browser request-shape normalization;
+- preserve payment authority/idempotency/cache semantics;
+- record/approve the architecture decision;
+- then use TDD and full recertification.
+
+## Approach 3 closeout
+
+Approach 3 closes only after all approved tranches pass exact-head gates, protected identities remain intact, remaining manual/external evidence is explicit, a fresh-clone owner technical re-acceptance is completed, and a new accepted source/package coordinate is recorded.
+
+Public release authorization remains separate and false until explicitly granted.

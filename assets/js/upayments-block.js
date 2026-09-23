@@ -10,13 +10,12 @@ const { registerPaymentMethod } = wc.wcBlocksRegistry;
     const settings = window.wc.wcSettings.getPaymentMethodData('upayments') || {};
     const {
         availability_valid,
+        supported_currencies = [],
         is_whitelabled,
         payment_icons,
         saved_cards,
         is_logged_in,
         save_card_enabled,
-        cart_total,
-        currency_display,
         is_subscription_enabled,
         product_type,
         plugin_url,
@@ -27,7 +26,12 @@ const { registerPaymentMethod } = wc.wcBlocksRegistry;
         const { useDispatch, useSelect } = wp.data;
         const { useEffect, useState, createElement } = wp.element;
         const { setExtensionData } = useDispatch('wc/store/checkout');
-        const hasCustomTypeProduct = Array.isArray(product_type) && product_type.some(product => product.type === 'custom_type');
+        const liveCartItems = props && props.cartData && Array.isArray(props.cartData.cartItems)
+            ? props.cartData.cartItems
+            : null;
+        const hasCustomTypeProduct = Array.isArray(liveCartItems)
+            ? liveCartItems.some(product => product && product.type === 'custom_type')
+            : Array.isArray(product_type) && product_type.some(product => product && product.type === 'custom_type');
 
         const NAMESPACE = 'upayments';
 
@@ -151,6 +155,9 @@ const handleSubscriptionChange = (plan, interval) => {
 
             toast.show && createElement('div', {
                 className: 'wc-toast show',
+                role: 'status',
+                'aria-live': 'polite',
+                'aria-atomic': 'true',
                 style: {
                     position: 'fixed', top: '30px', right: '30px', background: '#F23232',
                     color: '#fff', padding: '12px 18px', borderRadius: '6px', zIndex: 99999,
@@ -245,6 +252,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                     createElement('span', { className: 'payment-method-icon' },
                                         createElement('img', {
                                             src: `${plugin_url}assets/images/cc.png`,
+                                            alt: '',
                                             style: {
                                                 height: '24px'
                                             }
@@ -258,12 +266,6 @@ const handleSubscriptionChange = (plan, interval) => {
                                             fontSize: '14px'
                                         }
                                     }, brand ? `${label} (${brand})` : label),
-                                    createElement('span', {
-                                        style: {
-                                            marginLeft: 'auto',
-                                            fontWeight: '600'
-                                        }
-                                    }, `${cart_total} ${currency_display}`),
                                     createElement('span', {
                               className: 'upay-chevron',
                               'aria-hidden': 'true',
@@ -313,6 +315,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                                 createElement('img', {
                                                     key: 'apple',
                                                     src: `${plugin_url}assets/images/apple-pay.png`,
+                                                    alt: '',
                                                     style: {
                                                         height: '24px',
                                                         marginRight: '5px'
@@ -321,6 +324,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                                 createElement('img', {
                                                     key: 'knet',
                                                     src: `${plugin_url}assets/images/knet.png`,
+                                                    alt: '',
                                                     style: {
                                                         height: '24px'
                                                     }
@@ -331,6 +335,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                                 createElement('img', {
                                                     key: 'apple',
                                                     src: `${plugin_url}assets/images/apple-pay.png`,
+                                                    alt: '',
                                                     style: {
                                                         height: '24px',
                                                         marginRight: '5px'
@@ -339,6 +344,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                                 createElement('img', {
                                                     key: 'cc',
                                                     src: `${plugin_url}assets/images/cc.png`,
+                                                    alt: '',
                                                     style: {
                                                         height: '24px'
                                                     }
@@ -347,6 +353,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                         }
                                         return createElement('img', {
                                             src: `${plugin_url}assets/images/${key}.png`,
+                                            alt: '',
                                             style: {
                                                 height: '24px'
                                             }
@@ -359,12 +366,6 @@ const handleSubscriptionChange = (plan, interval) => {
                                         fontWeight: '600'
                                     }
                                 }, label),
-                                createElement('span', {
-                                    style: {
-                                        marginLeft: 'auto',
-                                        fontWeight: '600'
-                                    }
-                                }, `${cart_total} ${currency_display}`),
                                 createElement('span', {
                               className: 'upay-chevron',
                               'aria-hidden': 'true',
@@ -390,11 +391,12 @@ const handleSubscriptionChange = (plan, interval) => {
                                 }
                             },
                             createElement('label', {
+                                htmlFor: 'chkSaveCard',
                                 style: {
                                     fontSize: '0.9em'
                                 }
                             }, translation.save_card_label || 'Save card for future use?'),
-                            createElement('label', {
+                            createElement('span', {
                                     className: 'switch'
                                 },
                                 createElement('input', {
@@ -415,15 +417,14 @@ const handleSubscriptionChange = (plan, interval) => {
                         },
                             Object.keys(payment_icons).map(key => (
                                 key !== 'apple-pay-knet' && createElement('span', { key, style: { marginRight: '8px' } },
-                                    createElement('img', { src: `${plugin_url}assets/images/${key}.png`, style: { height: '22px' } })
+                                    createElement('img', { src: `${plugin_url}assets/images/${key}.png`, alt: '', style: { height: '22px' } })
                                 )
                             )),
-                            createElement('span', { style: { marginLeft: 'auto', fontWeight: '600' } }, `${cart_total} ${currency_display}`),
                             createElement('span', {
                               className: 'upay-chevron',
                               'aria-hidden': 'true',
                               style: {
-                                  marginLeft: '10px',
+                                  marginLeft: 'auto',
                                   fontSize: '20px',
                                   lineHeight: '1'
                               }
@@ -435,6 +436,19 @@ const handleSubscriptionChange = (plan, interval) => {
         );
     };
 
+    const canMakePayment = (currentOrder) => {
+        const liveCurrency = currentOrder
+            && currentOrder.cartTotals
+            && typeof currentOrder.cartTotals.currency_code === 'string'
+            ? currentOrder.cartTotals.currency_code
+            : '';
+
+        return availability_valid === true
+            && liveCurrency !== ''
+            && Array.isArray(supported_currencies)
+            && supported_currencies.includes(liveCurrency);
+    };
+
     registerPaymentMethod({
         name: 'upayments',
         label: 'UPayments',
@@ -442,7 +456,7 @@ const handleSubscriptionChange = (plan, interval) => {
         content: wp.element.createElement(Content),
         edit: wp.element.createElement(Content),
 
-        canMakePayment: () => availability_valid === true,
+        canMakePayment: canMakePayment,
 
         ariaLabel: 'UPayments',
 

@@ -210,7 +210,7 @@ foreach (array(false => $liveBase, true => $sandboxBase) as $mode => $base) {
 require_once __DIR__ . '/_bootstrap.php';
 
 $gateway = new WC_Upayments();
-foreach (array('no' => $liveBase, 'yes' => $sandboxBase, '' => $sandboxBase) as $setting => $base) {
+foreach (array('no' => $liveBase, 'yes' => $sandboxBase, '' => $liveBase) as $setting => $base) {
     $gateway->testMode = $setting;
     arch4_assert($gateway->getAPIUrl() === $base, "gateway {$setting} mode preserves empty-route URL");
     arch4_assert($gateway->getAPIUrl('charge') === $base . 'charge', "gateway {$setting} mode delegates generic route");

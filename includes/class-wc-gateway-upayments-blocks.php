@@ -214,31 +214,19 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
                 ];
             }
         }
-        
-        // 3. Get total and currency display logic
-        // We use standard WC() calls which are available during checkout block rendering
-        $total = WC()->cart ? WC()->cart->get_total('') : '0.00';
-        $language = get_locale();
-        $currency_code = get_woocommerce_currency();
-        
-        // Logic for currency display preference
-        if ( strpos($language, 'en') === 0 ) {
-            $currency_display = $currency_code;
-        } else {
-            $currency_display = get_woocommerce_currency_symbol();
-        }
 
-        // 4. Return all data to the block
+        // 3. Return all data to the block. WooCommerce owns live cart totals;
+        // SUPCheckout passes only gateway-specific state and a compatibility
+        // fallback product-type snapshot for environments without live props.
         return [
             'availability_valid'         => $availability_valid,
+            'supported_currencies'       => GatewaySettings::supported_currencies(),
             'is_whitelabled'            => $whitelabled,
             'payment_icons'             => $icons,
             'saved_cards'               => $saved_cards,
             'is_logged_in'              => $is_logged_in,
             'save_card_enabled'         => $save_card_enabled,
             'save_card_toggle_on'       => false,
-            'cart_total'                => $total,
-            'currency_display'          => $currency_display,
             'is_subscription_enabled'   => $is_subscription_enabled,
             'product_type'              => $product_details,
             'upay_subscription_plan'     => 'one_time', // Default value

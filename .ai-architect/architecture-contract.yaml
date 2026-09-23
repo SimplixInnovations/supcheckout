@@ -1,20 +1,24 @@
-version: 1
+version: 2
 project:
   name: SUPCheckout for UPayments
   repository: SimplixInnovations/supcheckout
   provider_scope: UPayments-only
   php_namespace: 'Simplixi\SUPCheckout'
   runtime_floor: PHP >= 7.4
+
 decision:
   style: incremental strangler modernization
   variant: around proven A1-A5 seams and the existing PaymentLifecycle callback strangler
   adr: .ai-architect/decisions/ADR-001-approach-3-strangler-modernization.md
+
 baselines:
   live_main_at_decision: 0b153c661314669924c81e89fd71bfd2c734310b
   frozen_accepted_approach_2_sha: 0c883d609906676966002eb022a82a9656eeacc5
   accepted_package_sha256: 58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655
   accepted_package_files: 51
-  upayments_php_bytes: 87995
+  latest_merged_approach_3_main: a7a8bbfc3a1dc551127b7ead897c964e95c7cec9
+  latest_runtime_bearing_merged_main: 047cc86060efb97761d7a0cc4a3806f971ab6fe1
+
 boundaries:
   platform_edges:
     - UPayments.php bootstrap and WC_Upayments compatibility gateway
@@ -33,9 +37,10 @@ boundaries:
   provider_infrastructure:
     - EndpointResolver
     - PaymentMethodAvailability
-    - WC_Upayments::execute_upayments_request current general transport
-    - StatusVerifier::verify current strict status transport
+    - WC_Upayments::execute_upayments_request
+    - StatusVerifier::verify
     - protected Scheduler renewal transport
+
 dependency_rules:
   - rule: allow
     from: UPayments.php/WC_Upayments
@@ -48,38 +53,20 @@ dependency_rules:
   - rule: deny
     from: inward payment/provider services
     to: new service discovery or reverse lookup through WC_Upayments/WooCommerce registries beyond characterized exceptions
-    reason: No new service-locator/reverse gateway dependency; existing accepted A5/lifecycle lookups are explicit ratchet exceptions.
+    reason: No new service-locator or reverse gateway dependency.
   - rule: deny
     from: src/Payment/*
     to: new ambient request superglobal parsing beyond characterized exceptions
-    reason: Platform request parsing should migrate toward explicit edges; existing accepted A5/lifecycle reads are frozen as non-growing exceptions.
+    reason: Platform request parsing is an edge concern; accepted exceptions are non-growing.
   - rule: deny
     from: production code
     to: new provider HTTP egress site
-    reason: T1 freezes the accepted egress inventory; new sites require architecture review.
+    reason: T1 freezes the accepted egress inventory.
   - rule: deny
     from: Approach 3
     to: generic multi-provider interfaces/frameworks
     reason: Repository is permanently UPayments-specific.
-accepted_ambient_dependencies:
-  policy: non-growing ratchet; reductions are allowed, additions require architecture review
-  files:
-    src/Payment/CheckoutOrchestrator.php:
-      superglobals:
-        '$_POST': 2
-      wc_calls: 20
-      reason: accepted A5 Classic checkout/session compatibility boundary
-    src/Payment/CheckoutPayload.php:
-      superglobals:
-        '$_SERVER': 4
-      wc_calls: 0
-      reason: accepted A5 request-context compatibility boundary
-    src/Payment/PaymentLifecycle.php:
-      superglobals:
-        '$_GET': 1
-        '$_POST': 1
-      wc_calls: 2
-      reason: accepted callback parsing plus current Woo gateway/cart compatibility lookup
+
 identity_contracts:
   product_name: SUPCheckout for UPayments
   slug: supcheckout
@@ -99,6 +86,7 @@ identity_contracts:
   action_scheduler_group: supcheckout
   logger_source: supcheckout
   release_zip_pattern: supcheckout-X.Y.Z.zip
+
 protected_contracts:
   - UPayments.php physical bootstrap
   - WC_Upayments class identity
@@ -119,6 +107,7 @@ protected_contracts:
   - whitelabled normalized compatibility field
   - CustomerTokenIdentity.php protected blob
   - Scheduler.php and CycleClaim.php protected subscription blobs
+
 forbidden_architecture:
   - ServiceRegistry or service locator
   - heavyweight DI container
@@ -126,19 +115,18 @@ forbidden_architecture:
   - big-bang rewrite
   - new parallel ReturnController/WebhookController architecture beside PaymentLifecycle
   - protected identity migration without a separate approved contract
+
 provider_http_egress_baseline:
   - path: UPayments.php
     owner: WC_Upayments::execute_upayments_request
     primitive: wp_remote_request
-    purpose: general gateway/provider requests
   - path: src/Payment/StatusVerifier.php
     owner: StatusVerifier::verify
     primitive: wp_remote_get
-    purpose: active authenticated status verification
   - path: includes/Subscription/Cron/Scheduler.php
     owner: Scheduler renewal dispatch
     primitive: wp_remote_request
-    purpose: protected subscription charge mutation
+
 tranches:
   t01:
     name: architecture-guardrails-and-active-callback-characterization
@@ -146,66 +134,69 @@ tranches:
     merged_main_sha: beb89ac0c4d8c0e9b7c8b2de1e13c237bbd37b15
     pull_request: 102
     runtime_change: false
-    package_change: false
-    requirements:
-      - Pin Release Identity -> PaymentLifecycle bootstrap
-      - Pin wc_upayments priority-5 PaymentLifecycle callback before priority-10 legacy gateway callback
-      - Executable characterization of active browser/webhook/public-status/reconciliation routing
-      - Inventory/pin legacy callback method identities as compatibility surfaces; direct behavior remains deferred until before modification
-      - Pin accepted provider HTTP egress inventory and reject new egress sites
-      - Pin verification/locking/state-mutation responsibility map
-      - Keep UPayments.php exactly 87995 bytes
-      - Keep distributable package exactly 51 files and accepted SHA-256
   t02:
     name: legacy-callback-routing-consolidation
     status: done_verified
-    adr: .ai-architect/decisions/ADR-002-legacy-callback-routing-consolidation.md
-    base_main_sha: 97bc88518550d02e4c9f38f766b583dd78e88986
+    merged_main_sha: 047cc86060efb97761d7a0cc4a3806f971ab6fe1
     pull_request: 104
     runtime_change: true
-    package_change: true
-    gateway_bytes_before: 87995
-    gateway_bytes_candidate: 87724
-    certified_head_sha: 4cff2dc6e6d11a4b3232a6d3d70d6280a59741c4
-    merged_main_sha: 047cc86060efb97761d7a0cc4a3806f971ab6fe1
-    merged_main_checks: 41/41 success
     candidate_package_sha256: 368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04
     candidate_package_files: 51
-    requirements:
-      - Preserve historical wc_upayments hook and check_ipn_response public method identity
-      - Delegate only check_ipn_response fallback to PaymentLifecycle::handle_callback
-      - Preserve terminal exit semantics
-      - Do not modify return_from_upayments, web_hook_handler or legacy verify_payment_status
-      - Keep provider HTTP egress inventory unchanged
-      - Direct-entrypoint RED proof before implementation and GREEN proof after implementation
-    evidence:
-      - RED head 09b2c1758652ce57fb5ef39008b168dad347e927 reached all three legacy sentinels with empty stderr
-      - GREEN implementation head 86224692d88fd7738e396859456a65bf1bd92caa produced 25 PASS / 0 FAIL in the T2 direct-entrypoint harness
-      - exact certified PR head 4cff2dc6e6d11a4b3232a6d3d70d6280a59741c4 completed 42/42 checks successfully
-      - squash-merged main 047cc86060efb97761d7a0cc4a3806f971ab6fe1 is Git-tree identical to the certified PR head
-      - merged-main post-merge checks completed 41/41 successfully
-      - merged-main T1 dependency guardrail remained 11 PASS / 0 FAIL
-      - merged-main T1 active callback characterization remained 41 PASS / 0 FAIL
-      - merged-main T2 direct-entrypoint harness remained 25 PASS / 0 FAIL
-      - canonical Linux and Windows packages are byte-identical at 51 files and SHA-256 368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04
-      - external Codex review was requested but unavailable because the account review quota was exhausted; zero unresolved GitHub review conversations remained and a separate exact-diff coordinator audit found no out-of-scope runtime change
+  t03:
+    name: legacy-direct-callback-characterization
+    status: done_verified
+    certified_head_sha: f7c7d596dc4a2c8464d1acdf13dfe51028a5f9e0
+    merged_main_sha: a7a8bbfc3a1dc551127b7ead897c964e95c7cec9
+    pull_request: 107
+    runtime_change: false
+    compatibility_constraint: direct return_from_upayments callers may lack the GET page marker used by PaymentLifecycle browser-mode inference; naive direct delegation is not authorized
   next_runtime_candidate:
-    name: post-t02-evidence-review
-    preapproved_for_implementation: false
-    goal: Select any further runtime modernization only after T2 is merged and its evidence is reviewed; direct public legacy callback methods require behavioral characterization before modification.
+    name: post-t3-ecosystem-hardening
+    plan: docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md
+    preapproved_for_implementation: true
+    scope: R0-R4 bounded evidence-first work only; R5/T4 remains separately gated
+    latest_e3_runtime_checkpoint: 540b733c29656758f2392817649fc3d4a4db585d
+    latest_e3_package_sha256: 01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c
+    latest_e3_package_files: 55
+    r0_status: done_verified
+    r1_status: done_verified
+    e1_status: done_verified
+    generic_e2_status: done_certified
+    e3_repository_status: done_verified
+    e3_codeql_historical_status: nonterminal_hosted_default_setup
+    current_gate: r2-callback-portability-cache-safety
+    goal: Close R2 callback portability/cache safety, then subscription and scalability gaps; keep external vendor/infrastructure evidence bounded and do not treat T3 as authorization for T4 consolidation.
+
+r2_contract:
+  url_generation:
+    authority: WooCommerce public WC-API URL abstraction
+    forbid:
+      - hand-built site_url callback origin
+      - raw forwarded header trust
+  cache:
+    requirement: explicit no-cache behavior for public callback/status responses
+  tdd: required
+  non_scope:
+    - payment authority redesign
+    - R5/T4 callback consolidation
+
 completion:
   runtime_tranche_gates:
     - Quality/H12 green
     - 20-cell Compatibility Matrix green
+    - Ecosystem Certification green where applicable
     - Release Artifact green
     - Provider Sandbox green when applicable
     - WordPress.org Submission Check green
     - CodeQL/security green
+    - locked dependency audit where applicable
     - zero unresolved valid review threads
     - post-merge main verification
   approach_3_closeout:
     - all approved modernization tranches merged
+    - T4 implemented only if separately approved
     - no protected identity regression
+    - remaining manual/external evidence explicitly classified
     - fresh-clone owner technical re-acceptance
     - new explicit owner-accepted Approach 3 baseline recorded
   public_release_authorized: false

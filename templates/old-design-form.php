@@ -39,8 +39,8 @@ defined( 'ABSPATH' ) || exit;
     if ($payment_data_valid && $whitelabled)
     {
     ?>
+        <p style="display: inline"><?php esc_html_e('Select Payment Type:', 'supcheckout'); ?></p>
         <ul style="list-style: none outside;">
-            <p style="display: inline"><?php esc_html_e('Select Payment Type:', 'supcheckout'); ?></p>
             <?php 
             foreach ($icons as $key => $value) {
                 if (!is_scalar($value)) {

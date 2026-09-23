@@ -2,6 +2,7 @@
 
 namespace Simplixi\SUPCheckout\Payment;
 
+use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
 use UPayments\Token\CustomerTokenIdentity;
 
 /**
@@ -54,6 +55,15 @@ class CheckoutOrchestrator {
                 return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
             }
 
+            // Woo owns the canonical payability decision (status + positive total,
+            // including extension filters). process_payment() can be replayed or
+            // called outside the normal checkout UI, so reject non-payable orders
+            // before availability lookup, token work, or non-idempotent Charge.
+            if (!$order->needs_payment()) {
+                wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
+                return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
+            }
+
             $whitelabled = false;
             $order_data = $order->get_data();
             $order_total = $order->get_total();
@@ -70,6 +80,7 @@ class CheckoutOrchestrator {
 
             $productArrayNew = [];
             $product_price_tokens = [];
+            $product_descriptors_available = true;
             $cart_has_custom_product = false;
             $order_has_subscription_product = false;
             $order_has_normal_product = false;
@@ -94,61 +105,9 @@ class CheckoutOrchestrator {
                     return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                 }
 
-                // Section D: Use order-line values, not current catalog price.
-                // Strict integer quantity validation: reject fractional, negative, zero,
-                // or out-of-range integer values. Pure integer preservation, no
-                // rounding/float math — the wire format requires an int.
-                $qty = $item->get_quantity();
-                if (!is_int($qty) || $qty <= 0 || $qty > 9999999) {
-                    $gateway->log('Invalid product quantity.', 'warning');
-                    wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
-                    return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
-                }
-
-                // Section D2: Pure deterministic decimal handling.
-                // Provider requires a positive-decimal string for the line price.
-                // WC_Order_Item_Product::get_total() returns a numeric value (often
-                // a float). Section #14: we REJECT float input outright for product
-                // economics — claiming exact lexical economics while accepting a
-                // float contradicts itself. The order-line total MUST be a
-                // canonical decimal string. If WC returns a float we look up the
-                // canonical stored string value via the meta or refuse the line.
-                //
-                // Product line totals may be zero (e.g. $0.00 promotional lines);
-                // use the *nonnegative* lexical validator here. The unit_price
-                // down-stream uses the *positive* validator for provider contract.
-                $raw_line_total = $item->get_total();
-                if (is_float($raw_line_total)) {
-                    $gateway->log('Rejecting float line total for product economics.', 'warning');
-                    wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
-                    return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
-                }
-                $line_total_canonical = CheckoutPayload::canonicalize_provider_decimal_string($raw_line_total);
-                $line_total_validation = CheckoutPayload::validate_provider_nonnegative_decimal($line_total_canonical, 'line_total');
-                if ($line_total_validation === null) {
-                    $gateway->log('Invalid line total.', 'warning');
-                    wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
-                    return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
-                }
-                $line_total = $line_total_validation;
-
-                // Derive provider-compatible unit price from order line as a
-                // deterministic decimal string. No round()/float math. Quantization
-                // uses string-based decimal division by the integer quantity.
-                $unit_price = CheckoutPayload::compute_provider_unit_price_decimal($line_total, $qty);
-                if ($unit_price === null) {
-                    // Unit price cannot be expressed as a stable provider decimal
-                    // (e.g. line_total/qty is not a clean fraction at the captured
-                    // precision). Fail closed rather than silently truncating.
-                    $gateway->log('Invalid unit price derivation.', 'warning');
-                    wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
-                    return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
-                }
-
-                // Section F: UTF-8 safe truncation.
-                $normalized_name = CheckoutPayload::truncate_provider_text($item->get_name(), 255);
-                $normalized_description = CheckoutPayload::truncate_provider_text($item->get_name(), 255);
-
+                // Subscription composition is authoritative order classification,
+                // independent of whether optional provider product descriptors can
+                // represent this line's unit economics exactly.
                 if($product->get_type() === 'custom_type'){
                     $cart_has_custom_product = true;
                     $order_has_subscription_product = true;
@@ -161,6 +120,68 @@ class CheckoutOrchestrator {
                 } else {
                     $order_has_normal_product = true;
                 }
+
+                // Once any line cannot be represented exactly, products[] is
+                // omitted wholesale. Continue classifying later lines for payment
+                // safety, but do not rebuild a partial descriptive ledger.
+                if (!$product_descriptors_available) {
+                    continue;
+                }
+
+                // Section D: Use order-line values, not current catalog price.
+                // Provider product descriptors require a positive integer quantity,
+                // but products[] is optional descriptive data. If Woo/extension
+                // order data cannot be represented exactly, omit products[] instead
+                // of vetoing the finalized Woo order economics.
+                $qty = $item->get_quantity();
+                if (!is_int($qty) || $qty <= 0 || $qty > 9999999) {
+                    $gateway->log('Product descriptors omitted: quantity is not provider-representable.', 'warning');
+                    $productArrayNew = array();
+                    $product_price_tokens = array();
+                    $product_descriptors_available = false;
+                    continue;
+                }
+
+                // Section D2: Pure deterministic decimal handling.
+                // Product line economics are descriptive only. Never derive Charge
+                // authority from them and never coerce a float into an exact decimal.
+                $raw_line_total = $item->get_total();
+                if (is_float($raw_line_total)) {
+                    $gateway->log('Product descriptors omitted: float line total is not exact.', 'warning');
+                    $productArrayNew = array();
+                    $product_price_tokens = array();
+                    $product_descriptors_available = false;
+                    continue;
+                }
+                $line_total_canonical = CheckoutPayload::canonicalize_provider_decimal_string($raw_line_total);
+                $line_total_validation = CheckoutPayload::validate_provider_nonnegative_decimal($line_total_canonical, 'line_total');
+                if ($line_total_validation === null) {
+                    $gateway->log('Product descriptors omitted: line total is not provider-representable.', 'warning');
+                    $productArrayNew = array();
+                    $product_price_tokens = array();
+                    $product_descriptors_available = false;
+                    continue;
+                }
+                $line_total = $line_total_validation;
+
+                // Derive provider-compatible unit price from order line as a
+                // deterministic decimal string. No round()/float math. Quantization
+                // uses string-based decimal division by the integer quantity.
+                $unit_price = CheckoutPayload::compute_provider_unit_price_decimal($line_total, $qty);
+                if ($unit_price === null) {
+                    // products[] is optional descriptive data. If one line cannot
+                    // be expressed exactly, omit the entire descriptor array rather
+                    // than rounding it or vetoing the authoritative Woo order total.
+                    $gateway->log('Product descriptors omitted: exact unit price unavailable.', 'warning');
+                    $productArrayNew = array();
+                    $product_price_tokens = array();
+                    $product_descriptors_available = false;
+                    continue;
+                }
+
+                // Section F: UTF-8 safe truncation.
+                $normalized_name = CheckoutPayload::truncate_provider_text($item->get_name(), 255);
+                $normalized_description = CheckoutPayload::truncate_provider_text($item->get_name(), 255);
 
                 // Section C: Use normalized values in payload.
                 // 'type' is intentionally omitted — provider does not document a
@@ -180,9 +201,14 @@ class CheckoutOrchestrator {
                 $i++;
             }
 
-            if (empty($productArrayNew)) {
-                wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
-                return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
+            if ($product_descriptors_available && empty($productArrayNew)) {
+                // A positive finalized Woo order can legitimately contain only fees
+                // or other non-product adjustments. products[] is descriptive only;
+                // absence of product descriptors must not veto authoritative order
+                // economics. Subscription validation below still requires a real
+                // subscription product for every non-one_time plan.
+                $gateway->log('Product descriptors omitted: order has no product line descriptors.', 'warning');
+                $product_descriptors_available = false;
             }
 
             // Q19: product-level subscription opt-out is authoritative order data.
@@ -773,52 +799,34 @@ class CheckoutOrchestrator {
                 // Provider documentation states 25 chars, but observed real-world
                 // values reach 30 (e.g. Kuwait IBAN); we accept 15-34 to avoid
                 // over-rejecting while still catching wholesale garbage.
-                if (!preg_match('/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\\z/', $iban)) {
+                if (!MultiMerchantContract::is_valid_iban($iban)) {
                     $gateway->log('MultiMerchant: invalid IBAN format.', 'warning');
                     wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                     return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                 }
 
-                // === Canonical JSON number grammar: no exponent, no sign, no leading
-                // zero, no whitespace, no comma, no other variation. Trailing-zero
-                // fractions such as 0.900 or 0.750 are accepted (matches first-party
-                // UPayments examples and the plugin's existing admin UI which uses
-                // step="0.010" and max="10.000"). Leading-zero invalid forms (01,
-                // 01.50, .5) and exponent/scientific notation (1e2) are rejected. ===
-                if (!preg_match('/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/', $knet_charge_raw)) {
+                // Canonical JSON number grammar: no exponent/sign/whitespace/comma
+                // or leading-zero ambiguity. UPayments permits a main-merchant
+                // commission of exactly zero, so both zero and positive canonical
+                // decimals are valid at this field-specific boundary.
+                if (!MultiMerchantContract::is_valid_commission_lexeme($knet_charge_raw)) {
                     $gateway->log('MultiMerchant: invalid knetCharge format.', 'warning');
                     wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                     return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                 }
-                if (!preg_match('/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/', $cc_charge_raw)) {
+                if (!MultiMerchantContract::is_valid_commission_lexeme($cc_charge_raw)) {
                     $gateway->log('MultiMerchant: invalid ccCharge format.', 'warning');
                     wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                     return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                 }
                 // Reject non-canonical charge-type forms exactly.
-                $valid_charge_types = array('fixed', 'percentage');
-                if (!in_array($knet_charge_type, $valid_charge_types, true)) {
+                if (!MultiMerchantContract::is_valid_charge_type($knet_charge_type)) {
                     $gateway->log('MultiMerchant: invalid knetChargeType.', 'warning');
                     wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                     return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                 }
-                if (!in_array($cc_charge_type, $valid_charge_types, true)) {
+                if (!MultiMerchantContract::is_valid_charge_type($cc_charge_type)) {
                     $gateway->log('MultiMerchant: invalid ccChargeType.', 'warning');
-                    wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
-                    return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
-                }
-                // Pure-PHP positive-decimal validation (no BCMath, no float, no upper bound).
-                // The plugin UI's max="10.000" is a UI hint only; the runtime accepts
-                // any canonical positive plain-decimal per UPayments examples (25, 18, 15,
-                // 10, 0.900, 0.750, etc.). Server-side rejection here would conflict with
-                // provider documentation and the existing admin UI maximum.
-                if (CheckoutPayload::compare_nonnegative_decimal_strings($knet_charge_raw, '0') <= 0) {
-                    $gateway->log('MultiMerchant: invalid knetCharge value.', 'warning');
-                    wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
-                    return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
-                }
-                if (CheckoutPayload::compare_nonnegative_decimal_strings($cc_charge_raw, '0') <= 0) {
-                    $gateway->log('MultiMerchant: invalid ccCharge value.', 'warning');
                     wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                     return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                 }
@@ -844,8 +852,8 @@ class CheckoutOrchestrator {
                     ),
                 );
                 $mm_amount_token = $amount_json_token;
-                $mm_knet_charge_token = CheckoutPayload::build_amount_json_token($knet_charge);
-                $mm_cc_charge_token = CheckoutPayload::build_amount_json_token($cc_charge);
+                $mm_knet_charge_token = CheckoutPayload::build_nonnegative_json_number_token($knet_charge);
+                $mm_cc_charge_token = CheckoutPayload::build_nonnegative_json_number_token($cc_charge);
                 if ($mm_knet_charge_token === null || $mm_cc_charge_token === null) {
                     $gateway->log('MultiMerchant: invalid charge JSON encoding.', 'warning');
                     wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
@@ -905,6 +913,10 @@ class CheckoutOrchestrator {
                 ),
                 'extraMerchantData' => $extraMerchantData,
             );
+
+            if (!$product_descriptors_available) {
+                unset($payload['products']);
+            }
 
             // Whitelabel: add paymentGateway.
             if ($whitelabled) {

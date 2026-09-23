@@ -218,6 +218,22 @@ final class StatusVerifierTest extends TestCase {
         }
     }
 
+    public function test_dispatched_capture_is_rejected_if_authoritative_order_amount_changes_before_binding(): void {
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $dispatched_transaction = $this->transaction($order);
+
+        // The provider result reflects the originally dispatched 10.000 amount,
+        // but Woo's authoritative economics changed before callback reconciliation.
+        $order->total = '12.000';
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $dispatched_transaction);
+
+        self::assertTrue($result['authenticated']);
+        self::assertFalse($result['bound']);
+        self::assertSame('binding_amount', $result['reason']);
+        self::assertNotSame(ProviderResult::CAPTURED, $result['classification']);
+    }
+
     public function test_capture_requires_payment_id_while_nonterminal_results_bind_fail_closed(): void {
         $gateway = new StatusVerifierGateway();
         $order = new StatusVerifierOrder(42, 'merchant-42');

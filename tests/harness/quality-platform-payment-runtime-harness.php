@@ -34,6 +34,7 @@ $phpstan = q17_read($root, 'phpstan.neon.dist');
 $phpcs = q17_read($root, 'phpcs.xml.dist');
 $checkout = q17_read($root, 'src/Payment/CheckoutOrchestrator.php');
 $lifecycle = q17_read($root, 'src/Payment/PaymentLifecycle.php');
+$multi_merchant_contract = q17_read($root, 'src/Provider/MultiMerchantContract.php');
 $checkout_tests = q17_read($root, 'tests/unit/Payment/CheckoutOrchestratorTest.php');
 $lifecycle_tests = q17_read($root, 'tests/unit/Payment/PaymentLifecycleTest.php');
 $runtime_fixture = q17_read($root, 'tests/support/wordpress-payment-runtime.php');
@@ -58,7 +59,12 @@ q17_assert(!q17_has($phpstan, 'ignoreErrors'), 'Q17 has no ignored analyzer erro
 
 q17_assert(q17_has($checkout, "preg_match('/^[1-9][0-9]*\\\\z/', \$value)"), 'checkout order IDs use absolute end anchor');
 q17_assert(q17_has($checkout, "preg_match('/^[A-Z]{3}\\\\z/', \$currency)"), 'provider currency uses absolute end anchor');
-q17_assert(q17_has($checkout, "preg_match('/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\\\\z/', \$iban)"), 'provider IBAN uses absolute end anchor');
+q17_assert(
+    q17_has($checkout, 'MultiMerchantContract::is_valid_iban($iban)')
+    && q17_has($multi_merchant_contract, 'public static function is_valid_iban($value)')
+    && q17_has($multi_merchant_contract, '[A-Z0-9]{11,30}\\z/'),
+    'provider IBAN delegates to strict absolute-end shared contract'
+);
 q17_assert(q17_has($checkout, 'CheckoutPayload::build_amount_json_token($amount_str)'), 'order amount retains exact JSON-number validator');
 q17_assert(q17_has($checkout, '$unique_order_id = md5(wp_generate_uuid4());'), 'Charge attempt identity uses fresh WordPress UUID entropy');
 q17_assert(!q17_has($checkout, '$order_id * time()'), 'Charge attempt identity is not second-bound');

@@ -12,6 +12,22 @@
         }
     }
 
+    function submitThroughWooCheckout() {
+        const placeOrder = $('button#place_order');
+
+        if (placeOrder.length) {
+            if (placeOrder.prop('disabled')) {
+                return false;
+            }
+
+            placeOrder.trigger('click');
+            return true;
+        }
+
+        $('form.checkout').trigger('submit');
+        return true;
+    }
+
     api.submitPaymentMethod = function (buttonValue) {
         $('#upayment_payment_type').val(buttonValue);
         $('#card_token').val('');
@@ -22,7 +38,7 @@
                 checkbox.checked = false;
             }
         }
-        $('form.checkout').submit();
+        submitThroughWooCheckout();
     };
 
     api.submitSavedCard = function (button) {
@@ -33,7 +49,7 @@
         if (checkbox) {
             checkbox.checked = false;
         }
-        $('form.checkout').submit();
+        submitThroughWooCheckout();
     };
 
     api.toggleSaveCard = function (loggedUser) {
@@ -68,9 +84,45 @@
         }, typeof duration === 'number' ? duration : 3000);
     };
 
+    function consumePendingAction() {
+        const pending = window.supcheckoutPendingAction;
+        if (!pending || typeof pending !== 'object') {
+            return;
+        }
+
+        // Clear before dispatch so a repeated script evaluation, checkout
+        // fragment refresh, or re-entrant event cannot submit the same delayed
+        // first interaction twice.
+        window.supcheckoutPendingAction = null;
+
+        if (pending.type === 'payment_method' && typeof pending.value === 'string') {
+            api.submitPaymentMethod(pending.value);
+            return;
+        }
+
+        if (pending.type === 'saved_card' && typeof pending.value === 'string') {
+            api.submitSavedCard({ value: pending.value });
+            return;
+        }
+
+        if (pending.type === 'toggle_save_card') {
+            const checkbox = document.getElementById('chkSaveCard');
+            if (checkbox && typeof pending.value === 'boolean') {
+                checkbox.checked = pending.value;
+            }
+            api.toggleSaveCard(pending.loggedUser !== false);
+        }
+    }
+
     $(function () {
-        $('form.checkout').on('change', 'input[name="payment_method"]', syncPlaceOrderButton);
-        $(document.body).on('updated_checkout', syncPlaceOrderButton);
+        const $checkoutForm = $('form.checkout');
+        $checkoutForm
+            .off('change.supcheckoutPaymentLifecycle', 'input[name="payment_method"]')
+            .on('change.supcheckoutPaymentLifecycle', 'input[name="payment_method"]', syncPlaceOrderButton);
+        $(document.body)
+            .off('updated_checkout.supcheckoutPaymentLifecycle')
+            .on('updated_checkout.supcheckoutPaymentLifecycle', syncPlaceOrderButton);
         syncPlaceOrderButton();
+        consumePendingAction();
     });
 })(jQuery, window, document);

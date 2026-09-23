@@ -11,6 +11,8 @@ parameters:
         - tests/phpstan/subscription-presentation-stubs.php
         - tests/phpstan/payment-runtime-stubs.php
         - tests/phpstan/blocks-availability-stubs.php
+        - tests/phpstan/gateway-availability-stubs.php
+        - tests/phpstan/gateway-order-presentation-stubs.php
     paths:
         - src/Payment/CheckoutPayload.php
         - src/Payment/OrderLock.php
@@ -22,6 +24,9 @@ parameters:
         - src/Provider/EndpointResolver.php
         - src/Provider/PaymentMethodAvailability.php
         - src/Admin/GatewaySettings.php
+        - src/Gateway/Availability.php
+        - src/Gateway/CheckoutAssets.php
+        - src/Gateway/OrderPresentation.php
         - src/Security/PublicOrderStatus.php
         - src/Release/Identity.php
         - src/Migration/MigrationSettings.php

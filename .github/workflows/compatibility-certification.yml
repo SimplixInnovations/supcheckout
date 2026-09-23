@@ -149,6 +149,29 @@ jobs:
       - name: Verify Blocks registration and availability
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CheckoutRegistrationTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: Verify provider environment fail-safe
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/ProviderModeSafetyTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify order completion preference safety
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/OrderCompletionPreferenceSafetyTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify gateway presentation checkbox safety
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/GatewayPresentationSafetyTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify fresh gateway default hydration safety
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/GatewayFreshDefaultsSafetyTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify frontend asset scope
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/FrontendAssetScopeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify repeated embedded render ownership
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/EmbeddedRenderOwnershipTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify real HTTP checkout request contexts
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: bash tests/integration/checkout-request-context-http.sh "$RUNNER_TEMP/wordpress"
+
       - name: Select authoritative order store
         shell: bash
         run: |
@@ -165,6 +188,12 @@ jobs:
         env:
           SUPCHECKOUT_HPOS_MODE: ${{ matrix.storage }}
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/HposCompatibilityTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify finalized Woo order economics authority
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/OrderEconomicsRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify checkout shipping finalization boundary
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CheckoutValidationBoundaryRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 
       - name: Verify saved-card and tokenization runtime boundaries
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/SavedCardRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"

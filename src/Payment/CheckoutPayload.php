@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Payment;
 
+use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
+
 /**
  * Pure checkout request, decimal, payload, and redirect helpers.
  *
@@ -129,8 +131,9 @@ class CheckoutPayload {
      * Pure-PHP comparison of canonical nonnegative-decimal strings.
      *
      * Both $a and $b are validated canonical plain-decimal strings
-     * (canonical form per build_amount_json_token: no exponent, no sign,
-     * no leading-zero integer part except for "0", no whitespace, no comma).
+     * (canonical form per build_nonnegative_json_number_token: no exponent,
+     * no sign, no leading-zero integer part except for "0", no whitespace,
+     * no comma).
      *
      * Does not require BCMath, GMP, or any optional extension. Does not
      * cast to int or float for provider-bound monetary comparison.
@@ -180,36 +183,43 @@ class CheckoutPayload {
     }
 
     /**
-     * Build a safe JSON number token for provider amount fields.
+     * Build a safe nonnegative JSON number token for provider monetary fields
+     * where the provider contract explicitly permits zero.
+     *
+     * No float conversion is performed. The input must be an exact canonical
+     * plain-decimal string. The 22-character ceiling preserves the effective
+     * boundary previously imposed when these fields used build_amount_json_token().
+     *
+     * @param mixed $amount_str Defensive boundary input.
+     * @return string|null JSON-safe nonnegative number token or null.
+     */
+    public static function build_nonnegative_json_number_token($amount_str) {
+        if (!MultiMerchantContract::is_valid_commission_token($amount_str)) {
+            return null;
+        }
+        return $amount_str;
+    }
+
+    /**
+     * Build a safe JSON number token for strictly positive provider amount fields.
      *
      * No float conversion is performed. The validated plain-decimal string
      * is the JSON number token. Exponents, signs, leading-zero ambiguity,
      * whitespace, all-zero values and values over 22 characters fail closed.
      *
      * @param mixed $amount_str Defensive boundary input; only a validated plain decimal string is accepted.
-     * @return string|null JSON-safe number token or null.
+     * @return string|null JSON-safe positive number token or null.
      */
     public static function build_amount_json_token($amount_str) {
-        if (!is_string($amount_str)) {
+        $token = self::build_nonnegative_json_number_token($amount_str);
+        if ($token === null) {
             return null;
         }
-        // Strict JSON-canonical grammar: positive plain-decimal, no leading-zero
-        // integer part (except for "0" itself), no exponent, no sign, no whitespace,
-        // no comma. Accepts "0.900", "0.750", "10.000", "25", "1", "1.0", etc.
-        if (!preg_match('/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/', $amount_str)) {
+        // Order/allocation amount fields using this helper remain strictly positive.
+        if (self::compare_nonnegative_decimal_strings($token, '0') <= 0) {
             return null;
         }
-        if (preg_match('/\s/', $amount_str)) {
-            return null;
-        }
-        if (strlen($amount_str) > 22) {
-            return null;
-        }
-        // Reject all-zero numerics (must be strictly positive).
-        if (self::compare_nonnegative_decimal_strings($amount_str, '0') <= 0) {
-            return null;
-        }
-        return $amount_str;
+        return $token;
     }
 
     /**
@@ -306,10 +316,9 @@ class CheckoutPayload {
             return null;
         }
 
-        // 2. Lexical verification: each substituted token must appear as a
-        //    JSON NUMBER (with terminator/lookahead so "1" doesn't match "10").
-        //    Verification collects all tokens (per-product + map) and verifies
-        //    each one appears as a JSON number in the final payload.
+        // 2. Lexical verification: every substituted token must appear as an
+        // unquoted JSON number. Positivity/nonnegativity is established by the
+        // field-specific token builder before this generic injection layer.
         $all_tokens = array();
         foreach ($product_price_tokens as $pt) {
             if (is_string($pt) && $pt !== '') {
@@ -321,12 +330,6 @@ class CheckoutPayload {
                 $all_tokens[] = $token;
             }
         }
-        // Verify each substituted token appears in the result JSON as a JSON value.
-        // Each token is a positive plain decimal (per build_amount_json_token /
-        // compute_provider_unit_price_decimal canonicalization). It must NOT be
-        // quoted (i.e., it must be a number, not a string) and it must be
-        // surrounded on both sides by JSON-syntax characters or whitespace, so
-        // that no sub-fragment of a longer number could match.
         foreach ($all_tokens as $token) {
             $literal = preg_quote($token, '/');
             $json_value_re = '/(?P<pre>[\\{\\,\\:])\\s*(?:' . $literal . ')\\s*(?P<post>[\\,\\}\\]]|\\z)/m';
@@ -352,7 +355,8 @@ class CheckoutPayload {
 
     /**
      * Per-field max length for tokens substituted into the payload.
-     * Provider contract varies per field. Returns 0 for "no ceiling".
+     * Provider contract varies per field. Returns 0 when this injection layer
+     * adds no additional ceiling; token builders may impose their own bounds.
      *
      * @param mixed $placeholder Sentinel candidate.
      * @return int
@@ -367,7 +371,7 @@ class CheckoutPayload {
                 return 10; // MM allocation amount
             case '__UPAY_MM_KNET_CHARGE_SENTINEL__':
             case '__UPAY_MM_CC_CHARGE_SENTINEL__':
-                return 0;  // No invented ceiling — value validated by build_amount_json_token
+                return 0;  // The field-specific commission token builder owns its boundary.
         }
         return 0;
     }

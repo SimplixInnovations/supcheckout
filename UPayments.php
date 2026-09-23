@@ -25,7 +25,10 @@ define("UP_PLUGIN_PATH", plugin_dir_path(__FILE__));
 define('UPAYMENTS_PLUGIN_FILE', __FILE__ );
 
 require_once __DIR__ . '/src/Release/Identity.php';
+require_once __DIR__ . '/src/Provider/MultiMerchantContract.php';
 require_once __DIR__ . '/src/Admin/GatewaySettings.php';
+require_once __DIR__ . '/src/Gateway/Availability.php';
+require_once __DIR__ . '/src/Gateway/OrderPresentation.php';
 require_once __DIR__ . '/src/Provider/EndpointResolver.php';
 require_once __DIR__ . '/src/Provider/PaymentMethodAvailability.php';
 require_once __DIR__ . '/src/Payment/CheckoutPayload.php';
@@ -39,6 +42,8 @@ require_once __DIR__ . '/src/Migration/MigrationBootstrap.php';
 
 use Simplixi\SUPCheckout\Release\Identity;
 use Simplixi\SUPCheckout\Admin\GatewaySettings;
+use Simplixi\SUPCheckout\Gateway\Availability;
+use Simplixi\SUPCheckout\Gateway\OrderPresentation;
 use Simplixi\SUPCheckout\Provider\EndpointResolver;
 use Simplixi\SUPCheckout\Provider\PaymentMethodAvailability;
 use Simplixi\SUPCheckout\Payment\CheckoutPayload;
@@ -186,6 +191,10 @@ function woocommerceUpaymentsInit() {
             return PaymentMethodAvailability::classify_cached($cached);
         }
 
+        public function is_available() {
+            return parent::is_available() && GatewaySettings::is_runtime_eligible(get_option('woocommerce_upayments_settings'), get_woocommerce_currency());
+        }
+
         public function __construct() {
             // Define ID, title, description, and settings.
             $this->id                 = 'upayments';
@@ -195,12 +204,17 @@ function woocommerceUpaymentsInit() {
             Supports Classic and Block Checkout. Subscription auto-deduction requires separately validated provider setup.", 'supcheckout');
             $this->has_fields         = true; // Required for custom forms like Save Card/Design variations.
 
-            // Define user set variables
-            $this->title = '';
+            // Load settings and hooks
+            $this->init_form_fields();
+            $this->init_settings();
+
+            $this->title = $this->get_option("title");
             $this->description = $this->get_option("description");
             $this->debug = $this->get_option("debug");
             $this->apiKey = $this->get_option("api_key");
-            $this->isOrderComplete = $this->get_option('is_order_complete');
+            $this->isOrderComplete = array_key_exists('is_order_complete', $this->settings)
+              ? $this->settings['is_order_complete']
+              : 'yes';
             $this->testMode = $this->get_option("test_mode");
             $this->charge = $this->get_option('charge');
             $this->fromPluginEnabled = false;
@@ -215,10 +229,6 @@ function woocommerceUpaymentsInit() {
             $this->knetChargeType = $this->get_option("knet_charge_type");
             $this->saveCardEnabled = $this->get_option("enable_save_card");
             $this->autoDeduction = $this->get_option("enable_subscriptions");
-
-            // Load settings and hooks
-            $this->init_form_fields();
-            $this->init_settings();
 
             // Register action hook for saving settings (critical for all new toggles)
             add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, [$this, 'process_admin_options']);
@@ -335,25 +345,7 @@ function woocommerceUpaymentsInit() {
 
         public function add_order_item_totals($total_rows, $order, $tax_display)
         {
-            $payment_status = $order->get_meta('UPayments_Result');
-            $upayment_id = $order->get_meta('UPayments_PaymentID');
-
-            $new_total_rows = [];
-
-            foreach ($total_rows as $key => $total)
-            {
-                $new_total_rows[$key] = $total;
-                if ("payment_method" === $key)
-                {
-                    $new_total_rows["payment_status"] = ["label" => "Payment Status:", "value" => $payment_status, ];
-                    if (!empty($upayment_id))
-                    {
-                        $new_total_rows["upayment_id"] = ["label" => "UPayment ID:", "value" => $upayment_id, ];
-                    }
-                }
-            }
-
-            return $new_total_rows;
+            return OrderPresentation::add_order_item_totals($total_rows, $order, $this->id);
         }
 
         /**
@@ -1051,10 +1043,10 @@ function woocommerceUpaymentsInit() {
 
         // Frontend payment fields (must use feature flags for design)
         public function payment_fields() {
-            $save_card_enabled  = ('yes' == $this->get_option('enable_save_card'));
-            $template_args = array('gateway' => $this,'save_card_enabled' => ('yes' == $save_card_enabled));
+            $save_card_enabled = ($this->get_option('enable_save_card') === 'yes');
+            $template_args = array('gateway' => $this, 'save_card_enabled' => $save_card_enabled);
             // Check setting for design toggle
-            $use_new_design = ($this->get_option('use_new_design') == 'yes') ? true : false;
+            $use_new_design = ($this->get_option('use_new_design') === 'yes');
             
             wc_get_template(
                 $use_new_design ? 'new-design-form.php' : 'old-design-form.php',
@@ -1071,11 +1063,11 @@ function woocommerceUpaymentsInit() {
          */
         public function enqueue_scripts() {
             $plugin_url = plugin_dir_url( __FILE__ );
-            wp_enqueue_style('supcheckout-customer', $plugin_url . 'assets/css/customer.css', array(), SUPCHECKOUT_VERSION );
             // Check if we are on the checkout page AND the gateway is active
             if ( ! is_checkout() || ! $this->is_available() ) {
                 return;
             }
+            wp_enqueue_style('supcheckout-customer', $plugin_url . 'assets/css/customer.css', array(), SUPCHECKOUT_VERSION );
             
             // Checkout must not depend on third-party font/icon CDNs.
             // Use site/system typography and plugin-local presentation only.
@@ -1178,23 +1170,20 @@ function woocommerceUpaymentsInit() {
         {
             $this->init_settings();
             $prepared = GatewaySettings::prepare_post_data($this->get_post_data());
-            $post_data = $prepared['post_data'];
-
-            if ($prepared['api_key_missing']){
-                WC_Admin_Settings::add_error(__("Please enter UPayments API Key", 'supcheckout'));
-            }else{
-                if ($prepared['multimerchant_missing']) {
-                    WC_Admin_Settings::add_error(__("Please enter Multimerchant Configuration", 'supcheckout'));
-                }
-                foreach ($this->get_form_fields() as $key => $field)
-                {
-                    $setting_value = $this->get_field_value($key, $field, $post_data);
-                    $this->settings[$key] = $setting_value;
-                }
-                delete_option("upayments_maat");
-                // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce Settings API defines this dynamic core hook name.
-                return update_option($this->get_option_key() , apply_filters("woocommerce_settings_api_sanitized_fields_" . $this->id, $this->settings));
+            if ($prepared['api_key_missing'] || $prepared['multimerchant_missing']) {
+                WC_Admin_Settings::add_error($prepared['api_key_missing']
+                    ? __('Please enter UPayments API Key', 'supcheckout')
+                    : __('Please enter Multimerchant Configuration', 'supcheckout'));
+                return false;
             }
+
+            $post_data = $prepared['post_data'];
+            foreach ($this->get_form_fields() as $key => $field) {
+                $this->settings[$key] = $this->get_field_value($key, $field, $post_data);
+            }
+            delete_option("upayments_maat");
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce Settings API defines this dynamic core hook name.
+            return update_option($this->get_option_key(), apply_filters("woocommerce_settings_api_sanitized_fields_" . $this->id, $this->settings));
         }
 
         public function get_multimerchant_credentials( $order ) {
@@ -1300,20 +1289,12 @@ function woocommerceUpaymentsInit() {
             return __("Woocommerce", 'supcheckout');
         }
 
-        public function getIsOrderComplete() {  
-            $flag = true;   
-            if ($this->isOrderComplete == 'no') { 
-                $flag = false;  
-            }   
-            return $flag;   
+        public function getIsOrderComplete() {
+            return $this->isOrderComplete === 'yes';
         }
 
         public function getMode() {
-            $mode = true;
-            if ($this->testMode == 'no') {
-                $mode = false;
-            }
-            return $mode;
+            return $this->testMode === 'yes';
         }
         
         public function getAPIUrl($apiRoute = "")
@@ -1391,7 +1372,6 @@ function woocommerceUpaymentsInit() {
                 && isset($result['result'])
                 && $result['result'] === 'failure'
             ) {
-                wc_clear_notices();
                 wc_add_notice(__("Payment methods could not be loaded. Please try again.", 'supcheckout'), "error");
                 return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
             }
@@ -1733,33 +1713,7 @@ add_filter("woocommerce_available_payment_gateways", "enableUpaymentsGateway");
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy WooCommerce callback retained for compatibility.
 function enableUpaymentsGateway($available_gateways)
 {
-    if (is_admin()){
-        return $available_gateways;
-    }
-
-    if (isset($available_gateways["upayments"])){
-        // Move UPayments to the end unless merchant explicitly reordered
-        $upay = $available_gateways['upayments'];
-        unset($available_gateways['upayments']);
-        $available_gateways['upayments'] = $upay;
-
-        $settings = get_option("woocommerce_upayments_settings");
-
-        if (!GatewaySettings::is_runtime_eligible($settings, get_woocommerce_currency())) {
-            unset($available_gateways["upayments"]);
-            return $available_gateways;
-        }
-
-        if (is_checkout() && isset($available_gateways['cod']) && (isset($settings['enable_autodeduction']) && $settings['enable_autodeduction'] === 'yes')) {
-            unset($available_gateways['cod']);
-        }
-
-        if (WC()->session->get('chosen_payment_method') === 'upayments' && (isset($settings['make_default_gateway']) && $settings['make_default_gateway'] !== 'yes')) {
-            WC()->session->set('chosen_payment_method', null);
-        }
-    }
-
-    return $available_gateways;
+    return Availability::filter($available_gateways);
 }
 
 // Declare compatibility with WooCommerce's Cart & Checkout blocks (WooBlocks)

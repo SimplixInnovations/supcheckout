@@ -504,6 +504,8 @@ if (!class_exists('YahnisElsts\\PluginUpdateChecker\\v5p6\\PucFactory', false)) 
 if (!class_exists('WC_Payment_Gateway')) {
     class WC_Payment_Gateway {
         public $id; public $icon; public $method_title; public $method_description;
+        // Mirrors WC_Settings_API in WooCommerce 10.8.1 and 11.1.0.
+        public $settings = array();
         public $has_fields; public $title; public $description; public $debug;
         public $apiKey; public $isOrderComplete; public $testMode; public $charge;
         public $fromPluginEnabled; public $paymentData = [];
@@ -668,6 +670,15 @@ class FakeWCOrder extends \WC_Order {
             $total = upay_decimal_string_add($total, $line);
         }
         return $total;
+    }
+    public function needs_payment() {
+        // This synthetic H12 order intentionally has no Woo status machine.
+        // Existing H12 cases default to payable so they continue exercising
+        // their downstream payment/security contracts. A test may explicitly
+        // set order_data['needs_payment'] to false to model Woo's outer gate.
+        return array_key_exists('needs_payment', $this->data)
+            ? (bool) $this->data['needs_payment']
+            : true;
     }
     public function get_billing_email() { return $this->data['billing']['email']; }
     public function get_billing_phone() { return $this->data['billing']['phone']; }

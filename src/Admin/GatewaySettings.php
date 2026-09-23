@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Admin;
 
+use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
+
 /**
  * Gateway settings schema, validation and admin presentation adapter.
  *
@@ -11,6 +13,16 @@ namespace Simplixi\SUPCheckout\Admin;
  */
 final class GatewaySettings {
     private const SUPPORTED_CURRENCIES = array('KWD', 'SAR', 'USD', 'BHD', 'EUR', 'OMR', 'QAR', 'AED');
+
+    /**
+     * Return the canonical checkout currency allowlist for server/client parity.
+     *
+     * @return array<int, string>
+     */
+    public static function supported_currencies() {
+        return self::SUPPORTED_CURRENCIES;
+    }
+
     /**
      * Build the inherited WooCommerce gateway field schema.
      *
@@ -176,8 +188,8 @@ final class GatewaySettings {
      * @return array{settings: array, forced_save_card: bool}
      */
     public static function normalize_dependencies(array $settings) {
-        $save_card = isset($settings['enable_save_card']) && !empty($settings['enable_save_card']);
-        $subscriptions = isset($settings['enable_subscriptions']) && !empty($settings['enable_subscriptions']);
+        $save_card = isset($settings['enable_save_card']) && $settings['enable_save_card'] === 'yes';
+        $subscriptions = isset($settings['enable_subscriptions']) && $settings['enable_subscriptions'] === 'yes';
         $forced = $subscriptions && !$save_card;
         if ($forced) {
             $settings['enable_save_card'] = 'yes';
@@ -188,17 +200,33 @@ final class GatewaySettings {
     /**
      * Validate/normalize the gateway post data before Woo field processing.
      *
+     * The raw WooCommerce checkbox contract is intentionally strict here: an
+     * unchecked checkbox is absent, while an enabled checkbox is the exact
+     * string "1". Any other present value is malformed and must fail before
+     * WooCommerce's generic checkbox validator can normalize it to "yes".
+     *
      * @param array $post_data WooCommerce gateway post data.
-     * @return array{post_data: array, api_key_missing: bool, multimerchant_missing: bool}
+     * @return array{post_data: array, api_key_missing: bool, multimerchant_missing: bool, multimerchant_invalid: bool}
      */
     public static function prepare_post_data(array $post_data) {
-        $api_key_missing = empty($post_data['woocommerce_upayments_api_key']);
+        $api_key = array_key_exists('woocommerce_upayments_api_key', $post_data)
+            ? $post_data['woocommerce_upayments_api_key']
+            : null;
+        $api_key_missing = !is_string($api_key) || trim($api_key) === '';
         $multimerchant_missing = false;
+        $multimerchant_invalid = false;
 
         if (!$api_key_missing) {
-            if (isset($post_data['woocommerce_upayments_enable_multimerchant'])
-                && $post_data['woocommerce_upayments_enable_multimerchant'] == 1
-            ) {
+            $checkbox_key = 'woocommerce_upayments_enable_multimerchant';
+            $checkbox_present = array_key_exists($checkbox_key, $post_data);
+
+            if ($checkbox_present && $post_data[$checkbox_key] !== '1') {
+                // Do not rewrite any submitted allocation value on malformed raw
+                // input. The existing gateway save path treats missing/invalid
+                // multi-merchant configuration as an atomic save failure.
+                $multimerchant_invalid = true;
+                $multimerchant_missing = true;
+            } elseif ($checkbox_present) {
                 $required = array(
                     'woocommerce_upayments_iban_number',
                     'woocommerce_upayments_cc_charge',
@@ -207,9 +235,29 @@ final class GatewaySettings {
                     'woocommerce_upayments_knet_charge_type',
                 );
                 foreach ($required as $key) {
-                    if (empty($post_data[$key])) {
+                    if (!array_key_exists($key, $post_data)
+                        || !is_string($post_data[$key])
+                        || $post_data[$key] === ''
+                    ) {
                         $multimerchant_missing = true;
                         break;
+                    }
+                }
+                if (!$multimerchant_missing) {
+                    $iban = $post_data['woocommerce_upayments_iban_number'];
+                    $cc_charge = $post_data['woocommerce_upayments_cc_charge'];
+                    $cc_charge_type = $post_data['woocommerce_upayments_cc_charge_type'];
+                    $knet_charge = $post_data['woocommerce_upayments_knet_charge'];
+                    $knet_charge_type = $post_data['woocommerce_upayments_knet_charge_type'];
+
+                    if (!MultiMerchantContract::is_valid_iban($iban)
+                        || !MultiMerchantContract::is_valid_commission_token($cc_charge)
+                        || !MultiMerchantContract::is_valid_charge_type($cc_charge_type)
+                        || !MultiMerchantContract::is_valid_commission_token($knet_charge)
+                        || !MultiMerchantContract::is_valid_charge_type($knet_charge_type)
+                    ) {
+                        $multimerchant_invalid = true;
+                        $multimerchant_missing = true;
                     }
                 }
             } else {
@@ -225,6 +273,7 @@ final class GatewaySettings {
             'post_data' => $post_data,
             'api_key_missing' => $api_key_missing,
             'multimerchant_missing' => $multimerchant_missing,
+            'multimerchant_invalid' => $multimerchant_invalid,
         );
     }
 
@@ -267,7 +316,7 @@ final class GatewaySettings {
      * @param string   $key Field key.
      * @param array    $data WooCommerce field data.
      * @param callable $get_option Gateway option reader.
-     * @param string   $gateway_id Gateway compatibility ID.
+     * @param string   $gateway_id Gateway ID.
      * @param string   $domain Gateway text domain.
      * @return string
      */

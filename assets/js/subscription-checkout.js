@@ -9,7 +9,7 @@ jQuery(function ($) {
         yearly: { '1': 'Every Year' }
     };
 
-    function toggleIntervalField() {
+    function toggleIntervalField(preserveSelection) {
         const $planSelect = $('select[name="upay_subscription_plan"]');
         const $intervalSelect = $('#upay_subscription_interval');
         if (!$planSelect.length || !$intervalSelect.length) {
@@ -17,6 +17,7 @@ jQuery(function ($) {
         }
 
         let selectedPlan = $planSelect.val();
+        const selectedInterval = preserveSelection === true ? String($intervalSelect.val() || '') : '';
         const intervalRow = $intervalSelect.closest('.form-row');
         const isLoggedIn = typeof wcUser === 'object' && wcUser !== null && !!wcUser.isLoggedIn;
 
@@ -39,9 +40,22 @@ jQuery(function ($) {
         $.each(optionsData[selectedPlan], function (value, label) {
             $intervalSelect.append($('<option></option>').val(value).text(label));
         });
+
+        if (Object.prototype.hasOwnProperty.call(optionsData[selectedPlan], selectedInterval)) {
+            $intervalSelect.val(selectedInterval);
+        }
     }
 
-    toggleIntervalField();
-    $(document.body).on('change', 'select[name="upay_subscription_plan"]', toggleIntervalField);
-    $(document.body).on('updated_checkout', toggleIntervalField);
+    toggleIntervalField(false);
+    const $body = $(document.body);
+    $body
+        .off('change.supcheckoutSubscription', 'select[name="upay_subscription_plan"]')
+        .on('change.supcheckoutSubscription', 'select[name="upay_subscription_plan"]', function () {
+            toggleIntervalField(false);
+        });
+    $body
+        .off('updated_checkout.supcheckoutSubscription')
+        .on('updated_checkout.supcheckoutSubscription', function () {
+            toggleIntervalField(true);
+        });
 });

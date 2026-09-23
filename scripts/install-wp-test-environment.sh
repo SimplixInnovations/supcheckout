@@ -11,6 +11,7 @@ WC_VERSION="$2"
 WP_PATH="$3"
 WP_CLI_BIN="${WP_CLI_BIN:-/tmp/wp-cli.phar}"
 PLUGIN_SLUG="${SUPCHECKOUT_PLUGIN_SLUG:-supcheckout}"
+SITE_URL="${SUPCHECKOUT_SITE_URL:-http://127.0.0.1:8080}"
 
 if [[ ! -x "$WP_CLI_BIN" ]]; then
   echo "WP-CLI executable not found: $WP_CLI_BIN" >&2
@@ -43,7 +44,7 @@ mkdir -p "$WP_PATH"
 
 "$WP_CLI_BIN" core install \
   --path="$WP_PATH" \
-  --url="http://supcheckout.test" \
+  --url="$SITE_URL" \
   --title="SUPCheckout Certification" \
   --admin_user="cert-admin" \
   --admin_password="cert-password-not-production" \
@@ -96,4 +97,4 @@ ACTUAL_WC="$("$WP_CLI_BIN" plugin get woocommerce --field=version --path="$WP_PA
   exit 67
 }
 
-echo "CERT ENV: WordPress=$ACTUAL_WP WooCommerce=$ACTUAL_WC PHP=$(php -r 'echo PHP_VERSION;') plugin=$PLUGIN_SLUG"
+echo "CERT ENV: WordPress=$ACTUAL_WP WooCommerce=$ACTUAL_WC PHP=$(php -r 'echo PHP_VERSION;') plugin=$PLUGIN_SLUG site=$SITE_URL"

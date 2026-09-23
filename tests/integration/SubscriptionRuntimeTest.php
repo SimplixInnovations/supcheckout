@@ -59,6 +59,25 @@ function supcheckout_cert_subscription_order($products, $user_id) {
     return $order;
 }
 
+function supcheckout_cert_degrade_product_descriptor($order, $product_id) {
+    $matched = false;
+    foreach ($order->get_items('line_item') as $line) {
+        if (! $line instanceof WC_Order_Item_Product || (int) $line->get_product_id() !== (int) $product_id) {
+            continue;
+        }
+        $line->set_quantity(3);
+        $line->set_subtotal('10.000');
+        $line->set_total('10.000');
+        $line->save();
+        $matched = true;
+        break;
+    }
+    supcheckout_cert_assert($matched, 'descriptor-degradation fixture finds the intended order line');
+    $order->calculate_totals(false);
+    $order->save();
+    supcheckout_cert_assert((float) $order->get_total() > 0, 'descriptor-degradation fixture retains positive finalized Woo economics');
+}
+
 function supcheckout_cert_subscription_gateway() {
     $gateway = new WC_Upayments();
     $gateway->domain = 'upayments';
@@ -172,8 +191,46 @@ supcheckout_cert_assert(
     'eligible Classic subscription reaches token initialization only after all local preflight gates pass; actual=' . wp_json_encode($routes)
 );
 
+// E2 safety invariant: an unrepresentable products[] descriptor must not erase the
+// authoritative custom subscription classification. A valid subscription still reaches
+// token initialization after its local subscription gates pass.
+$degraded_subscription_order = supcheckout_cert_subscription_order(array($subscription), $user_id);
+supcheckout_cert_degrade_product_descriptor($degraded_subscription_order, $subscription->get_id());
+$routes = array();
+$result = supcheckout_cert_run_subscription_case($degraded_subscription_order, $base_post, $user_id, $routes);
+supcheckout_cert_assert('failure' === $result['result'], 'descriptor-degraded valid subscription remains bounded by unavailable token transport');
+supcheckout_cert_assert(
+    array('create-customer-unique-token') === $routes,
+    'descriptor degradation preserves subscription classification and reaches only token initialization'
+);
+
+// Product-level opt-out is safety authority independent of products[] serialization.
+$degraded_restricted_order = supcheckout_cert_subscription_order(array($restricted), $user_id);
+supcheckout_cert_degrade_product_descriptor($degraded_restricted_order, $restricted->get_id());
+$routes = array();
+$result = supcheckout_cert_run_subscription_case($degraded_restricted_order, $base_post, $user_id, $routes);
+supcheckout_cert_assert('failure' === $result['result'], 'descriptor-degraded restricted subscription remains rejected');
+supcheckout_cert_assert(array() === $routes, 'descriptor degradation cannot bypass product-level subscription opt-out');
+
+// Mixed custom/normal composition remains prohibited even when the custom line cannot
+// be represented in provider products[]. Descriptor degradation cannot erase composition.
+$degraded_mixed_order = supcheckout_cert_subscription_order(array($subscription, $normal), $user_id);
+supcheckout_cert_degrade_product_descriptor($degraded_mixed_order, $subscription->get_id());
+$routes = array();
+$result = supcheckout_cert_run_subscription_case($degraded_mixed_order, $base_post, $user_id, $routes);
+supcheckout_cert_assert('failure' === $result['result'], 'descriptor-degraded mixed subscription/normal order remains rejected');
+supcheckout_cert_assert(array() === $routes, 'descriptor degradation cannot bypass mixed-order rejection');
+
 wp_set_current_user(0);
-foreach (array($restricted_order, $mixed_order, $guest_order, $strict_order) as $order) {
+foreach (array(
+    $restricted_order,
+    $mixed_order,
+    $guest_order,
+    $strict_order,
+    $degraded_subscription_order,
+    $degraded_restricted_order,
+    $degraded_mixed_order,
+) as $order) {
     $order->delete(true);
 }
 wp_delete_post($subscription->get_id(), true);

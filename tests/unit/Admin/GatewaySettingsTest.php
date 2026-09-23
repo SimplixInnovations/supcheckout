@@ -98,11 +98,25 @@ final class GatewaySettingsTest extends TestCase {
         );
     }
 
+    public function test_prepare_post_data_uses_the_same_nonblank_string_api_key_boundary_as_runtime_eligibility(): void {
+        $zero_string = GatewaySettings::prepare_post_data(array(
+            'woocommerce_upayments_api_key' => '0',
+        ));
+        self::assertFalse($zero_string['api_key_missing']);
+
+        foreach (array('', '   ', null, array('unexpected'), false, 0) as $invalid) {
+            $result = GatewaySettings::prepare_post_data(array(
+                'woocommerce_upayments_api_key' => $invalid,
+            ));
+            self::assertTrue($result['api_key_missing']);
+        }
+    }
+
     public function test_prepare_post_data_requires_every_enabled_allocation_field(): void {
         $complete = array(
             'woocommerce_upayments_api_key'              => 'secret',
             'woocommerce_upayments_enable_multimerchant' => '1',
-            'woocommerce_upayments_iban_number'          => 'KW01',
+            'woocommerce_upayments_iban_number'          => 'KW81CBKU0000000000001234560101',
             'woocommerce_upayments_cc_charge'            => '1.000',
             'woocommerce_upayments_cc_charge_type'       => 'fixed',
             'woocommerce_upayments_knet_charge'          => '2.000',
@@ -129,21 +143,56 @@ final class GatewaySettingsTest extends TestCase {
         }
     }
 
-    public function test_prepare_post_data_clears_all_runtime_allocation_fields_when_disabled(): void {
-        $result = GatewaySettings::prepare_post_data(array(
+    public function test_prepare_post_data_accepts_provider_permitted_zero_main_merchant_commissions(): void {
+        $complete = array(
             'woocommerce_upayments_api_key'              => 'secret',
-            'woocommerce_upayments_enable_multimerchant' => '0',
-            'woocommerce_upayments_iban_number'          => 'KW01',
-            'woocommerce_upayments_cc_charge'            => '1.000',
+            'woocommerce_upayments_enable_multimerchant' => '1',
+            'woocommerce_upayments_iban_number'          => 'KW81CBKU0000000000001234560101',
+            'woocommerce_upayments_cc_charge'            => '0',
             'woocommerce_upayments_cc_charge_type'       => 'fixed',
-            'woocommerce_upayments_knet_charge'          => '2.000',
+            'woocommerce_upayments_knet_charge'          => '0.000',
             'woocommerce_upayments_knet_charge_type'     => 'percentage',
+        );
+
+        $result = GatewaySettings::prepare_post_data($complete);
+        self::assertFalse($result['api_key_missing']);
+        self::assertFalse($result['multimerchant_missing']);
+        self::assertSame($complete, $result['post_data']);
+    }
+
+    public function test_prepare_post_data_clears_all_runtime_allocation_fields_when_checkbox_is_absent(): void {
+        $result = GatewaySettings::prepare_post_data(array(
+            'woocommerce_upayments_api_key'          => 'secret',
+            'woocommerce_upayments_iban_number'      => 'KW01',
+            'woocommerce_upayments_cc_charge'        => '1.000',
+            'woocommerce_upayments_cc_charge_type'   => 'fixed',
+            'woocommerce_upayments_knet_charge'      => '2.000',
+            'woocommerce_upayments_knet_charge_type' => 'percentage',
         ));
 
         self::assertFalse($result['api_key_missing']);
         self::assertFalse($result['multimerchant_missing']);
+        self::assertFalse($result['multimerchant_invalid'] ?? false);
         foreach (array('iban_number', 'cc_charge', 'cc_charge_type', 'knet_charge', 'knet_charge_type') as $field) {
             self::assertNull($result['post_data']['woocommerce_upayments_' . $field], $field);
+        }
+    }
+
+    public function test_prepare_post_data_rejects_noncanonical_present_multimerchant_checkbox_tokens(): void {
+        foreach (array('0', 'yes', 'true', 0, 1, false, true, array('1'), null) as $invalid) {
+            $post_data = array(
+                'woocommerce_upayments_api_key'              => 'secret',
+                'woocommerce_upayments_enable_multimerchant' => $invalid,
+                'woocommerce_upayments_iban_number'          => 'KW81CBKU0000000000001234560101',
+                'woocommerce_upayments_cc_charge'            => '1.000',
+                'woocommerce_upayments_cc_charge_type'       => 'fixed',
+                'woocommerce_upayments_knet_charge'          => '2.000',
+                'woocommerce_upayments_knet_charge_type'     => 'percentage',
+            );
+
+            $result = GatewaySettings::prepare_post_data($post_data);
+            self::assertTrue($result['multimerchant_invalid'] ?? false, var_export($invalid, true));
+            self::assertSame($post_data, $result['post_data'], var_export($invalid, true));
         }
     }
 

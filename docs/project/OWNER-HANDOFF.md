@@ -1,115 +1,79 @@
 # SUPCheckout for UPayments — Owner Handoff
 
-**Purpose:** authoritative fresh-clone, local-acceptance and release-decision sequence
+**Purpose:** authoritative fresh-clone, local-acceptance and release-decision procedure
 **Canonical GitHub repository:** `SimplixInnovations/supcheckout`
 **Development version:** `0.1.0`
-**Latest runtime-bearing CI-certified main (historical):** `82d1fdaee91ee6bde6c26dfcc7ceb974d0d59847`
-**Owner technical acceptance:** **ACCEPTED**
-**Accepted Approach 2 baseline:** **`0c883d609906676966002eb022a82a9656eeacc5`**
-**Accepted package SHA-256:** **`58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`**
-**Accepted package:** `supcheckout-0.1.0.zip` — **51 files**
-**Approach 3 architecture modernization:** **ARCHITECTURE APPROVED / T1 DONE / VERIFIED / T2 DONE / VERIFIED / RUNTIME MODERNIZATION IN PROGRESS**
-**Public tag / GitHub Release / WordPress.org publication:** **not yet created — publication remains NOT AUTHORIZED**
+**Public publication:** **NOT AUTHORIZED**
 
-The final pre-acceptance runtime hardening through PR #97 has merged and been post-merge certified. Living-document-only descendants may advance `main` without changing the runtime package. The owner-accepted technical baseline is the exact commit listed above; it supersedes prior CI-certified runtime anchors for the purpose of identifying the regression reference coordinate going forward. This document remains a reusable freshness/regression procedure for future baseline re-acceptance, not a substitute for such re-acceptance when fresh evidence invalidates it. This document does not authorize publication by itself.
+This is a living operational procedure. Historical tranche detail belongs in the referenced plans/ADRs and Git history; current program coordinates are stated once below to avoid contradictory handoff prose.
 
-Before using this procedure in a new chat, machine, clone or session, read [`START-HERE.md`](START-HERE.md) and verify live GitHub/source/check state.
+## 1. Acceptance authority and current program coordinate
 
-## Program sequencing boundary
+Owner technical acceptance remains **ACCEPTED only for the frozen Approach 2 baseline**:
 
-This owner acceptance is the mandatory technical gate between closed **Approach 2** and future **Approach 3** architecture modernization.
+- source SHA: `0c883d609906676966002eb022a82a9656eeacc5`;
+- package: `supcheckout-0.1.0.zip`;
+- files: 51;
+- SHA-256: `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
-Approved sequence:
+Approach 3 has advanced through T3. Latest merged Approach 3 main is `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`; latest runtime-bearing merged main remains T2 `047cc86060efb97761d7a0cc4a3806f971ab6fe1` until a later runtime-bearing tranche is merged.
 
-`Approach 2 closed → fresh-clone owner technical acceptance → accepted baseline → Approach 3 → Approach 3 re-certification → full UI/UX/branding/accessibility/broad launch testing → explicit release decision.`
+Active successor: `post-t3-ecosystem-hardening`, draft PR #108 on `audit/post-t3-ecosystem-hardening`.
 
-Do **not** begin Approach 3 before this acceptance establishes the independent regression baseline.
+Latest repository-executable E3 runtime checkpoint is `540b733c29656758f2392817649fc3d4a4db585d`; its deterministic 55-file candidate package SHA-256 is `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 
-This acceptance is intentionally bounded. Final UI/UX, branding, broad accessibility certification and exhaustive launch testing do **not** have to be finished before Approach 3. They remain post-Approach-3 launch work unless fresh evidence shows an earlier blocker.
+At that E3 checkpoint, Quality/H12, the 20-cell Compatibility matrix and gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact, the full repository-owned Ecosystem Certification matrix, delayed/combined/repeated Classic JS characterization and analytics-return characterization all passed. The historical default CodeQL JavaScript/TypeScript job did not reach a terminal verdict; do not rewrite that as success.
 
-## 1. Golden identity
+Current executable gate: **R2 callback portability / cache safety**.
 
-Human-facing product:
+Neither PR #108 nor the E3 checkpoint redefines owner acceptance. Fresh owner acceptance is required at Approach 3 closeout.
 
-**SUPCheckout for UPayments**
+## 2. Golden identity
 
-Technical identity:
+Human-facing product: **SUPCheckout for UPayments**
 
-`supcheckout`
+Technical contracts:
 
-Canonical first-stable package basename:
+- slug/text domain: `supcheckout`;
+- namespace: `Simplixi\SUPCheckout`;
+- package root: `supcheckout/`;
+- first-stable bootstrap: `supcheckout/UPayments.php`;
+- gateway/payment/Blocks ID: `upayments`;
+- callback: `wc_upayments`.
 
-`supcheckout/UPayments.php`
+Do not mechanically rename persisted/provider IDs, `_upay_*` metadata, `UPayments_order_id`, token/provenance state, subscription/billing-attempt state, historical payment-method values, frozen Phase 9I IDs, `getAPIUrlForRetreiveCards()` or `whitelabled`.
 
-The word `for` is relationship copy only. Do not encode it in the repository name, package slug, WordPress.org slug, text domain, namespace, CSS/JS roots or release artifact names.
+## 3. Fresh local bootstrap
 
-Do not cosmetically rename protected provider/persisted identities such as `upayments`, `woocommerce_upayments_settings`, `wc_upayments`, `_upay_*`, token/provenance state, subscription/billing-attempt identities, provider fields or historical payment-method values.
+Start from a new destination. Do not copy an older `.git`, `vendor/`, `dist/`, caches or worktree metadata.
 
-See [`NAMING-IDENTITY-STANDARD.md`](NAMING-IDENTITY-STANDARD.md).
-
----
-
-# A. Fresh local project bootstrap
-
-## A1. Start from an empty local destination
-
-Use a new folder. Do not copy an older checkout, `.git` directory, `vendor/`, `dist/`, test caches or worktree metadata into it.
-
-### PowerShell
-
-```powershell
-cd C:\path\to\parent
-Test-Path .\supcheckout
-```
-
-The cleanest case is `False`. If a folder already exists, inspect it manually and choose another path rather than deleting unknown content automatically.
-
-Clone directly from the canonical repository:
-
-```powershell
+```bash
 git clone https://github.com/SimplixInnovations/supcheckout.git supcheckout
-cd .\supcheckout
-
+cd supcheckout
+git fetch --prune --tags origin
 git remote -v
 git branch --show-current
 git branch -r
 git status --short
 git rev-parse HEAD
 git rev-parse origin/main
-```
-
-Required result:
-
-- `origin` points directly to `https://github.com/SimplixInnovations/supcheckout.git`;
-- current branch is `main`;
-- remote topology shows only `origin/main` (plus `origin/HEAD -> origin/main` when displayed);
-- `git status --short` is empty;
-- `HEAD` exactly equals `origin/main`.
-
-## A2. Confirm repository identity before installing dependencies
-
-```powershell
-git config --get remote.origin.url
-git log -1 --show-signature --oneline
-git status --short
-git branch
-git branch -r
 git worktree list
 git stash list
 ```
 
-A brand-new clone should have:
+At a final acceptance/release boundary:
 
-- no local feature branches;
-- no additional worktrees;
-- no stashes;
-- no untracked build artifacts.
+- `origin` must be the canonical repository;
+- branch must be `main`;
+- `HEAD == origin/main`;
+- working tree must be clean;
+- no unintended worktree/stash/feature branch may remain.
 
-Do not use `git reset --hard` or `git clean -fdx` as a substitute for understanding unexpected local state.
+During active engineering, PR #108 is an intentional exception.
 
-## A3. Toolchain preflight
+## 4. Toolchain preflight
 
-The owner environment should expose:
+Verify:
 
 ```bash
 git --version
@@ -119,58 +83,29 @@ composer --version
 node --version
 npm --version
 wp --info
-py -3 --version
-```
-
-On Windows, run release scripts with **Git for Windows Bash**, not WSL Bash, when the acceptance checkout is a Windows Git worktree. WSL cannot reliably resolve the Windows-path `.git` worktree pointer.
-
-Release scripts invoke `python3`. If Windows Git Bash exposes `py` but not `python3`, use a temporary shell-local shim:
-
-```bash
-mkdir -p /tmp/supcheckout-python
-cat > /tmp/supcheckout-python/python3 <<'EOF'
-#!/usr/bin/env bash
-exec py -3 "$@"
-EOF
-chmod +x /tmp/supcheckout-python/python3
-export PATH="/tmp/supcheckout-python:$PATH"
 python3 --version
 ```
 
-Do not globally change Windows Python configuration only for this project.
+On Windows, use Git for Windows Bash for the acceptance checkout when the worktree is a Windows Git worktree. Do not globally reconfigure Python merely for this project.
 
----
+## 5. Independent local acceptance
 
-# B. Independent local acceptance
-
-GitHub CI owns the authoritative cross-version matrix. Local acceptance is an independent owner check of the exact final source/package and merchant-facing behavior.
-
-## B1. Use a disposable detached acceptance worktree
-
-From the fresh clone:
+Use a disposable detached worktree from the exact final `origin/main`:
 
 ```bash
-git fetch --prune --tags origin
 SOURCE_REPO="$(git rev-parse --show-toplevel)"
 ACCEPTANCE_DIR="${SOURCE_REPO}/../supcheckout-owner-acceptance"
-
 test ! -e "$ACCEPTANCE_DIR"
 git worktree add --detach "$ACCEPTANCE_DIR" origin/main
 cd "$ACCEPTANCE_DIR"
-
 git status --short
 git rev-parse HEAD
 git rev-parse origin/main
 ```
 
-Required:
+Required: clean status and identical SHAs.
 
-- empty `git status --short`;
-- both SHAs identical.
-
-If the directory already exists, use a different disposable path. Do not remove unknown content merely to reuse the name.
-
-## B2. Development quality gate
+Install and run the locked quality stack:
 
 ```bash
 composer install --no-interaction --prefer-dist
@@ -179,260 +114,108 @@ composer audit --locked
 composer quality
 ```
 
-Any failure is a release blocker until understood. First-party PHP/PHPUnit deprecations, notices and warnings are also blockers: the unit configuration must return a clean result with no reported issues on the current stable PHP quality lane. Do not suppress or baseline an issue merely to obtain a green acceptance result.
+Any unexplained failure, warning, first-party deprecation or notice blocks acceptance.
 
-The owner should use the latest stable patch of the current PHP branch where practical. GitHub CI owns the exact current-stable quality lane and cross-version runtime matrix. Supported runtime floor is PHP 7.4; compatibility-only branches required for that floor must not execute deprecated behavior on current PHP. Older syntax-only checks do not broaden runtime certification.
+Run the high-value standalone contracts required by `AGENTS.md`, including identity/namespace/frontend/residue, WordPress.org runtime/submission, HTTP transport, provenance DB-failure, H12 PHP and H12 Blocks harnesses.
 
-## B3. High-value standalone contracts
-
-```bash
-php tests/harness/supcheckout-identity-migration-harness.php
-php tests/harness/supcheckout-namespace-migration-harness.php
-php tests/harness/supcheckout-frontend-identity-harness.php
-php tests/harness/supcheckout-residue-harness.php
-php tests/harness/wordpress-org-runtime-harness.php
-php tests/harness/wordpress-org-submission-harness.php
-php tests/harness/supcheckout-http-transport-harness.php
-php tests/harness/supcheckout-provenance-db-failure-harness.php
-php tests/harness/phase-9g-h12-php-harness.php
-
-node --check tests/harness/phase-9g-h12-blocks-harness.js
-node tests/harness/phase-9g-h12-blocks-harness.js
-```
-
-Do not change production behavior merely to silence an environment mismatch. Capture the full failing command/output first.
-
-## B4. Build and verify the deterministic artifact
+## 6. Deterministic artifact acceptance
 
 ```bash
 rm -rf dist
-
 bash scripts/build-release.sh dist
 bash scripts/verify-release.sh dist/supcheckout-0.1.0.zip
-
 sha256sum dist/supcheckout-0.1.0.zip
 cat dist/supcheckout-0.1.0.zip.sha256
 ```
 
 Required:
 
-- build succeeds;
-- verifier succeeds;
-- calculated ZIP hash exactly matches the generated `.sha256` sidecar;
-- for the same exact Git tree, the local Windows/Linux owner artifact SHA-256 exactly matches the cross-platform CI artifact SHA-256;
-- package contains one `supcheckout/` root;
-- package includes `supcheckout/UPayments.php` and `readme.txt`;
-- package excludes development/tests/CI/docs/tooling according to `.distignore`;
-- package includes no secrets or local artifacts.
+- build and verifier succeed;
+- checksum matches the sidecar;
+- Linux/Windows/canonical artifacts for one exact Git tree are byte-identical;
+- package has one `supcheckout/` root;
+- package contains `supcheckout/UPayments.php` and `readme.txt`;
+- development/tests/CI/docs/tooling/secrets/local artifacts are absent.
 
-The final local sidecar is authoritative only when it agrees with cross-platform CI for the same exact Git tree. Documentation changes can legitimately change the ZIP hash between different commits, but platform/toolchain variation must not change the ZIP hash for one commit.
+Install only into disposable/staging WordPress first.
 
-## B5. Install only into disposable/staging WordPress
+## 7. Merchant-facing acceptance
 
-```bash
-wp plugin install ./dist/supcheckout-0.1.0.zip --force
-wp plugin activate supcheckout
-wp plugin status supcheckout
-```
+### Identity/settings
 
-Do not use an uncontrolled production store for first local acceptance.
+Verify one plugin entry, correct display name, retained physical bootstrap, settings save/reload, masked credentials, enabled/disabled behavior and no secret leakage.
 
----
+### Classic checkout
 
-# C. Merchant-facing acceptance checklist
+Verify gateway ID `upayments`, enabled payment methods, fail-closed unavailable methods, successful sandbox initialization, decline/cancel unpaid semantics, authenticated callback truth and correct order/transaction binding.
 
-## C1. Plugin identity
+### Cart/Checkout Blocks
 
-Verify:
+Verify registration, reactive availability, selection, no duplicate registration, no console errors and fail-closed unavailable state.
 
-- one plugin entry only;
-- display name **SUPCheckout for UPayments**;
-- technical slug `supcheckout`;
-- retained physical bootstrap does not create a duplicate plugin entry;
-- no active user-facing SimplixPay/SUCheckout product branding remains.
+### Storage
 
-## C2. Gateway settings
+Where safe, test both legacy order storage and HPOS through normal WooCommerce CRUD.
 
-Verify:
+### Saved cards/tokens
 
-- settings page loads;
-- save/reload works;
-- credentials are masked appropriately;
-- credentials do not appear in page source, browser console or ordinary logs;
-- malformed/blank optional settings fail safely;
-- gateway enabled/disabled state behaves correctly;
-- default-gateway option behaves correctly without unconditional debug logging.
+Use only test identities. Verify ownership/provenance/scope, opaque browser handles, explicit selected-card authority and no cross-user leakage.
 
-## C3. Classic checkout
+### Subscription boundary
 
-Verify:
+Do not execute live non-idempotent renewal merely to obtain a green acceptance result. Verify pre-dispatch eligibility and the current R3/R4 evidence honestly. No first-card fallback is an acceptable final state.
 
-- gateway ID remains `upayments`;
-- expected enabled payment methods render;
-- disabled/unavailable methods do not render;
-- successful sandbox checkout reaches the expected WooCommerce flow;
-- declined transaction remains unpaid;
-- cancelled transaction remains unpaid/cancelled according to verified lifecycle rules;
-- return/callback handling does not treat browser/provider payload alone as financial truth;
-- verified provider transaction metadata binds to the correct WooCommerce order.
+### Economics
 
-## C4. Cart / Checkout Blocks
+WooCommerce finalized amount/currency is authoritative. Exercise zero-total, coupons, fees, shipping, tax/VAT and supported product composition. `products[]` is descriptive only.
 
-Verify:
+### UI/assets/accessibility smoke
 
-- payment method registers;
-- availability follows account/settings/context capability;
-- checkout can select the gateway;
-- no browser console errors;
-- no duplicate registration;
-- unavailable methods fail closed.
+Verify icons/assets, keyboard operability, label/live-region integrity, no obvious focus/contrast regression and no unrelated global asset pollution. Full accessibility certification remains separate evidence.
 
-## C5. Order storage
+## 8. GitHub/repository verification
 
-Where the staging environment safely allows it, verify both:
+Before final acceptance or release decision verify live:
 
-- HPOS;
-- legacy order storage.
+- default branch `main`;
+- intended branch topology only;
+- no unintended open PRs/issues;
+- no public tags/releases before authorization;
+- squash-only merge / linear history;
+- review-thread resolution;
+- deletion/non-fast-forward protection;
+- no bypass actors;
+- required checks `Governance`, `H12 Regression Harness`, `Compatibility Gate`, `Release Gate`;
+- exact-head CodeQL/security, Provider Sandbox, WordPress.org Submission Check and deterministic artifact evidence.
 
-Create/read/update an order through normal WooCommerce APIs and confirm SUPCheckout metadata/lifecycle behavior remains consistent.
+A successful check from an ancestor SHA is never substituted for final exact-head evidence.
 
-## C6. Saved cards / tokens
+## 9. Remaining Approach 3 program
 
-Verify only with safe test identities:
+Current executable gate: **R2 callback portability / cache safety**.
 
-- eligible saved methods appear only for the correct user/account/mode scope;
-- no cross-user leakage;
-- provenance/identity ambiguity fails closed;
-- no customer/card token appears in browser/log output beyond what the UI legitimately requires.
+Then:
 
-## C7. Subscription boundary
+1. R3 subscription safety redesign;
+2. R4 due-work scalability/observability;
+3. separately gated R5/T4 callback-consolidation architecture decision;
+4. R6 immutable exact-head release qualification and fresh owner re-acceptance.
 
-Verify:
+Paid/licensed themes/plugins, CDN/server modes, broad browser/device evidence, production merchant payment completion, wallets, multilingual/RTL, representative load, penetration/PCI/legal and live subscription mutation remain external/manual until actually proven.
 
-- subscription eligibility rules;
-- mixed-cart restrictions;
-- account actions require the expected owner/nonce/state checks;
-- no blind non-idempotent auto-deduction is triggered simply to prove acceptance.
+## 10. Release decision
 
-Live auto-deduction remains an external/manual provider qualification.
+A release is permitted only after:
 
-## C8. Additional merchant boundary
+- all approved Approach 3 tranches are closed or explicitly excluded with owner approval;
+- exact final head satisfies every required repository/security/release gate;
+- manual/external gaps are explicitly classified;
+- fresh-clone owner acceptance is completed;
+- new accepted source/package coordinates are recorded;
+- the owner explicitly authorizes version/tag/GitHub Release/WordPress.org publication.
 
-Verify the certified **one additional merchant** allocation behavior only. Do not infer arbitrary marketplace split support.
+Until then:
 
-## C9. UI/assets/accessibility smoke
+**DO NOT TAG. DO NOT CREATE A GITHUB RELEASE. DO NOT PUBLISH TO WORDPRESS.ORG.**
 
-Verify:
-
-- payment icons load without broken URLs;
-- Apple Pay / Google Pay / Samsung Pay images render only when the corresponding provider method is actually available;
-- checkout controls remain keyboard-operable in the tested theme;
-- no obvious contrast/label/focus regression is introduced by the plugin;
-- no third-party font/icon CDN is required by checkout.
-
-A full accessibility certification remains separate evidence.
-
----
-
-# D. GitHub repository verification
-
-Before local acceptance and any release decision, verify live GitHub state:
-
-- default branch: `main`;
-- remote branches: `main` only outside temporary active work;
-- open PRs/issues: none unless intentionally opened after this closeout;
-- tags/releases: none before explicit publication approval;
-- About description/homepage/topics remain evidence-safe;
-- squash-only merge policy remains enabled;
-- Main Rule still requires:
-  - `Governance`;
-  - `H12 Regression Harness`;
-  - `Compatibility Gate`;
-  - `Release Gate`;
-- no bypass actor has appeared;
-- merged feature/audit branch auto-deletes.
-
----
-
-# E. Post-acceptance and release decision
-
-The technical acceptance above has been completed for the **Approach 2 owner-accepted baseline**:
-
-- **Accepted baseline:** `0c883d609906676966002eb022a82a9656eeacc5`
-- **Accepted package:** `supcheckout-0.1.0.zip` — 51 files
-- **Accepted package SHA-256:** `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
-
-That acceptance authorized Approach 3 architecture modernization. Runtime-neutral T1 `t01-architecture-guardrails-and-active-callback-characterization` is **DONE / VERIFIED** on merged main `beb89ac0c4d8c0e9b7c8b2de1e13c237bbd37b15`. Runtime-bearing T2 `legacy-callback-routing-consolidation` is **DONE / VERIFIED** on merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`; fresh post-merge checks were 41/41 SUCCESS and the deterministic T2 candidate package is 51 files / SHA-256 `368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04`. T2 does **not** redefine the owner-accepted Approach 2 baseline; a new acceptance event is required at Approach 3 closeout. This does **not** authorize publication.
-
-Approach 3 architecture scoping is complete and recorded in `.ai-architect/`. Its approved tranches must be implemented and re-certified against the frozen baseline above before the launch-facing UI/UX/branding/broad-validation program is treated as final. The repository may be engineering-ready while publication remains intentionally unapproved. Any future re-acceptance event must produce a new documented baseline SHA + package SHA-256 and must preserve the historical anchor above.
-
-Before the first public release, decide explicitly:
-
-1. whether `0.1.0` is an early public release or whether first public stable should be promoted to `1.0.0`;
-2. whether launch branding/visual/accessibility acceptance is complete;
-3. whether owner local acceptance is clean;
-4. whether the exact final `main` package and checksum are accepted;
-5. whether WordPress.org submission is authorized.
-
-If a version promotion is required, do it in a dedicated PR and re-run the full release-sensitive gate stack before tagging.
-
-Do not create a public tag, GitHub Release or WordPress.org submission until the owner explicitly authorizes publication.
-
----
-
-# F. What to send back for owner-acceptance review
-
-Provide the complete terminal output for:
-
-```bash
-git remote -v
-git branch --show-current
-git branch -r
-git status --short
-git rev-parse HEAD
-git rev-parse origin/main
-composer validate --strict
-composer audit --locked
-composer quality
-php tests/harness/supcheckout-identity-migration-harness.php
-php tests/harness/supcheckout-namespace-migration-harness.php
-php tests/harness/supcheckout-frontend-identity-harness.php
-php tests/harness/supcheckout-residue-harness.php
-php tests/harness/wordpress-org-runtime-harness.php
-php tests/harness/wordpress-org-submission-harness.php
-php tests/harness/supcheckout-http-transport-harness.php
-php tests/harness/supcheckout-provenance-db-failure-harness.php
-php tests/harness/phase-9g-h12-php-harness.php
-node --check tests/harness/phase-9g-h12-blocks-harness.js
-node tests/harness/phase-9g-h12-blocks-harness.js
-bash scripts/build-release.sh dist
-bash scripts/verify-release.sh dist/supcheckout-0.1.0.zip
-sha256sum dist/supcheckout-0.1.0.zip
-cat dist/supcheckout-0.1.0.zip.sha256
-```
-
-Also provide a short manual-smoke report covering Classic, Blocks, HPOS/legacy where practical, sandbox success/decline/cancel, settings masking and browser/admin console errors.
-
-For the acceptance review, also state explicitly:
-
-- exact accepted `HEAD` / `origin/main` SHA;
-- generated ZIP SHA-256;
-- whether all required automated acceptance commands passed;
-- whether bounded merchant-facing smoke passed;
-- any environment limitation that prevented a requested check;
-- final verdict: **ACCEPTED BASELINE** or **NOT ACCEPTED**.
-
-Only **ACCEPTED BASELINE** unlocks Approach 3.
-
-### Current accepted baseline (recorded)
-
-The verdict **ACCEPTED BASELINE** has been issued for this repository against the following frozen coordinates:
-
-| Field | Value |
-|---|---|
-| Accepted Approach 2 baseline SHA | `0c883d609906676966002eb022a82a9656eeacc5` |
-| Accepted artifact | `supcheckout-0.1.0.zip` |
-| Accepted package SHA-256 | `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655` |
-| Accepted package file count | `51` |
-
-The pre-acceptance B-X1 malformed-settings rejection closed by PR #84 remains historical evidence that documented the gaps closed by PRs #91-#97.
+See `START-HERE.md`, `PROJECT-STATUS.md`, `NEW-CHAT-HANDOFF.md`, `RELEASE-ENGINEERING.md` and `docs/COMPATIBILITY.md` for the current evidence boundary.

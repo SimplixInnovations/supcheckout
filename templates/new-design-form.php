@@ -12,7 +12,7 @@ defined( 'ABSPATH' ) || exit;
 
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- WooCommerce template locals are intentionally scoped to the template include.
 ?>
-<div id="wc-toast" class="wc-toast"></div>
+<div id="wc-toast" class="wc-toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <div class="supcheckout form-row form-row-wide">
     <?php
         $icons = array();
@@ -123,7 +123,7 @@ defined( 'ABSPATH' ) || exit;
                         $card_display_label = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::label($cardValue, __('Saved card', 'supcheckout'));
                     ?>
 
-                        <button type="button" value="<?php echo esc_attr($card_selection); ?>" onclick="supCheckout.submitSavedCard(this)" class="upay-payment-method">
+                        <button type="button" value="<?php echo esc_attr($card_selection); ?>" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitSavedCard==='function'){window.supCheckout.submitSavedCard(this);}else{window.supcheckoutPendingAction={type:'saved_card',value:this.value};}" class="upay-payment-method">
                         <span class="payment-method-icon"><img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/cc.png'); ?>" alt=""/></span>
                         <span class="payment-method-label"><?php echo esc_html($card_display_label); ?></span>
                         <span class="payment-method-price"><?php echo esc_html($total); ?> <?php echo wp_kses($currency, array()); ?></span>
@@ -151,7 +151,7 @@ defined( 'ABSPATH' ) || exit;
                     $value_attr = esc_attr($value_string);
                     $value_text = esc_html($value_string);
                     $key_js = wp_json_encode($key_string, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-                    $onclick = 'supCheckout.submitPaymentMethod(' . $key_js . ')';
+                    $onclick = 'if(window.supCheckout&&typeof window.supCheckout.submitPaymentMethod==="function"){window.supCheckout.submitPaymentMethod(' . $key_js . ');}else{window.supcheckoutPendingAction={type:"payment_method",value:' . $key_js . '};}';
             ?>
                 <button type="button" onclick="<?php echo esc_attr($onclick); ?>" class="upay-payment-method" id="upay-button-<?php echo esc_attr($key_string); ?>">
                     <span class="payment-method-icon">
@@ -179,18 +179,18 @@ defined( 'ABSPATH' ) || exit;
                 </button>
             
             <?php if ($key_string == 'cc' && $save_card_enabled && $is_logged_in) { ?>
-                <label class="switch-border">For faster and more secure checkout. Save your card details.
-                    <label class="switch">
+                <label class="switch-border" for="chkSaveCard">For faster and more secure checkout. Save your card details.
+                    <span class="switch">
                         <?php
                             $checked = false;
                         ?>
                         <input
                             type="checkbox"
                             id="chkSaveCard"
-                            onclick="supCheckout.toggleSaveCard(<?php echo $is_logged_in ? 'true' : 'false'; ?>);"
+                            onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.toggleSaveCard==='function'){window.supCheckout.toggleSaveCard(true);}else{window.supcheckoutPendingAction={type:'toggle_save_card',value:this.checked,loggedUser:true};}"
                         >
                         <span class="slider round"></span>
-                    </label>
+                    </span>
                 </label>
             <?php
                     }
@@ -201,7 +201,7 @@ defined( 'ABSPATH' ) || exit;
         } elseif ($payment_data_valid && !$whitelabled) {
     ?>
         <div class="payment-buttons">
-            <button type="button" onclick="supCheckout.submitPaymentMethod('knet')" class="upay-payment-method">
+            <button type="button" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitPaymentMethod==='function'){window.supCheckout.submitPaymentMethod('knet');}else{window.supcheckoutPendingAction={type:'payment_method',value:'knet'};}" class="upay-payment-method">
     <?php
             foreach ($icons as $key => $value) {
                 if (!is_scalar($value)) {

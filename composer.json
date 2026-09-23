@@ -24,10 +24,16 @@
     },
     "scripts": {
         "test:unit": "phpunit --configuration phpunit.xml.dist",
+        "test:checkout-js": "node tests/harness/e1-classic-subscription-state-harness.js && node tests/harness/e1-classic-place-order-lifecycle-harness.js && node tests/harness/e1-classic-handler-coexistence-harness.js && node tests/harness/e1-blocks-live-props-harness.js && node tests/harness/e3-classic-delayed-script-harness.js",
+        "test:ecosystem-analytics-return": "php tests/harness/e3-analytics-return-harness.php",
+        "test:http-diagnostics": "bash tests/harness/http-server-diagnostics-harness.sh",
         "analyse": "phpstan analyse --configuration=phpstan.neon.dist --no-progress --memory-limit=512M",
         "lint:phpcs": "phpcs --standard=phpcs.xml.dist",
         "quality": [
             "@test:unit",
+            "@test:checkout-js",
+            "@test:ecosystem-analytics-return",
+            "@test:http-diagnostics",
             "@analyse",
             "@lint:phpcs"
         ]

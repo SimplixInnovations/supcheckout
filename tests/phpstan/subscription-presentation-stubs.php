@@ -65,6 +65,8 @@ namespace {
         public function get_data() {}
         /** @return mixed */
         public function get_total() {}
+        /** @return bool */
+        public function needs_payment() { return false; }
         /** @return mixed */
         public function get_billing_phone() {}
         /** @return string */
@@ -97,10 +99,6 @@ namespace {
         public function update_status($status, $note = '') {}
         /** @return mixed */
         public function add_order_note($note) {}
-    }
-
-    class WC_Upayments {
-        public function render_subscription_summary($order) {}
     }
 
     function absint($value) { return 0; }

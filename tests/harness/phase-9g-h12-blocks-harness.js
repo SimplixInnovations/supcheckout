@@ -759,18 +759,31 @@ record(true, 'H-ST-1 harness initializes', 'harness');
 // ────────────────────────────────────────────────────────────
 
 {
-    const scene = buildScene(makeSettings());
+    const supportedOrder = { cartTotals: { currency_code: 'KWD' } };
+    const unsupportedOrder = { cartTotals: { currency_code: 'JPY' } };
+    const scene = buildScene(makeSettings({ supported_currencies: ['KWD', 'USD'] }));
     const reg = scene.registered;
     record(reg !== undefined, 'B-REG-1 payment method registered', 'runtime');
     record(reg && reg.name === 'upayments', 'B-REG-2 name === upayments', 'runtime');
     record(reg && reg.ariaLabel === 'UPayments', 'B-REG-3 ariaLabel === UPayments', 'runtime');
-    record(reg && typeof reg.canMakePayment === 'function' && reg.canMakePayment() === true,
-        'B-REG-4 canMakePayment returns true only for explicit provider availability', 'runtime');
-    const unavailableScene = buildScene(makeSettings({ availability_valid: false }));
+    record(reg && typeof reg.canMakePayment === 'function'
+        && reg.canMakePayment(supportedOrder) === true,
+        'B-REG-4 canMakePayment accepts explicit provider availability plus supported live currency', 'runtime');
+    const unavailableScene = buildScene(makeSettings({
+        availability_valid: false,
+        supported_currencies: ['KWD', 'USD'],
+    }));
     const unavailableReg = unavailableScene.registered;
     record(unavailableReg && typeof unavailableReg.canMakePayment === 'function'
-        && unavailableReg.canMakePayment() === false,
+        && unavailableReg.canMakePayment(supportedOrder) === false,
         'B-REG-4b canMakePayment fails closed when provider availability is false', 'runtime');
+    record(reg && typeof reg.canMakePayment === 'function' && reg.canMakePayment() === false,
+        'B-REG-4c canMakePayment fails closed without current order economics', 'runtime');
+    record(reg && typeof reg.canMakePayment === 'function' && reg.canMakePayment({}) === false,
+        'B-REG-4d canMakePayment fails closed without current cart totals', 'runtime');
+    record(reg && typeof reg.canMakePayment === 'function'
+        && reg.canMakePayment(unsupportedOrder) === false,
+        'B-REG-4e canMakePayment fails closed on unsupported live currency', 'runtime');
     record(reg && typeof reg.onPaymentMethodChange === 'function' && reg.onPaymentMethodChange() === true,
         'B-REG-5 onPaymentMethodChange returns true', 'runtime');
     record(reg && JSON.stringify(reg.supports.features) === JSON.stringify(['products']),
