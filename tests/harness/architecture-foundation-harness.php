@@ -443,8 +443,7 @@ arch_assert(arch_contains($architecture, 'exact accepted `UPayments.php` byte si
 arch_assert(arch_contains($architecture, 'Composer only with an explicit distribution rule'), 'Composer introduction is gated by distribution contract');
 arch_assert(arch_contains($architecture, 'PHPCS/WPCS and PHPStan incrementally'), 'static-analysis rollout is incremental');
 arch_assert(
-    arch_contains($status, '| Historical Quality Platform Q1-Q19 | **DONE / VERIFIED — numbered sequence permanently closed** |')
-    || arch_contains($status, 'Historical Quality Platform Q1-Q19'),
+    arch_contains($status, '| Quality Platform Q1-Q19 | **DONE / VERIFIED — permanently closed at Q19** |'),
     'project status preserves verified Quality Platform progression through Q19'
 );
 arch_assert(arch_contains($naming, '**Canonical slug:** `supcheckout`'), 'canonical slug remains protected');
