@@ -199,6 +199,11 @@ final class PublicOrderStatus {
      */
     private static function send(array $payload, $status_code) {
         $status_code = (int) $status_code;
+        if (function_exists('wc_nocache_headers')) {
+            wc_nocache_headers();
+        } elseif (function_exists('nocache_headers')) {
+            nocache_headers();
+        }
         if (function_exists('wp_send_json')) {
             wp_send_json($payload, $status_code);
         }

@@ -694,6 +694,13 @@ function woocommerceUpaymentsInit() {
          */
         public function return_from_upayments()
         {
+            // Public browser return/redirect responses must never be shared-cacheable.
+            if (function_exists('wc_nocache_headers')) {
+                wc_nocache_headers();
+            } elseif (function_exists('nocache_headers')) {
+                nocache_headers();
+            }
+
             // phpcs:disable WordPress.Security.NonceVerification.Recommended -- External UPayments browser return cannot carry a WordPress nonce; all inbound identifiers are sanitized and paid-state authority requires authenticated provider status verification.
             if (!isset($_GET["wc_order_id"])) {
                 $this->log("Return callback received without wc_order_id.");
@@ -885,6 +892,13 @@ function woocommerceUpaymentsInit() {
          */
         public function web_hook_handler()
         {
+            // Public webhook responses must never be shared-cacheable.
+            if (function_exists('wc_nocache_headers')) {
+                wc_nocache_headers();
+            } elseif (function_exists('nocache_headers')) {
+                nocache_headers();
+            }
+
             $this->log("Webhook received; verifying payment status.");
 
             try {
