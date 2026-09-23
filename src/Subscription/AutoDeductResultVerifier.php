@@ -82,6 +82,14 @@ final class AutoDeductResultVerifier
             return self::result(self::BINDING_MISMATCH, 'currency', $payment_id, $paid_amount, $paid_currency);
         }
 
+        // Parent/cycle identity binding when provided in the expected snapshot.
+        if (isset($expected['parent_id']) && (int) $expected['parent_id'] <= 0) {
+            return self::result(self::MALFORMED, 'expected_parent_invalid', $payment_id, $paid_amount, $paid_currency);
+        }
+        if (isset($expected['cycle_key']) && (!is_string($expected['cycle_key']) || $expected['cycle_key'] === '')) {
+            return self::result(self::MALFORMED, 'expected_cycle_invalid', $payment_id, $paid_amount, $paid_currency);
+        }
+
         // Identity binding: reference when present must match expected reference.
         if (isset($transaction['reference']) && is_scalar($transaction['reference'])) {
             $reference = trim((string) $transaction['reference']);

@@ -702,6 +702,19 @@ class Scheduler
             return;
         }
 
+        $paid_amount = is_string($verification['paid_amount']) ? $verification['paid_amount'] : '';
+        $paid_currency = is_string($verification['paid_currency']) ? $verification['paid_currency'] : '';
+        if ($paid_amount === '' || $paid_currency === '') {
+            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            return;
+        }
+        $paid_amount = is_string($verification['paid_amount']) ? $verification['paid_amount'] : '';
+        $paid_currency = is_string($verification['paid_currency']) ? $verification['paid_currency'] : '';
+        if ($paid_amount === '' || $paid_currency === '') {
+            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            return;
+        }
+
         $transaction = isset($result['data']['transaction']) && is_array($result['data']['transaction'])
             ? $result['data']['transaction']
             : array();
@@ -813,8 +826,9 @@ class Scheduler
 
         $renewal_order->set_address($order->get_address('billing'), 'billing');
         $renewal_order->set_address($order->get_address('shipping'), 'shipping');
-        $renewal_order->set_currency($paid_currency);
-        $renewal_order->set_total((float) $transaction['paid_amount']);
+        $renewal_order->set_currency($verification['paid_currency']);
+        // Decimal-safe: never cast provider amounts through binary float.
+        $renewal_order->set_total($verification['paid_amount']);
         $renewal_order->set_payment_method('upayments');
         $renewal_order->set_payment_method_title('UPayments Auto Deduction');
 
