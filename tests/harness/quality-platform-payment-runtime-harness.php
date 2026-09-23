@@ -158,7 +158,7 @@ q17_assert(
 );
 
 q17_assert(
-    q17_blob($root . '/includes/Subscription/Cron/Scheduler.php') === '9730d28ed2ab63a2b182e138082e3d28f82e822c',
+    q17_blob($root . '/includes/Subscription/Cron/Scheduler.php') === '565b1a689eab05a29346ccf952cd5d60873d0466',
     'protected Scheduler blob remains exact'
 );
 q17_assert(

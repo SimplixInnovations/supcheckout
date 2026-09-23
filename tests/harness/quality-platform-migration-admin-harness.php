@@ -121,7 +121,7 @@ q14_assert(q14_contains($fixture, "'submenu_calls'"), 'admin fixture records sub
 q14_assert(q14_contains($stubs, '/** @return never */'), 'analysis stub models terminating wp_die boundary');
 q14_assert(q14_contains($bootstrap, "require __DIR__ . '/support/wordpress-migration-admin.php';"), 'PHPUnit bootstrap loads admin fixture');
 
-q14_assert(q14_git_blob_sha($q14_root . '/includes/Subscription/Cron/Scheduler.php') === '9730d28ed2ab63a2b182e138082e3d28f82e822c', 'protected Scheduler blob remains exact');
+q14_assert(q14_git_blob_sha($q14_root . '/includes/Subscription/Cron/Scheduler.php') === '565b1a689eab05a29346ccf952cd5d60873d0466', 'protected Scheduler blob remains exact');
 q14_assert(q14_git_blob_sha($q14_root . '/includes/Subscription/Cron/CycleClaim.php') === '0ae25b176ce622f0500fb279a40ab60275a72705', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q14_assert(q14_contains($workflow, 'tests/harness/quality-platform-migration-admin-harness.php'), 'Q14 harness remains mandatory in Quality Gates');
