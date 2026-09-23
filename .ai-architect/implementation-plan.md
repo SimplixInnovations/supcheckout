@@ -65,29 +65,19 @@ At that exact E3 head, Quality/H12, all 20 Compatibility cells + Compatibility G
 
 GitHub default CodeQL JavaScript/TypeScript did not reach a terminal verdict for that historical SHA. Descendant merge/release qualification still requires CodeQL/security green.
 
-Current executable gate: **R2 callback portability / cache safety**.
+Current executable gate: **R3 subscription safety**.
 
-## R2 implementation contract
+## R2 implementation contract (closed)
 
-Payment-critical, test-first.
+R2 **DONE / VERIFIED**. Certified PR head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`, package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3`.
 
-Required behavior:
+Required behavior delivered:
 
-1. Replace hand-built `site_url()` callback construction with WooCommerce's public WC-API URL abstraction.
-2. Preserve valid callback generation when `home_url != site_url`, WordPress is in a subdirectory, and plain/index/permalink layouts differ.
-3. Preserve trusted HTTPS/public-origin behavior through WordPress/WooCommerce configuration; do not trust arbitrary raw forwarded headers.
-4. Emit explicit no-cache response semantics for public callback/status surfaces without altering payment authority, redirect behavior or webhook termination.
-5. Add the narrowest permanent `ecosystem-callback-cache` regression that fails on the existing code.
-
-TDD discipline:
-
-1. characterize/reproduce;
-2. add meaningful RED;
-3. prove RED fails for intended reason;
-4. implement minimum GREEN;
-5. run focused GREEN;
-6. run full exact-head workflow stack + CodeQL;
-7. reconcile living records only after evidence is stable.
+1. WC_Upayments owns a platform resolver calling `WC()->api_request_url('wc_upayments')`; CheckoutOrchestrator receives it as an explicit dependency and never discovers `WC()`.
+2. Valid callback generation when `home_url != site_url`, WordPress is in a subdirectory, and plain/index/permalink layouts differ.
+3. Trusted HTTPS/public-origin behavior through WordPress/WooCommerce configuration; no raw forwarded-header trust.
+4. Explicit no-cache response semantics for public callback/status surfaces without altering payment authority, redirect behavior or webhook termination.
+5. Permanent `ecosystem-callback-cache` regression plus real portability/HTTP fixtures.
 
 ## R3 / R4 after R2
 

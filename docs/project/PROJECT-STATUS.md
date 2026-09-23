@@ -26,11 +26,12 @@
 | Approach 3 T2 | **DONE / VERIFIED / runtime-bearing** |
 | Approach 3 T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active program | `post-t3-ecosystem-hardening` — R2 is the next unstarted gate |
+| Active program | `post-t3-ecosystem-hardening` — R2 **DONE / VERIFIED**; R3 is the next unstarted gate |
 | E2 repository-executable generic | **DONE / CERTIFIED** |
 | E3 repository-executable runtime evidence | **DONE / VERIFIED** |
 | Latest E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
-| Current executable gate | **R2 callback portability / cache safety** |
+| R2 | **DONE / VERIFIED** — PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3` |
+| Current executable gate | **R3 subscription safety** |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -103,9 +104,10 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **R2 callback portability / cache safety**.
+Current executable gate: **R3 subscription safety**.
 
-1. **R2 — callback portability/cache safety:** Woo API URL abstraction; `home_url` vs `site_url`; subdirectory, permalink/index and trusted proxy/public-origin behavior; explicit no-cache callback/public-status semantics; replay freshness.
+1. **R2 — DONE / VERIFIED:** Woo API URL abstraction via injected platform resolver; `home_url` vs `site_url`; subdirectory, permalink/index and trusted proxy/public-origin behavior; explicit no-cache callback/public-status semantics.
+2. **R3 — subscription safety:** exact auto-deduct amount/currency/parent/cycle/provider binding; no first-card fallback; parent discovery beyond `completed`; customer cancel/pause/resume policy; token-retention contract; held-cycle reconciliation.
 2. **R3 — subscription safety:** exact auto-deduct amount/currency/parent/cycle/provider binding; no first-card fallback; parent discovery beyond `completed`; customer cancel/pause/resume policy; token-retention contract; held-cycle reconciliation.
 3. **R4 — scalability/operations:** due-work scheduling/Action Scheduler, bounded batches, durable cycle-journal authority, observability, load/concurrency/failure injection and queue health.
 4. **R5 / T4 — callback consolidation:** separately gated architecture decision. T3 characterization is evidence, not implementation authorization.

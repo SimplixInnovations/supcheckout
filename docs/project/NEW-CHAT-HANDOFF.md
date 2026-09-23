@@ -70,25 +70,26 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **R2 callback portability / cache safety**.
+Current executable gate: **R3 subscription safety**.
 
-1. **R2:** use WooCommerce public API URL generation; cover public-home vs WordPress-site divergence, subdirectory/permalink/index shapes and trusted proxy behavior; add explicit no-cache semantics to callback/public-status responses.
+R2 is **DONE / VERIFIED** (PR #110 certified head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`, package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3`).
+
+1. **R3:** eliminate first-card fallback; exact auto-deduct economic/identity binding; dedicated response verifier; immutable cycle snapshot; parent discovery; pause/resume/cancel contract; held-cycle reconciliation without blind replay.
 2. **R3:** bind auto-deduct result to exact amount/currency/parent/cycle/provider identity; remove first-card fallback; broaden valid parent discovery; define customer control, token retention and held-cycle reconciliation.
 3. **R4:** replace historical hourly scanning with due-work orchestration, preferably Action Scheduler; keep the durable cycle journal authoritative; add observability/load/concurrency/failure-injection evidence.
 4. **R5/T4:** separately approve architecture before callback consolidation.
 5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.
 
-## Immediate R2 TDD boundary
+## Immediate R3 TDD boundary
 
 Required RED behavior:
 
-- callback URL generation must fail current `site_url()` construction when public home and WordPress core URL differ;
-- plain/index/permalink layouts must preserve a valid WooCommerce API callback;
-- no-cache headers must be emitted for public order-status responses and callback terminal paths;
-- redirects/webhooks must retain existing authority, termination and status behavior;
-- raw forwarded headers are not trusted as public-origin authority.
+- missing explicit renewal card token must produce ZERO auto-deduct POSTs even when saved cards exist;
+- auto-deduct success must not complete a renewal without exact amount/currency/parent/cycle binding;
+- truthy provider `status` alone must not authorize paid state without proven capture authority;
+- HELD cycles must never auto-replay merely because time passed.
 
-Minimal GREEN must correct only public callback URL construction and cache semantics. No payment-authority refactor and no T4 consolidation belongs in R2.
+Minimal GREEN must correct subscription renewal safety only. No T4 consolidation belongs in R3.
 
 ## Permanent invariants
 
