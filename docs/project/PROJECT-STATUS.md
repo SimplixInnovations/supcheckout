@@ -1,11 +1,11 @@
 # SUPCheckout for UPayments — Project Status
 
-**Status document:** canonical living engineering state  
-**Last reconciled:** 2026-09-11  
-**Canonical repository:** `SimplixInnovations/supcheckout`  
-**Development version:** `0.1.0`  
-**Owner technical acceptance:** **ACCEPTED only for frozen Approach 2**  
-**Accepted Approach 2 baseline:** **`0c883d609906676966002eb022a82a9656eeacc5`**  
+**Status document:** canonical living engineering state
+**Last reconciled:** 2026-09-11
+**Canonical repository:** `SimplixInnovations/supcheckout`
+**Development version:** `0.1.0`
+**Owner technical acceptance:** **ACCEPTED only for frozen Approach 2**
+**Accepted Approach 2 baseline:** **`0c883d609906676966002eb022a82a9656eeacc5`**
 **Accepted package:** `supcheckout-0.1.0.zip` — 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
 
 > Live GitHub source, exact-head checks and package evidence override this document if they differ. Historical milestone records stay historical; this file records current engineering truth.
@@ -20,7 +20,8 @@
 | PHP namespace | `Simplixi\SUPCheckout` |
 | First-stable bootstrap | `supcheckout/UPayments.php` — intentional compatibility exception |
 | Approach 2 | **DONE / VERIFIED / OWNER ACCEPTED** |
-| Quality Platform Q1-Q19 | **DONE / VERIFIED — permanently closed** |
+| Quality Platform Q1-Q19 | **DONE / VERIFIED — permanently closed at Q19** |
+| Final pre-clone runtime/QA closure | **DONE / VERIFIED — PR #75** |
 | Approach 3 T1 | **DONE / VERIFIED** |
 | Approach 3 T2 | **DONE / VERIFIED / runtime-bearing** |
 | Approach 3 T3 | **DONE / VERIFIED / runtime-neutral** |
