@@ -93,6 +93,9 @@ final class SUPCheckout_Test_Payment_Runtime_Cart {
 final class SUPCheckout_Test_Payment_Runtime_WC {
     public $cart;
     public $session;
+    public $api_request_url_value = 'https://shop.example.test/store/wc-api/wc_upayments/';
+    public $api_request_url_calls = array();
+    public $api_request_url_available = true;
 
     public function __construct() {
         $this->cart = new SUPCheckout_Test_Payment_Runtime_Cart();
@@ -102,6 +105,11 @@ final class SUPCheckout_Test_Payment_Runtime_WC {
     public function payment_gateways() {
         return false;
     }
+
+    public function api_request_url($request = '', $ssl = null) {
+        $this->api_request_url_calls[] = array((string) $request, $ssl);
+        return $this->api_request_url_value;
+    }
 }
 
 function supcheckout_test_reset_payment_runtime() {
@@ -109,6 +117,7 @@ function supcheckout_test_reset_payment_runtime() {
     supcheckout_test_reset_subscription_presentation();
     $GLOBALS['supcheckout_test_subscription_presentation']['wc'] = new SUPCheckout_Test_Payment_Runtime_WC();
     $GLOBALS['supcheckout_test_payment_runtime_request_calls'] = array();
+    $GLOBALS['supcheckout_test_site_url_calls'] = array();
     $_POST = array();
 }
 
@@ -117,6 +126,10 @@ function wc_get_checkout_url() {
 }
 
 function site_url($path = '', $scheme = null) {
+    if (!isset($GLOBALS['supcheckout_test_site_url_calls'])) {
+        $GLOBALS['supcheckout_test_site_url_calls'] = array();
+    }
+    $GLOBALS['supcheckout_test_site_url_calls'][] = array((string) $path, $scheme);
     return 'https://example.test' . (string) $path;
 }
 

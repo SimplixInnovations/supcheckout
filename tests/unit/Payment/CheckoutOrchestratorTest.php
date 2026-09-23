@@ -308,4 +308,150 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $provider_order_ids[1]);
         self::assertNotSame($provider_order_ids[0], $provider_order_ids[1]);
     }
+
+    public function test_callback_urls_use_woocommerce_api_request_url_authority(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $order = new \WC_Order(
+            42,
+            'KWD',
+            '10.000',
+            array(new \WC_Order_Item_Product(new \WC_Product('simple')))
+        );
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $wc = $GLOBALS['supcheckout_test_subscription_presentation']['wc'];
+        $wc->api_request_url_value = 'https://shop.example.test/store/wc-api/wc_upayments/';
+        $charge_body = null;
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$charge_body) {
+                if ($route === 'charge' && $method === 'POST' && is_string($body)) {
+                    $charge_body = json_decode($body, true);
+                }
+                return array();
+            }
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame(array(array('wc_upayments', null)), $wc->api_request_url_calls);
+        self::assertIsArray($charge_body);
+        self::assertSame(
+            'https://shop.example.test/store/wc-api/wc_upayments/?page=success&wc_order_id=42',
+            $charge_body['returnUrl']
+        );
+        self::assertSame(
+            'https://shop.example.test/store/wc-api/wc_upayments/?page=error&wc_order_id=42',
+            $charge_body['cancelUrl']
+        );
+        self::assertSame(
+            'https://shop.example.test/store/wc-api/wc_upayments/?wc_order_id=42',
+            $charge_body['notificationUrl']
+        );
+        self::assertStringStartsWith('https://shop.example.test/', $charge_body['returnUrl']);
+        self::assertStringNotContainsString('https://example.test/', $charge_body['returnUrl']);
+        self::assertStringNotContainsString('https://example.test/', $charge_body['cancelUrl']);
+        self::assertStringNotContainsString('https://example.test/', $charge_body['notificationUrl']);
+        self::assertSame(array(), $GLOBALS['supcheckout_test_site_url_calls']);
+    }
+
+    public function test_callback_urls_append_query_args_on_plain_wc_api_base(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $order = new \WC_Order(
+            42,
+            'KWD',
+            '10.000',
+            array(new \WC_Order_Item_Product(new \WC_Product('simple')))
+        );
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $wc = $GLOBALS['supcheckout_test_subscription_presentation']['wc'];
+        $wc->api_request_url_value = 'https://shop.example.test/store/?wc-api=wc_upayments';
+        $charge_body = null;
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$charge_body) {
+                if ($route === 'charge' && $method === 'POST' && is_string($body)) {
+                    $charge_body = json_decode($body, true);
+                }
+                return array();
+            }
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertIsArray($charge_body);
+        self::assertSame(
+            'https://shop.example.test/store/?wc-api=wc_upayments&page=success&wc_order_id=42',
+            $charge_body['returnUrl']
+        );
+        self::assertSame(
+            'https://shop.example.test/store/?wc-api=wc_upayments&page=error&wc_order_id=42',
+            $charge_body['cancelUrl']
+        );
+        self::assertSame(
+            'https://shop.example.test/store/?wc-api=wc_upayments&wc_order_id=42',
+            $charge_body['notificationUrl']
+        );
+    }
+
+    public function test_invalid_wc_api_url_fails_closed_before_provider_request(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $order = new \WC_Order(
+            42,
+            'KWD',
+            '10.000',
+            array(new \WC_Order_Item_Product(new \WC_Product('simple')))
+        );
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $wc = $GLOBALS['supcheckout_test_subscription_presentation']['wc'];
+        $wc->api_request_url_value = '';
+        $provider_requests = array();
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$provider_requests) {
+                $provider_requests[] = array($route, $method, $body);
+                return array();
+            }
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame(array(), $provider_requests);
+    }
+
+    public function test_overlong_callback_urls_still_fail_closed_before_provider_request(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $order = new \WC_Order(
+            42,
+            'KWD',
+            '10.000',
+            array(new \WC_Order_Item_Product(new \WC_Product('simple')))
+        );
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $wc = $GLOBALS['supcheckout_test_subscription_presentation']['wc'];
+        $wc->api_request_url_value = 'https://shop.example.test/' . str_repeat('a', 220) . '/wc-api/wc_upayments/';
+        $provider_requests = array();
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$provider_requests) {
+                $provider_requests[] = array($route, $method, $body);
+                return array();
+            }
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame(array(), $provider_requests);
+    }
 }
