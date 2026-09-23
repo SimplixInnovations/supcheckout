@@ -101,7 +101,7 @@ Canonical plan:
 
 `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`
 
-Active integration work is draft PR #108 on `audit/post-t3-ecosystem-hardening`.
+The completed R0/R1/E1-E3 integration milestone was squash-merged through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`. No feature branch is retained for that milestone.
 
 The latest repository-executable E3 runtime checkpoint inside that PR is:
 
@@ -111,7 +111,7 @@ At that exact SHA, Quality/H12, the full 20-cell Compatibility matrix + Compatib
 
 GitHub default CodeQL JavaScript/TypeScript analysis did not reach a terminal verdict for this historical checkpoint; that hosted-security gap must not be rewritten as a success claim. Its deterministic package is 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 
-R0, R1 and E1 are **DONE / VERIFIED on the PR #108 branch**. Repository-executable generic E2 is **DONE / CERTIFIED**. E3 repository-executable runtime evidence is **DONE / VERIFIED** at this checkpoint. Named paid/licensed themes, paid optimizers, CDN/server-specific cache modes, browser/device visual evidence and named analytics deduplication remain external/manual unless actually exercised.
+R0, R1 and E1 are **DONE / VERIFIED and integrated through PR #108**. Repository-executable generic E2 is **DONE / CERTIFIED**. E3 repository-executable runtime evidence is **DONE / VERIFIED** at this checkpoint. Named paid/licensed themes, paid optimizers, CDN/server-specific cache modes, browser/device visual evidence and named analytics deduplication remain external/manual unless actually exercised.
 
 That candidate does **not** redefine the accepted Approach 2 baseline.
 
@@ -155,11 +155,11 @@ R0-R4 are bounded evidence-first work under the approved post-T3 plan. **R5/T4 i
 | T1 | **DONE / VERIFIED** |
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
-| Latest merged Approach 3 main | `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9` |
-| Active task | **PR #108 — post-t3-ecosystem-hardening** |
+| Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
+| Active task | **None — next engineering gate is R2 callback portability / cache safety** |
 | Latest repository-executable E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | Latest candidate package at that checkpoint | 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c` |
-| R0 / R1 / E1 | **DONE / VERIFIED on PR #108 branch** |
+| R0 / R1 / E1 | **DONE / VERIFIED and integrated through PR #108** |
 | E2 repository-executable generic | **DONE / CERTIFIED** |
 | E3 repository-executable | **DONE / VERIFIED** at `540b733c29656758f2392817649fc3d4a4db585d` |
 | Current operational gate | **R2 callback portability / cache safety** |
@@ -171,7 +171,7 @@ R0-R4 are bounded evidence-first work under the approved post-T3 plan. **R5/T4 i
 Use three layers of truth:
 
 1. **Program state — this file.** Phase, gates, accepted baseline, next program action and release authorization.
-2. **Active task state — the open GitHub PR.** Base, exact head, scope/non-scope, failures, current gate, next action and merge evidence.
+2. **Active task state — a GitHub PR when one exists.** Base, exact head, scope/non-scope, failures, current gate, next action and merge evidence. Between bounded tranches, zero open PRs is the expected clean state.
 3. **Durable history — merged PRs, commits, CI and retained evidence.** Do not duplicate a forever-growing event stream here.
 
 Update this ledger whenever the active phase, acceptance state, release authorization, current gate, next substantive action or runtime-bearing evidence anchor changes materially.

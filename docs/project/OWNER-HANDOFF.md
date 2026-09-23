@@ -16,9 +16,9 @@ Owner technical acceptance remains **ACCEPTED only for the frozen Approach 2 bas
 - files: 51;
 - SHA-256: `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
-Approach 3 has advanced through T3. Latest merged Approach 3 main is `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`; latest runtime-bearing merged main remains T2 `047cc86060efb97761d7a0cc4a3806f971ab6fe1` until a later runtime-bearing tranche is merged.
+Approach 3 advanced through T3 at `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`. The completed post-T3 R0/R1/E1-E3 integration milestone was squash-merged through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; T2 `047cc86060efb97761d7a0cc4a3806f971ab6fe1` remains the last separately tracked runtime-bearing tranche before that milestone.
 
-Active successor: `post-t3-ecosystem-hardening`, draft PR #108 on `audit/post-t3-ecosystem-hardening`.
+Current successor program: `post-t3-ecosystem-hardening`. R2 callback portability / cache safety is the next unstarted gate; no feature branch or PR is intentionally retained between bounded tranches.
 
 Latest repository-executable E3 runtime checkpoint is `540b733c29656758f2392817649fc3d4a4db585d`; its deterministic 55-file candidate package SHA-256 is `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 
@@ -69,7 +69,7 @@ At a final acceptance/release boundary:
 - working tree must be clean;
 - no unintended worktree/stash/feature branch may remain.
 
-During active engineering, PR #108 is an intentional exception.
+Between bounded engineering tranches, the expected clean state is `main` only, with no feature worktree, stash, feature branch or open PR. A future tranche may create a bounded branch/PR and must return to this clean state after merge.
 
 ## 4. Toolchain preflight
 

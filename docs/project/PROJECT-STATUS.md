@@ -25,8 +25,8 @@
 | Approach 3 T1 | **DONE / VERIFIED** |
 | Approach 3 T2 | **DONE / VERIFIED / runtime-bearing** |
 | Approach 3 T3 | **DONE / VERIFIED / runtime-neutral** |
-| Latest merged Approach 3 main | `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9` |
-| Active program | `post-t3-ecosystem-hardening` — draft PR #108 |
+| Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
+| Active program | `post-t3-ecosystem-hardening` — R2 is the next unstarted gate |
 | E2 repository-executable generic | **DONE / CERTIFIED** |
 | E3 repository-executable runtime evidence | **DONE / VERIFIED** |
 | Latest E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
@@ -55,13 +55,13 @@ T3 is runtime-neutral and permanently characterizes `WC_Upayments::return_from_u
 
 Direct callers of `return_from_upayments()` may not carry the WC-API GET `page` marker used by `PaymentLifecycle::handle_callback()` for browser-mode inference. T3 therefore does **not** authorize naive T4 delegation.
 
-The latest runtime-bearing merged `main` remains T2 `047cc86060efb97761d7a0cc4a3806f971ab6fe1` until another runtime-bearing tranche is merged.
+The completed post-T3 R0/R1/E1-E3 milestone was squash-merged through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`. T2 `047cc86060efb97761d7a0cc4a3806f971ab6fe1` remains the last separately tracked runtime-bearing Approach 3 tranche before that integrated milestone.
 
-## Active post-T3 hardening
+## Post-T3 hardening
 
 Canonical plan: [`../superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`](../superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md).
 
-Active integration: draft PR #108 / `audit/post-t3-ecosystem-hardening`.
+Completed integration milestone: PR #108 / R0/R1/E1-E3, squash-merged to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`. The temporary branch was deleted after merge.
 
 E3 repository-executable exact-head checkpoint:
 

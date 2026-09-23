@@ -37,14 +37,14 @@ Do not move this anchor without an explicit fresh owner acceptance event.
 
 T3 proved that a direct `return_from_upayments()` caller may not carry the GET `page` marker used by `PaymentLifecycle::handle_callback()` to infer browser mode. **R5/T4 consolidation therefore requires its own architecture decision.**
 
-## Active program
+## Current program
 
 Current program: **`post-t3-ecosystem-hardening`**
 Plan: `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`
-Integration: **draft PR #108 / `audit/post-t3-ecosystem-hardening`**
+R0/R1/E1-E3 integration milestone: **PR #108 — MERGED to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; temporary branch deleted**
 Publication: **NOT AUTHORIZED**
 
-R0, R1 and E1 are **DONE / VERIFIED on PR #108 branch**. Repository-executable generic E2 is **DONE / CERTIFIED**.
+R0, R1 and E1 are **DONE / VERIFIED and integrated through PR #108**. Repository-executable generic E2 is **DONE / CERTIFIED**.
 
 ## Latest repository-executable E3 runtime checkpoint
 

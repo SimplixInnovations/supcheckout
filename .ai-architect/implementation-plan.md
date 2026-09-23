@@ -49,7 +49,7 @@ Canonical plan:
 
 `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`
 
-Active integration: draft PR #108 / `audit/post-t3-ecosystem-hardening`.
+R0/R1/E1-E3 integration milestone: PR #108 — **MERGED** to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; temporary branch deleted.
 
 Execution state:
 
