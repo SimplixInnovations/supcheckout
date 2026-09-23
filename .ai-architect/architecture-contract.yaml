@@ -16,8 +16,8 @@ baselines:
   frozen_accepted_approach_2_sha: 0c883d609906676966002eb022a82a9656eeacc5
   accepted_package_sha256: 58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655
   accepted_package_files: 51
-  latest_merged_approach_3_main: a7a8bbfc3a1dc551127b7ead897c964e95c7cec9
-  latest_runtime_bearing_merged_main: 047cc86060efb97761d7a0cc4a3806f971ab6fe1
+  latest_merged_approach_3_main: d69377d3e26831270a00151025d24cc64be9d36b
+  latest_runtime_bearing_merged_main: d69377d3e26831270a00151025d24cc64be9d36b
 
 boundaries:
   platform_edges:
@@ -155,6 +155,7 @@ tranches:
     plan: docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md
     preapproved_for_implementation: true
     scope: R0-R4 bounded evidence-first work only; R5/T4 remains separately gated
+    integrated_r0_e3_main: d69377d3e26831270a00151025d24cc64be9d36b
     latest_e3_runtime_checkpoint: 540b733c29656758f2392817649fc3d4a4db585d
     latest_e3_package_sha256: 01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c
     latest_e3_package_files: 55
