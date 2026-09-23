@@ -1047,11 +1047,26 @@ function woocommerceUpaymentsInit() {
             $request_executor = function ($route, $method, $body = null) use ($gateway) {
                 return $gateway->execute_upayments_request($route, $method, $body);
             };
+            // R2 platform edge: WooCommerce owns public WC-API URL construction.
+            $callback_url_resolver = static function () {
+                if (!function_exists('WC')) {
+                    return null;
+                }
+
+                $woocommerce = WC();
+                if (!is_object($woocommerce) || !method_exists($woocommerce, 'api_request_url')) {
+                    return null;
+                }
+
+                $url = $woocommerce->api_request_url('wc_upayments');
+                return is_string($url) ? $url : null;
+            };
 
             return (new CheckoutOrchestrator(
                 $gateway,
                 $request_body_reader,
-                $request_executor
+                $request_executor,
+                $callback_url_resolver
             ))->process($order_id);
         }
 

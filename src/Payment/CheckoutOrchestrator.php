@@ -15,13 +15,15 @@ class CheckoutOrchestrator {
     private $gateway;
     private $requestBodyReader;
     private $requestExecutor;
+    private $callbackUrlResolver;
     private $requestBodyLoaded = false;
     private $requestBodyCache = null;
 
-    public function __construct($gateway, callable $request_body_reader, callable $request_executor) {
+    public function __construct($gateway, callable $request_body_reader, callable $request_executor, callable $callback_url_resolver) {
         $this->gateway = $gateway;
         $this->requestBodyReader = $request_body_reader;
         $this->requestExecutor = $request_executor;
+        $this->callbackUrlResolver = $callback_url_resolver;
     }
 
     private function read_request_body() {
@@ -38,22 +40,14 @@ class CheckoutOrchestrator {
     }
 
     /**
-     * WooCommerce owns public WC-API URL construction (permalinks, home/site
-     * divergence, subdirectory and index layouts). SUPCheckout only appends its
-     * own query markers and never rebuilds the origin from raw request headers.
+     * Validate a platform-provided WC-API base. The platform adapter owns URL
+     * construction; this boundary only enforces absolute http/https shape and
+     * fail-closed-before-Charge semantics.
      *
      * @return string|null
      */
-    private static function resolve_wc_api_callback_base() {
-        $woocommerce = null;
-        if (function_exists('WC')) {
-            $woocommerce = WC();
-        }
-        if (!is_object($woocommerce) || !method_exists($woocommerce, 'api_request_url')) {
-            return null;
-        }
-
-        $base = $woocommerce->api_request_url('wc_upayments');
+    private function resolve_wc_api_callback_base() {
+        $base = call_user_func($this->callbackUrlResolver);
         if (!is_string($base) || $base === '') {
             return null;
         }
@@ -102,7 +96,7 @@ class CheckoutOrchestrator {
             $order_data = $order->get_data();
             $order_total = $order->get_total();
 
-            $callback_base = self::resolve_wc_api_callback_base();
+            $callback_base = $this->resolve_wc_api_callback_base();
             if ($callback_base === null) {
                 $gateway->log('Callback URL unavailable from WooCommerce API abstraction.', 'warning');
                 wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
