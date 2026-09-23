@@ -93,6 +93,8 @@ final class SUPCheckout_Test_Payment_Runtime_Cart {
 final class SUPCheckout_Test_Payment_Runtime_WC {
     public $cart;
     public $session;
+    public $api_request_url_value = 'https://shop.example.test/store/wc-api/wc_upayments/';
+    public $api_request_url_calls = array();
 
     public function __construct() {
         $this->cart = new SUPCheckout_Test_Payment_Runtime_Cart();
@@ -102,6 +104,11 @@ final class SUPCheckout_Test_Payment_Runtime_WC {
     public function payment_gateways() {
         return false;
     }
+
+    public function api_request_url($request = '', $ssl = null) {
+        $this->api_request_url_calls[] = array((string) $request, $ssl);
+        return $this->api_request_url_value;
+    }
 }
 
 function supcheckout_test_reset_payment_runtime() {
@@ -109,6 +116,7 @@ function supcheckout_test_reset_payment_runtime() {
     supcheckout_test_reset_subscription_presentation();
     $GLOBALS['supcheckout_test_subscription_presentation']['wc'] = new SUPCheckout_Test_Payment_Runtime_WC();
     $GLOBALS['supcheckout_test_payment_runtime_request_calls'] = array();
+    $GLOBALS['supcheckout_test_site_url_calls'] = array();
     $_POST = array();
 }
 
@@ -117,6 +125,10 @@ function wc_get_checkout_url() {
 }
 
 function site_url($path = '', $scheme = null) {
+    if (!isset($GLOBALS['supcheckout_test_site_url_calls'])) {
+        $GLOBALS['supcheckout_test_site_url_calls'] = array();
+    }
+    $GLOBALS['supcheckout_test_site_url_calls'][] = array((string) $path, $scheme);
     return 'https://example.test' . (string) $path;
 }
 
@@ -135,6 +147,20 @@ if (!function_exists('wp_parse_url')) {
     function wp_parse_url($url, $component = -1) {
         return parse_url((string) $url, $component);
     }
+}
+
+/**
+ * Explicit platform URL seam for unit tests. Production injects this from
+ * WC_Upayments; tests never put WC() inside CheckoutOrchestrator.
+ */
+function supcheckout_test_callback_url_resolver() {
+    return static function () {
+        $wc = WC();
+        if (!is_object($wc) || !method_exists($wc, 'api_request_url')) {
+            return null;
+        }
+        return $wc->api_request_url('wc_upayments');
+    };
 }
 
 supcheckout_test_reset_payment_runtime();

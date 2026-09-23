@@ -401,6 +401,39 @@ function do_action($hook, ...$args) {}
 function register_activation_hook($file, $callback) {}
 function register_deactivation_hook($file, $callback) {}
 function site_url() { return 'https://example.test'; }
+function add_query_arg($key, $value = false, $url = false) {
+    if (is_array($key)) {
+        $params = $key;
+        $url = (string) $value;
+    } else {
+        $params = array((string) $key => (string) $value);
+        $url = (string) $url;
+    }
+    $fragment = '';
+    $hash_pos = strpos($url, '#');
+    if ($hash_pos !== false) {
+        $fragment = substr($url, $hash_pos);
+        $url = substr($url, 0, $hash_pos);
+    }
+    $query = array();
+    $query_pos = strpos($url, '?');
+    if ($query_pos !== false) {
+        parse_str(substr($url, $query_pos + 1), $query);
+        $url = substr($url, 0, $query_pos);
+    }
+    foreach ($params as $param_key => $param_value) {
+        if ($param_value === null || $param_value === false) {
+            unset($query[$param_key]);
+            continue;
+        }
+        $query[$param_key] = $param_value;
+    }
+    $encoded = array();
+    foreach ($query as $param_key => $param_value) {
+        $encoded[] = rawurlencode((string) $param_key) . '=' . rawurlencode((string) $param_value);
+    }
+    return $url . (empty($encoded) ? '' : '?' . implode('&', $encoded)) . $fragment;
+}
 function wp_salt($scheme = 'auth') { return 'test_salt_value_for_hmac'; }
 
 class WpdbStub {
@@ -836,6 +869,14 @@ function WC() {
                     if ($k === 'refresh_totals') upay_test_state()['session_refresh_totals']++;
                 }
             };
+        }
+        public function api_request_url($request = '', $ssl = null) {
+            $state = &upay_test_state();
+            if (!isset($state['api_request_url_calls'])) {
+                $state['api_request_url_calls'] = [];
+            }
+            $state['api_request_url_calls'][] = (string) $request;
+            return 'https://example.test/?wc-api=' . rawurlencode((string) $request);
         }
     };
 }

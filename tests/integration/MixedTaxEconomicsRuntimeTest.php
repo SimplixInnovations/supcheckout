@@ -168,8 +168,19 @@ try {
                 'curl_errno'   => 7,
                 'body'         => '',
             );
-        }
-    );
+        },
+            static function () {
+                if (!function_exists("WC")) {
+                    return null;
+                }
+                $woocommerce = WC();
+                if (!is_object($woocommerce) || !method_exists($woocommerce, "api_request_url")) {
+                    return null;
+                }
+                $url = $woocommerce->api_request_url("wc_upayments");
+                return is_string($url) ? $url : null;
+            }
+        );
     $orchestrator->process($order->get_id());
 
     supcheckout_cert_assert(1 === count($calls), 'mixed-tax order reaches exactly one provider request');

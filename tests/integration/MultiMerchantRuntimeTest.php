@@ -71,8 +71,19 @@ function supcheckout_cert_run_mm($order, $gateway, &$calls) {
                 'curl_errno' => 7,
                 'body' => '',
             );
-        }
-    );
+        },
+            static function () {
+                if (!function_exists("WC")) {
+                    return null;
+                }
+                $woocommerce = WC();
+                if (!is_object($woocommerce) || !method_exists($woocommerce, "api_request_url")) {
+                    return null;
+                }
+                $url = $woocommerce->api_request_url("wc_upayments");
+                return is_string($url) ? $url : null;
+            }
+        );
 
     return $orchestrator->process($order->get_id());
 }

@@ -15,13 +15,15 @@ class CheckoutOrchestrator {
     private $gateway;
     private $requestBodyReader;
     private $requestExecutor;
+    private $callbackUrlResolver;
     private $requestBodyLoaded = false;
     private $requestBodyCache = null;
 
-    public function __construct($gateway, callable $request_body_reader, callable $request_executor) {
+    public function __construct($gateway, callable $request_body_reader, callable $request_executor, callable $callback_url_resolver) {
         $this->gateway = $gateway;
         $this->requestBodyReader = $request_body_reader;
         $this->requestExecutor = $request_executor;
+        $this->callbackUrlResolver = $callback_url_resolver;
     }
 
     private function read_request_body() {
@@ -35,6 +37,32 @@ class CheckoutOrchestrator {
 
     private function execute_request($route, $method, $body = null) {
         return call_user_func($this->requestExecutor, $route, $method, $body);
+    }
+
+    /**
+     * Validate a platform-provided WC-API base. The platform adapter owns URL
+     * construction; this boundary only enforces absolute http/https shape and
+     * fail-closed-before-Charge semantics.
+     *
+     * @return string|null
+     */
+    private function resolve_wc_api_callback_base() {
+        $base = call_user_func($this->callbackUrlResolver);
+        if (!is_string($base) || $base === '') {
+            return null;
+        }
+
+        $parsed = wp_parse_url($base);
+        if (!$parsed
+            || !isset($parsed['scheme'])
+            || !isset($parsed['host'])
+            || ($parsed['scheme'] !== 'http' && $parsed['scheme'] !== 'https')
+            || $parsed['host'] === ''
+        ) {
+            return null;
+        }
+
+        return $base;
     }
 
         public function process($order_id) {
@@ -68,9 +96,18 @@ class CheckoutOrchestrator {
             $order_data = $order->get_data();
             $order_total = $order->get_total();
 
-            $success_url = site_url() . "/?wc-api=wc_upayments&page=success&wc_order_id=" . $order_id;
-            $error_url = site_url() . "/?wc-api=wc_upayments&page=error&wc_order_id=" . $order_id;
-            $ipn_url = site_url() . "/?wc-api=wc_upayments&wc_order_id=" . $order_id;
+            $callback_base = $this->resolve_wc_api_callback_base();
+            if ($callback_base === null) {
+                $gateway->log('Callback URL unavailable from WooCommerce API abstraction.', 'warning');
+                wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
+                return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
+            }
+
+            $success_url = add_query_arg('page', 'success', $callback_base);
+            $success_url = add_query_arg('wc_order_id', (string) $order_id, $success_url);
+            $error_url = add_query_arg('page', 'error', $callback_base);
+            $error_url = add_query_arg('wc_order_id', (string) $order_id, $error_url);
+            $ipn_url = add_query_arg('wc_order_id', (string) $order_id, $callback_base);
 
             $unique_order_id = md5(wp_generate_uuid4());
             $product_name = [];

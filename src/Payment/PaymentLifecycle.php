@@ -786,6 +786,8 @@ final class PaymentLifecycle {
     }
 
     private static function finish_callback($is_browser, $captured, $gateway, $order) {
+        self::send_nocache_headers();
+
         if ($is_browser) {
             $redirect = self::neutral_url();
             if ($captured && is_object($gateway) && is_object($order) && method_exists($gateway, 'get_return_url')) {
@@ -808,6 +810,20 @@ final class PaymentLifecycle {
             status_header(200);
         }
         exit();
+    }
+
+    /**
+     * Public callback responses must never be stored by shared caches.
+     * Prefer WooCommerce's public no-cache wrapper when available.
+     */
+    private static function send_nocache_headers() {
+        if (function_exists('wc_nocache_headers')) {
+            wc_nocache_headers();
+            return;
+        }
+        if (function_exists('nocache_headers')) {
+            nocache_headers();
+        }
     }
 
     private static function neutral_url() {

@@ -457,7 +457,9 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // src/Gateway/Availability.php while retaining the global callback as a thin adapter.
 // R1 then extracts gateway-specific order-total presentation without expanding
 // the compatibility shell.
-$acceptedGatewayBytes = 86237;
+// R2 adds callback-cache emission and the explicit WC-API URL platform resolver
+// while keeping the compatibility adapter bounded.
+$acceptedGatewayBytes = 87412;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'UPayments.php matches current exact architecture ratchet');
 arch_assert($gatewayClassTokens !== array(), 'legacy WC_Upayments gateway compatibility class remains executable');
 arch_assert(arch_contains($gateway, "add_filter(\"woocommerce_payment_gateways\", \"addUpaymentsGatewayClass\")"), 'WooCommerce gateway registration remains characterized');
@@ -577,7 +579,8 @@ arch_assert(
         $resolvedPublicMethods['process_payment']['body'],
         array(
             'return', '(', 'new', 'name:CheckoutOrchestrator', '(',
-            'variable:$gateway', ',', 'variable:$request_body_reader', ',', 'variable:$request_executor',
+            'variable:$gateway', ',', 'variable:$request_body_reader', ',',
+            'variable:$request_executor', ',', 'variable:$callback_url_resolver',
             ')', ')', '->', 'name:process', '(', 'variable:$order_id', ')', ';',
         )
     ),

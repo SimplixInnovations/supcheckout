@@ -75,8 +75,43 @@ function wc_get_account_endpoint_url($endpoint) {
     return 'https://example.test/account/' . $endpoint . '/';
 }
 
-function add_query_arg($key = null, $value = null) {
-    return 'https://example.test/account/orders/';
+function add_query_arg($key, $value = false, $url = false) {
+    if (is_array($key)) {
+        $params = $key;
+        $url = (string) $value;
+    } else {
+        $params = array((string) $key => (string) $value);
+        $url = (string) $url;
+    }
+
+    $fragment = '';
+    $hash_pos = strpos($url, '#');
+    if ($hash_pos !== false) {
+        $fragment = substr($url, $hash_pos);
+        $url = substr($url, 0, $hash_pos);
+    }
+
+    $query = array();
+    $query_pos = strpos($url, '?');
+    if ($query_pos !== false) {
+        parse_str(substr($url, $query_pos + 1), $query);
+        $url = substr($url, 0, $query_pos);
+    }
+
+    foreach ($params as $param_key => $param_value) {
+        if ($param_value === null || $param_value === false) {
+            unset($query[$param_key]);
+            continue;
+        }
+        $query[$param_key] = $param_value;
+    }
+
+    $encoded = array();
+    foreach ($query as $param_key => $param_value) {
+        $encoded[] = rawurlencode((string) $param_key) . '=' . rawurlencode((string) $param_value);
+    }
+
+    return $url . (empty($encoded) ? '' : '?' . implode('&', $encoded)) . $fragment;
 }
 
 function esc_url($value) {
