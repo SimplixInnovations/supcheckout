@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 final class CurrentProjectStateRegressionTest extends TestCase {
     private const T3_MERGED_MAIN_SHA = 'a7a8bbfc3a1dc551127b7ead897c964e95c7cec9';
     private const T2_RUNTIME_BEARING_MAIN_SHA = '047cc86060efb97761d7a0cc4a3806f971ab6fe1';
+    private const POST_T3_MILESTONE_MAIN_SHA = 'd69377d3e26831270a00151025d24cc64be9d36b';
     private const POST_T3_E3_RUNTIME_CHECKPOINT_SHA = '540b733c29656758f2392817649fc3d4a4db585d';
     private const POST_T3_E3_PACKAGE_SHA256 = '01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c';
 
@@ -47,6 +48,37 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('T3', $content);
         self::assertStringNotContainsString('Continue Approach 3 from verified T2', $content);
         self::assertStringNotContainsString('Approach 3 post-T2 evidence review / direct legacy-method characterization', $content);
+    }
+
+    public function test_living_control_plane_records_post_t3_milestone_merge_and_no_deleted_branch_as_active(): void {
+        $paths = array(
+            'AGENTS.md',
+            'docs/project/START-HERE.md',
+            'docs/project/PROJECT-STATUS.md',
+            'docs/project/OWNER-HANDOFF.md',
+            'docs/project/NEW-CHAT-HANDOFF.md',
+            '.ai-architect/implementation-plan.md',
+            '.ai-architect/architecture-contract.yaml',
+        );
+
+        foreach ($paths as $path) {
+            $content = self::read_repository_file($path);
+            self::assertStringContainsString(self::POST_T3_MILESTONE_MAIN_SHA, $content, $path);
+            self::assertStringNotContainsString('active draft PR #108', strtolower($content), $path);
+            self::assertStringNotContainsString('Active integration: draft PR #108', $content, $path);
+        }
+
+        foreach (array(
+            'AGENTS.md',
+            'docs/project/START-HERE.md',
+            'docs/project/PROJECT-STATUS.md',
+            'docs/project/OWNER-HANDOFF.md',
+            'docs/project/NEW-CHAT-HANDOFF.md',
+            '.ai-architect/implementation-plan.md',
+        ) as $path) {
+            $content = self::read_repository_file($path);
+            self::assertStringNotContainsString('audit/post-t3-ecosystem-hardening', $content, $path);
+        }
     }
 
     public function test_agent_instructions_do_not_send_new_sessions_back_to_pre_t3_work(): void {
