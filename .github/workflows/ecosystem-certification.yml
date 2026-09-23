@@ -19,6 +19,85 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  r2-callback-cache-http:
+    name: R2 callback cache HTTP / ${{ matrix.storage }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        storage: [legacy, hpos]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.ECOSYSTEM_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip
+          coverage: none
+          tools: none
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar \
+            -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+          /tmp/wp-cli.phar --version
+
+      - name: Install current real WordPress and WooCommerce runtime
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: >-
+          bash scripts/install-wp-test-environment.sh
+          "7.1"
+          "11.1.0"
+          "$RUNNER_TEMP/wordpress"
+
+      - name: Activate SUPCheckout and select authoritative order store
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar plugin activate "$SUPCHECKOUT_PLUGIN_SLUG" --path="$RUNNER_TEMP/wordpress"
+          if [[ "${{ matrix.storage }}" == "hpos" ]]; then
+            /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled yes --path="$RUNNER_TEMP/wordpress"
+          else
+            /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled no --path="$RUNNER_TEMP/wordpress"
+          fi
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_data_sync_enabled no --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar cache flush --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify R2 callback portability against real WooCommerce
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CallbackPortabilityRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify real HTTP callback/status no-cache responses
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: bash "$GITHUB_WORKSPACE/tests/integration/callback-cache-http.sh" "$RUNNER_TEMP/wordpress"
+
   e2-current-runtime:
     name: E2 mixed tax classes / ${{ matrix.storage }}
     runs-on: ubuntu-latest
@@ -331,7 +410,7 @@ jobs:
   ecosystem-gate:
     name: Ecosystem Gate
     if: ${{ always() }}
-    needs: [e2-current-runtime, e3-free-theme-runtime, e3-cache-plugin-runtime]
+    needs: [r2-callback-cache-http, e2-current-runtime, e3-free-theme-runtime, e3-cache-plugin-runtime]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

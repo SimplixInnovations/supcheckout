@@ -149,6 +149,9 @@ jobs:
       - name: Verify Blocks registration and availability
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CheckoutRegistrationTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: Verify R2 callback portability
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CallbackPortabilityRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Verify provider environment fail-safe
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/ProviderModeSafetyTest.php" --path="$RUNNER_TEMP/wordpress"
 

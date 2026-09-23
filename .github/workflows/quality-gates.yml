@@ -52,6 +52,7 @@ jobs:
             tests/harness/wordpress-org-runtime-harness.php
             tests/harness/supcheckout-http-transport-harness.php
             tests/harness/supcheckout-provenance-db-failure-harness.php
+            tests/harness/ecosystem-callback-cache-harness.php
             tests/provider/sandbox-charge-smoke.php
             tests/integration/bootstrap.php
             tests/integration/PluginActivationTest.php
@@ -63,6 +64,7 @@ jobs:
             tests/integration/MultiMerchantRuntimeTest.php
             tests/integration/OperationsRuntimeTest.php
             tests/integration/UpgradeCompatibilityTest.php
+            tests/integration/CallbackPortabilityRuntimeTest.php
             docs/COMPATIBILITY.md docs/ENGINEERING-ROADMAP.md
             docs/history/H12-ENGINEERING-CHANGELOG.md
             docs/project/PROJECT-STATUS.md
@@ -301,6 +303,7 @@ jobs:
             tests/harness/architecture-active-callback-characterization-harness.php
             tests/harness/architecture-legacy-callback-routing-harness.php
             tests/harness/architecture-legacy-direct-callback-characterization-harness.php
+            tests/harness/ecosystem-callback-cache-harness.php
             tests/harness/quality-platform-foundation-harness.php
             tests/harness/quality-platform-static-analysis-harness.php
             tests/harness/quality-platform-payment-concurrency-harness.php
