@@ -91,6 +91,8 @@ assert_no_cache_headers() {
 }
 
 # Invalid browser callback — browser mode with insufficient routing input.
+: > "$headers_file"
+: > "$body_file"
 supcheckout_curl_once_or_diagnose \
   'browser-invalid callback' \
   "$server_pid" \
@@ -99,7 +101,7 @@ supcheckout_curl_once_or_diagnose \
   --max-time 20 \
   -X GET \
   "$base_url/?wc-api=wc_upayments&page=success" \
-  >/dev/null || true
+  >/dev/null
 
 browser_status="$(head -n 1 "$headers_file" | tr -d '\r')"
 echo "browser-invalid status line: $browser_status"
@@ -116,6 +118,8 @@ grep -Eiq '^Location:.*upayments_verification=pending' <<<"$(tr -d '\r' <"$heade
 assert_no_cache_headers 'browser-invalid callback'
 
 # Invalid webhook callback — POST with missing routing input.
+: > "$headers_file"
+: > "$body_file"
 supcheckout_curl_once_or_diagnose \
   'webhook-invalid callback' \
   "$server_pid" \
@@ -124,7 +128,7 @@ supcheckout_curl_once_or_diagnose \
   --max-time 20 \
   -X POST \
   "$base_url/?wc-api=wc_upayments" \
-  >/dev/null || true
+  >/dev/null
 
 webhook_status="$(head -n 1 "$headers_file" | tr -d '\r')"
 echo "webhook-invalid status line: $webhook_status"
@@ -136,6 +140,8 @@ grep -Eiq 'HTTP/[0-9.]+ 200' <<<"$webhook_status" || {
 assert_no_cache_headers 'webhook-invalid callback'
 
 # Public status unavailable — no valid authorization/order.
+: > "$headers_file"
+: > "$body_file"
 supcheckout_curl_once_or_diagnose \
   'public status unavailable' \
   "$server_pid" \
@@ -144,7 +150,7 @@ supcheckout_curl_once_or_diagnose \
   --max-time 20 \
   -X GET \
   "$base_url/?wc-api=wc_upayments&get_order_status=1" \
-  >/dev/null || true
+  >/dev/null
 
 status_status="$(head -n 1 "$headers_file" | tr -d '\r')"
 echo "public-status-unavailable status line: $status_status"
