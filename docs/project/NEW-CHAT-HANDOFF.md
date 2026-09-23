@@ -32,15 +32,16 @@ Do not move this anchor without an explicit fresh owner acceptance event.
 - T1 — **DONE / VERIFIED**.
 - T2 — **DONE / VERIFIED / runtime-bearing**, merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`.
 - T3 — **DONE / VERIFIED / runtime-neutral**, certified PR #107 head `f7c7d596dc4a2c8464d1acdf13dfe51028a5f9e0`, merged main `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`.
-- Quality Platform Q1-Q19 — **DONE / VERIFIED; permanently closed**. Do not invent Q20.
+- Quality Platform Q1-Q19 — **DONE / VERIFIED; permanently closed at Q19**. Do not invent Q20.
+- Enterprise Tasks 1-8 — **DONE / VERIFIED**.
 
 T3 proved that a direct `return_from_upayments()` caller may not carry the GET `page` marker used by `PaymentLifecycle::handle_callback()` to infer browser mode. **R5/T4 consolidation therefore requires its own architecture decision.**
 
 ## Active program
 
-Current program: **`post-t3-ecosystem-hardening`**  
-Plan: `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`  
-Integration: **draft PR #108 / `audit/post-t3-ecosystem-hardening`**  
+Current program: **`post-t3-ecosystem-hardening`**
+Plan: `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`
+Integration: **draft PR #108 / `audit/post-t3-ecosystem-hardening`**
 Publication: **NOT AUTHORIZED**
 
 R0, R1 and E1 are **DONE / VERIFIED on PR #108 branch**. Repository-executable generic E2 is **DONE / CERTIFIED**.
