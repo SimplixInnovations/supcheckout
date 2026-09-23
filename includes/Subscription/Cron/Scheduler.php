@@ -16,6 +16,13 @@ defined('ABSPATH') || exit;
 // Scheduler references it, independent of any other plugin/theme/global
 // autoloader.
 require_once __DIR__ . '/CycleClaim.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/RenewalCardAuthority.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/CycleEconomics.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/AutoDeductResultVerifier.php';
+
+use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
+use Simplixi\SUPCheckout\Subscription\CycleEconomics;
+use Simplixi\SUPCheckout\Subscription\RenewalCardAuthority;
 
 class Scheduler
 {
@@ -83,8 +90,11 @@ class Scheduler
             $matched_orders = [];
 
             do {
+                $paid_statuses = function_exists('wc_get_is_paid_statuses')
+                    ? wc_get_is_paid_statuses()
+                    : array('processing', 'completed');
                 $orders = wc_get_orders([
-                    'status' => 'completed',
+                    'status' => $paid_statuses,
                     'limit'  => $limit,
                     'paged'  => $page,
                 ]);
@@ -339,35 +349,31 @@ class Scheduler
                 return; // Zero POSTs. The legacy guard ends processing.
             }
 
-            $credit_card_token = $order->get_meta('_upay_credit_card_token');
-            if (empty($credit_card_token)) {
-                $savedCards = $gateway->getSavedCards($customerUnqToken);
-                if ($savedCards && isset($savedCards['result']) && $savedCards['result'] === 'success') {
-                    $cards = $savedCards['data'];
-                    if (empty($cards) || !is_array($cards)) {
-                        $logger->info(
-                            'No saved cards for customer.',
-                            $context + ['order_id' => $order->get_id()]
-                        );
-                        return;
-                    }
-                    $credit_card_token = isset($cards[0]['token']) ? (string) $cards[0]['token'] : '';
-                } else {
-                    $logger->info(
-                        'Unable to retrieve saved cards.',
-                        $context + ['order_id' => $order->get_id()]
-                    );
-                    return;
+            // R3: only an explicitly persisted renewal card token is eligible.
+            // Never substitute cards[0] or any other returned card.
+            $card_resolution = RenewalCardAuthority::resolve_explicit_token(
+                $order,
+                function ($customer_token) use ($gateway) {
+                    return $gateway->getSavedCards($customer_token);
                 }
-            }
+            );
 
-            if ($credit_card_token === '') {
-                $logger->info(
-                    'Credit card token missing.',
-                    $context + ['order_id' => $order->get_id()]
+            if ($card_resolution['state'] !== RenewalCardAuthority::STATE_EXPLICIT
+                || !is_string($card_resolution['token'])
+                || $card_resolution['token'] === ''
+            ) {
+                // Missing/revoked/retrieval-failed card authorization must not
+                // become a charge. Pre-dispatch return is safe (no POST yet).
+                $logger->warning(
+                    'Renewal card authorization missing or not proven; no auto-deduct POST.',
+                    $context + [
+                        'order_id' => $order->get_id(),
+                        'state'    => $card_resolution['state'],
+                    ]
                 );
                 return;
             }
+            $credit_card_token = $card_resolution['token'];
 
             $unique_order_id = $order->get_id();
             $ref_id = $order->get_meta('UPayments_Ref');
@@ -633,76 +639,72 @@ class Scheduler
             return;
         }
 
-        // ---- 3. Top-level status (historical truthy compatibility gate) ----
-        // Preserves the historical truthy top-level `status` compatibility
-        // gate. This is NOT authoritative capture verification. HTTP 2xx
-        // is transport acceptance. Truthy status is historical compatibility.
-        // Phase 8C will replace this only after first-party protocol
-        // evidence exists.
-        $status_true = isset($result['status']) && $result['status'];
-        if (!$status_true) {
+        // ---- R3 verifier: structural + economic/identity binding ----
+        // HTTP 2xx is transport acceptance only. Truthy top-level status is
+        // historical compatibility (Phase 8C), not authenticated capture.
+        // AutoDeductResultVerifier classifies the response against the
+        // expected cycle economics and never invents provider identity.
+        $request_currency = is_object($gateway) && method_exists($gateway, 'getCurrencyCode')
+            ? $gateway->getCurrencyCode($order->get_currency())
+            : $order->get_currency();
+        $expected_snapshot = array(
+            'amount'       => $order->get_total(),
+            'currency'     => $request_currency,
+            'parent_id'    => (int) $order->get_id(),
+            'cycle_key'    => $cycle_key,
+            'reference_id' => (string) $order->get_meta('UPayments_Ref'),
+        );
+        $verification = AutoDeductResultVerifier::verify($result, $expected_snapshot);
+
+        if ($verification['outcome'] === AutoDeductResultVerifier::DEFINITIVE_FAILURE) {
             CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->info(
-                'Provider returned non-success status; cycle held.',
+                'Provider returned definitive failure; cycle held for reconciliation.',
+                $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
+            );
+            return;
+        }
+
+        if ($verification['outcome'] !== AutoDeductResultVerifier::UNRESOLVED
+            && $verification['outcome'] !== AutoDeductResultVerifier::VERIFIED_SUCCESS
+        ) {
+            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            $logger->warning(
+                'Auto-deduct response classification not safe for renewal completion; cycle held.',
                 $context + [
                     'order_id' => $order->get_id(),
                     'cycle'    => substr($cycle_key, 0, 12),
+                    'outcome'  => $verification['outcome'],
+                    'reason'   => $verification['reason'],
                 ]
             );
             return;
         }
 
-        // ---- 4. Structural validation of the success response ----
-        if (!isset($result['data']) || !is_array($result['data'])
-            || !isset($result['data']['transaction']) || !is_array($result['data']['transaction'])
-        ) {
+        // Capture authority remains unproven for auto-deduct. Do not create or
+        // complete a paid renewal from transport/status truth alone.
+        if ($verification['outcome'] !== AutoDeductResultVerifier::VERIFIED_SUCCESS) {
             CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
-            $logger->info(
-                'Response missing data.transaction; cycle held.',
+            $logger->warning(
+                'Auto-deduct capture authority unproven; cycle held for reconciliation.',
                 $context + [
                     'order_id' => $order->get_id(),
                     'cycle'    => substr($cycle_key, 0, 12),
+                    'reason'   => $verification['reason'],
                 ]
             );
             return;
         }
 
-        $transaction = $result['data']['transaction'];
-
-        // BLOCKER 12 scalar normalization.
-        if (!array_key_exists('paymentId', $transaction)
-            || !is_scalar($transaction['paymentId'])
-        ) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
-            return;
-        }
-        $payment_id = trim((string) $transaction['paymentId']);
-        if ($payment_id === '') {
+        $payment_id = $verification['payment_id'];
+        if (!is_string($payment_id) || $payment_id === '') {
             CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             return;
         }
 
-        if (!isset($transaction['paid_amount']) || !is_numeric($transaction['paid_amount'])) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
-            return;
-        }
-
-        if (!isset($transaction['paid_currency']) || !is_string($transaction['paid_currency'])) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
-            return;
-        }
-        $paid_currency = trim($transaction['paid_currency']);
-        if ($paid_currency === '') {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
-            return;
-        }
-
-        if (!isset($transaction['orderId']) || !is_numeric($transaction['orderId'])) {
-            // Prevents the legacy Fabricated `orderId + 1` from silently
-            // producing identifier "1" when orderId is missing/null.
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
-            return;
-        }
+        $transaction = isset($result['data']['transaction']) && is_array($result['data']['transaction'])
+            ? $result['data']['transaction']
+            : array();
 
         // Optional fields — guarded access only.
         $track_id        = isset($transaction['trackId'])        && is_scalar($transaction['trackId'])        ? (string) $transaction['trackId']        : '';
@@ -816,8 +818,16 @@ class Scheduler
         $renewal_order->set_payment_method('upayments');
         $renewal_order->set_payment_method_title('UPayments Auto Deduction');
 
-        // Preserve the existing ordering semantics for gateway meta.
-        $renewal_order->update_meta_data('UPayments_order_id', $transaction['orderId'] + 1);
+        // Provider identity is recorded only from authenticated response fields.
+        // Historical numeric provider-order increment fabrication is unsupported and removed.
+        $provider_order_identity = '';
+        if (isset($transaction['orderId']) && is_scalar($transaction['orderId'])) {
+            $provider_order_identity = trim((string) $transaction['orderId']);
+        }
+        if ($provider_order_identity === '') {
+            $provider_order_identity = $payment_id;
+        }
+        $renewal_order->update_meta_data('UPayments_order_id', $provider_order_identity);
         $renewal_order->update_meta_data('UPayments_ParentOrderID', $order->get_id());
         $renewal_order->update_meta_data('UPayments_AutoDeduction', 'yes');
         $renewal_order->update_meta_data('UPayments_PaymentID', $payment_id);

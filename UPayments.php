@@ -37,6 +37,9 @@ require_once __DIR__ . '/src/Payment/SavedCardSelection.php';
 require_once __DIR__ . '/src/Payment/SavedCardPresentation.php';
 require_once __DIR__ . '/src/Subscription/Presentation.php';
 require_once __DIR__ . '/src/Subscription/Composition.php';
+require_once __DIR__ . '/src/Subscription/RenewalCardAuthority.php';
+require_once __DIR__ . '/src/Subscription/CycleEconomics.php';
+require_once __DIR__ . '/src/Subscription/AutoDeductResultVerifier.php';
 require_once __DIR__ . '/includes/Token/CustomerTokenIdentity.php';
 require_once __DIR__ . '/src/Migration/MigrationBootstrap.php';
 

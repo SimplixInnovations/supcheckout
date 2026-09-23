@@ -75,7 +75,6 @@ Current executable gate: **R3 subscription safety**.
 R2 is **DONE / VERIFIED** (PR #110 certified head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`, package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3`).
 
 1. **R3:** eliminate first-card fallback; exact auto-deduct economic/identity binding; dedicated response verifier; immutable cycle snapshot; parent discovery; pause/resume/cancel contract; held-cycle reconciliation without blind replay.
-2. **R3:** bind auto-deduct result to exact amount/currency/parent/cycle/provider identity; remove first-card fallback; broaden valid parent discovery; define customer control, token retention and held-cycle reconciliation.
 3. **R4:** replace historical hourly scanning with due-work orchestration, preferably Action Scheduler; keep the durable cycle journal authoritative; add observability/load/concurrency/failure-injection evidence.
 4. **R5/T4:** separately approve architecture before callback consolidation.
 5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.
