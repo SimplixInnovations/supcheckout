@@ -111,17 +111,19 @@ Historical package-root movement remains certified for both pre-stable `simplixp
 | Performance/load | **Store-specific evidence required** | Universal thresholds are not inferred from CI; R4 must add representative scheduler/load evidence. |
 | Penetration test / PCI / legal compliance | **External organizational evidence** | Not produced by repository automation. |
 
-## Current R2 portability/cache qualification boundary
+## R2 portability/cache qualification
 
-R2 is not certified yet. It must prove:
+R2 is **Verified — bounded** at certified PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c` / merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`.
 
-- public WooCommerce WC-API URL construction rather than hand-built `site_url()` callbacks;
+Proven in repository automation:
+
+- public WooCommerce WC-API URL construction via the WC_Upayments platform resolver (not hand-built `site_url()` callbacks);
 - public-home vs WordPress-site divergence and subdirectory/index/permalink layouts;
 - trusted HTTPS/public-origin behavior without raw forwarded-header trust;
 - explicit no-cache response semantics for public callback/status surfaces;
 - preserved redirect/webhook termination and payment-authority behavior.
 
-No R2 claim is promoted to Verified until a RED is observed, minimal GREEN lands and exact-head certification succeeds.
+R2 does not certify arbitrary CDN custom cache rules or host-specific full-page cache overrides.
 
 ## Permanent regression controls
 

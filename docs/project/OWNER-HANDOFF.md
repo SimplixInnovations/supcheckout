@@ -18,13 +18,13 @@ Owner technical acceptance remains **ACCEPTED only for the frozen Approach 2 bas
 
 Approach 3 advanced through T3 at `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`. The completed post-T3 R0/R1/E1-E3 integration milestone was squash-merged through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; T2 `047cc86060efb97761d7a0cc4a3806f971ab6fe1` remains the last separately tracked runtime-bearing tranche before that milestone.
 
-Current successor program: `post-t3-ecosystem-hardening`. R2 callback portability / cache safety is the next unstarted gate; no feature branch or PR is intentionally retained between bounded tranches.
+Current successor program: `post-t3-ecosystem-hardening`. R2 is **DONE / VERIFIED** (PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`). R3 subscription safety is the next unstarted gate.
 
 Latest repository-executable E3 runtime checkpoint is `540b733c29656758f2392817649fc3d4a4db585d`; its deterministic 55-file candidate package SHA-256 is `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 
 At that E3 checkpoint, Quality/H12, the 20-cell Compatibility matrix and gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact, the full repository-owned Ecosystem Certification matrix, delayed/combined/repeated Classic JS characterization and analytics-return characterization all passed. The historical default CodeQL JavaScript/TypeScript job did not reach a terminal verdict; do not rewrite that as success.
 
-Current executable gate: **R2 callback portability / cache safety**.
+Current executable gate: **R3 subscription safety**.
 
 Neither PR #108 nor the E3 checkpoint redefines owner acceptance. Fresh owner acceptance is required at Approach 3 closeout.
 
@@ -192,7 +192,7 @@ A successful check from an ancestor SHA is never substituted for final exact-hea
 
 ## 9. Remaining Approach 3 program
 
-Current executable gate: **R2 callback portability / cache safety**.
+Current executable gate: **R3 subscription safety**.
 
 Then:
 
