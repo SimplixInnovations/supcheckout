@@ -2,10 +2,10 @@
 
 ## Authority
 
-Repository: `SimplixInnovations/supcheckout`  
-Frozen owner-accepted Approach 2 baseline: `0c883d609906676966002eb022a82a9656eeacc5`  
-Accepted package: 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`  
-Latest merged Approach 3 main: `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`  
+Repository: `SimplixInnovations/supcheckout`
+Frozen owner-accepted Approach 2 baseline: `0c883d609906676966002eb022a82a9656eeacc5`
+Accepted package: 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
+Latest merged Approach 3 main: `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`
 Latest runtime-bearing merged main: `047cc86060efb97761d7a0cc4a3806f971ab6fe1`
 
 Historical tranche design/evidence remains in the T1-T3 plans, ADRs and Git history. This file is the current implementation handoff and intentionally avoids duplicating their full narratives.
