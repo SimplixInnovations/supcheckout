@@ -78,7 +78,7 @@ q16_assert(q16_has($fixture, 'SUPCheckout_Test_Migration_Core_WPDB'), 'fixture m
 q16_assert(q16_has($stubs, 'namespace UPayments\\Token'), 'stub models H12 namespace');
 q16_assert(q16_has($bootstrap, "require __DIR__ . '/support/wordpress-migration-core.php';"), 'PHPUnit bootstrap loads migration fixture');
 
-q16_assert(q16_blob($root . '/includes/Subscription/Cron/Scheduler.php') === '79aa9ec35264cfbbeb1c14e87ab9e204d9a028b5', 'protected Scheduler blob remains exact');
+q16_assert(q16_blob($root . '/includes/Subscription/Cron/Scheduler.php') === 'aa87389dfc53e55075a9a4c48c355b7e9083da42', 'protected Scheduler blob remains exact');
 q16_assert(q16_blob($root . '/includes/Subscription/Cron/CycleClaim.php') === '0ae25b176ce622f0500fb279a40ab60275a72705', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 foreach (array('phase-9i-preflight-harness.php','phase-9i-executor-harness.php','phase-9i-operations-harness.php') as $name) q16_assert(q16_has($workflow, 'tests/harness/' . $name), 'Phase 9I regression remains mandatory: ' . $name);
 q16_assert(q16_has($workflow, 'tests/harness/quality-platform-migration-core-harness.php'), 'Q16 harness is mandatory');

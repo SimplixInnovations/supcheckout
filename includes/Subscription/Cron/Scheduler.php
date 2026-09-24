@@ -375,10 +375,30 @@ class Scheduler
             }
             $credit_card_token = $card_resolution['token'];
 
+            // Economic snapshot is computed from the order only before claim
+            // acquisition. After persistence the journal is immutable authority.
+            $economics = CycleEconomics::snapshot_from_order($order);
+            if ($economics === null || CycleEconomics::canonical_decimal($economics['amount']) === '0') {
+                $logger->warning(
+                    'Invalid or zero cycle economic snapshot; no auto-deduct POST.',
+                    $context + ['order_id' => $order->get_id()]
+                );
+                return;
+            }
+            $request_currency = is_object($gateway) && method_exists($gateway, 'getCurrencyCode')
+                ? $gateway->getCurrencyCode($order->get_currency())
+                : $order->get_currency();
+            $request_currency = CycleEconomics::canonical_currency($request_currency);
+            if ($request_currency === null) {
+                $logger->warning(
+                    'Invalid cycle currency snapshot; no auto-deduct POST.',
+                    $context + ['order_id' => $order->get_id()]
+                );
+                return;
+            }
+
             $unique_order_id = $order->get_id();
             $ref_id = $order->get_meta('UPayments_Ref');
-            $order_total = $order->get_total();
-            $currency = $order->get_currency();
             $phone = preg_replace('/\D+/', '', $order->get_billing_phone());
             $firstName = $order->get_billing_first_name();
             $lastName = $order->get_billing_last_name();
@@ -388,8 +408,8 @@ class Scheduler
             $params = wp_json_encode([
                 'order' => [
                     'id'          => (string) $unique_order_id,
-                    'amount'      => $order_total,
-                    'currency'    => $gateway->getCurrencyCode($currency),
+                    'amount'      => $economics['amount'],
+                    'currency'    => $request_currency,
                     'description' => 'Woocommerce Auto Deduction Order: ' . $unique_order_id,
                     'reference'   => 'Uniq Order ID: ' . $unique_order_id,
                 ],
@@ -429,11 +449,13 @@ class Scheduler
 
             $owner_token = CycleClaim::new_owner_token();
 
-            $acquired = CycleClaim::acquire(
+            $acquired = CycleClaim::acquire_with_snapshot(
                 $cycle_key,
                 (int) $order->get_id(),
                 $owner_token,
-                $cycle_due_gmt
+                $cycle_due_gmt,
+                $economics['amount'],
+                $request_currency
             );
 
             if (!$acquired) {
@@ -644,12 +666,21 @@ class Scheduler
         // historical compatibility (Phase 8C), not authenticated capture.
         // AutoDeductResultVerifier classifies the response against the
         // expected cycle economics and never invents provider identity.
-        $request_currency = is_object($gateway) && method_exists($gateway, 'getCurrencyCode')
-            ? $gateway->getCurrencyCode($order->get_currency())
-            : $order->get_currency();
+        //
+        // Immutable dispatch-time snapshot from CycleClaim is the economic
+        // authority. Do not reconstruct financial intent from a mutable order.
+        $claim_row = CycleClaim::get($cycle_key);
+        if (!CycleClaim::has_dispatchable_snapshot(is_array($claim_row) ? $claim_row : array())) {
+            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            $logger->warning(
+                'Missing immutable cycle economic snapshot; cycle held.',
+                $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
+            );
+            return;
+        }
         $expected_snapshot = array(
-            'amount'       => $order->get_total(),
-            'currency'     => $request_currency,
+            'amount'       => (string) $claim_row['expected_amount'],
+            'currency'     => (string) $claim_row['expected_currency'],
             'parent_id'    => (int) $order->get_id(),
             'cycle_key'    => $cycle_key,
             'reference_id' => (string) $order->get_meta('UPayments_Ref'),
@@ -702,12 +733,6 @@ class Scheduler
             return;
         }
 
-        $paid_amount = is_string($verification['paid_amount']) ? $verification['paid_amount'] : '';
-        $paid_currency = is_string($verification['paid_currency']) ? $verification['paid_currency'] : '';
-        if ($paid_amount === '' || $paid_currency === '') {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
-            return;
-        }
         $paid_amount = is_string($verification['paid_amount']) ? $verification['paid_amount'] : '';
         $paid_currency = is_string($verification['paid_currency']) ? $verification['paid_currency'] : '';
         if ($paid_amount === '' || $paid_currency === '') {
@@ -826,20 +851,31 @@ class Scheduler
 
         $renewal_order->set_address($order->get_address('billing'), 'billing');
         $renewal_order->set_address($order->get_address('shipping'), 'shipping');
-        $renewal_order->set_currency($verification['paid_currency']);
+        $renewal_order->set_currency($paid_currency);
         // Decimal-safe: never cast provider amounts through binary float.
-        $renewal_order->set_total($verification['paid_amount']);
+        $renewal_order->set_total($paid_amount);
         $renewal_order->set_payment_method('upayments');
         $renewal_order->set_payment_method_title('UPayments Auto Deduction');
 
-        // Provider identity is recorded only from authenticated response fields.
-        // Historical numeric provider-order increment fabrication is unsupported and removed.
-        $provider_order_identity = '';
-        if (isset($transaction['orderId']) && is_scalar($transaction['orderId'])) {
-            $provider_order_identity = trim((string) $transaction['orderId']);
+        // UPayments_order_id is protected provider-order identity. Never
+        // fabricate it from payment_id, Woo ids, or cycle keys. Hold closed
+        // when the provider result does not supply a usable provider order id.
+        if (!isset($transaction['orderId']) || !is_scalar($transaction['orderId'])) {
+            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            $logger->warning(
+                'Provider order identity missing; cycle held. UPayments_order_id is not fabricated.',
+                $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
+            );
+            return;
         }
+        $provider_order_identity = trim((string) $transaction['orderId']);
         if ($provider_order_identity === '') {
-            $provider_order_identity = $payment_id;
+            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            $logger->warning(
+                'Provider order identity empty; cycle held. UPayments_order_id is not fabricated.',
+                $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
+            );
+            return;
         }
         $renewal_order->update_meta_data('UPayments_order_id', $provider_order_identity);
         $renewal_order->update_meta_data('UPayments_ParentOrderID', $order->get_id());

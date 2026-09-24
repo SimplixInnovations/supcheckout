@@ -53,7 +53,7 @@ final class CycleEconomics
             // Reject binary floats as payment authority.
             return null;
         }
-        if (!is_string($value) || !preg_match('/^[0-9]+(?:\.[0-9]+)?$/', $value)) {
+        if (!is_string($value) || !preg_match('/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/', $value)) {
             return null;
         }
         if (strlen($value) > 22) {

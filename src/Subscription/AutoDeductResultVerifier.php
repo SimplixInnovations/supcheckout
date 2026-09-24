@@ -82,7 +82,7 @@ final class AutoDeductResultVerifier
             return self::result(self::BINDING_MISMATCH, 'currency', $payment_id, $paid_amount, $paid_currency);
         }
 
-        // Parent/cycle identity binding when provided in the expected snapshot.
+        // Expected local snapshot validation (not remote parent/cycle binding).
         if (isset($expected['parent_id']) && (int) $expected['parent_id'] <= 0) {
             return self::result(self::MALFORMED, 'expected_parent_invalid', $payment_id, $paid_amount, $paid_currency);
         }
@@ -90,7 +90,9 @@ final class AutoDeductResultVerifier
             return self::result(self::MALFORMED, 'expected_cycle_invalid', $payment_id, $paid_amount, $paid_currency);
         }
 
-        // Identity binding: reference when present must match expected reference.
+        // Optional merchant reference echo check. This is NOT proof of exact
+        // remote cycle identity unless a cycle-unique merchant identifier is
+        // documented as echoed by the auto-deduct endpoint.
         if (isset($transaction['reference']) && is_scalar($transaction['reference'])) {
             $reference = trim((string) $transaction['reference']);
             if ($reference !== ''

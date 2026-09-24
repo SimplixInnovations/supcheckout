@@ -111,8 +111,13 @@ Existing handler (login + nonce + plan/interval allowlist + auto-deduction child
 
 ## Progress ledger
 
-| Task | Base | RED | Fix | Focused | Review | Notes |
+| Task | Base | RED | Fix | Focused GREEN | Review | Final SHA |
 |---|---|---|---|---|---|---|
-| T2 | eebe46b | pending | | | | |
-| T3 | eebe46b | pending | | | | |
-| T4 | eebe46b | pending | | | | |
+| T1 characterize | eebe46b | historical RED evidence unavailable for T1 surface pins | 03e1af6..504bc27 + matrix harness | ecosystem-subscription-lifecycle-matrix 46/0 | independent review (Critical $paid_currency fixed 504bc27) | pending push |
+| T2 card authority | eebe46b | harness FAIL cards[0]/RenewalCardAuthority (observed) | 03e1af6 | RenewalCardAuthorityTest 35/0 | Critical fixed | pending push |
+| T3 CycleEconomics | eebe46b | unit matrix RED on leading-zero/float (observed after draft) | 03e1af6 + decimal regex fix | CycleEconomicsTest 45/0 total Subscription | review OK | pending push |
+| T4 verifier | eebe46b | harness FAIL capture_authority (observed) | 03e1af6 | AutoDeductResultVerifierTest + identity honesty | review: terminology corrected | pending push |
+| T5 Scheduler wire-up | eebe46b | harness FAIL RenewalCardAuthority/AutoDeductResultVerifier/CycleEconomics (observed) | 03e1af6..current | ecosystem-subscription-safety 12/0 | review Critical paid_currency fixed | pending push |
+| T6 CycleClaim v2 | eebe46b | historical RED evidence unavailable for migration SQL; schema contract tests added | current | CycleClaimSchemaContractTest + acquire_with_snapshot | review: T6 required | pending push |
+| T7 failure/concurrency | eebe46b | partial matrix via lifecycle harness; multi-process concurrency EXTERNAL/NOT TESTED this session | current | lifecycle matrix 46/0 | review gap recorded | pending push |
+| T8 full qualification | — | n/a | current | local H12/quality pending this push | pending | pending push |

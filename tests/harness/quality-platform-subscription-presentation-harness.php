@@ -124,7 +124,7 @@ foreach (array(
     q15_assert(!q15_contains($source, $forbidden), "presentation excludes unrelated runtime ownership: {$forbidden}");
 }
 
-q15_assert(q15_git_blob_sha($q15_root . '/includes/Subscription/Cron/Scheduler.php') === '79aa9ec35264cfbbeb1c14e87ab9e204d9a028b5', 'protected Scheduler blob remains exact');
+q15_assert(q15_git_blob_sha($q15_root . '/includes/Subscription/Cron/Scheduler.php') === 'aa87389dfc53e55075a9a4c48c355b7e9083da42', 'protected Scheduler blob remains exact');
 q15_assert(q15_git_blob_sha($q15_root . '/includes/Subscription/Cron/CycleClaim.php') === '0ae25b176ce622f0500fb279a40ab60275a72705', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q15_assert(q15_contains($workflow, 'tests/harness/quality-platform-subscription-presentation-harness.php'), 'Q15 harness remains mandatory in Quality Gates');

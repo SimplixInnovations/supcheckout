@@ -54,6 +54,7 @@ jobs:
             tests/harness/supcheckout-provenance-db-failure-harness.php
             tests/harness/ecosystem-callback-cache-harness.php
             tests/harness/ecosystem-subscription-safety-harness.php
+            tests/harness/ecosystem-subscription-lifecycle-matrix-harness.php
             tests/provider/sandbox-charge-smoke.php
             tests/integration/bootstrap.php
             tests/integration/PluginActivationTest.php
@@ -306,6 +307,7 @@ jobs:
             tests/harness/architecture-legacy-direct-callback-characterization-harness.php
             tests/harness/ecosystem-callback-cache-harness.php
             tests/harness/ecosystem-subscription-safety-harness.php
+            tests/harness/ecosystem-subscription-lifecycle-matrix-harness.php
             tests/harness/quality-platform-foundation-harness.php
             tests/harness/quality-platform-static-analysis-harness.php
             tests/harness/quality-platform-payment-concurrency-harness.php

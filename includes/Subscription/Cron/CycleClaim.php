@@ -30,7 +30,7 @@ defined('ABSPATH') || exit;
  */
 class CycleClaim
 {
-    const SCHEMA_VERSION = '1';
+    const SCHEMA_VERSION = '2';
     const OPTION_KEY     = 'upay_billing_cycle_schema_version';
 
     const STALE_CLAIMED_THRESHOLD_SECONDS = 600; // 10 minutes — conservative
@@ -85,6 +85,8 @@ class CycleClaim
             payment_id       varchar(255)    NULL,
             curl_errno       int             NULL,
             http_status      int             NULL,
+            expected_amount  varchar(24)     NULL,
+            expected_currency char(3)        NULL,
             PRIMARY KEY  (cycle_key),
             KEY idx_parent (parent_order_id),
             KEY idx_state  (state)
@@ -206,6 +208,85 @@ class CycleClaim
             && hash_equals((string) $row['owner_token'], $owner_token)
             && isset($row['state'])
             && (string) $row['state'] === self::STATE_CLAIMED;
+    }
+
+    /**
+     * Atomic claim + immutable economic snapshot for charge-authoritative cycles.
+     *
+     * The snapshot is persisted in the same INSERT as claim ownership so a
+     * provider dispatch can never race a later unguarded economics update.
+     */
+    public static function acquire_with_snapshot(
+        string $cycle_key,
+        int $parent_order_id,
+        string $owner_token,
+        string $cycle_due_gmt,
+        string $expected_amount,
+        string $expected_currency
+    ): bool {
+        global $wpdb;
+        $table = self::table_name();
+
+        if ($parent_order_id <= 0
+            || $cycle_key === ''
+            || $cycle_due_gmt === ''
+            || $expected_amount === ''
+            || $expected_currency === ''
+        ) {
+            return false;
+        }
+
+        $now_gmt = current_time('mysql', true);
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic INSERT IGNORE is the concurrency primitive for the plugin-owned billing-attempt journal.
+        $inserted = $wpdb->query(
+            $wpdb->prepare(
+                "INSERT IGNORE INTO %i (
+                    cycle_key, parent_order_id, owner_token, state,
+                    cycle_due_gmt, created_gmt, updated_gmt,
+                    expected_amount, expected_currency
+                ) VALUES (%s, %d, %s, %s, %s, %s, %s, %s, %s)",
+                $table,
+                $cycle_key,
+                $parent_order_id,
+                $owner_token,
+                self::STATE_CLAIMED,
+                $cycle_due_gmt,
+                $now_gmt,
+                $now_gmt,
+                $expected_amount,
+                $expected_currency
+            )
+        );
+
+        if ($inserted !== 1) {
+            return false;
+        }
+
+        $row = self::get($cycle_key);
+        return is_array($row)
+            && isset($row['owner_token'])
+            && hash_equals((string) $row['owner_token'], $owner_token)
+            && isset($row['state'])
+            && (string) $row['state'] === self::STATE_CLAIMED
+            && isset($row['expected_amount'])
+            && hash_equals((string) $row['expected_amount'], $expected_amount)
+            && isset($row['expected_currency'])
+            && hash_equals((string) $row['expected_currency'], $expected_currency);
+    }
+
+    /**
+     * True iff the claim row carries a complete immutable v2 economic snapshot
+     * required before an automatic provider dispatch.
+     */
+    public static function has_dispatchable_snapshot(array $row): bool
+    {
+        return is_array($row)
+            && isset($row['expected_amount'], $row['expected_currency'])
+            && is_string($row['expected_amount'])
+            && $row['expected_amount'] !== ''
+            && is_string($row['expected_currency'])
+            && $row['expected_currency'] !== '';
     }
 
     /**
