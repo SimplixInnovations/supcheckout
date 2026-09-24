@@ -22,6 +22,7 @@ require_once dirname(__DIR__, 3) . '/src/Subscription/AutoDeductResultVerifier.p
 require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/ActionSchedulerBridge.php';
 require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/HistoricalEnrollment.php';
 require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/DueParentWorker.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/LifecycleScheduler.php';
 
 use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Subscription\CycleEconomics;
@@ -29,10 +30,22 @@ use Simplixi\SUPCheckout\Subscription\RenewalCardAuthority;
 use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
 use Simplixi\SUPCheckout\Subscription\Scheduling\DueParentWorker;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
+use Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler;
 
 class Scheduler
 {
     const CRON_HOOK = 'upay_process_subscriptions';
+
+    // Orchestration outcomes only. Never financial authority.
+    const OUTCOME_RESOLVED = 'resolved';
+    const OUTCOME_PRE_DISPATCH_NO_ATTEMPT = 'pre_dispatch_no_attempt';
+    const OUTCOME_HELD = 'held';
+    const OUTCOME_DISPATCHING_OR_AMBIGUOUS = 'dispatching_or_ambiguous';
+    const OUTCOME_NOT_DUE = 'not_due';
+    const OUTCOME_NOT_ELIGIBLE = 'not_eligible';
+
+    /** @var string */
+    protected static $last_outcome = self::OUTCOME_NOT_ELIGIBLE;
 
     /**
      * Bootstraps scheduler.
@@ -56,27 +69,45 @@ class Scheduler
         }
         add_action(self::CRON_HOOK, [__CLASS__, 'process']);
         DueParentWorker::register();
+        LifecycleScheduler::register();
     }
 
     /**
      * Public orchestration entry for Action Scheduler due-parent workers.
      * Charge authority remains inside process_one_order / CycleClaim.
+     *
+     * @return string One of the OUTCOME_* orchestration values.
      */
-    public static function process_parent_order(WC_Order $order): void
+    public static function process_parent_order(WC_Order $order): string
     {
         $context = ['source' => 'upayments-cron'];
+        self::$last_outcome = self::OUTCOME_NOT_ELIGIBLE;
         try {
             if (!CycleClaim::maybe_install()) {
-                return;
+                self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
+                return self::$last_outcome;
             }
             $gateway = self::getGateway();
             if (!$gateway || $gateway->get_option('enable_subscriptions') !== 'yes') {
-                return;
+                self::$last_outcome = self::OUTCOME_NOT_ELIGIBLE;
+                return self::$last_outcome;
             }
             self::process_one_order($order, new DateTime('now', wp_timezone()), $context);
         } catch (\Throwable $e) {
             // Per-parent isolation: never crash the Action Scheduler runner.
+            if (self::$last_outcome === self::OUTCOME_NOT_ELIGIBLE) {
+                self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
+            }
         }
+        return self::$last_outcome;
+    }
+
+    /**
+     * Orchestration-only outcome marker. Not financial authority.
+     */
+    protected static function set_outcome(string $outcome): void
+    {
+        self::$last_outcome = $outcome;
     }
 
     /**
@@ -268,6 +299,7 @@ class Scheduler
                 || $subscriptionStatus !== 'active'
                 || $now < $next_billing_date
             ) {
+                self::set_outcome(self::OUTCOME_NOT_DUE);
                 return;
             }
 
@@ -310,7 +342,7 @@ class Scheduler
                     $claim_owned = true;
                     // Transition the newly-owned CLAIMED row to HELD via the
                     // documented claimed→held migration path.
-                    CycleClaim::mark_held($cycle_key, $owner_token, null, null);
+                    self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, null, null);
                     $claim_owned = false;
                     $logger->warning(
                         'Legacy unresolved subscription attempt detected; cycle held for reconciliation.',
@@ -349,7 +381,8 @@ class Scheduler
             ) {
                 // Missing/revoked/retrieval-failed card authorization must not
                 // become a charge. Pre-dispatch return is safe (no POST yet).
-                $logger->warning(
+                self::set_outcome(self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT);
+                    $logger->warning(
                     'Renewal card authorization missing or not proven; no auto-deduct POST.',
                     $context + [
                         'order_id' => $order->get_id(),
@@ -448,7 +481,7 @@ class Scheduler
                 ) {
                     // Preserve the claimed attempt for reconciliation when the
                     // snapshot is unusable (historical v1 / malformed economics).
-                    CycleClaim::mark_held($cycle_key, $owner_token, null, null);
+                    self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, null, null);
                     $claim_owned = false;
                 } else {
                     $release_pre_dispatch();
@@ -466,7 +499,7 @@ class Scheduler
             $dispatch_amount   = CycleClaim::canonical_snapshot_amount($claim_row['expected_amount']);
             $dispatch_currency = CycleClaim::canonical_snapshot_currency($claim_row['expected_currency']);
             if ($dispatch_amount === null || $dispatch_currency === null) {
-                CycleClaim::mark_held($cycle_key, $owner_token, null, null);
+                self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, null, null);
                 $claim_owned = false;
                 $logger->warning(
                     'Claim snapshot economics are not canonical; zero provider POST.',
@@ -485,7 +518,7 @@ class Scheduler
                     || !CycleEconomics::currencies_equal($proposed_currency, $dispatch_currency)
                 )
             ) {
-                CycleClaim::mark_held($cycle_key, $owner_token, null, null);
+                self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, null, null);
                 $claim_owned = false;
                 $logger->warning(
                     'Parent economics diverged from immutable claim snapshot; attempt held. Zero provider POST.',
@@ -585,6 +618,7 @@ class Scheduler
             // If this fails, no POST was sent. Release and continue.
             $dispatching = CycleClaim::mark_dispatching($cycle_key, $owner_token);
             if (!$dispatching) {
+                self::set_outcome(self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT);
                 $release_pre_dispatch();
                 $logger->info(
                     'Cycle claimed→dispatching transition failed; skipping.',
@@ -596,6 +630,7 @@ class Scheduler
                 return;
             }
             $dispatch_started = true;
+            self::set_outcome(self::OUTCOME_DISPATCHING_OR_AMBIGUOUS);
 
             // ---- BLOCKER 3: NO write between mark_dispatching() and dispatch ----
             // The journal is the authoritative attempt record. There must be
@@ -699,7 +734,7 @@ class Scheduler
             || $curl_errno !== 0
             || (is_string($response) && strlen($response) >= 1048576)
         ) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->info(
                 'HTTP transport failure; cycle held.',
                 $context + [
@@ -718,7 +753,7 @@ class Scheduler
         // Non-2xx may NOT reach wc_create_order(), payment_complete(), or
         // the parent last_billed update.
         if ($http_code < 200 || $http_code >= 300) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->info(
                 'Non-2xx HTTP response; cycle held.',
                 $context + [
@@ -732,7 +767,7 @@ class Scheduler
 
         $result = json_decode((string) $response, true);
         if (!is_array($result)) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->info(
                 'Malformed JSON response; cycle held.',
                 $context + [
@@ -753,7 +788,7 @@ class Scheduler
         // authority. Do not reconstruct financial intent from a mutable order.
         $claim_row = CycleClaim::get($cycle_key);
         if (!CycleClaim::has_dispatchable_snapshot(is_array($claim_row) ? $claim_row : array())) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->warning(
                 'Missing immutable cycle economic snapshot; cycle held.',
                 $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
@@ -770,7 +805,7 @@ class Scheduler
         $verification = AutoDeductResultVerifier::verify($result, $expected_snapshot);
 
         if ($verification['outcome'] === AutoDeductResultVerifier::DEFINITIVE_FAILURE) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->info(
                 'Provider returned definitive failure; cycle held for reconciliation.',
                 $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
@@ -781,7 +816,7 @@ class Scheduler
         if ($verification['outcome'] !== AutoDeductResultVerifier::UNRESOLVED
             && $verification['outcome'] !== AutoDeductResultVerifier::VERIFIED_SUCCESS
         ) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->warning(
                 'Auto-deduct response classification not safe for renewal completion; cycle held.',
                 $context + [
@@ -797,7 +832,7 @@ class Scheduler
         // Capture authority remains unproven for auto-deduct. Do not create or
         // complete a paid renewal from transport/status truth alone.
         if ($verification['outcome'] !== AutoDeductResultVerifier::VERIFIED_SUCCESS) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->warning(
                 'Auto-deduct capture authority unproven; cycle held for reconciliation.',
                 $context + [
@@ -811,14 +846,14 @@ class Scheduler
 
         $payment_id = $verification['payment_id'];
         if (!is_string($payment_id) || $payment_id === '') {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             return;
         }
 
         $paid_amount = is_string($verification['paid_amount']) ? $verification['paid_amount'] : '';
         $paid_currency = is_string($verification['paid_currency']) ? $verification['paid_currency'] : '';
         if ($paid_amount === '' || $paid_currency === '') {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             return;
         }
 
@@ -858,7 +893,7 @@ class Scheduler
                 // returned a non-object). Unknown classification = HELD /
                 // reconciliation. Do NOT create a replacement renewal, do
                 // NOT update parent last_billed, do NOT automatically retry.
-                CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+                self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
                 $logger->warning(
                     'Existing transaction match could not be loaded; cycle held.',
                     $context + [
@@ -881,7 +916,7 @@ class Scheduler
                 // Hold the cycle for manual reconciliation, do NOT
                 // mark_resolved, do NOT touch parent last_billed, do
                 // NOT send another POST, do NOT create another renewal.
-                CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+                self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
                 $logger->warning(
                     'Existing renewal transaction requires reconciliation; cycle held.',
                     $context + [
@@ -894,7 +929,7 @@ class Scheduler
             }
 
             // Transaction_id collision with a different parent/order.
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->warning(
                 'Transaction collision with a different order; cycle held.',
                 $context + [
@@ -912,7 +947,7 @@ class Scheduler
         ]);
 
         if (!$renewal_order instanceof WC_Order) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             return;
         }
 
@@ -943,7 +978,7 @@ class Scheduler
         // fabricate it from payment_id, Woo ids, or cycle keys. Hold closed
         // when the provider result does not supply a usable provider order id.
         if (!isset($transaction['orderId']) || !is_scalar($transaction['orderId'])) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->warning(
                 'Provider order identity missing; cycle held. UPayments_order_id is not fabricated.',
                 $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
@@ -952,7 +987,7 @@ class Scheduler
         }
         $provider_order_identity = trim((string) $transaction['orderId']);
         if ($provider_order_identity === '') {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->warning(
                 'Provider order identity empty; cycle held. UPayments_order_id is not fabricated.',
                 $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
@@ -1015,7 +1050,7 @@ class Scheduler
         // persisted values BEFORE mark_resolved() is permitted.
         $renewal_order_id = absint($renewal_order->get_id());
         if ($renewal_order_id <= 0) {
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->warning(
                 'Renewal persistence verification failed; cycle held for reconciliation.',
                 $context + [
@@ -1061,7 +1096,7 @@ class Scheduler
             // Do NOT delete the claim.
             // Do NOT retry the gateway.
             // Do NOT create another renewal.
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->warning(
                 'Renewal persistence verification failed; cycle held for reconciliation.',
                 $context + [
@@ -1108,7 +1143,7 @@ class Scheduler
 
         if (!$parent_verified) {
             // Do NOT call mark_resolved() — persistence state is unknown.
-            CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
+            self::set_outcome(self::OUTCOME_HELD); CycleClaim::mark_held($cycle_key, $owner_token, $curl_errno, $http_code);
             $logger->error(
                 'Parent billing-state persistence verification failed; cycle held for reconciliation.',
                 $context + [
@@ -1133,6 +1168,9 @@ class Scheduler
             $renewal_order_id,
             $payment_id
         );
+        if ($resolved_ok) {
+            self::set_outcome(self::OUTCOME_RESOLVED);
+        }
         if (!$resolved_ok) {
             $logger->error(
                 'Cycle journal mark_resolved returned false after successful finalization; reconciliation gap.',

@@ -5,11 +5,17 @@ namespace Simplixi\SUPCheckout\Subscription\Scheduling;
 defined('ABSPATH') || exit;
 
 /**
- * Bounded historical subscription enrollment.
+ * Bounded historical subscription enrollment (migration / repair / recovery).
  *
- * Replaces the unbounded hourly historical-order scan. Each feeder tick
- * inspects at most BATCH_SIZE paid orders and schedules due-parent work.
- * Never performs a provider POST.
+ * Steady-state new subscriptions schedule via LifecycleScheduler. This class
+ * discovers existing parents on older installs. Each feeder tick loads at
+ * most BATCH_SIZE order objects and advances a persistent offset coordinate.
+ *
+ * Consistency model: offset pagination over a stable ID ASC matching set
+ * (paid + payment_method=upayments). Insertions with higher IDs are found
+ * later. A deletion may shift the window and skip one row; after a complete
+ * pass the cursor resets so repair re-discovers skips. Temporary revisit is
+ * acceptable because ensure_cycle_action is duplicate-safe. Never POSTs.
  */
 final class HistoricalEnrollment
 {
@@ -35,24 +41,32 @@ final class HistoricalEnrollment
             return $stats;
         }
 
-        $paid_statuses = function_exists('wc_get_is_paid_statuses')
-            ? wc_get_is_paid_statuses()
-            : array('processing', 'completed');
+        $paid_statuses = self::paid_statuses();
+        $offset = $stats['cursor'];
 
         $orders = wc_get_orders(array(
-            'status' => $paid_statuses,
-            'limit'  => self::BATCH_SIZE,
-            'paged'  => 1,
-            'orderby' => 'ID',
-            'order'   => 'ASC',
-            'return'  => 'objects',
+            'status'         => $paid_statuses,
+            'payment_method' => 'upayments',
+            'limit'          => self::BATCH_SIZE,
+            'offset'         => $offset,
+            'orderby'        => 'ID',
+            'order'          => 'ASC',
+            'return'         => 'objects',
         ));
 
         if (!is_array($orders)) {
             $orders = array();
         }
 
-        return self::enroll_slice($orders, count($orders) < self::BATCH_SIZE);
+        $count = count($orders);
+        $complete = $count < self::BATCH_SIZE;
+
+        $stats = self::enroll_slice($orders, $complete);
+        $stats['cursor'] = $complete ? 0 : $offset + $count;
+        $stats['complete'] = $complete;
+        update_option(self::OPTION_CURSOR, $stats['cursor'], false);
+
+        return $stats;
     }
 
     /**
@@ -75,16 +89,11 @@ final class HistoricalEnrollment
             return $stats;
         }
 
-        $max_id = $stats['cursor'];
         foreach ($orders as $order) {
             if (!$order instanceof \WC_Order) {
                 continue;
             }
             $stats['scanned']++;
-            $parent_id = (int) $order->get_id();
-            if ($parent_id > $max_id) {
-                $max_id = $parent_id;
-            }
 
             if (!self::parent_qualifies($order)) {
                 $stats['skipped']++;
@@ -97,15 +106,13 @@ final class HistoricalEnrollment
                 continue;
             }
 
-            if (ActionSchedulerBridge::ensure_parent_action($parent_id, $run_at)) {
+            if (ActionSchedulerBridge::ensure_cycle_action((int) $order->get_id(), $run_at)) {
                 $stats['scheduled']++;
             } else {
                 $stats['skipped']++;
             }
         }
 
-        $stats['cursor'] = $max_id;
-        update_option(self::OPTION_CURSOR, $max_id, false);
         return $stats;
     }
 
@@ -115,11 +122,25 @@ final class HistoricalEnrollment
     }
 
     /**
+     * @return array<int,string>
+     */
+    public static function paid_statuses(): array
+    {
+        return function_exists('wc_get_is_paid_statuses')
+            ? wc_get_is_paid_statuses()
+            : array('processing', 'completed');
+    }
+
+    /**
      * Local subscription-parent qualification. Never provider truth.
+     * Includes Woo paid-status check so stale workers are skipped early.
      */
     public static function parent_qualifies(\WC_Order $order): bool
     {
         if ((int) $order->get_id() <= 0) {
+            return false;
+        }
+        if (!$order->has_status(self::paid_statuses())) {
             return false;
         }
         if ($order->get_meta('UPayments_AutoDeduction') === 'yes') {
@@ -153,7 +174,7 @@ final class HistoricalEnrollment
     }
 
     /**
-     * Next due run timestamp, or null when not due/schedulable.
+     * Next legitimate due run timestamp, or null when not schedulable.
      */
     public static function next_run_at(\WC_Order $order): ?int
     {

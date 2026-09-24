@@ -96,7 +96,7 @@ foreach (array(
 q11_assert(q11_contains($source, 'private function __construct()'), 'composition is explicitly non-instantiable');
 q11_assert(preg_match("/'limit_response_size'\\s*=>\\s*1048576/", $scheduler) === 1, 'subscription provider response body is bounded to 1 MiB');
 q11_assert(preg_match('/strlen\\(\\$response\\)\\s*>=\\s*1048576/', $scheduler) === 1, 'subscription treats a response at the cap as ambiguous and fail closed');
-q11_assert(q11_git_blob_sha($q11_root . '/includes/Subscription/Cron/Scheduler.php') === '67b2597404fafee241ebfb9996e4da08ee3e11d9', 'protected Scheduler blob remains exact');
+q11_assert(q11_git_blob_sha($q11_root . '/includes/Subscription/Cron/Scheduler.php') === 'df2c34b2e9d4024623cb932cd5955d1813375a02', 'protected Scheduler blob remains exact');
 q11_assert(q11_git_blob_sha($q11_root . '/includes/Subscription/Cron/CycleClaim.php') === 'a1ae04e3239e05c4894781480333fd5e747cefba', 'protected CycleClaim reviewed blob remains exact after identifier-placeholder and warning-boundary hardening');
 
 q11_assert(substr_count($tests, 'public function test_') >= 5, 'Subscription Composition has focused PHPUnit characterization');

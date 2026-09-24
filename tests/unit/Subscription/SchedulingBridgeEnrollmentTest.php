@@ -73,7 +73,8 @@ final class SchedulingBridgeEnrollmentTest extends TestCase
         $calls = $GLOBALS['supcheckout_as_calls']['scheduled'];
         self::assertCount(1, $calls);
         self::assertSame('supcheckout_process_due_parent', $calls[0]['hook']);
-        self::assertSame(array('parent_order_id' => 42), $calls[0]['args']);
+        self::assertSame(42, $calls[0]['args']['parent_order_id']);
+        self::assertArrayHasKey('cycle_due_gmt', $calls[0]['args']);
         self::assertSame('supcheckout', $calls[0]['group']);
         self::assertArrayNotHasKey('card_token', $calls[0]['args']);
         self::assertArrayNotHasKey('customer_token', $calls[0]['args']);
@@ -82,9 +83,10 @@ final class SchedulingBridgeEnrollmentTest extends TestCase
 
     public function test_ensure_parent_action_is_duplicate_safe(): void
     {
-        ActionSchedulerBridge::ensure_parent_action(7, time() + 30);
-        ActionSchedulerBridge::ensure_parent_action(7, time() + 30);
-        ActionSchedulerBridge::ensure_parent_action(7, time() + 90);
+        $due = time() + 30;
+        ActionSchedulerBridge::ensure_parent_action(7, $due);
+        ActionSchedulerBridge::ensure_parent_action(7, $due);
+        ActionSchedulerBridge::ensure_parent_action(7, $due);
         self::assertCount(1, $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 

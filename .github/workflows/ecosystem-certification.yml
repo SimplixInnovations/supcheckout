@@ -466,6 +466,9 @@ jobs:
       - name: Verify bounded enrollment and stale-action ZERO POST
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/SchedulingEnrollmentRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: Verify run_batch >50 traversal and cycle A to B lifecycle
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/SchedulingTraversalRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
   r3-cycleclaim-db-concurrency:
     name: R3 CycleClaim DB / concurrency
     runs-on: ubuntu-latest

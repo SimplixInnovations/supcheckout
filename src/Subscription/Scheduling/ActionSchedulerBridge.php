@@ -17,73 +17,156 @@ final class ActionSchedulerBridge
     public const ACTION_DUE_PARENT = 'supcheckout_process_due_parent';
 
     /**
-     * True iff a usable Action Scheduler scheduling API is present.
+     * True iff Action Scheduler APIs exist AND its datastore is initialized.
+     * Function existence alone is not readiness.
      */
     public static function is_ready(): bool
     {
-        return function_exists('as_schedule_single_action')
-            && function_exists('as_has_scheduled_action')
-            && function_exists('as_unschedule_action');
-    }
-
-    /**
-     * Schedule (or keep) one due-parent action. Idempotent per parent.
-     *
-     * Args carry only the parent order id. Sensitive state is resolved
-     * inside the worker at execution time.
-     */
-    public static function ensure_parent_action(int $parent_order_id, int $run_at_gmt): bool
-    {
-        if ($parent_order_id <= 0 || !self::is_ready()) {
+        if (!function_exists('as_schedule_single_action')
+            || !function_exists('as_has_scheduled_action')
+            || !function_exists('as_unschedule_action')
+        ) {
             return false;
         }
 
-        if (self::has_open_parent_action($parent_order_id)) {
+        if (class_exists('\\Action_Scheduler')
+            && method_exists('\\Action_Scheduler', 'is_initialized')
+            && \Action_Scheduler::is_initialized()
+        ) {
             return true;
         }
 
-        $scheduled = as_schedule_single_action(
-            max($run_at_gmt, time() - 60),
-            self::ACTION_DUE_PARENT,
-            array('parent_order_id' => $parent_order_id),
-            self::GROUP
-        );
+        // Deliberate hook fallback for bundled versions where the datastore
+        // becomes ready on action_scheduler_init.
+        if (function_exists('did_action') && did_action('action_scheduler_init') > 0) {
+            return true;
+        }
 
-        return $scheduled > 0;
+        return false;
     }
 
     /**
-     * True iff an open (pending/running) due-parent action already exists.
+     * Cycle-scoped action args. Orchestration identity only — never secrets.
+     *
+     * @return array{parent_order_id:int,cycle_due_gmt:int}
      */
+    public static function cycle_args(int $parent_order_id, int $cycle_due_gmt): array
+    {
+        return array(
+            'parent_order_id' => $parent_order_id,
+            'cycle_due_gmt'   => $cycle_due_gmt,
+        );
+    }
+
+    /**
+     * Schedule one exact billing-cycle action. Unique + recheck defeats the
+     * check-then-act race. Queue uniqueness is not payment authority.
+     */
+    public static function ensure_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
+    {
+        if ($parent_order_id <= 0 || $cycle_due_gmt <= 0 || !self::is_ready()) {
+            return false;
+        }
+
+        $args = self::cycle_args($parent_order_id, $cycle_due_gmt);
+
+        // 1. Exact matching action already pending/in-progress → idempotent.
+        if (self::has_open_cycle_action($parent_order_id, $cycle_due_gmt)) {
+            return true;
+        }
+
+        // 2. unique=true so concurrent callers cannot both insert.
+        $scheduled = as_schedule_single_action(
+            max($cycle_due_gmt, time() - 60),
+            self::ACTION_DUE_PARENT,
+            $args,
+            self::GROUP,
+            true
+        );
+
+        if ($scheduled > 0) {
+            return true;
+        }
+
+        // 3. No new ID: another caller may have won the unique insert.
+        return self::has_open_cycle_action($parent_order_id, $cycle_due_gmt);
+    }
+
+    /**
+     * @deprecated Use ensure_cycle_action(); kept name for older call sites.
+     */
+    public static function ensure_parent_action(int $parent_order_id, int $run_at_gmt): bool
+    {
+        return self::ensure_cycle_action($parent_order_id, $run_at_gmt);
+    }
+
+    /**
+     * True iff this exact cycle action is pending or in-progress.
+     * Distinct cycles for the same parent are independent identities.
+     */
+    public static function has_open_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
+    {
+        if ($parent_order_id <= 0 || $cycle_due_gmt <= 0 || !function_exists('as_has_scheduled_action')) {
+            return false;
+        }
+
+        return (bool) as_has_scheduled_action(
+            self::ACTION_DUE_PARENT,
+            self::cycle_args($parent_order_id, $cycle_due_gmt),
+            self::GROUP
+        );
+    }
+
     public static function has_open_parent_action(int $parent_order_id): bool
     {
+        // Any open cycle action for this parent (used only for diagnostics).
         if ($parent_order_id <= 0 || !function_exists('as_has_scheduled_action')) {
             return false;
         }
 
         return (bool) as_has_scheduled_action(
             self::ACTION_DUE_PARENT,
-            array('parent_order_id' => $parent_order_id),
+            null,
             self::GROUP
         );
     }
 
     /**
-     * Cancel queued due-parent actions for a parent (pause/cancel/refund).
+     * Cancel one exact cycle action. Returns true when no matching action remains.
      */
-    public static function cancel_parent_actions(int $parent_order_id): int
+    public static function cancel_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
     {
-        if ($parent_order_id <= 0 || !function_exists('as_unschedule_action')) {
-            return 0;
+        if ($parent_order_id <= 0 || $cycle_due_gmt <= 0 || !function_exists('as_unschedule_action')) {
+            return false;
         }
 
-        $count = as_unschedule_action(
+        as_unschedule_action(
             self::ACTION_DUE_PARENT,
-            array('parent_order_id' => $parent_order_id),
+            self::cycle_args($parent_order_id, $cycle_due_gmt),
             self::GROUP
         );
 
-        return is_numeric($count) ? (int) $count : 0;
+        return !self::has_open_cycle_action($parent_order_id, $cycle_due_gmt);
+    }
+
+    /**
+     * Best-effort cancel of all SUPCheckout pending actions for one parent.
+     * Touches only this plugin's hook + group. Payment safety never depends
+     * on this succeeding — stale actions still fail closed in the worker.
+     */
+    public static function cancel_parent_actions(int $parent_order_id): bool
+    {
+        if ($parent_order_id <= 0 || !function_exists('as_unschedule_all_actions')) {
+            return false;
+        }
+
+        as_unschedule_all_actions(
+            self::ACTION_DUE_PARENT,
+            null,
+            self::GROUP
+        );
+
+        return true;
     }
 
     private function __construct()

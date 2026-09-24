@@ -274,6 +274,22 @@ namespace {
                 throw new \RuntimeException('synthetic migration query exception');
             }
 
+            // R4 enrollment tests request objects + offset against WC_Order fixtures.
+            if (isset($args['return']) && $args['return'] === 'objects') {
+                $out = array();
+                foreach ($GLOBALS['supcheckout_test_status_orders'] as $order) {
+                    if ($order instanceof WC_Order) {
+                        $out[] = $order;
+                    }
+                }
+                usort($out, static function ($a, $b) {
+                    return (int) $a->get_id() <=> (int) $b->get_id();
+                });
+                $limit = isset($args['limit']) ? (int) $args['limit'] : 20;
+                $offset = isset($args['offset']) ? (int) $args['offset'] : 0;
+                return array_slice($out, $offset, $limit > 0 ? $limit : count($out));
+            }
+
             if ($GLOBALS['supcheckout_test_migration_core']['order_ids_override'] !== null
                 && !isset($args['meta_query'])
             ) {
