@@ -32,6 +32,9 @@ Do not move this anchor without an explicit fresh owner acceptance event.
 - T1 — **DONE / VERIFIED**.
 - T2 — **DONE / VERIFIED / runtime-bearing**, merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`.
 - T3 — **DONE / VERIFIED / runtime-neutral**, certified PR #107 head `f7c7d596dc4a2c8464d1acdf13dfe51028a5f9e0`, merged main `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`.
+- R2 — **DONE / VERIFIED**, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`.
+- R3 — **DONE / VERIFIED**, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`.
+- R4 — **DONE / VERIFIED / latest runtime-bearing**, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`.
 - Quality Platform Q1-Q19 — **DONE / VERIFIED; permanently closed at Q19**. Do not invent Q20.
 - Enterprise Tasks 1-8 — **DONE / VERIFIED**.
 
@@ -70,28 +73,30 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **R4 subscription scalability/observability**.
+Current executable gate: **R5/T4 architecture decision**.
 
 R2 is **DONE / VERIFIED** (PR #110 certified head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`, package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3`).
 
 R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, squash-merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`, candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` — NOT owner accepted). External blockers remain: auto-deduct capture **UNPROVEN**, remote cycle identity **UNPROVEN**, HMAC **PROVIDER CLARIFICATION REQUIRED**, token storage **PROVIDER CLARIFICATION REQUIRED**. Automatic paid-renewal finalization stays **FAIL-CLOSED / HELD**.
 
 1. **R3:** DONE / VERIFIED — first-card elimination, economic/identity binding, immutable cycle snapshot, parent discovery, pause/resume/cancel, held-cycle reconciliation without blind replay.
-3. **R4:** replace historical hourly scanning with due-work orchestration, preferably Action Scheduler; keep the durable cycle journal authoritative; add observability/load/concurrency/failure-injection evidence.
+3. **R4:** DONE / VERIFIED — bounded HistoricalEnrollment (BATCH_SIZE=50), Action Scheduler group `supcheckout`, args `{parent_order_id, cycle_due_gmt, retry_attempt}`, CycleClaim remains provider-mutation authority, retries 0..3 (+1h/+6h/+24h), HELD/dispatching/ambiguous never auto-next-charge.
 4. **R5/T4:** separately approve architecture before callback consolidation.
 5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.
 
-## Immediate R4 TDD boundary
+## Immediate R5/T4 decision boundary
 
-Required RED behavior:
+R4 is closed. The next gate is an **owner architecture decision**, not another RED/GREEN tranche.
 
-- one scheduler tick must not enumerate all historical orders;
-- bounded enrollment must resume without double-scheduling parents;
-- Action Scheduler retry must never re-POST when CycleClaim is `dispatching`/`held`/`resolved`;
-- stale queued work after pause/cancel/refund/card change must produce ZERO POST;
-- missed periods must not emit N consecutive charges.
+Evaluate `docs/superpowers/plans/2026-09-23-r5-t4-callback-architecture-options.md` against post-R4 main `10a33b4`.
 
-Minimal GREEN must correct bounded due-work orchestration only. CycleClaim remains provider-mutation authority. No T4 consolidation belongs in R4.
+Options:
+
+- **A** — retain current dual callback adapters (zero runtime change)
+- **B** — thin normalization in `UPayments.php` then delegate to `PaymentLifecycle` (must characterize payment-lifecycle semantic deltas, not only browser/webhook inference)
+- **DEFER** — leave R5 out of Approach 3
+
+No T4 runtime change without explicit `R5_DECISION=A|B|DEFER`. Approach 2 acceptance unchanged. Publication unauthorized.
 
 ## Permanent invariants
 

@@ -129,7 +129,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         }
     }
 
-    public function test_current_post_t3_gate_cannot_regress_before_r4(): void {
+    public function test_current_post_t3_gate_cannot_regress_before_r5_decision(): void {
         $agents = self::read_repository_file('AGENTS.md');
         $start = self::read_repository_file('docs/project/START-HERE.md');
         $status = self::read_repository_file('docs/project/PROJECT-STATUS.md');
@@ -141,24 +141,28 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('R2 callback portability/cache safety is **DONE / VERIFIED**', $agents);
         self::assertStringContainsString('R3 subscription safety is **DONE / VERIFIED**', $agents);
         self::assertStringContainsString('.github/workflows/ecosystem-certification.yml', $agents);
-        self::assertStringContainsString('Current operational gate | **R4 subscription scalability/observability**', $start);
+        self::assertStringContainsString('Current operational gate | **R5/T4 architecture decision**', $start);
         self::assertStringContainsString('E3 repository-executable | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R2 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R3 | **DONE / VERIFIED**', $start);
-        self::assertStringContainsString('Current executable gate: **R4 subscription scalability/observability**.', $status);
-        self::assertStringContainsString('Current executable gate: **R4 subscription scalability/observability**.', $handoff);
+        self::assertStringContainsString('R4 | **DONE / VERIFIED**', $start);
+        self::assertStringContainsString('Current executable gate: **R5/T4 architecture decision**.', $status);
+        self::assertStringContainsString('Current executable gate: **R5/T4 architecture decision**.', $handoff);
         self::assertStringContainsString('E3 repository-executable exact-head checkpoint: `' . self::POST_T3_E3_RUNTIME_CHECKPOINT_SHA . '`', $implementation);
         self::assertStringContainsString('latest_e3_runtime_checkpoint: ' . self::POST_T3_E3_RUNTIME_CHECKPOINT_SHA, $contract);
         self::assertStringContainsString('e3_repository_status: done_verified', $contract);
         self::assertStringContainsString('r2_status: done_verified', $contract);
         self::assertStringContainsString('r3_status: done_verified', $contract);
-        self::assertStringContainsString('current_gate: r4-subscription-scalability-observability', $contract);
+        self::assertStringContainsString('r4_status: done_verified', $contract);
+        self::assertStringContainsString('current_gate: r5-t4-architecture-decision', $contract);
 
         self::assertStringNotContainsString('current_gate: r2-callback-portability-cache-safety', $contract);
         self::assertStringNotContainsString('current_gate: r3-subscription-safety', $contract);
+        self::assertStringNotContainsString('current_gate: r4-subscription-scalability-observability', $contract);
         self::assertStringNotContainsString('Current executable gate: **R2 callback portability / cache safety**.', $status);
         self::assertStringNotContainsString('Current executable gate: **E3 theme/cache/CDN/optimizer/analytics compatibility**.', $handoff);
         self::assertStringNotContainsString('Current executable gate: **R3 subscription safety**.', $status);
+        self::assertStringNotContainsString('Current executable gate: **R4 subscription scalability/observability**.', $status);
         self::assertStringNotContainsString('current_gate: e3-theme-cache-analytics', $contract);
     }
 

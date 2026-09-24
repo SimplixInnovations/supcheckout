@@ -65,7 +65,7 @@ At that exact E3 head, Quality/H12, all 20 Compatibility cells + Compatibility G
 
 GitHub default CodeQL JavaScript/TypeScript did not reach a terminal verdict for that historical SHA. Descendant merge/release qualification still requires CodeQL/security green.
 
-Current executable gate: **R4 subscription scalability/observability**.
+Current executable gate: **R5/T4 architecture decision**.
 
 ## R2 implementation contract (closed)
 

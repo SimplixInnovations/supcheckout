@@ -1,56 +1,112 @@
 # R5/T4 Callback Architecture Options (READ-ONLY)
 
 **Status:** Proposal only — not approved for implementation
-**Date:** 2026-09-23
-**Basis:** T3 characterization + R2 no-cache + current `main` post-R2
+**Date:** 2026-09-24 (refreshed post-R4)
+**Post-R4 main SHA:** `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`
+**Basis:** T3 characterization + R2 no-cache + R3/R4 stability + residual audit
 
-## Scope reviewed
+## Scope reviewed (reconfirmed on post-R4 main)
 
-- `UPayments.php`: `return_from_upayments`, `web_hook_handler`, `check_ipn_response`
-- `src/Payment/PaymentLifecycle.php` priority-5 `handle_callback`
-- `src/Security/PublicOrderStatus.php`
-- Hook identities `woocommerce_api_wc_upayments` (5 and 10)
-- GET `page` browser marker (T3: direct callers may omit it)
+| Surface | Status |
+|---|---|
+| `UPayments.php` `return_from_upayments()` | public compatibility entry (line ~698) |
+| `UPayments.php` `web_hook_handler()` | public compatibility entry (line ~896) |
+| `UPayments.php` `check_ipn_response()` | `woocommerce_api_wc_upayments` dispatcher (priority 10, line ~1035) |
+| `src/Payment/PaymentLifecycle.php` `handle_callback` | active financial path (priority 5) |
+| `src/Security/PublicOrderStatus.php` | read-only status surface |
+| GET `page` browser marker | T3: direct callers may omit it |
+| no-cache | R2: `wc_nocache_headers` on public callback/status surfaces |
+| StatusVerifier | remains financial authority for capture proof |
+| Protected identities | `wc_upayments`, public method names, hook priority 10 |
 
-## Option A — Keep current adapters after R2
+Harness evidence still green on post-R4 main:
 
-**Files affected:** none
-**Compatibility risk:** low
-**Payment authority:** unchanged (dual paths remain)
-**Termination/cache:** R2 no-cache already applied
-**Tests:** existing T1/T2/T3 + ecosystem-callback-cache
-**Rollback:** trivial
-**Cost if wrong:** residual dual financial semantics stay until a later decision
+- `architecture-legacy-direct-callback-characterization-harness` — 102/0
+- `architecture-active-callback-characterization-harness` — 41/0
+- `architecture-legacy-callback-routing-harness` — priority 10 pin intact
+- `ecosystem-callback-cache-harness` — no-cache intact
+- T3 conclusion still holds: **direct `return_from_upayments()` callers may lack GET `page`**
 
-## Option B — Thin adapters normalize request context then delegate to PaymentLifecycle (RECOMMENDED)
+R2–R4 did not change callback routing, hook priorities, or public method signatures.
 
-**Files affected:** `UPayments.php` only (thin body of the three public methods)
-**Migration strategy:**
-1. Normalize missing GET `page` for direct `return_from_upayments` callers to browser mode without inventing financial truth.
-2. Delegate to `PaymentLifecycle::handle_callback()`.
-3. Keep public method names and `wc_upayments` hook identities.
-4. Preserve `wc_nocache_headers` first on every public response.
+## Option A — Retain current architecture
 
-**Compatibility risk:** medium — request-shape normalization is the residual risk T3 identified.
-**Payment authority:** single StatusVerifier path.
-**Termination:** same redirects/status as characterized.
-**Tests required:** extend T3 direct-caller matrix with no-`page` browser shape; keep T1 priority tests; keep cache harness.
-**ADR changes:** new ADR superseding “compatibility surfaces remain until consolidated”.
-**Architecture-contract changes:** allow thin delegation; still forbid parallel Return/Webhook controllers.
-**Cost if wrong:** medium — wrong browser/webhook inference could mis-route a live callback.
+**Behavior:** keep dual public adapters + `PaymentLifecycle` as today.
+**Files affected:** none.
+**Advantages:** zero compatibility risk; already fully characterized; rollback trivial.
+**Risks:** residual dual financial semantics remain; later consolidation cost unchanged.
+**Payment authority:** unchanged (legacy methods retain historical semantics).
 
-## Option C — Broader callback-controller restructuring
+## Option B — Thin normalization → PaymentLifecycle (RECOMMENDED)
 
-**Files affected:** new controllers + lifecycle rewrite
-**Compatibility risk:** high (contract currently forbids parallel controllers)
-**Not recommended** under current architecture-contract.
+**Behavior:** keep protected public methods; each body becomes a thin normalizer of historical request shape, then delegates to the single `PaymentLifecycle::handle_callback()`. No parallel controllers.
 
-## Recommendation
+**Normalization seam:** `UPayments.php` only — the three public methods.
 
-**Option B**, only after R3/R4 stabilize and with explicit owner/architect approval. Until then retain Option A.
+**Exact contract to preserve:**
+
+```text
+UPayments.php
+WC_Upayments
+return_from_upayments public
+web_hook_handler public
+check_ipn_response public + wc_upayments identity + priority 10
+browser redirects
+webhook HTTP 200 / termination
+wc_nocache_headers first
+StatusVerifier authority
+direct-call compatibility without GET page
+```
+
+**Files that would change:** `UPayments.php` (method bodies only).
+**Tests required:**
+
+```text
+normal WC-API browser success / error
+webhook
+direct return_from_upayments without page marker
+direct legacy webhook method
+duplicate callback
+invalid callback
+no-cache
+redirect termination
+HTTP 200 webhook termination
+T1 priority pins
+R2 cache harness
+```
+
+**Payment-lifecycle semantic deltas that MUST be characterized before approval (not only request-mode inference):**
+
+| Concern | Legacy direct methods today | `PaymentLifecycle` today | Option B risk |
+|---|---|---|---|
+| Authenticated non-captured response | backend order left unchanged | `process_order_status()` may transition unpaid orders to `failed`/`cancelled` | order-status drift |
+| Captured handling | direct `update_status()` | `payment_complete()` (Woo hooks + stock semantics) | hook/stock divergence |
+| Browser redirect termination | historical redirects/exit | characterized lifecycle redirects | must preserve |
+| Webhook HTTP 200 | historical 200/exit | characterized lifecycle | must preserve |
+| StatusVerifier authority | shared | shared | unchanged |
+
+**Advantages:** single financial path; removes dual semantics; small blast radius.
+**Risks:** medium — wrong browser/webhook inference on non-page direct calls **and** the payment-lifecycle status/stock/hook deltas above. Must normalize mode explicitly, never invent financial truth.
+**Rollback:** restore prior method bodies (git revert); no schema/identity migration.
+**ADR:** new ADR superseding “compatibility surfaces remain until consolidated”.
+**Architecture-contract:** allow thin delegation; still forbid Return/Webhook controllers, second lifecycle, generic provider framework.
+
+## Option C — Broad callback restructuring
+
+**Why not:** architecture-contract forbids parallel Return/Webhook controllers; high compatibility risk; no new evidence overturns that. **Not recommended.**
+
+## DEFER
+
+Leave R5 out of Approach 3. Cost: dual semantics remain. Benefit: zero risk now. Reconsider after owner accepts Approach 3 or when provider callback contract changes.
+
+## Recommendation (post-R4)
+
+**Option B still stands** after R4: the residual risk is unchanged and R3/R4 stability makes the seam safer than in 2026-09-23. Implement only after explicit `R5_DECISION=B`.
 
 ## Owner decision required
 
 ```text
 R5_DECISION = A | B | DEFER
 ```
+
+No T4 production code before this value is supplied.
