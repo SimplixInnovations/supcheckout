@@ -112,8 +112,8 @@ $parent = supcheckout_r4c_parent($user_id, 'cyc');
 $due_a = Enrollment::next_run_at($parent);
 supcheckout_cert_assert($due_a !== null, 'cycle A due computed');
 supcheckout_cert_assert(ASBridge::ensure_cycle_action((int) $parent->get_id(), $due_a), 'cycle A scheduled');
-// Simulate A resolved and last_billed advanced.
-$parent->update_meta_data('_upay_last_billed_at', gmdate('Y-m-d H:i:s'));
+// Simulate A resolved: last_billed advances to cycle A's due timestamp.
+$parent->update_meta_data('_upay_last_billed_at', gmdate('Y-m-d H:i:s', $due_a));
 $parent->save();
 $fresh = wc_get_order($parent->get_id());
 $due_b = Enrollment::next_run_at($fresh);
