@@ -29,7 +29,7 @@ $up = file_get_contents($root . '/UPayments.php');
 foreach (array('function init', 'function process', 'process_one_order', 'handle_post_dispatch', 'getGateway', 'getNextBillingDate', 'upayShouldAttemptRetry') as $needle) {
     r3t_assert(strpos($scheduler, $needle) !== false, "Scheduler surface remains: {$needle}");
 }
-foreach (array('maybe_install', 'acquire(', 'reclaim_stale_claimed', 'mark_dispatching', 'mark_held', 'mark_resolved', 'release_claimed', 'function get(') as $needle) {
+foreach (array('maybe_install', 'schema_ready', 'column_exists', 'acquire(', 'acquire_with_snapshot', 'reclaim_stale_claimed', 'mark_dispatching', 'mark_held', 'mark_resolved', 'release_claimed', 'function get(', 'has_dispatchable_snapshot', 'canonical_snapshot_amount') as $needle) {
     r3t_assert(strpos($cycle, $needle) !== false, "CycleClaim surface remains: {$needle}");
 }
 foreach (array("'unsubscribe'", "'pause'", "'resume'", 'wp_verify_nonce', 'UPayments_AutoDeduction', 'get_current_user_id') as $needle) {
@@ -78,10 +78,22 @@ r3t_assert(strpos($scheduler, 'is not fabricated') !== false, 'UPayments_order_i
 r3t_assert(strpos($scheduler, "set_total(\$paid_amount)") !== false || strpos($scheduler, 'set_total($paid_amount)') !== false, 'renewal total uses validated decimal string');
 r3t_assert(strpos($scheduler, '(float)') === false, 'no float payment authority in Scheduler');
 
+// T6 immutable snapshot dispatch: request economics come from the claim row.
+r3t_assert(strpos($scheduler, "\$dispatch_amount") !== false, 'T6 dispatch amount is taken from persisted claim snapshot');
+r3t_assert(strpos($scheduler, "\$dispatch_currency") !== false, 'T6 dispatch currency is taken from persisted claim snapshot');
+r3t_assert(strpos($scheduler, 'from the persisted claim snapshot') !== false || strpos($scheduler, 'ONLY from the persisted claim snapshot') !== false,
+    'T6 documents snapshot-first request construction');
+r3t_assert(strpos($scheduler, 'Parent economics diverged from immutable claim snapshot') !== false,
+    'T6 parent economics divergence is fail-closed HELD');
+r3t_assert(strpos($cycle, 'IMMUTABLE CYCLE INTENT') !== false, 'T6 reclaim documents immutable cycle intent');
+r3t_assert(strpos($cycle, 'cycle_due_gmt = %s') === false, 'T6 reclaim does not rewrite cycle_due_gmt');
+
 // T7 pre-dispatch zero-POST gates remain present.
-foreach (array('paused', 'cancelled', 'RenewalCardAuthority', 'Invalid or zero cycle economic snapshot') as $needle) {
+foreach (array('paused', 'cancelled', 'RenewalCardAuthority', 'Invalid or zero cycle economic snapshot', 'parent_still_eligible_for_dispatch') as $needle) {
     r3t_assert(strpos($scheduler, $needle) !== false, "T7 pre-dispatch gate present: {$needle}");
 }
+r3t_assert(strpos($scheduler, 'Parent failed final pre-dispatch revalidation') !== false, 'T7 final revalidation can zero POST');
+r3t_assert(strpos($cycle, 'function schema_ready') !== false, 'T6 schema readiness is explicit, not option-only');
 
 // T7 concurrency semantics: HELD/dispatching/resolved never auto-release.
 r3t_assert(strpos($cycle, 'Never auto-expire') !== false || strpos($cycle, 'never auto-expire') !== false
