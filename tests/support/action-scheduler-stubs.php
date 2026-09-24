@@ -84,8 +84,12 @@ if (!function_exists('as_unschedule_all_actions')) {
         $GLOBALS['supcheckout_as_calls']['unscheduled_all'][] = array($hook, $args, $group);
         $GLOBALS['supcheckout_as_calls']['scheduled'] = array_values(array_filter(
             $GLOBALS['supcheckout_as_calls']['scheduled'],
-            static function ($row) use ($hook, $group) {
-                return !($row['hook'] === $hook && $row['group'] === $group);
+            static function ($row) use ($hook, $args, $group) {
+                if ($row['hook'] !== $hook || $row['group'] !== $group) {
+                    return true;
+                }
+                // Exact args match only. Null args would be group-wide — forbidden.
+                return $args !== null && $row['args'] !== (array) $args;
             }
         ));
     }

@@ -134,14 +134,42 @@ Worker::handle((int) $held_parent->get_id(), (int) Enrollment::next_run_at($held
 // (Legacy hold path yields HELD without POST.)
 supcheckout_cert_assert(true, 'held/unresolved path executed without provider POST');
 
-// --- Pause cancels pending actions ---
-$p = supcheckout_r4c_parent($user_id, 'pausex');
-$due = Enrollment::next_run_at($p);
-ASBridge::ensure_cycle_action((int) $p->get_id(), (int) $due);
-LifecycleScheduler::maybe_cancel_on_status_meta(1, (int) $p->get_id(), '_upay_subscription_status', 'paused');
+// --- Pause cancels only parent A (isolation) ---
+$pA = supcheckout_r4c_parent($user_id, 'isoA');
+$pB = supcheckout_r4c_parent($user_id, 'isoB');
+$pC = supcheckout_r4c_parent($user_id, 'isoC');
+$dueA = (int) Enrollment::next_run_at($pA);
+$dueB = (int) Enrollment::next_run_at($pB);
+$dueC = (int) Enrollment::next_run_at($pC);
+ASBridge::ensure_cycle_action((int) $pA->get_id(), $dueA, null, 0);
+ASBridge::ensure_cycle_action((int) $pB->get_id(), $dueB, null, 0);
+ASBridge::ensure_cycle_action((int) $pC->get_id(), $dueC, time() + 60, 1);
+$pA->update_meta_data('_upay_subscription_status', 'paused');
+$pA->save();
+LifecycleScheduler::cancel_after_state_change($pA);
 supcheckout_cert_assert(
-    !ASBridge::has_open_cycle_action((int) $p->get_id(), (int) $due),
-    'pause cancels exact pending cycle action'
+    !ASBridge::has_any_open_cycle_attempt((int) $pA->get_id(), $dueA),
+    'pause removes parent A cycle/retry actions'
+);
+supcheckout_cert_assert(
+    ASBridge::has_open_cycle_action((int) $pB->get_id(), $dueB, 0),
+    'parent B remains queued after pause A'
+);
+supcheckout_cert_assert(
+    ASBridge::has_open_cycle_action((int) $pC->get_id(), $dueC, 1),
+    'parent C retry remains queued after pause A'
+);
+
+// --- Resume creates exactly one attempt-0 action ---
+$pA->update_meta_data('_upay_subscription_status', 'active');
+$pA->save();
+supcheckout_cert_assert(
+    LifecycleScheduler::schedule_resume($pA) === true,
+    'resume schedules one legitimate next cycle'
+);
+supcheckout_cert_assert(
+    ASBridge::has_any_open_cycle_attempt((int) $pA->get_id(), (int) Enrollment::next_run_at($pA)),
+    'resume created a pending cycle action'
 );
 
 // Cleanup sample (leave table disposable).

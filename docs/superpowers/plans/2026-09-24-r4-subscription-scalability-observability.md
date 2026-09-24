@@ -52,12 +52,15 @@ Action Scheduler group=supcheckout
 
 ```php
 public static function is_ready(): bool
-public static function cycle_args(int $parent_order_id, int $cycle_due_gmt): array
-public static function ensure_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
-public static function has_open_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
-public static function cancel_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
-public static function cancel_parent_actions(int $parent_order_id): bool
+public static function cycle_args(int $parent_order_id, int $cycle_due_gmt, int $retry_attempt = 0): array
+public static function ensure_cycle_action(int $parent_order_id, int $cycle_due_gmt, ?int $run_at_gmt = null, int $retry_attempt = 0): bool
+public static function has_open_cycle_action(int $parent_order_id, int $cycle_due_gmt, int $retry_attempt = 0): bool
+public static function has_any_open_cycle_attempt(int $parent_order_id, int $cycle_due_gmt): bool
+public static function cancel_cycle_actions(int $parent_order_id, int $cycle_due_gmt): bool
+public static function retry_delay_for_attempt(int $retry_attempt): ?int
 ```
+
+Args: `parent_order_id`, `cycle_due_gmt` (immutable billing-cycle identity), `retry_attempt` (finite queue ordinal). `run_at_gmt` is separate from `cycle_due_gmt`. Never null-args / group-wide cancel. Max attempts 0..3 with delays +1h/+6h/+24h.
 
 No secrets in action args. Group `supcheckout`. Unique=true + recheck. `is_ready()` requires APIs **and** `Action_Scheduler::is_initialized()` (or `action_scheduler_init` fallback). Prefer WooCommerce-bundled Action Scheduler. No second AS copy.
 

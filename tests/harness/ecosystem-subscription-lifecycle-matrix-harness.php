@@ -102,7 +102,14 @@ $r4_worker = @file_get_contents($root . '/src/Subscription/Scheduling/DueParentW
 r3t_assert(is_string($r4_sched) && strpos($r4_sched, "const GROUP = 'supcheckout'") !== false, 'R4 Action Scheduler group is supcheckout');
 r3t_assert(strpos($r4_sched, 'parent_order_id') !== false, 'R4 action args carry parent_order_id only');
 r3t_assert(strpos($r4_sched, 'cycle_due_gmt') !== false, 'R4 action args include cycle identity');
+r3t_assert(strpos($r4_sched, 'retry_attempt') !== false, 'R4 action args include retry ordinal');
 r3t_assert(strpos($r4_sched, 'api_key') === false && strpos($r4_sched, 'card_token') === false, 'R4 action args exclude secrets');
+r3t_assert(strpos($r4_sched, 'cancel_cycle_actions') !== false, 'R4 exact cycle cancellation primitive');
+r3t_assert(strpos($r4_sched, 'MAX_RETRY_ATTEMPT') !== false, 'R4 finite retry policy');
+r3t_assert(strpos($r4_worker, 'retry_attempt') !== false, 'R4 worker accepts retry ordinal');
+r3t_assert(strpos($r4_worker, 'same_cycle') !== false, 'R4 stale check uses cycle identity only');
+r3t_assert(strpos($up, 'schedule_resume') !== false, 'R4 resume wired in customer transition handler');
+r3t_assert(strpos($up, 'cancel_after_state_change') !== false, 'R4 pause/cancel wired in customer transition handler');
 r3t_assert(strpos($r4_sched, 'is_initialized') !== false, 'R4 AS readiness requires datastore init');
 r3t_assert(strpos($r4_sched, 'true') !== false && strpos($r4_sched, 'as_schedule_single_action') !== false, 'R4 uses unique scheduling');
 r3t_assert(strpos($scheduler, 'HistoricalEnrollment::run_batch') !== false, 'R4 hourly feeder uses bounded enrollment');

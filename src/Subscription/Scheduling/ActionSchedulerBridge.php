@@ -8,17 +8,33 @@ defined('ABSPATH') || exit;
  * Thin capability wrapper around WooCommerce-bundled Action Scheduler.
  *
  * Action Scheduler is orchestration only. CycleClaim remains the
- * provider-mutation / charge-idempotency authority. Never pass secrets
- * through action arguments.
+ * provider-mutation / charge-idempotency authority.
+ *
+ * Action args (all non-secret):
+ *   parent_order_id — local parent identity
+ *   cycle_due_gmt   — immutable billing-cycle orchestration identity
+ *   retry_attempt   — finite queue retry ordinal (not payment identity)
+ *
+ * Execution timestamp (run_at_gmt) is separate from cycle_due_gmt so a
+ * delayed retry of the SAME billing cycle remains possible.
  */
 final class ActionSchedulerBridge
 {
     public const GROUP = 'supcheckout';
     public const ACTION_DUE_PARENT = 'supcheckout_process_due_parent';
 
+    /** Maximum automatic pre-dispatch retry ordinal (attempts 0..3). */
+    const MAX_RETRY_ATTEMPT = 3;
+
+    /** Retry delay seconds by retry_attempt (attempt N schedules attempt N+1). */
+    const RETRY_DELAYS = array(
+        1 => 3600,   // +1 hour
+        2 => 21600,  // +6 hours
+        3 => 86400,  // +24 hours
+    );
+
     /**
      * True iff Action Scheduler APIs exist AND its datastore is initialized.
-     * Function existence alone is not readiness.
      */
     public static function is_ready(): bool
     {
@@ -36,8 +52,6 @@ final class ActionSchedulerBridge
             return true;
         }
 
-        // Deliberate hook fallback for bundled versions where the datastore
-        // becomes ready on action_scheduler_init.
         if (function_exists('did_action') && did_action('action_scheduler_init') > 0) {
             return true;
         }
@@ -46,38 +60,43 @@ final class ActionSchedulerBridge
     }
 
     /**
-     * Cycle-scoped action args. Orchestration identity only — never secrets.
+     * Exact action args for one billing cycle + retry ordinal. Never secrets.
      *
-     * @return array{parent_order_id:int,cycle_due_gmt:int}
+     * @return array{parent_order_id:int,cycle_due_gmt:int,retry_attempt:int}
      */
-    public static function cycle_args(int $parent_order_id, int $cycle_due_gmt): array
+    public static function cycle_args(int $parent_order_id, int $cycle_due_gmt, int $retry_attempt = 0): array
     {
         return array(
             'parent_order_id' => $parent_order_id,
             'cycle_due_gmt'   => $cycle_due_gmt,
+            'retry_attempt'   => max(0, $retry_attempt),
         );
     }
 
     /**
-     * Schedule one exact billing-cycle action. Unique + recheck defeats the
-     * check-then-act race. Queue uniqueness is not payment authority.
+     * Schedule one exact (parent, cycle, retry) action.
+     *
+     * @param int|null $run_at_gmt When AS should execute; defaults to cycle due.
      */
-    public static function ensure_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
-    {
+    public static function ensure_cycle_action(
+        int $parent_order_id,
+        int $cycle_due_gmt,
+        ?int $run_at_gmt = null,
+        int $retry_attempt = 0
+    ): bool {
         if ($parent_order_id <= 0 || $cycle_due_gmt <= 0 || !self::is_ready()) {
             return false;
         }
 
-        $args = self::cycle_args($parent_order_id, $cycle_due_gmt);
+        $args = self::cycle_args($parent_order_id, $cycle_due_gmt, $retry_attempt);
+        $run_at = $run_at_gmt === null ? $cycle_due_gmt : $run_at_gmt;
 
-        // 1. Exact matching action already pending/in-progress → idempotent.
-        if (self::has_open_cycle_action($parent_order_id, $cycle_due_gmt)) {
+        if (self::has_open_action_with_args($args)) {
             return true;
         }
 
-        // 2. unique=true so concurrent callers cannot both insert.
         $scheduled = as_schedule_single_action(
-            max($cycle_due_gmt, time() - 60),
+            max($run_at, time() - 60),
             self::ACTION_DUE_PARENT,
             $args,
             self::GROUP,
@@ -88,85 +107,96 @@ final class ActionSchedulerBridge
             return true;
         }
 
-        // 3. No new ID: another caller may have won the unique insert.
-        return self::has_open_cycle_action($parent_order_id, $cycle_due_gmt);
+        return self::has_open_action_with_args($args);
     }
 
     /**
-     * @deprecated Use ensure_cycle_action(); kept name for older call sites.
+     * True iff this exact (parent, cycle, retry) action is pending/in-progress.
      */
-    public static function ensure_parent_action(int $parent_order_id, int $run_at_gmt): bool
+    public static function has_open_action_with_args(array $args): bool
     {
-        return self::ensure_cycle_action($parent_order_id, $run_at_gmt);
-    }
-
-    /**
-     * True iff this exact cycle action is pending or in-progress.
-     * Distinct cycles for the same parent are independent identities.
-     */
-    public static function has_open_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
-    {
-        if ($parent_order_id <= 0 || $cycle_due_gmt <= 0 || !function_exists('as_has_scheduled_action')) {
+        if (!function_exists('as_has_scheduled_action')) {
             return false;
         }
-
         return (bool) as_has_scheduled_action(
             self::ACTION_DUE_PARENT,
-            self::cycle_args($parent_order_id, $cycle_due_gmt),
+            $args,
             self::GROUP
         );
     }
 
-    public static function has_open_parent_action(int $parent_order_id): bool
+    public static function has_open_cycle_action(int $parent_order_id, int $cycle_due_gmt, int $retry_attempt = 0): bool
     {
-        // Any open cycle action for this parent (used only for diagnostics).
-        if ($parent_order_id <= 0 || !function_exists('as_has_scheduled_action')) {
+        if ($parent_order_id <= 0 || $cycle_due_gmt <= 0) {
             return false;
         }
-
-        return (bool) as_has_scheduled_action(
-            self::ACTION_DUE_PARENT,
-            null,
-            self::GROUP
+        return self::has_open_action_with_args(
+            self::cycle_args($parent_order_id, $cycle_due_gmt, $retry_attempt)
         );
     }
 
     /**
-     * Cancel one exact cycle action. Returns true when no matching action remains.
+     * True iff any finite attempt for this parent+cycle is open.
+     * Bounded exact checks — never null-args / group-wide.
      */
-    public static function cancel_cycle_action(int $parent_order_id, int $cycle_due_gmt): bool
+    public static function has_any_open_cycle_attempt(int $parent_order_id, int $cycle_due_gmt): bool
     {
-        if ($parent_order_id <= 0 || $cycle_due_gmt <= 0 || !function_exists('as_unschedule_action')) {
-            return false;
+        for ($attempt = 0; $attempt <= self::MAX_RETRY_ATTEMPT; $attempt++) {
+            if (self::has_open_cycle_action($parent_order_id, $cycle_due_gmt, $attempt)) {
+                return true;
+            }
         }
-
-        as_unschedule_action(
-            self::ACTION_DUE_PARENT,
-            self::cycle_args($parent_order_id, $cycle_due_gmt),
-            self::GROUP
-        );
-
-        return !self::has_open_cycle_action($parent_order_id, $cycle_due_gmt);
+        return false;
     }
 
     /**
-     * Best-effort cancel of all SUPCheckout pending actions for one parent.
-     * Touches only this plugin's hook + group. Payment safety never depends
-     * on this succeeding — stale actions still fail closed in the worker.
+     * Cancel only SUPCheckout actions for this parent + billing cycle,
+     * including finite retry attempts. Never uses null args / group-wide cancel.
      */
-    public static function cancel_parent_actions(int $parent_order_id): bool
+    public static function cancel_cycle_actions(int $parent_order_id, int $cycle_due_gmt): bool
     {
-        if ($parent_order_id <= 0 || !function_exists('as_unschedule_all_actions')) {
+        if ($parent_order_id <= 0 || $cycle_due_gmt <= 0 || !function_exists('as_unschedule_all_actions')) {
             return false;
         }
 
-        as_unschedule_all_actions(
-            self::ACTION_DUE_PARENT,
-            null,
-            self::GROUP
-        );
+        for ($attempt = 0; $attempt <= self::MAX_RETRY_ATTEMPT; $attempt++) {
+            as_unschedule_all_actions(
+                self::ACTION_DUE_PARENT,
+                self::cycle_args($parent_order_id, $cycle_due_gmt, $attempt),
+                self::GROUP
+            );
+        }
 
-        return true;
+        return !self::has_any_open_cycle_attempt($parent_order_id, $cycle_due_gmt);
+    }
+
+    /**
+     * Cancel known cycle actions for this parent across attempts 0..MAX.
+     * Requires known cycle identities — never a group-wide cancel.
+     *
+     * @param int[] $cycle_due_list
+     */
+    public static function cancel_parent_cycle_actions(int $parent_order_id, array $cycle_due_list): bool
+    {
+        $ok = true;
+        foreach ($cycle_due_list as $due) {
+            $due = (int) $due;
+            if ($due <= 0) {
+                continue;
+            }
+            if (!self::cancel_cycle_actions($parent_order_id, $due)) {
+                $ok = false;
+            }
+        }
+        return $ok;
+    }
+
+    /**
+     * Bounded pre-dispatch retry delay for the next attempt ordinal.
+     */
+    public static function retry_delay_for_attempt(int $retry_attempt): ?int
+    {
+        return self::RETRY_DELAYS[$retry_attempt] ?? null;
     }
 
     private function __construct()

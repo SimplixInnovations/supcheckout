@@ -106,7 +106,14 @@ final class HistoricalEnrollment
                 continue;
             }
 
-            if (ActionSchedulerBridge::ensure_cycle_action((int) $order->get_id(), $run_at)) {
+            $parent_id = (int) $order->get_id();
+            // Repair feeder schedules attempt 0 only. A pending retry for the
+            // same cycle must not be replaced by competing primary work.
+            if (ActionSchedulerBridge::has_any_open_cycle_attempt($parent_id, $run_at)) {
+                $stats['skipped']++;
+                continue;
+            }
+            if (ActionSchedulerBridge::ensure_cycle_action($parent_id, $run_at, null, 0)) {
                 $stats['scheduled']++;
             } else {
                 $stats['skipped']++;

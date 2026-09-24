@@ -1961,6 +1961,17 @@ add_action('init', function () {
     }
 
     $order->save();
+
+    // R4: explicit customer-transition scheduling contract (best-effort).
+    // Payment safety never depends on queue cancellation succeeding.
+    if (class_exists('\Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler')) {
+        if ($action === 'resume') {
+            \Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler::schedule_resume($order);
+        } elseif ($action === 'pause' || $action === 'unsubscribe') {
+            \Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler::cancel_after_state_change($order);
+        }
+    }
+
     wp_safe_redirect(wc_get_account_endpoint_url('view-order') . $order_id);
     exit;
 });

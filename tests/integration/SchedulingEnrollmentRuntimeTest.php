@@ -89,8 +89,8 @@ $fresh = wc_get_order($parent->get_id());
 supcheckout_cert_assert(!Enrollment::parent_qualifies($fresh), 'cancelled parent is not enrollable');
 
 // Bridge rejects invalid parent ids.
-supcheckout_cert_assert(ASBridge::ensure_parent_action(0, time()) === false, 'bridge rejects parent id 0');
-supcheckout_cert_assert(ASBridge::has_open_parent_action(0) === false, 'bridge has_open rejects parent id 0');
+supcheckout_cert_assert(ASBridge::ensure_cycle_action(0, time()) === false, 'bridge rejects parent id 0');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action(0, time()) === false, 'bridge has_open rejects parent id 0');
 
 $parent->delete(true);
 wp_delete_post($product->get_id(), true);

@@ -86,7 +86,7 @@ final class SchedulingCorrectionTest extends TestCase
     public function test_cycle_args_are_non_secret_and_scoped(): void
     {
         $args = ActionSchedulerBridge::cycle_args(9, 123456);
-        self::assertSame(array('parent_order_id' => 9, 'cycle_due_gmt' => 123456), $args);
+        self::assertSame(array('parent_order_id' => 9, 'cycle_due_gmt' => 123456, 'retry_attempt' => 0), $args);
         self::assertArrayNotHasKey('card_token', $args);
         self::assertArrayNotHasKey('api_key', $args);
         self::assertArrayNotHasKey('customer_token', $args);
@@ -185,7 +185,8 @@ final class SchedulingCorrectionTest extends TestCase
     public function test_pause_cancels_pending_supcheckout_actions(): void
     {
         $this->make_parent(40);
-        ActionSchedulerBridge::ensure_cycle_action(40, time() + 100);
+        $due = (int) HistoricalEnrollment::next_run_at(wc_get_order(40));
+        ActionSchedulerBridge::ensure_cycle_action(40, $due);
         self::assertCount(1, $GLOBALS['supcheckout_as_calls']['scheduled']);
         LifecycleScheduler::maybe_cancel_on_status_meta(1, 40, '_upay_subscription_status', 'paused');
         self::assertCount(0, $GLOBALS['supcheckout_as_calls']['scheduled']);

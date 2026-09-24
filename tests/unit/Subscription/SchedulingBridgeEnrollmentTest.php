@@ -68,7 +68,7 @@ final class SchedulingBridgeEnrollmentTest extends TestCase
 
     public function test_ensure_parent_action_schedules_only_parent_id_arg(): void
     {
-        $ok = ActionSchedulerBridge::ensure_parent_action(42, time() + 60);
+        $ok = ActionSchedulerBridge::ensure_cycle_action(42, time() + 60);
         self::assertTrue($ok);
         $calls = $GLOBALS['supcheckout_as_calls']['scheduled'];
         self::assertCount(1, $calls);
@@ -84,9 +84,9 @@ final class SchedulingBridgeEnrollmentTest extends TestCase
     public function test_ensure_parent_action_is_duplicate_safe(): void
     {
         $due = time() + 30;
-        ActionSchedulerBridge::ensure_parent_action(7, $due);
-        ActionSchedulerBridge::ensure_parent_action(7, $due);
-        ActionSchedulerBridge::ensure_parent_action(7, $due);
+        ActionSchedulerBridge::ensure_cycle_action(7, $due);
+        ActionSchedulerBridge::ensure_cycle_action(7, $due);
+        ActionSchedulerBridge::ensure_cycle_action(7, $due);
         self::assertCount(1, $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
