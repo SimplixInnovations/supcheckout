@@ -70,6 +70,9 @@ if (!class_exists('WC_Order', false)) {
         public function get_payment_method() { return $this->payment_method; }
         public function get_total() { return $this->total; }
         public function get_currency() { return $this->currency; }
+        public function get_date_created() { return new \DateTime('2026-01-01 00:00:00', new \DateTimeZone('UTC')); }
+        public function get_date_paid() { return new \DateTime('2026-01-01 00:00:00', new \DateTimeZone('UTC')); }
+        public function get_date_completed() { return null; }
 
         public function get_meta($key, $single = true)
         {

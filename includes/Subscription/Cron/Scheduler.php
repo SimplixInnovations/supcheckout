@@ -19,10 +19,16 @@ require_once __DIR__ . '/CycleClaim.php';
 require_once dirname(__DIR__, 3) . '/src/Subscription/RenewalCardAuthority.php';
 require_once dirname(__DIR__, 3) . '/src/Subscription/CycleEconomics.php';
 require_once dirname(__DIR__, 3) . '/src/Subscription/AutoDeductResultVerifier.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/ActionSchedulerBridge.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/HistoricalEnrollment.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/DueParentWorker.php';
 
 use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Subscription\CycleEconomics;
 use Simplixi\SUPCheckout\Subscription\RenewalCardAuthority;
+use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
+use Simplixi\SUPCheckout\Subscription\Scheduling\DueParentWorker;
+use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
 
 class Scheduler
 {
@@ -49,6 +55,28 @@ class Scheduler
             wp_schedule_event(time(), 'hourly', self::CRON_HOOK);
         }
         add_action(self::CRON_HOOK, [__CLASS__, 'process']);
+        DueParentWorker::register();
+    }
+
+    /**
+     * Public orchestration entry for Action Scheduler due-parent workers.
+     * Charge authority remains inside process_one_order / CycleClaim.
+     */
+    public static function process_parent_order(WC_Order $order): void
+    {
+        $context = ['source' => 'upayments-cron'];
+        try {
+            if (!CycleClaim::maybe_install()) {
+                return;
+            }
+            $gateway = self::getGateway();
+            if (!$gateway || $gateway->get_option('enable_subscriptions') !== 'yes') {
+                return;
+            }
+            self::process_one_order($order, new DateTime('now', wp_timezone()), $context);
+        } catch (\Throwable $e) {
+            // Per-parent isolation: never crash the Action Scheduler runner.
+        }
     }
 
     /**
@@ -85,64 +113,21 @@ class Scheduler
                 return;
             }
 
-            $page  = 1;
-            $limit = 50;
-            $matched_orders = [];
-
-            do {
-                $paid_statuses = function_exists('wc_get_is_paid_statuses')
-                    ? wc_get_is_paid_statuses()
-                    : array('processing', 'completed');
-                $orders = wc_get_orders([
-                    'status' => $paid_statuses,
-                    'limit'  => $limit,
-                    'paged'  => $page,
-                ]);
-
-                foreach ($orders as $order) {
-                    foreach ($order->get_items('line_item') as $item) {
-                        $product = $item->get_product();
-                        if ($product && $product->get_type() === 'custom_type') {
-                            $matched_orders[] = $order;
-                            break; // stop checking this order
-                        }
-                    }
-                }
-                $page++;
-            } while (!empty($orders));
-
-            if (!empty($matched_orders)) {
-                foreach ($matched_orders as $order) {
-
-                    // ---- Per-parent Throwable isolation ----
-                    // Each subscription is processed inside its own try/catch
-                    // so that one parent's failure cannot terminate processing
-                    // of later matched parents. The outer try/catch remains as
-                    // a global safety net.
-                    try {
-                        self::process_one_order(
-                            $order,
-                            $now,
-                            $context
-                        );
-                    } catch (\Throwable $e) {
-                        // The per-parent method already does its own claim
-                        // cleanup (release if pre-dispatch, hold if post-
-                        // dispatch). This catch is a defense in depth: if
-                        // something escapes process_one_order before any
-                        // state was established, we log and continue.
-                        $logger->error(
-                            'Unhandled per-parent error; continuing to next parent.',
-                            $context + [
-                                'order_id' => $order->get_id(),
-                            ]
-                        );
-                        continue;
-                    }
-                }
-            } else {
-                $logger->info('No matched orders found', $context);
-            }
+            // R4: bounded historical enrollment feeder. This tick must not
+            // enumerate the full historical order population. Action Scheduler
+            // performs due-parent orchestration; CycleClaim remains the
+            // provider-mutation authority.
+            $enrollment = HistoricalEnrollment::run_batch();
+            $logger->info(
+                'Subscription enrollment batch complete.',
+                $context + [
+                    'scanned'   => $enrollment['scanned'],
+                    'scheduled' => $enrollment['scheduled'],
+                    'skipped'   => $enrollment['skipped'],
+                    'complete'  => $enrollment['complete'] ? 1 : 0,
+                    'cursor'    => $enrollment['cursor'],
+                ]
+            );
 
             $logger->info('Cron execution finished successfully', $context);
 

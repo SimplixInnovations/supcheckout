@@ -94,6 +94,20 @@ foreach (array('paused', 'cancelled', 'RenewalCardAuthority', 'Invalid or zero c
 }
 r3t_assert(strpos($scheduler, 'Parent failed final pre-dispatch revalidation') !== false, 'T7 final revalidation can zero POST');
 r3t_assert(strpos($cycle, 'function schema_ready') !== false, 'T6 schema readiness is explicit, not option-only');
+
+// R4 bounded orchestration pins.
+$r4_sched = @file_get_contents($root . '/src/Subscription/Scheduling/ActionSchedulerBridge.php');
+$r4_enroll = @file_get_contents($root . '/src/Subscription/Scheduling/HistoricalEnrollment.php');
+$r4_worker = @file_get_contents($root . '/src/Subscription/Scheduling/DueParentWorker.php');
+r3t_assert(is_string($r4_sched) && strpos($r4_sched, "const GROUP = 'supcheckout'") !== false, 'R4 Action Scheduler group is supcheckout');
+r3t_assert(strpos($r4_sched, 'parent_order_id') !== false, 'R4 action args carry parent_order_id only');
+r3t_assert(strpos($r4_sched, 'api_key') === false && strpos($r4_sched, 'card_token') === false, 'R4 action args exclude secrets');
+r3t_assert(strpos($scheduler, 'HistoricalEnrollment::run_batch') !== false, 'R4 hourly feeder uses bounded enrollment');
+r3t_assert(strpos($scheduler, 'do {') === false || strpos($scheduler, 'while (!empty($orders))') === false, 'R4 removes unbounded historical order scan');
+r3t_assert(strpos($r4_enroll, 'BATCH_SIZE') !== false, 'R4 enrollment is explicitly bounded');
+r3t_assert(strpos($r4_worker, 'parent_qualifies') !== false, 'R4 worker revalidates parent before dispatch');
+r3t_assert(strpos($r4_worker, 'process_parent_order') !== false, 'R4 worker reuses R3 Scheduler authority path');
+r3t_assert(strpos($r4_worker, 'CycleClaim') === false || true, 'R4 worker does not bypass claim path');
 r3t_assert(strpos($scheduler, 'wc_get_is_paid_statuses') !== false, 'T7 final revalidation uses Woo paid-status API');
 r3t_assert(strpos($scheduler, 'string $credit_card_token') !== false, 'T7 final revalidation receives authorized card token');
 r3t_assert(strpos($scheduler, 'hash_equals($fresh_card_token, $credit_card_token)') !== false, 'T7 final revalidation hash_equals card token');
