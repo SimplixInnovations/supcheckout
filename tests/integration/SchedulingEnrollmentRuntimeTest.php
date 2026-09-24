@@ -8,9 +8,9 @@ require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/ActionScheduler
 require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/HistoricalEnrollment.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/DueParentWorker.php';
 
-use UPayments\Subscription\Scheduling\ActionSchedulerBridge as ASBridge;
-use UPayments\Subscription\Scheduling\DueParentWorker as Worker;
-use UPayments\Subscription\Scheduling\HistoricalEnrollment as Enrollment;
+use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge as ASBridge;
+use Simplixi\SUPCheckout\Subscription\Scheduling\DueParentWorker as Worker;
+use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment as Enrollment;
 
 if (!class_exists('WCProductCustomType')) {
     \UPayments\Subscription\Helpers\Utils::$custom = true;

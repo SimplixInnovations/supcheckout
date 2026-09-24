@@ -3,8 +3,8 @@
 namespace Simplixi\SUPCheckout\Tests\Subscription;
 
 use PHPUnit\Framework\TestCase;
-use UPayments\Subscription\Scheduling\ActionSchedulerBridge;
-use UPayments\Subscription\Scheduling\HistoricalEnrollment;
+use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
+use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
 
 /**
  * R4 Action Scheduler bridge + bounded enrollment RED/GREEN.
