@@ -108,7 +108,6 @@ Current executable gate: **R3 subscription safety**.
 
 1. **R2 — DONE / VERIFIED:** Woo API URL abstraction via injected platform resolver; `home_url` vs `site_url`; subdirectory, permalink/index and trusted proxy/public-origin behavior; explicit no-cache callback/public-status semantics.
 2. **R3 — subscription safety:** exact auto-deduct amount/currency/parent/cycle/provider binding; no first-card fallback; parent discovery beyond `completed`; customer cancel/pause/resume policy; token-retention contract; held-cycle reconciliation.
-2. **R3 — subscription safety:** exact auto-deduct amount/currency/parent/cycle/provider binding; no first-card fallback; parent discovery beyond `completed`; customer cancel/pause/resume policy; token-retention contract; held-cycle reconciliation.
 3. **R4 — scalability/operations:** due-work scheduling/Action Scheduler, bounded batches, durable cycle-journal authority, observability, load/concurrency/failure injection and queue health.
 4. **R5 / T4 — callback consolidation:** separately gated architecture decision. T3 characterization is evidence, not implementation authorization.
 5. **R6 — final release qualification:** immutable exact-head gates, manual/external qualification, fresh owner re-acceptance and explicit version/publication decision.

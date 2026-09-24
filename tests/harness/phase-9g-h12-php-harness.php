@@ -3332,7 +3332,7 @@ if (is_resource($proc)) {
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($scheduler_blob, '9730d28ed2ab63a2b182e138082e3d28f82e822c', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
+upay_assert_eq($scheduler_blob, '1c120eefe36e874379149b1caadc134988756f4e', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
 
 // --- SEM14-I: CycleClaim.php reviewed protected blob ---
 $cycle_blob = '';
@@ -3342,7 +3342,7 @@ if (is_resource($proc)) {
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($cycle_blob, '0ae25b176ce622f0500fb279a40ab60275a72705', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
+upay_assert_eq($cycle_blob, 'a1ae04e3239e05c4894781480333fd5e747cefba', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
 
 // --- SEM14-J: Production code does NOT use bccomp/BCMath/GMP ---
 $upayments_content = file_get_contents($repo_root . '/UPayments.php');
