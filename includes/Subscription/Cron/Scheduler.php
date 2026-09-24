@@ -581,7 +581,8 @@ class Scheduler
                 $order,
                 $dispatch_amount,
                 $dispatch_currency,
-                $customerUnqToken
+                $customerUnqToken,
+                $credit_card_token
             )) {
                 // Still claimed and no POST has been sent: release is safe.
                 $release_pre_dispatch();
@@ -1163,16 +1164,22 @@ class Scheduler
     /**
      * T7 final local parent-state revalidation immediately before mark_dispatching().
      *
-     * Stops a charge if the parent has become paused/cancelled, an invalid
-     * subscription, the wrong payment method, an auto-deduction child, or
-     * deleted/unavailable. Also rejects a parent whose current economics no
-     * longer match the immutable claim snapshot. Never mutates cycle economics.
+     * Closes authorization races after initial discovery/claim:
+     *   - Woo parent must remain in a paid status (WooCommerce paid-status API);
+     *   - explicitly selected renewal card token must remain the selected token;
+     *   - parent must still qualify as the supported subscription product;
+     *   - existing payment-method / subscription-state / customer-token /
+     *     plan-interval / immutable economics gates remain conjunctive.
+     *
+     * Never mutates cycle economics. Never substitutes another card.
+     * Does not re-query provider cards (membership was proven earlier).
      */
     protected static function parent_still_eligible_for_dispatch(
         WC_Order $order,
         string $dispatch_amount,
         string $dispatch_currency,
-        string $customerUnqToken
+        string $customerUnqToken,
+        string $credit_card_token
     ): bool {
         $parent_id = (int) $order->get_id();
         if ($parent_id <= 0) {
@@ -1181,6 +1188,14 @@ class Scheduler
 
         $fresh = wc_get_order($parent_id);
         if (!$fresh instanceof WC_Order) {
+            return false;
+        }
+
+        // A. Parent must remain in a WooCommerce paid status.
+        $paid_statuses = function_exists('wc_get_is_paid_statuses')
+            ? wc_get_is_paid_statuses()
+            : array('processing', 'completed');
+        if (!$fresh->has_status($paid_statuses)) {
             return false;
         }
 
@@ -1202,6 +1217,30 @@ class Scheduler
             || $fresh_customer_token === ''
             || !hash_equals($fresh_customer_token, $customerUnqToken)
         ) {
+            return false;
+        }
+
+        // B. Explicitly authorized card token must remain the selected token.
+        // Never switch cards mid-attempt; never use cards[0].
+        $fresh_card_token = $fresh->get_meta('_upay_credit_card_token');
+        if (!is_string($fresh_card_token)
+            || $fresh_card_token === ''
+            || preg_match('/\s/', $fresh_card_token)
+            || !hash_equals($fresh_card_token, $credit_card_token)
+        ) {
+            return false;
+        }
+
+        // C. Supported subscription product must remain on the fresh parent.
+        $has_subscription_product = false;
+        foreach ($fresh->get_items('line_item') as $item) {
+            $product = $item->get_product();
+            if ($product && method_exists($product, 'get_type') && $product->get_type() === 'custom_type') {
+                $has_subscription_product = true;
+                break;
+            }
+        }
+        if (!$has_subscription_product) {
             return false;
         }
 

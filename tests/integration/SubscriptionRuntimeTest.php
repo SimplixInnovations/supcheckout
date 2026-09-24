@@ -232,6 +232,126 @@ $result = supcheckout_cert_run_subscription_case($degraded_mixed_order, $base_po
 supcheckout_cert_assert('failure' === $result['result'], 'descriptor-degraded mixed subscription/normal order remains rejected');
 supcheckout_cert_assert(array() === $routes, 'descriptor degradation cannot bypass mixed-order rejection');
 
+// ---------------------------------------------------------------------------
+// Final pre-dispatch authorization race revalidation (T7 FINAL-2).
+// Real WC_Order objects; helper invoked via reflection (protected static).
+// ---------------------------------------------------------------------------
+require_once dirname(__DIR__, 2) . '/includes/Subscription/Cron/Scheduler.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/CycleEconomics.php';
+
+$revalidation_method = new ReflectionMethod(
+    \UPayments\Subscription\Cron\Scheduler::class,
+    'parent_still_eligible_for_dispatch'
+);
+
+function supcheckout_cert_dispatch_eligible($order, $amount, $currency, $customer, $card) {
+    global $revalidation_method;
+    return (bool) $revalidation_method->invoke(null, $order, $amount, $currency, $customer, $card);
+}
+
+function supcheckout_cert_revalidation_parent($product, $user_id) {
+    $order = supcheckout_cert_subscription_order(array($product), $user_id);
+    $order->update_meta_data('_upay_customer_unique_token', 'reval-cust-1');
+    $order->update_meta_data('_upay_credit_card_token', 'reval-card-A');
+    $order->update_meta_data('_upay_subscription_plan', 'monthly');
+    $order->update_meta_data('_upay_subscription_interval', 1);
+    $order->update_meta_data('UPayments_AutoDeduction', 'no');
+    $order->update_meta_data('_upay_subscription_status', 'active');
+    $order->set_payment_method('upayments');
+    $order->calculate_totals(false);
+    $order->save();
+    $fresh = wc_get_order($order->get_id());
+    return $fresh instanceof WC_Order ? $fresh : $order;
+}
+
+$reval_product = supcheckout_cert_subscription_product('Revalidation Subscription', false);
+$reval_order = supcheckout_cert_revalidation_parent($reval_product, $user_id);
+$reval_amount = (string) $reval_order->get_total();
+$reval_currency = (string) $reval_order->get_currency();
+
+supcheckout_cert_assert(
+    supcheckout_cert_dispatch_eligible($reval_order, $reval_amount, $reval_currency, 'reval-cust-1', 'reval-card-A'),
+    'unchanged eligible parent remains dispatchable after final revalidation'
+);
+
+// Paid-status races.
+foreach (array('refunded', 'cancelled', 'failed', 'pending') as $bad_status) {
+    $race = supcheckout_cert_revalidation_parent($reval_product, $user_id);
+    $race->update_status($bad_status);
+    $race->save();
+    $fresh_race = wc_get_order($race->get_id());
+    supcheckout_cert_assert(
+        !supcheckout_cert_dispatch_eligible($fresh_race, $reval_amount, $reval_currency, 'reval-cust-1', 'reval-card-A'),
+        "parent status {$bad_status} fails final revalidation (zero POST)"
+    );
+    $race->delete(true);
+}
+
+$completed = supcheckout_cert_revalidation_parent($reval_product, $user_id);
+$completed->update_status('completed');
+$completed->save();
+supcheckout_cert_assert(
+    supcheckout_cert_dispatch_eligible(wc_get_order($completed->get_id()), $reval_amount, $reval_currency, 'reval-cust-1', 'reval-card-A'),
+    'completed parent remains eligible when Woo reports it paid'
+);
+$completed->delete(true);
+
+// Card-change race.
+$card_race = supcheckout_cert_revalidation_parent($reval_product, $user_id);
+$card_race->update_meta_data('_upay_credit_card_token', 'reval-card-B');
+$card_race->save();
+supcheckout_cert_assert(
+    !supcheckout_cert_dispatch_eligible(wc_get_order($card_race->get_id()), $reval_amount, $reval_currency, 'reval-cust-1', 'reval-card-A'),
+    'card A→B fails final revalidation and never POSTs card-A'
+);
+$card_race->delete(true);
+
+// Card-removal race.
+$card_removed = supcheckout_cert_revalidation_parent($reval_product, $user_id);
+$card_removed->update_meta_data('_upay_credit_card_token', '');
+$card_removed->save();
+supcheckout_cert_assert(
+    !supcheckout_cert_dispatch_eligible(wc_get_order($card_removed->get_id()), $reval_amount, $reval_currency, 'reval-cust-1', 'reval-card-A'),
+    'removed explicit card fails final revalidation'
+);
+$card_removed->delete(true);
+
+// Customer-token race.
+$cust_race = supcheckout_cert_revalidation_parent($reval_product, $user_id);
+$cust_race->update_meta_data('_upay_customer_unique_token', 'reval-cust-2');
+$cust_race->save();
+supcheckout_cert_assert(
+    !supcheckout_cert_dispatch_eligible(wc_get_order($cust_race->get_id()), $reval_amount, $reval_currency, 'reval-cust-1', 'reval-card-A'),
+    'customer token change fails final revalidation'
+);
+$cust_race->delete(true);
+
+// Product-removal race.
+$product_race = supcheckout_cert_revalidation_parent($reval_product, $user_id);
+foreach ($product_race->get_items('line_item') as $item_id => $item) {
+    $product_race->remove_item($item_id);
+}
+$product_race->calculate_totals(false);
+$product_race->save();
+supcheckout_cert_assert(
+    !supcheckout_cert_dispatch_eligible(wc_get_order($product_race->get_id()), $reval_amount, $reval_currency, 'reval-cust-1', 'reval-card-A'),
+    'removed custom_type line fails final revalidation'
+);
+$product_race->delete(true);
+
+// Economic mutation races.
+$amount_race = supcheckout_cert_revalidation_parent($reval_product, $user_id);
+$amount_race->set_total((string) ((float) $reval_amount + 5));
+$amount_race->save();
+supcheckout_cert_assert(
+    !supcheckout_cert_dispatch_eligible(wc_get_order($amount_race->get_id()), $reval_amount, $reval_currency, 'reval-cust-1', 'reval-card-A'),
+    'parent amount change fails against immutable snapshot'
+);
+$amount_race->delete(true);
+
+$reval_order->delete(true);
+wp_delete_post($reval_product->get_id(), true);
+
 wp_set_current_user(0);
 foreach (array(
     $restricted_order,

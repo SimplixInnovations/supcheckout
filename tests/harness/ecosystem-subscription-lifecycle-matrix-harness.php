@@ -94,6 +94,11 @@ foreach (array('paused', 'cancelled', 'RenewalCardAuthority', 'Invalid or zero c
 }
 r3t_assert(strpos($scheduler, 'Parent failed final pre-dispatch revalidation') !== false, 'T7 final revalidation can zero POST');
 r3t_assert(strpos($cycle, 'function schema_ready') !== false, 'T6 schema readiness is explicit, not option-only');
+r3t_assert(strpos($scheduler, 'wc_get_is_paid_statuses') !== false, 'T7 final revalidation uses Woo paid-status API');
+r3t_assert(strpos($scheduler, 'string $credit_card_token') !== false, 'T7 final revalidation receives authorized card token');
+r3t_assert(strpos($scheduler, 'hash_equals($fresh_card_token, $credit_card_token)') !== false, 'T7 final revalidation hash_equals card token');
+r3t_assert(strpos($scheduler, "get_type() === 'custom_type'") !== false, 'T7 final revalidation requires custom_type product');
+r3t_assert(strpos($scheduler, 'Never switch cards mid-attempt') !== false, 'T7 documents no silent card substitution');
 
 // T7 concurrency semantics: HELD/dispatching/resolved never auto-release.
 r3t_assert(strpos($cycle, 'Never auto-expire') !== false || strpos($cycle, 'never auto-expire') !== false
