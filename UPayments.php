@@ -509,7 +509,9 @@ function woocommerceUpaymentsInit() {
                 nocache_headers();
             }
             // Historical browser callers populate GET callback fields (page marker optional).
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- External UPayments browser return cannot carry a WordPress nonce; identifiers are sanitized and paid-state authority requires authenticated provider status verification.
             $get_bag = (isset($_GET) && is_array($_GET)) ? $_GET : array();
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended
             \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_compat_callback('browser', $get_bag);
             exit();
         }
@@ -527,7 +529,9 @@ function woocommerceUpaymentsInit() {
             }
             // Historical direct webhooks populated $_REQUEST only (often not $_POST).
             // Forward only canonical callback keys — never cookies or the raw bag.
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- External provider webhook cannot carry a WordPress nonce; identifiers are sanitized and paid-state authority requires authenticated provider status verification.
             $request = (isset($_REQUEST) && is_array($_REQUEST)) ? $_REQUEST : array();
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended
             $primary = array();
             foreach (array('wc_order_id', 'track_id', 'requested_order_id') as $key) {
                 if (array_key_exists($key, $request)) {
