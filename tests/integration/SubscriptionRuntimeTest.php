@@ -239,14 +239,12 @@ supcheckout_cert_assert(array() === $routes, 'descriptor degradation cannot bypa
 require_once dirname(__DIR__, 2) . '/includes/Subscription/Cron/Scheduler.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/CycleEconomics.php';
 
-$revalidation_method = new ReflectionMethod(
-    \UPayments\Subscription\Cron\Scheduler::class,
-    'parent_still_eligible_for_dispatch'
-);
-
 function supcheckout_cert_dispatch_eligible($order, $amount, $currency, $customer, $card) {
-    global $revalidation_method;
-    return (bool) $revalidation_method->invoke(null, $order, $amount, $currency, $customer, $card);
+    $method = new ReflectionMethod(
+        \UPayments\Subscription\Cron\Scheduler::class,
+        'parent_still_eligible_for_dispatch'
+    );
+    return (bool) $method->invoke(null, $order, $amount, $currency, $customer, $card);
 }
 
 function supcheckout_cert_revalidation_parent($product, $user_id) {
