@@ -3,7 +3,7 @@
  * Reset CycleClaim journal schema for concurrency certification.
  */
 
-require_once __DIR__ . '/bootstrap.php';
+require_once dirname(__DIR__) . '/bootstrap.php';
 require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/CycleClaim.php';
 
 use UPayments\Subscription\Cron\CycleClaim;
