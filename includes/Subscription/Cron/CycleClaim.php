@@ -41,27 +41,102 @@ class CycleClaim
     const STATE_RESOLVED    = 'resolved';
 
     /**
+     * Columns that MUST exist for the currently declared SCHEMA_VERSION.
+     *
+     * `expected_amount` / `expected_currency` are the v2 immutable economic
+     * snapshot. The remaining columns are the durable claim identity and
+     * state machine required by every journal mutation.
+     *
+     * @return string[]
+     */
+    public static function required_columns(): array
+    {
+        return array(
+            'cycle_key',
+            'parent_order_id',
+            'owner_token',
+            'state',
+            'cycle_due_gmt',
+            'created_gmt',
+            'updated_gmt',
+            'expected_amount',
+            'expected_currency',
+        );
+    }
+
+    /**
+     * True iff every column required by SCHEMA_VERSION exists on the live table.
+     *
+     * The schema-version option is an optimization/coordinate only. It is
+     * NEVER proof of database reality: a table can exist while one or more
+     * v2 columns are absent after a partial restore or failed dbDelta.
+     */
+    public static function schema_ready(): bool
+    {
+        if (!self::table_exists()) {
+            return false;
+        }
+
+        foreach (self::required_columns() as $column) {
+            if (!self::column_exists($column)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * True iff the named column exists on the live journal table.
+     */
+    public static function column_exists(string $column): bool
+    {
+        global $wpdb;
+        $table = self::table_name();
+
+        if ($column === '' || !self::table_exists()) {
+            return false;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Schema-existence probe for the plugin-owned billing-attempt journal; caching would make migration/runtime readiness stale.
+        $found = $wpdb->get_var(
+            $wpdb->prepare(
+                'SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = %s
+                   AND COLUMN_NAME = %s',
+                $table,
+                $column
+            )
+        );
+
+        return is_string($found) && $found !== '';
+    }
+
+    /**
      * Idempotent schema installer / readiness verifier.
      *
      * Behavior:
-     *   - If the schema-version option matches AND the table actually exists,
-     *     return true immediately. No dbDelta, no upgrade.php load.
-     *   - Otherwise, (re)load upgrade.php, run dbDelta(), verify the table
-     *     exists, and ONLY THEN bump the schema-version option.
-     *   - If the table cannot be verified after dbDelta(), return false
+     *   - If the schema-version option matches AND schema_ready() proves every
+     *     mandatory v2 column exists, return true immediately. No dbDelta.
+     *   - Otherwise, (re)load upgrade.php, run dbDelta().
+     *   - If schema_ready() is still false after dbDelta(), return false
      *     WITHOUT bumping the version flag. The caller must fail closed.
+     *   - Only a proven-ready database advances the option to SCHEMA_VERSION.
+     *
+     * The option value is never treated as proof of column reality.
      *
      * Self-heals against:
      *   - accidental table deletion;
      *   - partial DB restore;
-     *   - manual DB cleanup;
+     *   - partial migration (option says v2 but a required column is missing);
      *   - failed migration state where the version flag is set but the
-     *     table is missing.
+     *     table or columns are missing.
      */
     public static function maybe_install(): bool
     {
         $current = (string) get_option(self::OPTION_KEY, '');
-        if ($current === self::SCHEMA_VERSION && self::table_exists()) {
+        if ($current === self::SCHEMA_VERSION && self::schema_ready()) {
             return true;
         }
 
@@ -94,8 +169,9 @@ class CycleClaim
 
         dbDelta($sql);
 
-        // Confirm the table is now usable before bumping the version flag.
-        if (!self::table_exists()) {
+        // Confirm the live schema is actually ready before advancing the
+        // version coordinate. Missing columns must not produce false readiness.
+        if (!self::schema_ready()) {
             return false;
         }
 
@@ -277,16 +353,98 @@ class CycleClaim
 
     /**
      * True iff the claim row carries a complete immutable v2 economic snapshot
-     * required before an automatic provider dispatch.
+     * and durable claim identity required before an automatic provider dispatch.
+     *
+     * Malformed persisted economics must never authorize a provider POST.
+     * Validation is intentionally a narrow journal-local primitive consistent
+     * with CycleEconomics, not a dependency on a high-level service.
      */
     public static function has_dispatchable_snapshot(array $row): bool
     {
-        return is_array($row)
-            && isset($row['expected_amount'], $row['expected_currency'])
-            && is_string($row['expected_amount'])
-            && $row['expected_amount'] !== ''
-            && is_string($row['expected_currency'])
-            && $row['expected_currency'] !== '';
+        if (!is_array($row)
+            || !isset(
+                $row['expected_amount'],
+                $row['expected_currency'],
+                $row['cycle_key'],
+                $row['parent_order_id'],
+                $row['state'],
+                $row['owner_token']
+            )
+        ) {
+            return false;
+        }
+
+        if (!is_string($row['cycle_key']) || $row['cycle_key'] === '') {
+            return false;
+        }
+
+        if (!is_numeric($row['parent_order_id']) || (int) $row['parent_order_id'] <= 0) {
+            return false;
+        }
+
+        if (!is_string($row['state'])
+            || !in_array(
+                $row['state'],
+                array(self::STATE_CLAIMED, self::STATE_DISPATCHING, self::STATE_HELD, self::STATE_RESOLVED),
+                true
+            )
+        ) {
+            return false;
+        }
+
+        if (!is_string($row['owner_token']) || $row['owner_token'] === '') {
+            return false;
+        }
+
+        return self::canonical_snapshot_amount($row['expected_amount']) !== null
+            && self::canonical_snapshot_currency($row['expected_currency']) !== null;
+    }
+
+    /**
+     * Journal-local canonical non-negative plain decimal. Rejects floats,
+     * exponents, leading-zero malformation, signs, and whitespace. Consistent
+     * with CycleEconomics::canonical_decimal() without coupling the journal
+     * to a high-level service.
+     *
+     * @param mixed $value Raw stored amount.
+     * @return string|null Canonical amount or null when not dispatchable.
+     */
+    public static function canonical_snapshot_amount($value): ?string
+    {
+        if (is_int($value)) {
+            $value = (string) $value;
+        }
+        if (is_float($value) || !is_string($value)) {
+            return null;
+        }
+        if (!preg_match('/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/', $value)) {
+            return null;
+        }
+        if (strlen($value) > 22) {
+            return null;
+        }
+        if (strpos($value, '.') === false) {
+            return $value;
+        }
+        $trimmed = rtrim($value, '0');
+        $canonical = rtrim($trimmed, '.');
+        return $canonical === '' ? '0' : $canonical;
+    }
+
+    /**
+     * Journal-local canonical 3-letter currency. Consistent with
+     * CycleEconomics::canonical_currency().
+     *
+     * @param mixed $value Raw stored currency.
+     * @return string|null Canonical currency or null when not dispatchable.
+     */
+    public static function canonical_snapshot_currency($value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = strtoupper(trim($value));
+        return preg_match('/^[A-Z]{3}$/', $value) === 1 ? $value : null;
     }
 
     /**
@@ -300,16 +458,25 @@ class CycleClaim
      * The `parent_order_id` predicate is critical: it prevents a stale
      * reclaim that would silently re-bind a cycle_key to a different
      * subscription's renewal pipeline.
+     *
+     * IMMUTABLE CYCLE INTENT: reclaim rewrites ownership/housekeeping only
+     * (`owner_token`, `updated_gmt`). It MUST NOT rewrite `cycle_key`,
+     * `parent_order_id`, `cycle_due_gmt`, `expected_amount`, or
+     * `expected_currency`. The reclaimed row is an already-created attempt
+     * identity; economic/cycle intent is frozen at first acquisition.
      */
     public static function reclaim_stale_claimed(
         string $cycle_key,
         int $parent_order_id,
-        string $new_owner_token,
-        string $cycle_due_gmt
+        string $new_owner_token
     ): bool {
         global $wpdb;
         $table   = self::table_name();
         $now_gmt = current_time('mysql', true);
+
+        if ($cycle_key === '' || $parent_order_id <= 0 || $new_owner_token === '') {
+            return false;
+        }
 
         $threshold_gmt = gmdate(
             'Y-m-d H:i:s',
@@ -321,8 +488,7 @@ class CycleClaim
             $wpdb->prepare(
                 "UPDATE %i
                     SET owner_token = %s,
-                        updated_gmt = %s,
-                        cycle_due_gmt = %s
+                        updated_gmt = %s
                     WHERE cycle_key = %s
                       AND parent_order_id = %d
                       AND state = %s
@@ -330,7 +496,6 @@ class CycleClaim
                 $table,
                 $new_owner_token,
                 $now_gmt,
-                $cycle_due_gmt,
                 $cycle_key,
                 $parent_order_id,
                 self::STATE_CLAIMED,
@@ -342,13 +507,16 @@ class CycleClaim
             return false;
         }
 
-        // Verify ownership after the CAS update.
+        // Fresh-read ownership proof after the CAS update. Callers must also
+        // re-read and validate the immutable snapshot before any provider POST.
         $row = self::get($cycle_key);
         return is_array($row)
             && isset($row['owner_token'])
             && hash_equals((string) $row['owner_token'], $new_owner_token)
             && isset($row['parent_order_id'])
-            && (int) $row['parent_order_id'] === $parent_order_id;
+            && (int) $row['parent_order_id'] === $parent_order_id
+            && isset($row['state'])
+            && (string) $row['state'] === self::STATE_CLAIMED;
     }
 
     /**
