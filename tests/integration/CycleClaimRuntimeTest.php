@@ -47,11 +47,12 @@ function supcheckout_cycleclaim_create_v1_table_with_rows() {
         KEY idx_state  (state)
     ) {$charset};");
 
+    // cycle_key is CHAR(64); fixtures must be exactly 64 chars or MySQL truncates.
     $rows = array(
-        array('v1-claimed-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 101, 'owner-a', 'claimed', '2026-01-01 00:00:00'),
-        array('v1-held-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 102, 'owner-b', 'held', '2026-01-02 00:00:00'),
-        array('v1-dispatching-cccccccccccccccccccccccccccccccccccccccccccccccccccc', 103, 'owner-c', 'dispatching', '2026-01-03 00:00:00'),
-        array('v1-resolved-dddddddddddddddddddddddddddddddddddddddddddddddddddddddd', 104, 'owner-d', 'resolved', '2026-01-04 00:00:00'),
+        array('v1c' . str_repeat('a', 61), 101, 'owner-a', 'claimed', '2026-01-01 00:00:00'),
+        array('v1h' . str_repeat('b', 61), 102, 'owner-b', 'held', '2026-01-02 00:00:00'),
+        array('v1d' . str_repeat('c', 61), 103, 'owner-c', 'dispatching', '2026-01-03 00:00:00'),
+        array('v1r' . str_repeat('d', 61), 104, 'owner-d', 'resolved', '2026-01-04 00:00:00'),
     );
     foreach ($rows as $row) {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- disposable certification database only
@@ -108,7 +109,9 @@ supcheckout_cert_assert(
     'v1: historical claimed/held/dispatching/resolved rows are preserved'
 );
 
-$v1_claimed = CycleClaim::get('v1-claimed-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+$v1_claimed_key = 'v1c' . str_repeat('a', 61);
+supcheckout_cert_assert(strlen($v1_claimed_key) === 64, 'v1: fixture cycle_key is exactly CHAR(64)');
+$v1_claimed = CycleClaim::get($v1_claimed_key);
 supcheckout_cert_assert(is_array($v1_claimed), 'v1: historical claimed row remains readable');
 supcheckout_cert_assert(
     !CycleClaim::has_dispatchable_snapshot(is_array($v1_claimed) ? $v1_claimed : array()),
