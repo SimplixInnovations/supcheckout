@@ -508,7 +508,9 @@ function woocommerceUpaymentsInit() {
             } elseif (function_exists('nocache_headers')) {
                 nocache_headers();
             }
-            \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_compat_callback('browser');
+            // Historical browser callers populate GET callback fields (page marker optional).
+            $get_bag = (isset($_GET) && is_array($_GET)) ? $_GET : array();
+            \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_compat_callback('browser', $get_bag);
             exit();
         }
 
@@ -523,7 +525,16 @@ function woocommerceUpaymentsInit() {
             } elseif (function_exists('nocache_headers')) {
                 nocache_headers();
             }
-            \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_compat_callback('webhook');
+            // Historical direct webhooks populated $_REQUEST only (often not $_POST).
+            // Forward only canonical callback keys — never cookies or the raw bag.
+            $request = (isset($_REQUEST) && is_array($_REQUEST)) ? $_REQUEST : array();
+            $primary = array();
+            foreach (array('wc_order_id', 'track_id', 'requested_order_id') as $key) {
+                if (array_key_exists($key, $request)) {
+                    $primary[$key] = $request[$key];
+                }
+            }
+            \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_compat_callback('webhook', $primary);
             exit();
         }
 

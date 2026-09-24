@@ -204,6 +204,9 @@ jobs:
       - name: Verify subscription eligibility and pre-dispatch boundaries
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/SubscriptionRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: R5 callback lifecycle runtime (real Woo)
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CallbackLifecycleRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Verify single additional-merchant allocation boundary
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/MultiMerchantRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 

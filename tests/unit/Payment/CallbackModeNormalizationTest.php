@@ -39,7 +39,7 @@ final class CallbackModeNormalizationTest extends TestCase
         $start = strpos($this->gateway, 'function return_from_upayments');
         self::assertNotFalse($start);
         $body = substr($this->gateway, $start, 2500);
-        self::assertStringContainsString("handle_compat_callback('browser')", $body);
+        self::assertStringContainsString("handle_compat_callback('browser'", $body);
         self::assertStringNotContainsString('verify_payment_status(', $body);
         self::assertStringNotContainsString("\$_GET['page'] =", $body);
         self::assertStringNotContainsString('$_GET["page"] =', $body);
@@ -50,7 +50,7 @@ final class CallbackModeNormalizationTest extends TestCase
         $start = strpos($this->gateway, 'function web_hook_handler');
         self::assertNotFalse($start);
         $body = substr($this->gateway, $start, 1500);
-        self::assertStringContainsString("handle_compat_callback('webhook')", $body);
+        self::assertStringContainsString("handle_compat_callback('webhook'", $body);
         self::assertStringNotContainsString('verify_payment_status(', $body);
         self::assertStringNotContainsString("\$_GET['page'] =", $body);
     }
@@ -61,8 +61,8 @@ final class CallbackModeNormalizationTest extends TestCase
         self::assertNotFalse($start);
         $body = substr($this->gateway, $start, 800);
         self::assertStringContainsString('handle_callback', $body);
-        self::assertStringNotContainsString("handle_compat_callback('browser')", $body);
-        self::assertStringNotContainsString("handle_compat_callback('webhook')", $body);
+        self::assertStringNotContainsString("handle_compat_callback('browser'", $body);
+        self::assertStringNotContainsString("handle_compat_callback('webhook'", $body);
     }
 
     public function test_no_superglobal_spoofing_in_callback_surface(): void

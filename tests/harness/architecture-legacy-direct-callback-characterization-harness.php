@@ -282,39 +282,39 @@ function t3_child($scenario) {
     }
     if ($scenario === 'webhook-binding-failure') {
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_POST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
-        $_REQUEST = $_POST;
+        $_POST = array();
+        $_REQUEST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
         $GLOBALS['t3_transport'] = t3_transport_for(t3_transaction(array('reference' => '99')));
         $gateway->web_hook_handler();
     }
     if ($scenario === 'webhook-captured') {
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_POST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
-        $_REQUEST = $_POST;
+        $_POST = array();
+        $_REQUEST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
         $GLOBALS['t3_transport'] = t3_transport_for(t3_transaction());
         $gateway->web_hook_handler();
     }
     if ($scenario === 'webhook-status-rejected') {
         $order->update_status_result = false;
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_POST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
-        $_REQUEST = $_POST;
+        $_POST = array();
+        $_REQUEST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
         $GLOBALS['t3_transport'] = t3_transport_for(t3_transaction());
         $gateway->web_hook_handler();
     }
     if ($scenario === 'webhook-replay') {
         $order->meta['_upay_verified_capture'] = '1';
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_POST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
-        $_REQUEST = $_POST;
+        $_POST = array();
+        $_REQUEST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
         $GLOBALS['t3_transport'] = t3_transport_for(t3_transaction());
         $gateway->web_hook_handler();
     }
     if ($scenario === 'webhook-refunded') {
         $order->status = 'refunded';
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_POST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
-        $_REQUEST = $_POST;
+        $_POST = array();
+        $_REQUEST = array('wc_order_id' => '42', 'track_id' => 'track-abc', 'requested_order_id' => 'merchant-42');
         $GLOBALS['t3_transport'] = t3_transport_for(t3_transaction());
         $gateway->web_hook_handler();
     }
@@ -349,8 +349,8 @@ t3_assert(is_string($source), 'gateway source readable');
 if (is_string($source)) {
     t3_assert(!t3_contains($source, 'function verify_payment_status'), 'legacy private verifier is retired');
     t3_assert(!t3_contains($source, 'function get_payment_verification_fallback_url'), 'legacy fallback helper is retired');
-    t3_assert(t3_contains($source, "handle_compat_callback('browser')"), 'return_from_upayments delegates explicit browser mode');
-    t3_assert(t3_contains($source, "handle_compat_callback('webhook')"), 'web_hook_handler delegates explicit webhook mode');
+    t3_assert(t3_contains($source, "handle_compat_callback('browser'"), 'return_from_upayments delegates explicit browser mode');
+    t3_assert(t3_contains($source, "handle_compat_callback('webhook'"), 'web_hook_handler delegates explicit webhook mode');
     t3_assert(!t3_contains($source, "\$_GET['page'] ="), 'no GET page spoofing');
 }
 

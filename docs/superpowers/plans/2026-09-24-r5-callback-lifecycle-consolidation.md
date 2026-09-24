@@ -1,9 +1,9 @@
 ---
 feature: r5-callback-lifecycle-consolidation
-status: in-progress
+status: candidate-ready-for-independent-review
 updated: 2026-09-24
 branch: r5/callback-lifecycle-consolidation
-commits: 1928df5..
+commits: 1928df5..final
 ---
 
 # R5 Callback Lifecycle Consolidation (Option B)
@@ -80,3 +80,10 @@ After both adapters delegate, remove private `verify_payment_status()` and
 | T4 | pending | pending | pending |
 | T5 | pending | pending | pending |
 | T6 | pending | pending | pending |
+
+## R5-2 correction record
+
+- historical T3 webhook characterization populated REQUEST (not POST); R5-2 restores that contract via request-bag normalization
+- direct browser: GET bag; direct webhook: REQUEST callback-key bag only (no cookie forwarding)
+- real Woo CallbackLifecycleRuntimeTest registered in 20-cell Compatibility
+- terminal FAILED / CANCELED / PENDING / INDETERMINATE / refunded protection covered
