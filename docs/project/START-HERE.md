@@ -156,14 +156,14 @@ R0-R4 are bounded evidence-first work under the approved post-T3 plan. **R5/T4 i
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active task | **None — next engineering gate is R3 subscription safety** |
+| Active task | **None — next engineering gate is R4 subscription scalability/observability** |
 | Latest repository-executable E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | Latest candidate package at that checkpoint | 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c` |
 | R0 / R1 / E1 | **DONE / VERIFIED and integrated through PR #108** |
 | E2 repository-executable generic | **DONE / CERTIFIED** |
 | E3 repository-executable | **DONE / VERIFIED** at `540b733c29656758f2392817649fc3d4a4db585d` |
 | R2 | **DONE / VERIFIED** — certified PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; candidate package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3` |
-| Current operational gate | **R3 subscription safety** |
+| Current operational gate | **R4 subscription scalability/observability** |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
@@ -266,4 +266,4 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 ## 13. Immediate next step
 
-Execute **R3 subscription safety** with TDD: eliminate implicit first-card auto-deduct fallback, bind renewal completion to exact amount/currency/parent/cycle/provider identity through a dedicated response verifier, freeze immutable cycle economics, broaden parent discovery beyond `completed`-only where paid-status semantics allow, and complete held-cycle reconciliation without blind non-idempotent replay. Preserve `upay_process_subscriptions`, `upayments_billing_attempts`, and H12 token identities. Do not jump directly to R5/T4 callback consolidation.
+R3 subscription safety is DONE / VERIFIED (PR #112 / main e1ad338). Execute **R4 subscription scalability/observability** with TDD: eliminate implicit first-card auto-deduct fallback, bind renewal completion to exact amount/currency/parent/cycle/provider identity through a dedicated response verifier, freeze immutable cycle economics, broaden parent discovery beyond `completed`-only where paid-status semantics allow, and complete held-cycle reconciliation without blind non-idempotent replay. Preserve `upay_process_subscriptions`, `upayments_billing_attempts`, and H12 token identities. Do not jump directly to R5/T4 callback consolidation.
