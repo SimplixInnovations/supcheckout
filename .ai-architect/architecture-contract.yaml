@@ -115,6 +115,19 @@ forbidden_architecture:
   - big-bang rewrite
   - new parallel ReturnController/WebhookController architecture beside PaymentLifecycle
   - protected identity migration without a separate approved contract
+  - second PaymentLifecycle or generic callback framework
+  - new provider HTTP egress beyond the three baseline sites
+  - superglobal spoofing to force callback mode
+
+approved_r5_seam:
+  decision: R5_DECISION=B
+  adr: .ai-architect/decisions/ADR-003-thin-callback-normalization-into-lifecycle.md
+  path: UPayments.php/WC_Upayments -> explicit compatibility mode normalization -> PaymentLifecycle
+  mode_contract:
+    - browser
+    - webhook
+  no_superglobal_rewrite: true
+  one_financial_lifecycle: true
 
 provider_http_egress_baseline:
   - path: UPayments.php
@@ -165,7 +178,8 @@ tranches:
     generic_e2_status: done_certified
     e3_repository_status: done_verified
     e3_codeql_historical_status: nonterminal_hosted_default_setup
-    current_gate: r5-t4-architecture-decision
+    current_gate: r5-callback-lifecycle-consolidation
+    r5_decision: B
     r2_status: done_verified
     r3_status: done_verified
     r4_status: done_verified
