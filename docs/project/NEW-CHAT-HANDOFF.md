@@ -81,16 +81,17 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 4. **R5/T4:** separately approve architecture before callback consolidation.
 5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.
 
-## Immediate R3 TDD boundary
+## Immediate R4 TDD boundary
 
 Required RED behavior:
 
-- missing explicit renewal card token must produce ZERO auto-deduct POSTs even when saved cards exist;
-- auto-deduct success must not complete a renewal without exact amount/currency/parent/cycle binding;
-- truthy provider `status` alone must not authorize paid state without proven capture authority;
-- HELD cycles must never auto-replay merely because time passed.
+- one scheduler tick must not enumerate all historical orders;
+- bounded enrollment must resume without double-scheduling parents;
+- Action Scheduler retry must never re-POST when CycleClaim is `dispatching`/`held`/`resolved`;
+- stale queued work after pause/cancel/refund/card change must produce ZERO POST;
+- missed periods must not emit N consecutive charges.
 
-Minimal GREEN must correct subscription renewal safety only. No T4 consolidation belongs in R3.
+Minimal GREEN must correct bounded due-work orchestration only. CycleClaim remains provider-mutation authority. No T4 consolidation belongs in R4.
 
 ## Permanent invariants
 
