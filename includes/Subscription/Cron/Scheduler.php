@@ -313,11 +313,11 @@ class Scheduler
                 );
                 if (!$legacy_acquired) {
                     // Stale reclaim is the only allowed second chance.
+                    // Reclaim never rewrites immutable cycle intent.
                     $legacy_acquired = CycleClaim::reclaim_stale_claimed(
                         $cycle_key,
                         (int) $order->get_id(),
-                        $owner_token,
-                        $cycle_due_gmt
+                        $owner_token
                     );
                 }
 
@@ -375,8 +375,9 @@ class Scheduler
             }
             $credit_card_token = $card_resolution['token'];
 
-            // Economic snapshot is computed from the order only before claim
-            // acquisition. After persistence the journal is immutable authority.
+            // Proposed economics are computed from the mutable order ONLY to
+            // seed a newly created attempt. After persistence the journal
+            // snapshot is the sole attempt/dispatch authority.
             $economics = CycleEconomics::snapshot_from_order($order);
             if ($economics === null || CycleEconomics::canonical_decimal($economics['amount']) === '0') {
                 $logger->warning(
@@ -385,11 +386,11 @@ class Scheduler
                 );
                 return;
             }
-            $request_currency = is_object($gateway) && method_exists($gateway, 'getCurrencyCode')
+            $proposed_currency = is_object($gateway) && method_exists($gateway, 'getCurrencyCode')
                 ? $gateway->getCurrencyCode($order->get_currency())
                 : $order->get_currency();
-            $request_currency = CycleEconomics::canonical_currency($request_currency);
-            if ($request_currency === null) {
+            $proposed_currency = CycleEconomics::canonical_currency($proposed_currency);
+            if ($proposed_currency === null) {
                 $logger->warning(
                     'Invalid cycle currency snapshot; no auto-deduct POST.',
                     $context + ['order_id' => $order->get_id()]
@@ -397,6 +398,123 @@ class Scheduler
                 return;
             }
 
+            // ---- Compute per-cycle identity and acquire claim ----
+            $cycle_due_gmt = CycleClaim::format_gmt_datetime($next_billing_date);
+            $cycle_key = CycleClaim::make_cycle_key(
+                (int) $order->get_id(),
+                $next_billing_date->getTimestamp(),
+                (string) $subscriptionPlan,
+                (int) $subscriptionInterval
+            );
+
+            $owner_token = CycleClaim::new_owner_token();
+
+            $acquired = CycleClaim::acquire_with_snapshot(
+                $cycle_key,
+                (int) $order->get_id(),
+                $owner_token,
+                $cycle_due_gmt,
+                $economics['amount'],
+                $proposed_currency
+            );
+
+            $from_reclaim = false;
+            if (!$acquired) {
+                // Stale-claimed reclamation is the only allowed second chance.
+                // Reclaim preserves immutable cycle/economic intent.
+                $acquired = CycleClaim::reclaim_stale_claimed(
+                    $cycle_key,
+                    (int) $order->get_id(),
+                    $owner_token
+                );
+                $from_reclaim = $acquired;
+            }
+
+            if (!$acquired) {
+                $logger->info(
+                    'Cycle claim already in flight or resolved; skipping.',
+                    $context + [
+                        'order_id' => $order->get_id(),
+                        'cycle'    => substr($cycle_key, 0, 12),
+                    ]
+                );
+                return;
+            }
+            $claim_owned = true;
+
+            // ---- Fresh-read the persisted journal snapshot ----
+            // After persistence, journal snapshot = attempt authority. The
+            // provider request is NEVER built from a mutable-order copy.
+            $claim_row = CycleClaim::get($cycle_key);
+            if (!is_array($claim_row)
+                || !isset($claim_row['owner_token'], $claim_row['state'], $claim_row['cycle_key'], $claim_row['parent_order_id'])
+                || !hash_equals((string) $claim_row['owner_token'], $owner_token)
+                || (string) $claim_row['state'] !== CycleClaim::STATE_CLAIMED
+                || (string) $claim_row['cycle_key'] !== $cycle_key
+                || (int) $claim_row['parent_order_id'] !== (int) $order->get_id()
+                || !CycleClaim::has_dispatchable_snapshot($claim_row)
+            ) {
+                // Do not "repair" the snapshot from the Woo order.
+                if (is_array($claim_row)
+                    && isset($claim_row['owner_token'])
+                    && hash_equals((string) $claim_row['owner_token'], $owner_token)
+                    && isset($claim_row['state'])
+                    && (string) $claim_row['state'] === CycleClaim::STATE_CLAIMED
+                ) {
+                    // Preserve the claimed attempt for reconciliation when the
+                    // snapshot is unusable (historical v1 / malformed economics).
+                    CycleClaim::mark_held($cycle_key, $owner_token, null, null);
+                    $claim_owned = false;
+                } else {
+                    $release_pre_dispatch();
+                }
+                $logger->warning(
+                    'Claim snapshot failed fresh-read ownership proof; zero provider POST.',
+                    $context + [
+                        'order_id' => $order->get_id(),
+                        'cycle'    => substr($cycle_key, 0, 12),
+                    ]
+                );
+                return;
+            }
+
+            $dispatch_amount   = CycleClaim::canonical_snapshot_amount($claim_row['expected_amount']);
+            $dispatch_currency = CycleClaim::canonical_snapshot_currency($claim_row['expected_currency']);
+            if ($dispatch_amount === null || $dispatch_currency === null) {
+                CycleClaim::mark_held($cycle_key, $owner_token, null, null);
+                $claim_owned = false;
+                $logger->warning(
+                    'Claim snapshot economics are not canonical; zero provider POST.',
+                    $context + ['order_id' => $order->get_id(), 'cycle' => substr($cycle_key, 0, 12)]
+                );
+                return;
+            }
+
+            // Explicit policy: a reclaimed attempt whose immutable snapshot no
+            // longer matches current parent economics is invalidated. ZERO POST
+            // and HELD for reconciliation. Never silently send the new amount
+            // and never charge a stale amount against a changed parent.
+            if ($from_reclaim
+                && (
+                    !CycleEconomics::amounts_equal($economics['amount'], $dispatch_amount)
+                    || !CycleEconomics::currencies_equal($proposed_currency, $dispatch_currency)
+                )
+            ) {
+                CycleClaim::mark_held($cycle_key, $owner_token, null, null);
+                $claim_owned = false;
+                $logger->warning(
+                    'Parent economics diverged from immutable claim snapshot; attempt held. Zero provider POST.',
+                    $context + [
+                        'order_id' => $order->get_id(),
+                        'cycle'    => substr($cycle_key, 0, 12),
+                        'snapshot_amount' => $dispatch_amount,
+                        'parent_amount'   => $economics['amount'],
+                    ]
+                );
+                return;
+            }
+
+            // ---- Build provider request ONLY from the persisted claim snapshot ----
             $unique_order_id = $order->get_id();
             $ref_id = $order->get_meta('UPayments_Ref');
             $phone = preg_replace('/\D+/', '', $order->get_billing_phone());
@@ -408,8 +526,8 @@ class Scheduler
             $params = wp_json_encode([
                 'order' => [
                     'id'          => (string) $unique_order_id,
-                    'amount'      => $economics['amount'],
-                    'currency'    => $request_currency,
+                    'amount'      => $dispatch_amount,
+                    'currency'    => $dispatch_currency,
                     'description' => 'Woocommerce Auto Deduction Order: ' . $unique_order_id,
                     'reference'   => 'Uniq Order ID: ' . $unique_order_id,
                 ],
@@ -433,52 +551,9 @@ class Scheduler
                     'Request payload encoding failed.',
                     $context + ['order_id' => $order->get_id()]
                 );
+                $release_pre_dispatch();
                 return;
             }
-
-            $gateway->log(__('Auto-deduction request prepared.', 'supcheckout'));
-
-            // ---- Compute per-cycle identity and acquire claim ----
-            $cycle_due_gmt = CycleClaim::format_gmt_datetime($next_billing_date);
-            $cycle_key = CycleClaim::make_cycle_key(
-                (int) $order->get_id(),
-                $next_billing_date->getTimestamp(),
-                (string) $subscriptionPlan,
-                (int) $subscriptionInterval
-            );
-
-            $owner_token = CycleClaim::new_owner_token();
-
-            $acquired = CycleClaim::acquire_with_snapshot(
-                $cycle_key,
-                (int) $order->get_id(),
-                $owner_token,
-                $cycle_due_gmt,
-                $economics['amount'],
-                $request_currency
-            );
-
-            if (!$acquired) {
-                // Stale-claimed reclamation is the only allowed second chance.
-                $acquired = CycleClaim::reclaim_stale_claimed(
-                    $cycle_key,
-                    (int) $order->get_id(),
-                    $owner_token,
-                    $cycle_due_gmt
-                );
-            }
-
-            if (!$acquired) {
-                $logger->info(
-                    'Cycle claim already in flight or resolved; skipping.',
-                    $context + [
-                        'order_id' => $order->get_id(),
-                        'cycle'    => substr($cycle_key, 0, 12),
-                    ]
-                );
-                return;
-            }
-            $claim_owned = true;
 
             // ---- Pre-dispatch: fully prepare the WordPress HTTP request ----
             // This is pure local construction. No provider request occurs until
@@ -498,6 +573,27 @@ class Scheduler
                 ],
                 'body'        => $params,
             ];
+
+            // ---- T7 final local eligibility revalidation immediately before dispatch ----
+            // Protects races between initial qualification and dispatch. Does
+            // not mutate persisted cycle economics.
+            if (!self::parent_still_eligible_for_dispatch(
+                $order,
+                $dispatch_amount,
+                $dispatch_currency,
+                $customerUnqToken
+            )) {
+                // Still claimed and no POST has been sent: release is safe.
+                $release_pre_dispatch();
+                $logger->info(
+                    'Parent failed final pre-dispatch revalidation; zero provider POST.',
+                    $context + [
+                        'order_id' => $order->get_id(),
+                        'cycle'    => substr($cycle_key, 0, 12),
+                    ]
+                );
+                return;
+            }
 
             // ---- Atomic claimed → dispatching transition BEFORE provider POST ----
             // If this fails, no POST was sent. Release and continue.
@@ -1062,6 +1158,78 @@ class Scheduler
                 ]
             );
         }
+    }
+
+    /**
+     * T7 final local parent-state revalidation immediately before mark_dispatching().
+     *
+     * Stops a charge if the parent has become paused/cancelled, an invalid
+     * subscription, the wrong payment method, an auto-deduction child, or
+     * deleted/unavailable. Also rejects a parent whose current economics no
+     * longer match the immutable claim snapshot. Never mutates cycle economics.
+     */
+    protected static function parent_still_eligible_for_dispatch(
+        WC_Order $order,
+        string $dispatch_amount,
+        string $dispatch_currency,
+        string $customerUnqToken
+    ): bool {
+        $parent_id = (int) $order->get_id();
+        if ($parent_id <= 0) {
+            return false;
+        }
+
+        $fresh = wc_get_order($parent_id);
+        if (!$fresh instanceof WC_Order) {
+            return false;
+        }
+
+        if ($fresh->get_meta('UPayments_AutoDeduction') === 'yes') {
+            return false;
+        }
+
+        if ((string) $fresh->get_payment_method() !== 'upayments') {
+            return false;
+        }
+
+        $subscription_status = $fresh->get_meta('_upay_subscription_status') ?: 'active';
+        if ($subscription_status !== 'active') {
+            return false;
+        }
+
+        $fresh_customer_token = $fresh->get_meta('_upay_customer_unique_token');
+        if (!is_string($fresh_customer_token)
+            || $fresh_customer_token === ''
+            || !hash_equals($fresh_customer_token, $customerUnqToken)
+        ) {
+            return false;
+        }
+
+        $plan = $fresh->get_meta('_upay_subscription_plan');
+        $interval = (int) $fresh->get_meta('_upay_subscription_interval');
+        if ($plan === 'daily') {
+            $interval = 1;
+        }
+        if ((!$plan || $interval < 1) || $plan === 'one_time') {
+            return false;
+        }
+
+        // Snapshot remains attempt authority: a parent that no longer matches
+        // the frozen cycle economics must not produce a provider POST.
+        $fresh_amount = CycleEconomics::canonical_decimal($fresh->get_total());
+        $fresh_currency_raw = is_object($gateway = self::getGateway()) && method_exists($gateway, 'getCurrencyCode')
+            ? $gateway->getCurrencyCode($fresh->get_currency())
+            : $fresh->get_currency();
+        $fresh_currency = CycleEconomics::canonical_currency($fresh_currency_raw);
+        if ($fresh_amount === null
+            || $fresh_currency === null
+            || !CycleEconomics::amounts_equal($fresh_amount, $dispatch_amount)
+            || !CycleEconomics::currencies_equal($fresh_currency, $dispatch_currency)
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
