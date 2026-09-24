@@ -257,6 +257,8 @@ function supcheckout_cert_revalidation_parent($product, $user_id) {
     $order->update_meta_data('_upay_subscription_status', 'active');
     $order->set_payment_method('upayments');
     $order->calculate_totals(false);
+    // Fresh-eligible parents must be in a Woo paid status before dispatch.
+    $order->update_status('processing');
     $order->save();
     $fresh = wc_get_order($order->get_id());
     return $fresh instanceof WC_Order ? $fresh : $order;
