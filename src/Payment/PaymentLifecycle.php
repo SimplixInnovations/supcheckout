@@ -47,14 +47,38 @@ final class PaymentLifecycle {
     public static function handle_callback() {
         // Provider callbacks cannot carry a WordPress nonce; authority comes only from authenticated status binding.
         $get = $_GET; // phpcs:ignore WordPress.Security.NonceVerification -- Public callback values are untrusted routing hints only.
-        $post = $_POST; // phpcs:ignore WordPress.Security.NonceVerification -- Provider status verification supplies payment authority.
 
         if (array_key_exists('get_order_status', $get)) {
             PublicOrderStatus::handle();
             return;
         }
 
-        $is_browser = array_key_exists('page', $get);
+        // Normal WC-API route: infer mode from the historical GET page marker.
+        $mode = array_key_exists('page', $get) ? 'browser' : 'webhook';
+        self::handle_callback_mode($mode);
+    }
+
+    /**
+     * Explicit compatibility-mode entrypoint for legacy public adapters.
+     * Accepts only 'browser' or 'webhook'. Never rewrites superglobals.
+     */
+    public static function handle_compat_callback($mode) {
+        if ($mode !== 'browser' && $mode !== 'webhook') {
+            self::log('callback_compat_mode_invalid', 'warning');
+            self::finish_callback(false, false, null, null);
+        }
+        self::handle_callback_mode($mode);
+    }
+
+    /**
+     * Single canonical financial callback implementation.
+     * Mode is explicit routing/termination policy only — never payment truth.
+     */
+    private static function handle_callback_mode($mode) {
+        $is_browser = ($mode === 'browser');
+        $get = $_GET; // phpcs:ignore WordPress.Security.NonceVerification -- Public callback values are untrusted routing hints only.
+        $post = $_POST; // phpcs:ignore WordPress.Security.NonceVerification -- Provider status verification supplies payment authority.
+
         $order_field = self::merge_request_value($get, $post, 'wc_order_id');
         $track_field = self::merge_request_value($get, $post, 'track_id');
         $requested_field = self::merge_request_value($get, $post, 'requested_order_id');

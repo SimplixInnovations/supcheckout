@@ -154,7 +154,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('r2_status: done_verified', $contract);
         self::assertStringContainsString('r3_status: done_verified', $contract);
         self::assertStringContainsString('r4_status: done_verified', $contract);
-        self::assertStringContainsString('current_gate: r5-t4-architecture-decision', $contract);
+        self::assertStringContainsString('current_gate: r5-callback-lifecycle-consolidation', $contract);
+        self::assertStringContainsString('r5_decision: B', $contract);
 
         self::assertStringNotContainsString('current_gate: r2-callback-portability-cache-safety', $contract);
         self::assertStringNotContainsString('current_gate: r3-subscription-safety', $contract);
