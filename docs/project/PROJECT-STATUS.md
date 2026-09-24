@@ -26,12 +26,13 @@
 | Approach 3 T2 | **DONE / VERIFIED / runtime-bearing** |
 | Approach 3 T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active program | `post-t3-ecosystem-hardening` — R2 **DONE / VERIFIED**; R3 is the next unstarted gate |
+| Active program | `post-t3-ecosystem-hardening` — R2 **DONE / VERIFIED**; R3 **DONE / VERIFIED** |
 | E2 repository-executable generic | **DONE / CERTIFIED** |
 | E3 repository-executable runtime evidence | **DONE / VERIFIED** |
 | Latest E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | R2 | **DONE / VERIFIED** — PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3` |
-| Current executable gate | **R3 subscription safety** |
+| R3 | **DONE / VERIFIED** — PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
+| Current executable gate | **R4 subscription scalability/observability** |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -104,7 +105,9 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **R3 subscription safety**.
+Current executable gate: **R4 subscription scalability/observability**.
+
+R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`). External provider blockers remain open: auto-deduct capture semantics **UNPROVEN**, remote exact cycle identity **UNPROVEN**, HMAC **PROVIDER CLARIFICATION REQUIRED**, token-storage contract **PROVIDER CLARIFICATION REQUIRED**. Automatic paid-renewal finalization remains **FAIL-CLOSED / HELD** until provider evidence exists.
 
 1. **R2 — DONE / VERIFIED:** Woo API URL abstraction via injected platform resolver; `home_url` vs `site_url`; subdirectory, permalink/index and trusted proxy/public-origin behavior; explicit no-cache callback/public-status semantics.
 2. **R3 — subscription safety:** exact auto-deduct amount/currency/parent/cycle/provider binding; no first-card fallback; parent discovery beyond `completed`; customer cancel/pause/resume policy; token-retention contract; held-cycle reconciliation.

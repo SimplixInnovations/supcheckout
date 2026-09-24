@@ -1,9 +1,9 @@
 ---
 feature: r3-subscription-safety-redesign
-status: candidate-ready-for-independent-review
+status: done_verified
 updated: 2026-09-24
 branch: r3/subscription-safety-redesign
-commits: eebe46b..3d09137
+commits: eebe46b..de0162b (squash e1ad338 on main)
 ---
 
 # R3 Subscription Safety Redesign

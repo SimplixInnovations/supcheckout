@@ -70,25 +70,28 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **R3 subscription safety**.
+Current executable gate: **R4 subscription scalability/observability**.
 
 R2 is **DONE / VERIFIED** (PR #110 certified head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`, package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3`).
 
-1. **R3:** eliminate first-card fallback; exact auto-deduct economic/identity binding; dedicated response verifier; immutable cycle snapshot; parent discovery; pause/resume/cancel contract; held-cycle reconciliation without blind replay.
+R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, squash-merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`, candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` — NOT owner accepted). External blockers remain: auto-deduct capture **UNPROVEN**, remote cycle identity **UNPROVEN**, HMAC **PROVIDER CLARIFICATION REQUIRED**, token storage **PROVIDER CLARIFICATION REQUIRED**. Automatic paid-renewal finalization stays **FAIL-CLOSED / HELD**.
+
+1. **R3:** DONE / VERIFIED — first-card elimination, economic/identity binding, immutable cycle snapshot, parent discovery, pause/resume/cancel, held-cycle reconciliation without blind replay.
 3. **R4:** replace historical hourly scanning with due-work orchestration, preferably Action Scheduler; keep the durable cycle journal authoritative; add observability/load/concurrency/failure-injection evidence.
 4. **R5/T4:** separately approve architecture before callback consolidation.
 5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.
 
-## Immediate R3 TDD boundary
+## Immediate R4 TDD boundary
 
 Required RED behavior:
 
-- missing explicit renewal card token must produce ZERO auto-deduct POSTs even when saved cards exist;
-- auto-deduct success must not complete a renewal without exact amount/currency/parent/cycle binding;
-- truthy provider `status` alone must not authorize paid state without proven capture authority;
-- HELD cycles must never auto-replay merely because time passed.
+- one scheduler tick must not enumerate all historical orders;
+- bounded enrollment must resume without double-scheduling parents;
+- Action Scheduler retry must never re-POST when CycleClaim is `dispatching`/`held`/`resolved`;
+- stale queued work after pause/cancel/refund/card change must produce ZERO POST;
+- missed periods must not emit N consecutive charges.
 
-Minimal GREEN must correct subscription renewal safety only. No T4 consolidation belongs in R3.
+Minimal GREEN must correct bounded due-work orchestration only. CycleClaim remains provider-mutation authority. No T4 consolidation belongs in R4.
 
 ## Permanent invariants
 
