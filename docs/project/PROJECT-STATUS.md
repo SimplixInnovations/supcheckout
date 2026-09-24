@@ -32,7 +32,8 @@
 | Latest E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | R2 | **DONE / VERIFIED** — PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3` |
 | R3 | **DONE / VERIFIED** — PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
-| Current executable gate | **R4 subscription scalability/observability** |
+| R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
+| Current executable gate | **R5/T4 architecture decision** |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -105,7 +106,9 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **R4 subscription scalability/observability**.
+Current executable gate: **R5/T4 architecture decision**.
+
+R4 subscription scalability/observability is **DONE / VERIFIED** (PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`). External provider blockers remain open: auto-deduct capture **UNPROVEN**, remote cycle identity **UNPROVEN**, HMAC **PROVIDER CLARIFICATION REQUIRED**, token-storage **PROVIDER CLARIFICATION REQUIRED**. Automatic paid-renewal finalization remains **FAIL-CLOSED / HELD** until provider evidence exists.
 
 R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`). External provider blockers remain open: auto-deduct capture semantics **UNPROVEN**, remote exact cycle identity **UNPROVEN**, HMAC **PROVIDER CLARIFICATION REQUIRED**, token-storage contract **PROVIDER CLARIFICATION REQUIRED**. Automatic paid-renewal finalization remains **FAIL-CLOSED / HELD** until provider evidence exists.
 

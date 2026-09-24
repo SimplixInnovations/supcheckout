@@ -1,9 +1,9 @@
 ---
 feature: r4-subscription-scalability-observability
-status: candidate-ready-for-independent-review
+status: done_verified
 updated: 2026-09-24
 branch: r4/subscription-scalability-observability
-commits: a7e959f..1ea21e2
+commits: a7e959f..1f48d06 (squash 10a33b4 on main)
 ---
 
 # R4 Subscription Scalability and Observability

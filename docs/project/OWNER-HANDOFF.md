@@ -18,13 +18,13 @@ Owner technical acceptance remains **ACCEPTED only for the frozen Approach 2 bas
 
 Approach 3 advanced through T3 at `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`. The completed post-T3 R0/R1/E1-E3 integration milestone was squash-merged through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; T2 `047cc86060efb97761d7a0cc4a3806f971ab6fe1` remains the last separately tracked runtime-bearing tranche before that milestone.
 
-Current successor program: `post-t3-ecosystem-hardening`. R2 is **DONE / VERIFIED** (PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`). R3 is **DONE / VERIFIED** (PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`). The next unstarted gate is R4.
+Current successor program: `post-t3-ecosystem-hardening`. R2 is **DONE / VERIFIED** (PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`). R3 is **DONE / VERIFIED** (PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`). R4 is **DONE / VERIFIED** (PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`). The next gate is R5/T4 architecture decision.
 
 Latest repository-executable E3 runtime checkpoint is `540b733c29656758f2392817649fc3d4a4db585d`; its deterministic 55-file candidate package SHA-256 is `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 
 At that E3 checkpoint, Quality/H12, the 20-cell Compatibility matrix and gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact, the full repository-owned Ecosystem Certification matrix, delayed/combined/repeated Classic JS characterization and analytics-return characterization all passed. The historical default CodeQL JavaScript/TypeScript job did not reach a terminal verdict; do not rewrite that as success.
 
-Current executable gate: **R4 subscription scalability/observability**.
+Current executable gate: **R5/T4 architecture decision**.
 
 Neither PR #108 nor the E3 checkpoint redefines owner acceptance. Fresh owner acceptance is required at Approach 3 closeout.
 
@@ -192,12 +192,12 @@ A successful check from an ancestor SHA is never substituted for final exact-hea
 
 ## 9. Remaining Approach 3 program
 
-Current executable gate: **R4 subscription scalability/observability**.
+Current executable gate: **R5/T4 architecture decision**.
 
 Then:
 
 1. R3 subscription safety redesign — DONE / VERIFIED;
-2. R4 due-work scalability/observability;
+2. R4 due-work scalability/observability — DONE / VERIFIED;
 3. separately gated R5/T4 callback-consolidation architecture decision;
 4. R6 immutable exact-head release qualification and fresh owner re-acceptance.
 
