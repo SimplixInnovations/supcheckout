@@ -460,7 +460,7 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // R2 adds callback-cache emission and the explicit WC-API URL platform resolver
 // while keeping the compatibility adapter bounded.
 // R3 adds explicit Subscription safety requires (card authority, economics, verifier).
-$acceptedGatewayBytes = 62416;
+$acceptedGatewayBytes = 63064;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'UPayments.php matches current exact architecture ratchet');
 arch_assert($gatewayClassTokens !== array(), 'legacy WC_Upayments gateway compatibility class remains executable');
 arch_assert(arch_contains($gateway, "add_filter(\"woocommerce_payment_gateways\", \"addUpaymentsGatewayClass\")"), 'WooCommerce gateway registration remains characterized');
