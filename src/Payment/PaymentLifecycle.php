@@ -46,7 +46,7 @@ final class PaymentLifecycle {
      */
     public static function handle_callback() {
         // Provider callbacks cannot carry a WordPress nonce; authority comes only from authenticated status binding.
-        $get = $_GET; // phpcs:ignore WordPress.Security.NonceVerification -- Public callback values are untrusted routing hints only.
+        $get = self::request_get();
 
         if (array_key_exists('get_order_status', $get)) {
             PublicOrderStatus::handle();
@@ -55,7 +55,7 @@ final class PaymentLifecycle {
 
         // Normal WC-API route: infer mode from the historical GET page marker.
         $mode = array_key_exists('page', $get) ? 'browser' : 'webhook';
-        self::handle_callback_mode($mode);
+        self::handle_callback_mode($mode, $get);
     }
 
     /**
@@ -67,16 +67,22 @@ final class PaymentLifecycle {
             self::log('callback_compat_mode_invalid', 'warning');
             self::finish_callback(false, false, null, null);
         }
-        self::handle_callback_mode($mode);
+        self::handle_callback_mode($mode, self::request_get());
+    }
+
+    /**
+     * Single ambient GET read for callback routing hints. Never written.
+     */
+    private static function request_get() {
+        return $_GET; // phpcs:ignore WordPress.Security.NonceVerification -- Public callback values are untrusted routing hints only.
     }
 
     /**
      * Single canonical financial callback implementation.
      * Mode is explicit routing/termination policy only — never payment truth.
      */
-    private static function handle_callback_mode($mode) {
+    private static function handle_callback_mode($mode, array $get) {
         $is_browser = ($mode === 'browser');
-        $get = $_GET; // phpcs:ignore WordPress.Security.NonceVerification -- Public callback values are untrusted routing hints only.
         $post = $_POST; // phpcs:ignore WordPress.Security.NonceVerification -- Provider status verification supplies payment authority.
 
         $order_field = self::merge_request_value($get, $post, 'wc_order_id');
