@@ -34,14 +34,16 @@ function supcheckout_r5_process($order, $result) {
     $GLOBALS['supcheckout_r5_result'] = $result;
     $GLOBALS['supcheckout_r5_requested'] = (string) $order->get_meta('UPayments_order_id');
     $GLOBALS['supcheckout_r5_order_id'] = (int) $order->get_id();
+    $GLOBALS['supcheckout_r5_amount'] = wc_format_decimal($order->get_total(), 3);
+    $GLOBALS['supcheckout_r5_currency'] = (string) $order->get_currency();
 
     add_filter('pre_http_request', function ($preempt, $args, $url) {
         $tx = array(
             'result' => $GLOBALS['supcheckout_r5_result'],
             'track_id' => 'track-r5',
             'merchant_requested_order_id' => $GLOBALS['supcheckout_r5_requested'],
-            'total_price' => '10.000',
-            'currency_type' => 'KWD',
+            'total_price' => $GLOBALS['supcheckout_r5_amount'],
+            'currency_type' => $GLOBALS['supcheckout_r5_currency'],
             'payment_id' => 'pay-r5-1',
             'payment_type' => 'cc',
             'reference' => (string) $GLOBALS['supcheckout_r5_order_id'],
