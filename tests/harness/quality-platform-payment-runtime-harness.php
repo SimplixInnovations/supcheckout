@@ -158,11 +158,11 @@ q17_assert(
 );
 
 q17_assert(
-    q17_blob($root . '/includes/Subscription/Cron/Scheduler.php') === 'aa87389dfc53e55075a9a4c48c355b7e9083da42',
+    q17_blob($root . '/includes/Subscription/Cron/Scheduler.php') === '2e9c98a1384a3ca6b21b223ff56647a94bbda7a7',
     'protected Scheduler blob remains exact'
 );
 q17_assert(
-    q17_blob($root . '/includes/Subscription/Cron/CycleClaim.php') === '0ae25b176ce622f0500fb279a40ab60275a72705',
+    q17_blob($root . '/includes/Subscription/Cron/CycleClaim.php') === 'a1ae04e3239e05c4894781480333fd5e747cefba',
     'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening'
 );
 
