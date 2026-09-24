@@ -107,20 +107,29 @@ Redacted logs: order id, cycle short hash, state, http status, reason. Never API
 
 ## Tasks
 
-- [ ] T1: ActionSchedulerBridge capability + safe schedule — acceptance: missing/false AS is fail-closed; args contain only parent_order_id (covers: S2)
-- [ ] T2: HistoricalEnrollment bounded cursor — acceptance: batch bound, resume, skip ineligible, no provider POST (covers: S2)
-- [ ] T3: DueParentWorker + Scheduler feeder — acceptance: process() does not full-history scan; worker reuses R3 gates (covers: S2)
-- [ ] T4: Pause/resume/cancel + stale action ZERO POST — acceptance: queue retry after dispatching/held/resolved never POSTs (covers: S2)
-- [ ] T5: Concurrency + failure injection + benchmarks — acceptance: sentinel <= 1; feeder independent of total history (covers: S2)
+- [x] T1: ActionSchedulerBridge capability + safe schedule — acceptance: missing/false AS is fail-closed; args contain only parent_order_id (covers: S2)
+- [x] T2: HistoricalEnrollment bounded cursor — acceptance: batch bound, resume, skip ineligible, no provider POST (covers: S2)
+- [x] T3: DueParentWorker + Scheduler feeder — acceptance: process() does not full-history scan; worker reuses R3 gates (covers: S2)
+- [x] T4: Pause/resume/cancel + stale action ZERO POST — acceptance: queue retry after dispatching/held/resolved never POSTs (covers: S2)
+- [x] T5: Concurrency + failure injection + benchmarks — acceptance: sentinel <= 1; feeder independent of total history (covers: S2)
 - [ ] T6: Full permanent gates + draft PR — acceptance: exact-head CI green; draft PR; stop for reviewer (covers: S2)
 
 ## Progress ledger
 
 | Task | RED | GREEN | Evidence |
 |---|---|---|---|
-| T1 | pending | pending | pending |
-| T2 | pending | pending | pending |
-| T3 | pending | pending | pending |
-| T4 | pending | pending | pending |
-| T5 | pending | pending | pending |
-| T6 | pending | pending | pending |
+| T1 | bridge args/secrets pin (lifecycle) | SchedulingBridgeEnrollmentTest 5/0 | group=supcheckout; args parent_order_id only |
+| T2 | enrollment bound pin | enroll_slice tests | BATCH_SIZE=50; skips children/paused |
+| T3 | unbounded scan pin | lifecycle matrix | process() uses HistoricalEnrollment::run_batch |
+| T4 | stale-action ZERO POST | SchedulingEnrollmentRuntimeTest + parent_qualifies | paused/cancelled not enrollable; worker revalidates |
+| T5 | sentinel/retry safety | R3 CycleClaim concurrency retained; AS retry cannot re-POST after dispatching/held/resolved via CycleClaim | R4 CI job |
+| T6 | pending hosted | local permanent array 0 FAIL; artifact 61 files | draft PR |
+
+## Benchmark before/after (local characterization)
+
+| Metric | Before (inherited) | After (R4) |
+|---|---|---|
+| Historical orders inspected per hourly tick | all paid history (unbounded) | <= 50 (`BATCH_SIZE`) |
+| Provider dispatch in feeder | possible during scan | never (enrollment only) |
+| Due-work mechanism | inline in cron loop | Action Scheduler `supcheckout` group |
+| Charge authority | CycleClaim | CycleClaim (unchanged) |
