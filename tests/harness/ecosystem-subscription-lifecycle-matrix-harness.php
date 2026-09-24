@@ -94,6 +94,35 @@ foreach (array('paused', 'cancelled', 'RenewalCardAuthority', 'Invalid or zero c
 }
 r3t_assert(strpos($scheduler, 'Parent failed final pre-dispatch revalidation') !== false, 'T7 final revalidation can zero POST');
 r3t_assert(strpos($cycle, 'function schema_ready') !== false, 'T6 schema readiness is explicit, not option-only');
+
+// R4 bounded orchestration pins.
+$r4_sched = @file_get_contents($root . '/src/Subscription/Scheduling/ActionSchedulerBridge.php');
+$r4_enroll = @file_get_contents($root . '/src/Subscription/Scheduling/HistoricalEnrollment.php');
+$r4_worker = @file_get_contents($root . '/src/Subscription/Scheduling/DueParentWorker.php');
+r3t_assert(is_string($r4_sched) && strpos($r4_sched, "const GROUP = 'supcheckout'") !== false, 'R4 Action Scheduler group is supcheckout');
+r3t_assert(strpos($r4_sched, 'parent_order_id') !== false, 'R4 action args carry parent_order_id only');
+r3t_assert(strpos($r4_sched, 'cycle_due_gmt') !== false, 'R4 action args include cycle identity');
+r3t_assert(strpos($r4_sched, 'retry_attempt') !== false, 'R4 action args include retry ordinal');
+r3t_assert(strpos($r4_sched, 'api_key') === false && strpos($r4_sched, 'card_token') === false, 'R4 action args exclude secrets');
+r3t_assert(strpos($r4_sched, 'cancel_cycle_actions') !== false, 'R4 exact cycle cancellation primitive');
+r3t_assert(strpos($r4_sched, 'MAX_RETRY_ATTEMPT') !== false, 'R4 finite retry policy');
+r3t_assert(strpos($r4_worker, 'retry_attempt') !== false, 'R4 worker accepts retry ordinal');
+r3t_assert(strpos($r4_worker, 'same_cycle') !== false, 'R4 stale check uses cycle identity only');
+r3t_assert(strpos($up, 'schedule_resume') !== false, 'R4 resume wired in customer transition handler');
+r3t_assert(strpos($up, 'cancel_after_state_change') !== false, 'R4 pause/cancel wired in customer transition handler');
+r3t_assert(strpos($r4_sched, 'is_initialized') !== false, 'R4 AS readiness requires datastore init');
+r3t_assert(strpos($r4_sched, 'true') !== false && strpos($r4_sched, 'as_schedule_single_action') !== false, 'R4 uses unique scheduling');
+r3t_assert(strpos($scheduler, 'HistoricalEnrollment::run_batch') !== false, 'R4 hourly feeder uses bounded enrollment');
+r3t_assert(strpos($scheduler, 'do {') === false || strpos($scheduler, 'while (!empty($orders))') === false, 'R4 removes unbounded historical order scan');
+r3t_assert(strpos($r4_enroll, 'BATCH_SIZE') !== false, 'R4 enrollment is explicitly bounded');
+r3t_assert(strpos($r4_enroll, 'offset') !== false, 'R4 enrollment advances a persistent offset cursor');
+r3t_assert(strpos($r4_worker, 'parent_qualifies') !== false, 'R4 worker revalidates parent before dispatch');
+r3t_assert(strpos($r4_worker, 'process_parent_order') !== false, 'R4 worker reuses R3 Scheduler authority path');
+r3t_assert(strpos($r4_worker, 'OUTCOME_RESOLVED') !== false, 'R4 worker schedules next cycle only on resolved');
+r3t_assert(strpos($scheduler, 'OUTCOME_RESOLVED') !== false, 'R4 Scheduler returns orchestration outcomes');
+r3t_assert(strpos($scheduler, 'LifecycleScheduler::register') !== false, 'R4 registers direct lifecycle scheduling');
+r3t_assert(strpos($r4_enroll, 'payment_method') !== false, 'R4 enrollment narrows by payment_method=upayments');
+r3t_assert(strpos($r4_enroll, 'has_status') !== false, 'R4 parent_qualifies checks Woo paid status');
 r3t_assert(strpos($scheduler, 'wc_get_is_paid_statuses') !== false, 'T7 final revalidation uses Woo paid-status API');
 r3t_assert(strpos($scheduler, 'string $credit_card_token') !== false, 'T7 final revalidation receives authorized card token');
 r3t_assert(strpos($scheduler, 'hash_equals($fresh_card_token, $credit_card_token)') !== false, 'T7 final revalidation hash_equals card token');

@@ -407,6 +407,68 @@ jobs:
       - name: Verify finalized economics under cache plugin
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/OrderEconomicsRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 
+  r4-scheduling-enrollment:
+    name: R4 scheduling enrollment / stale-action
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.ECOSYSTEM_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip
+          coverage: none
+          tools: none
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar \
+            -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+
+      - name: Install current real WordPress and WooCommerce runtime
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: >-
+          bash scripts/install-wp-test-environment.sh
+          "7.1"
+          "11.1.0"
+          "$RUNNER_TEMP/wordpress"
+
+      - name: Activate SUPCheckout
+        run: /tmp/wp-cli.phar plugin activate "$SUPCHECKOUT_PLUGIN_SLUG" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify bounded enrollment and stale-action ZERO POST
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/SchedulingEnrollmentRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify run_batch >50 traversal and cycle A to B lifecycle
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/SchedulingTraversalRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
   r3-cycleclaim-db-concurrency:
     name: R3 CycleClaim DB / concurrency
     runs-on: ubuntu-latest
@@ -475,7 +537,7 @@ jobs:
   ecosystem-gate:
     name: Ecosystem Gate
     if: ${{ always() }}
-    needs: [r2-callback-cache-http, e2-current-runtime, e3-free-theme-runtime, e3-cache-plugin-runtime, r3-cycleclaim-db-concurrency]
+    needs: [r2-callback-cache-http, e2-current-runtime, e3-free-theme-runtime, e3-cache-plugin-runtime, r3-cycleclaim-db-concurrency, r4-scheduling-enrollment]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -486,6 +548,7 @@ jobs:
           E3_THEME_RESULT: ${{ needs.e3-free-theme-runtime.result }}
           E3_CACHE_RESULT: ${{ needs.e3-cache-plugin-runtime.result }}
           R3_CYCLECLAIM_RESULT: ${{ needs.r3-cycleclaim-db-concurrency.result }}
+          R4_SCHEDULING_RESULT: ${{ needs.r4-scheduling-enrollment.result }}
         shell: bash
         run: |
           set -euo pipefail
@@ -494,3 +557,4 @@ jobs:
           test "$E3_THEME_RESULT" = "success"
           test "$E3_CACHE_RESULT" = "success"
           test "$R3_CYCLECLAIM_RESULT" = "success"
+          test "$R4_SCHEDULING_RESULT" = "success"
