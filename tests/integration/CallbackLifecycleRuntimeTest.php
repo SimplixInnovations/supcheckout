@@ -29,31 +29,36 @@ function supcheckout_r5_make_order($user_id, $suffix = '1') {
 }
 
 function supcheckout_r5_process($order, $result) {
-    // Deterministic provider double: StatusVerifier uses gateway transport.
-    $gateway = new class extends WC_Upayments {
-        protected function execute_upayments_request($route, $method, $body = null) {
-            $tx = array(
-                'result' => $GLOBALS['supcheckout_r5_result'],
-                'track_id' => 'track-r5',
-                'merchant_requested_order_id' => $GLOBALS['supcheckout_r5_requested'],
-                'total_price' => '10.000',
-                'currency_type' => 'KWD',
-                'payment_id' => 'pay-r5-1',
-                'payment_type' => 'cc',
-                'reference' => (string) $GLOBALS['supcheckout_r5_order_id'],
-            );
-            return array(
-                'transport_ok' => true,
-                'body' => json_encode(array('status' => true, 'data' => array('transaction' => $tx))),
-                'http_status' => 201,
-                'curl_errno' => 0,
-            );
-        }
-    };
-    $gateway->id = 'upayments';
+    // StatusVerifier uses WP HTTP (wp_remote_get). Stub via pre_http_request —
+    // never contacts a live provider.
     $GLOBALS['supcheckout_r5_result'] = $result;
     $GLOBALS['supcheckout_r5_requested'] = (string) $order->get_meta('UPayments_order_id');
     $GLOBALS['supcheckout_r5_order_id'] = (int) $order->get_id();
+
+    add_filter('pre_http_request', function ($preempt, $args, $url) {
+        $tx = array(
+            'result' => $GLOBALS['supcheckout_r5_result'],
+            'track_id' => 'track-r5',
+            'merchant_requested_order_id' => $GLOBALS['supcheckout_r5_requested'],
+            'total_price' => '10.000',
+            'currency_type' => 'KWD',
+            'payment_id' => 'pay-r5-1',
+            'payment_type' => 'cc',
+            'reference' => (string) $GLOBALS['supcheckout_r5_order_id'],
+        );
+        return array(
+            'headers' => array(),
+            'body' => json_encode(array('status' => true, 'data' => array('transaction' => $tx))),
+            'response' => array('code' => 201, 'message' => 'OK'),
+            'cookies' => array(),
+            'filename' => null,
+        );
+    }, 10, 3);
+
+    $gateway = WC()->payment_gateways()->payment_gateways()['upayments'] ?? null;
+    if (!$gateway instanceof WC_Upayments) {
+        $gateway = new WC_Upayments();
+    }
 
     $m = new ReflectionMethod(PaymentLifecycle::class, 'process_order_status');
     return $m->invoke(null, $gateway, $order, 'track-r5', 'webhook');
