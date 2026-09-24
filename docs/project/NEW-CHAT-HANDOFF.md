@@ -32,6 +32,9 @@ Do not move this anchor without an explicit fresh owner acceptance event.
 - T1 — **DONE / VERIFIED**.
 - T2 — **DONE / VERIFIED / runtime-bearing**, merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`.
 - T3 — **DONE / VERIFIED / runtime-neutral**, certified PR #107 head `f7c7d596dc4a2c8464d1acdf13dfe51028a5f9e0`, merged main `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`.
+- R2 — **DONE / VERIFIED**, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`.
+- R3 — **DONE / VERIFIED**, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`.
+- R4 — **DONE / VERIFIED / latest runtime-bearing**, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`.
 - Quality Platform Q1-Q19 — **DONE / VERIFIED; permanently closed at Q19**. Do not invent Q20.
 - Enterprise Tasks 1-8 — **DONE / VERIFIED**.
 
@@ -83,15 +86,17 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 
 ## Immediate R5/T4 decision boundary
 
-Required RED behavior:
+R4 is closed. The next gate is an **owner architecture decision**, not another RED/GREEN tranche.
 
-- one scheduler tick must not enumerate all historical orders;
-- bounded enrollment must resume without double-scheduling parents;
-- Action Scheduler retry must never re-POST when CycleClaim is `dispatching`/`held`/`resolved`;
-- stale queued work after pause/cancel/refund/card change must produce ZERO POST;
-- missed periods must not emit N consecutive charges.
+Evaluate `docs/superpowers/plans/2026-09-23-r5-t4-callback-architecture-options.md` against post-R4 main `10a33b4`.
 
-No T4 runtime change without explicit `R5_DECISION=A|B|DEFER`. R4 is closed. Approach 2 acceptance unchanged. Publication unauthorized.
+Options:
+
+- **A** — retain current dual callback adapters (zero runtime change)
+- **B** — thin normalization in `UPayments.php` then delegate to `PaymentLifecycle` (must characterize payment-lifecycle semantic deltas, not only browser/webhook inference)
+- **DEFER** — leave R5 out of Approach 3
+
+No T4 runtime change without explicit `R5_DECISION=A|B|DEFER`. Approach 2 acceptance unchanged. Publication unauthorized.
 
 ## Permanent invariants
 

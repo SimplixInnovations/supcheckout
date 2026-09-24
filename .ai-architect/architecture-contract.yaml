@@ -17,7 +17,7 @@ baselines:
   accepted_package_sha256: 58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655
   accepted_package_files: 51
   latest_merged_approach_3_main: 1c95bc9434784c705e98245f3f9d65f95f4de7ef
-  latest_runtime_bearing_merged_main: 1c95bc9434784c705e98245f3f9d65f95f4de7ef
+  latest_runtime_bearing_merged_main: 10a33b4d10e7ec4e45ba5d7a01139ce0777bf382
 
 boundaries:
   platform_edges:
@@ -172,6 +172,11 @@ tranches:
     r2_certified_head: 5a4f83efa7bda0b5d6169811308800270c888d6c
     r2_merged_main: 1c95bc9434784c705e98245f3f9d65f95f4de7ef
     r2_package_sha256: 126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3
+    r3_certified_head: de0162b4a1cca77c62f07290224b055902120c2a
+    r3_merged_main: e1ad33819b5f4ec1e01c3feb6afd15e604f89b11
+    r4_certified_head: 1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a
+    r4_merged_main: 10a33b4d10e7ec4e45ba5d7a01139ce0777bf382
+    r4_package_sha256: 2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b
     goal: Close R3 subscription safety and R4 scalability/observability; keep external vendor/infrastructure evidence bounded and do not treat R0-R4 as authorization for T4 consolidation.
 
 r2_contract:

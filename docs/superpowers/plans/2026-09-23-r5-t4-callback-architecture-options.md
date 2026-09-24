@@ -75,8 +75,18 @@ T1 priority pins
 R2 cache harness
 ```
 
+**Payment-lifecycle semantic deltas that MUST be characterized before approval (not only request-mode inference):**
+
+| Concern | Legacy direct methods today | `PaymentLifecycle` today | Option B risk |
+|---|---|---|---|
+| Authenticated non-captured response | backend order left unchanged | `process_order_status()` may transition unpaid orders to `failed`/`cancelled` | order-status drift |
+| Captured handling | direct `update_status()` | `payment_complete()` (Woo hooks + stock semantics) | hook/stock divergence |
+| Browser redirect termination | historical redirects/exit | characterized lifecycle redirects | must preserve |
+| Webhook HTTP 200 | historical 200/exit | characterized lifecycle | must preserve |
+| StatusVerifier authority | shared | shared | unchanged |
+
 **Advantages:** single financial path; removes dual semantics; small blast radius.
-**Risks:** medium — wrong browser/webhook inference on non-page direct calls (exactly T3 residual). Must normalize mode explicitly, never invent financial truth.
+**Risks:** medium — wrong browser/webhook inference on non-page direct calls **and** the payment-lifecycle status/stock/hook deltas above. Must normalize mode explicitly, never invent financial truth.
 **Rollback:** restore prior method bodies (git revert); no schema/identity migration.
 **ADR:** new ADR superseding “compatibility surfaces remain until consolidated”.
 **Architecture-contract:** allow thin delegation; still forbid Return/Webhook controllers, second lifecycle, generic provider framework.
