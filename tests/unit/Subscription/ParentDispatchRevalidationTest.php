@@ -86,6 +86,9 @@ final class ParentDispatchRevalidationTest extends TestCase
     private function invoke($order, string $amount, string $currency, string $customer, string $card): bool
     {
         $method = new \ReflectionMethod(Scheduler::class, 'parent_still_eligible_for_dispatch');
+        if (PHP_VERSION_ID < 80100) {
+            $method->setAccessible(true);
+        }
         return (bool) $method->invoke(null, $order, $amount, $currency, $customer, $card);
     }
 

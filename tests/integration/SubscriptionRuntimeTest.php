@@ -244,6 +244,10 @@ function supcheckout_cert_dispatch_eligible($order, $amount, $currency, $custome
         \UPayments\Subscription\Cron\Scheduler::class,
         'parent_still_eligible_for_dispatch'
     );
+    // PHP < 8.1 requires setAccessible for protected reflection invokes.
+    if (PHP_VERSION_ID < 80100) {
+        $method->setAccessible(true);
+    }
     return (bool) $method->invoke(null, $order, $amount, $currency, $customer, $card);
 }
 
