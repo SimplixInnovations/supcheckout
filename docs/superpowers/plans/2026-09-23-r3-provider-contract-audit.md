@@ -2,8 +2,8 @@
 
 **Status:** evidence package for independent review
 **Last independent-review evidence update:** 2026-09-24
-**Browser Use / open-web search:** unavailable for the original audit; 2026-09-24 review recorded current first-party documentation classification below
-**Sources used:** repository Phase 8C comments; existing certified request/response contracts in `Scheduler.php` / `StatusVerifier.php`; current UPayments HMAC Authentication documentation; current individual endpoint documentation (Charge / Get Payment Status); current UPayments subscription / token documentation
+**Evidence source honesty:** The local agent did not personally browse open-web provider documentation in the original audit session (Browser Use unavailable). Independent reviewer verified current first-party UPayments documentation on 2026-09-24. Classifications below reflect that independent verification plus repository Phase 8C contracts.
+**Sources used:** repository Phase 8C comments; existing certified request/response contracts in `Scheduler.php` / `StatusVerifier.php`; independent-reviewer verification of current UPayments HMAC Authentication, Charge/Get Payment Status, and subscription/token documentation (2026-09-24)
 
 ## Capture semantics (auto-deduct)
 

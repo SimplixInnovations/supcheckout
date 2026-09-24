@@ -1,9 +1,9 @@
 ---
 feature: r3-subscription-safety-redesign
-status: in-progress
-updated: 2026-09-23
+status: candidate-ready-for-independent-review
+updated: 2026-09-24
 branch: r3/subscription-safety-redesign
-commits: eebe46b..
+commits: eebe46b..3d09137
 ---
 
 # R3 Subscription Safety Redesign
@@ -100,24 +100,25 @@ Existing handler (login + nonce + plan/interval allowlist + auto-deduction child
 
 ## Tasks
 
-- [ ] T1: Characterize Scheduler/CycleClaim/pause — acceptance: permanent characterization tests pin current + target contracts (covers: S2)
-- [ ] T2: RenewalCardAuthority RED then GREEN — acceptance: missing explicit token → ZERO auto-deduct POST even with saved cards (covers: S2)
-- [ ] T3: CycleEconomics decimal-safe RED then GREEN — acceptance: amount/currency mismatch classes covered without float equality (covers: S2)
-- [ ] T4: AutoDeductResultVerifier RED then GREEN — acceptance: unproven capture/`orderId+1` never authorizes paid renewal (covers: S2)
-- [ ] T5: Scheduler wire-up — acceptance: card/verifier/economics/parent/pause gates used before POST (covers: S2)
-- [ ] T6: CycleClaim schema v2 snapshot — acceptance: install/upgrade/partial-fail/re-activate safe; no charge without schema (covers: S2)
-- [ ] T7: Failure injection + concurrency tests — acceptance: post-dispatch uncertainty stays HELD; at most one automatic POST (covers: S2)
-- [ ] T8: Full repository gates + package + PR — acceptance: exact-head CI green; draft PR (covers: S2)
+- [x] T1: Characterize Scheduler/CycleClaim/pause — acceptance: permanent characterization tests pin current + target contracts (covers: S2)
+- [x] T2: RenewalCardAuthority RED then GREEN — acceptance: missing explicit token → ZERO auto-deduct POST even with saved cards (covers: S2)
+- [x] T3: CycleEconomics decimal-safe RED then GREEN — acceptance: amount/currency mismatch classes covered without float equality (covers: S2)
+- [x] T4: AutoDeductResultVerifier RED then GREEN — acceptance: unproven capture/`orderId+1` never authorizes paid renewal (covers: S2)
+- [x] T5: Scheduler wire-up — acceptance: card/verifier/economics/parent/pause gates used before POST (covers: S2)
+- [x] T6: CycleClaim schema v2 snapshot — acceptance: install/upgrade/partial-fail/re-activate safe; no charge without schema (covers: S2)
+- [x] T7: Failure injection + concurrency tests — acceptance: post-dispatch uncertainty stays HELD; at most one automatic POST (covers: S2)
+- [x] T8: Full repository gates + package + PR — acceptance: exact-head CI green; draft PR (covers: S2)
 
 ## Progress ledger
 
 | Task | Base | RED | Fix | Focused GREEN | Review | Final SHA |
 |---|---|---|---|---|---|---|
-| T1 characterize | eebe46b | historical RED evidence unavailable for T1 surface pins | 03e1af6..504bc27 + matrix harness | ecosystem-subscription-lifecycle-matrix 46/0 | independent review (Critical $paid_currency fixed 504bc27) | pending push |
-| T2 card authority | eebe46b | harness FAIL cards[0]/RenewalCardAuthority (observed) | 03e1af6 | RenewalCardAuthorityTest 35/0 | Critical fixed | pending push |
-| T3 CycleEconomics | eebe46b | unit matrix RED on leading-zero/float (observed after draft) | 03e1af6 + decimal regex fix | CycleEconomicsTest 45/0 total Subscription | review OK | pending push |
-| T4 verifier | eebe46b | harness FAIL capture_authority (observed) | 03e1af6 | AutoDeductResultVerifierTest + identity honesty | review: terminology corrected | pending push |
-| T5 Scheduler wire-up | eebe46b | harness FAIL RenewalCardAuthority/AutoDeductResultVerifier/CycleEconomics (observed) | 03e1af6..current | ecosystem-subscription-safety 12/0 | review Critical paid_currency fixed | pending push |
-| T6 CycleClaim v2 | eebe46b | historical RED evidence unavailable for migration SQL; schema contract tests added | current | CycleClaimSchemaContractTest + acquire_with_snapshot | review: T6 required | pending push |
-| T7 failure/concurrency | eebe46b | partial matrix via lifecycle harness; multi-process concurrency EXTERNAL/NOT TESTED this session | current | lifecycle matrix 46/0 | review gap recorded | pending push |
-| T8 full qualification | — | n/a | current | local H12/quality pending this push | pending | pending push |
+| T1 characterize | eebe46b | historical RED evidence unavailable for T1 surface pins | 03e1af6..504bc27 + matrix harness | ecosystem-subscription-lifecycle-matrix 65/0 | independent review (Critical $paid_currency fixed 504bc27) | 3d09137+ |
+| T2 card authority | eebe46b | harness FAIL cards[0]/RenewalCardAuthority (observed) | 03e1af6 | RenewalCardAuthorityTest | Critical fixed | 3d09137+ |
+| T3 CycleEconomics | eebe46b | unit matrix RED on leading-zero/float (observed after draft) | 03e1af6 + decimal regex fix | CycleEconomicsTest | review OK | 3d09137+ |
+| T4 verifier | eebe46b | harness FAIL capture_authority (observed) | 03e1af6 | AutoDeductResultVerifierTest + identity honesty | review: terminology corrected | 3d09137+ |
+| T5 Scheduler wire-up | eebe46b | harness FAIL RenewalCardAuthority/AutoDeductResultVerifier/CycleEconomics (observed) | 03e1af6..current | ecosystem-subscription-safety 12/0 | review Critical paid_currency fixed | 3d09137+ |
+| T6 CycleClaim v2 | eebe46b | historical RED evidence unavailable for initial migration SQL; later real-DB RED observed for CHAR(64) fixtures | dcbd89e + CycleClaimRuntimeTest | real MySQL: fresh install, v1 migration, partial schema repair, missing-table repair, immutable reclaim | independent review required | 3d09137+ |
+| T7 failure/concurrency | eebe46b | partial matrix via lifecycle harness; multi-process concurrency RED observed for fixture paths (2d0d68d/3d09137) | daa1a0f + concurrency suite | real MySQL multi-process: 3-worker acquisition race, 2-worker reclaim race, old-owner dispatch rejection, dispatching/held terminal safety, sentinel count = 1 | independent review required | 3d09137+ |
+| T7 FINAL-2 auth races | 3d09137 | ParentDispatchRevalidationTest 8 FAIL (refunded/cancelled/failed/pending/card-change/card-removed/product-removal/non-custom_type) | 711c640 | ParentDispatchRevalidationTest 15/0 + SubscriptionRuntimeTest revalidation races | independent review required | candidate head |
+| T8 full qualification | — | n/a | current | exact-head CI green on candidate; draft PR #112 | pending independent review | candidate head |
