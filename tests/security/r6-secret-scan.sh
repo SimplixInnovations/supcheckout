@@ -27,11 +27,12 @@ done
 
 note '--- git history ---'
 for p in "${patterns[@]}"; do
-  if git log -p --all -S "$p" --pickaxe-regex -- . ':(exclude)vendor' 2>/dev/null | head -c 200 | grep -q .; then
-    # Only flag if the literal appears in a commit patch body as an assignment-like secret.
-    if git grep -n "$p" $(git rev-list --all | head -20) 2>/dev/null | head -5 | grep -q .; then
-      hit "history candidate: $p"
-    fi
+  # Ignore the scanner's own pattern list and pure documentation mentions of PEM headers.
+  if git log -p --all -G "$p" -- . ':(exclude)vendor' ':(exclude)tests/security/r6-secret-scan.sh' 2>/dev/null \
+    | grep -E "$p" \
+    | grep -vE 'r6-secret-scan|BEGIN (RSA|OPENSSH) PRIVATE KEY[[:space:]]*$' \
+    | head -3 | grep -q .; then
+    hit "history matched: $p"
   fi
 done
 
