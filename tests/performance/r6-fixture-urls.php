@@ -8,6 +8,8 @@
 require_once __DIR__ . '/../integration/bootstrap.php';
 
 $base = getenv('SUPCHECKOUT_SITE_URL') ?: 'http://127.0.0.1:8080';
+update_option('home', $base);
+update_option('siteurl', $base);
 
 ob_start();
 

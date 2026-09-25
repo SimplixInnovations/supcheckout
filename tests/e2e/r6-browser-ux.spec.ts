@@ -1,4 +1,4 @@
-import { test, expect, devices } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 /**
@@ -122,8 +122,6 @@ for (const vp of viewports) {
 }
 
 test.describe('R6 Arabic RTL (WordPress locale)', () => {
-  test.use({ ...devices['Desktop Chrome'] });
-
   test('document is RTL and checkout remains usable', async ({ page }) => {
     await page.goto(CLASSIC, { waitUntil: 'networkidle' });
     const dir = await page.evaluate(
