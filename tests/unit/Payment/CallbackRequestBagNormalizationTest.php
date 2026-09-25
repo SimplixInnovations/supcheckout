@@ -58,8 +58,10 @@ final class CallbackRequestBagNormalizationTest extends TestCase
     public function test_cookie_keys_are_not_forwarded_from_request(): void
     {
         $start = strpos($this->gateway, 'function web_hook_handler');
-        $body = substr($this->gateway, $start, 1800);
+        self::assertNotFalse($start, 'web_hook_handler present');
+        $body = substr($this->gateway, (int) $start, 1800);
+        self::assertNotSame('', $body, 'web_hook_handler body extracted');
         self::assertStringNotContainsString('$_COOKIE', $body);
-        self::assertStringNotContainsString('$_REQUEST[', $body . 'x'); // only constructed bag keys
+        self::assertStringNotContainsString('$_REQUEST[', $body);
     }
 }

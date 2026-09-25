@@ -204,22 +204,25 @@ $ref_before_payment = (string) $refunded->get_meta('UPayments_PaymentID');
 $outcome = supcheckout_r5_process($refunded, 'CAPTURED');
 $fresh_ref = wc_get_order($refunded->get_id());
 if ($fresh_ref instanceof WC_Order) {
-    supcheckout_cert_assert($fresh_ref->has_status('refunded'), 'refunded status remains exactly refunded');
+    supcheckout_cert_assert(
+        $fresh_ref->get_status() === $ref_before_status,
+        'refunded status unchanged'
+    );
     supcheckout_cert_assert(
         (string) $fresh_ref->get_transaction_id() === $ref_before_txn,
-        'refunded transaction ID unchanged by CAPTURED callback'
+        'refunded transaction ID unchanged'
+    );
+    supcheckout_cert_assert(
+        (string) $fresh_ref->get_meta('UPayments_Result') === $ref_before_result,
+        'refunded UPayments_Result unchanged'
+    );
+    supcheckout_cert_assert(
+        (string) $fresh_ref->get_meta('UPayments_PaymentID') === $ref_before_payment,
+        'refunded UPayments_PaymentID unchanged'
     );
     supcheckout_cert_assert(
         (string) $fresh_ref->get_meta('_upay_verified_capture') === $ref_before_verified,
         'refunded _upay_verified_capture unchanged'
-    );
-    supcheckout_cert_assert(
-        (string) $fresh_ref->get_meta('UPayments_Result') !== 'CAPTURED' || $ref_before_result === 'CAPTURED',
-        'refunded UPayments_Result does not become CAPTURED'
-    );
-    supcheckout_cert_assert(
-        (string) $fresh_ref->get_meta('UPayments_PaymentID') !== 'pay-r5-1' || $ref_before_payment === 'pay-r5-1',
-        'refunded UPayments_PaymentID does not become pay-r5-1'
     );
 }
 
