@@ -65,7 +65,7 @@ At that exact E3 head, Quality/H12, all 20 Compatibility cells + Compatibility G
 
 GitHub default CodeQL JavaScript/TypeScript did not reach a terminal verdict for that historical SHA. Descendant merge/release qualification still requires CodeQL/security green.
 
-Current executable gate: **R5/T4 architecture decision**.
+Current executable gate: **R6 final qualification**.
 
 ## R2 implementation contract (closed)
 
@@ -87,16 +87,7 @@ R4: due-work orchestration with Action Scheduler preference, bounded batches, du
 
 ## R5/T4 gate
 
-R5/T4 callback consolidation is **not pre-approved**.
-
-Before implementation:
-
-- E1/E2/R2 request-shape and callback evidence must be stable;
-- compare thin compatibility adapters with lifecycle consolidation;
-- solve direct-browser request-shape normalization;
-- preserve payment authority/idempotency/cache semantics;
-- record/approve the architecture decision;
-- then use TDD and full recertification.
+R5/T4 callback consolidation is **DONE / VERIFIED** under Option B / ADR-003 (`handle_compat_callback` explicit-mode seam; legacy public methods retained; financial lifecycle is PaymentLifecycle only; legacy private verifier retired; provider egress unchanged). Certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`.
 
 ## Approach 3 closeout
 
