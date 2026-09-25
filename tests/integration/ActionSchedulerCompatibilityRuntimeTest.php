@@ -97,6 +97,10 @@ $ok = ASBridge::ensure_cycle_action($parent_a, $cycle_1, $cycle_1, 0);
 supcheckout_cert_assert($ok, 'unique: first ensure_cycle_action succeeds');
 supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_1, 0), 'unique: action is open after first schedule');
 
+$ok = ASBridge::ensure_cycle_action($parent_b, $cycle_1, $cycle_1, 0);
+supcheckout_cert_assert($ok, 'unique: parent B schedules independently');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_b, $cycle_1, 0), 'unique: parent B open');
+
 $ok = ASBridge::ensure_cycle_action($parent_a, $cycle_1, $cycle_1, 0);
 supcheckout_cert_assert($ok, 'unique: duplicate ensure_cycle_action is idempotent success');
 supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_1, 0), 'unique: still open after duplicate ensure');
