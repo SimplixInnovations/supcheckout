@@ -20,7 +20,7 @@ patterns=(
 
 note '--- current tree (tracked) ---'
 for p in "${patterns[@]}"; do
-  if git grep -n -E "$p" -- . ':(exclude).cache' ':(exclude)vendor' ':(exclude)node_modules' 2>/dev/null; then
+  if git grep -n -E "$p" -- . ':(exclude).cache' ':(exclude)vendor' ':(exclude)node_modules' ':(exclude)tests/security/r6-secret-scan.sh' 2>/dev/null; then
     hit "tree matched: $p"
   fi
 done

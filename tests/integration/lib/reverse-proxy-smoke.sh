@@ -23,7 +23,7 @@ php -S "127.0.0.1:${port}" -t "$wp_root" >/tmp/r6-proxy-origin.log 2>&1 &
 origin_pid=$!
 
 # Tiny forged-forward proxy: always adds hostile X-Forwarded-* headers.
-php -r '
+SUPCHECKOUT_PROXY_ORIGIN_PORT="$port" SUPCHECKOUT_PROXY_PORT="$proxy_port" php -r '
 $up = "127.0.0.1:" . getenv("SUPCHECKOUT_PROXY_ORIGIN_PORT");
 $ps = stream_socket_server("tcp://127.0.0.1:" . getenv("SUPCHECKOUT_PROXY_PORT"), $errno, $errstr);
 if (!$ps) { fwrite(STDERR, $errstr); exit(1); }
