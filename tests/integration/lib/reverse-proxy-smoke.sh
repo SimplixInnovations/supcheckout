@@ -14,13 +14,19 @@ proxy_port="${SUPCHECKOUT_PROXY_PORT:-8091}"
 wp_cli="${WP_CLI_BIN:-wp}"
 
 stop_all() {
-  [[ -n "${origin_pid:-}" ]] && kill "$origin_pid" 2>/dev/null || true
+  if [[ "${R6_KEEP_ORIGIN:-0}" != "1" ]]; then
+    [[ -n "${origin_pid:-}" ]] && kill "$origin_pid" 2>/dev/null || true
+  fi
   [[ -n "${proxy_pid:-}" ]] && kill "$proxy_pid" 2>/dev/null || true
 }
 trap stop_all EXIT
 
-php -S "127.0.0.1:${port}" -t "$wp_root" >/tmp/r6-proxy-origin.log 2>&1 &
-origin_pid=$!
+if [[ "${R6_KEEP_ORIGIN:-0}" == "1" ]]; then
+  echo 'PROXY_SMOKE: using pre-started origin server'
+else
+  php -S "127.0.0.1:${port}" -t "$wp_root" >/tmp/r6-proxy-origin.log 2>&1 &
+  origin_pid=$!
+fi
 
 # Tiny forged-forward proxy: always adds hostile X-Forwarded-* headers.
 SUPCHECKOUT_PROXY_ORIGIN_PORT="$port" SUPCHECKOUT_PROXY_PORT="$proxy_port" php -r '
