@@ -74,7 +74,7 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **R6 independent review**.
+Current executable gate: **owner technical acceptance**.
 
 R5 is **DONE / VERIFIED** (PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`, package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
