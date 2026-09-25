@@ -1,0 +1,68 @@
+name: R6 Large-Store Benchmark
+
+on:
+  push:
+    branches:
+      - main
+      - 'r6/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  large-store:
+    name: Large store ${{ matrix.orders }} / ${{ matrix.storage }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        orders: [100, 1000, 5000, 10000]
+        storage: [legacy, hpos]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, curl, mbstring, zip, intl
+          coverage: none
+
+      - name: Install wp-cli
+        run: |
+          curl -sS -o /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          php /tmp/wp-cli.phar --info
+
+      - name: Install WordPress + WooCommerce
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          SUPCHECKOUT_DB_NAME: wordpress
+          SUPCHECKOUT_DB_USER: root
+          SUPCHECKOUT_DB_PASSWORD: root
+          SUPCHECKOUT_DB_HOST: 127.0.0.1:3306
+        run: |
+          set -euo pipefail
+          sudo service mysql start
+          mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+          bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+
+      - name: Select authoritative order store
+        run: |
+          set -euo pipefail
+          if [[ "${{ matrix.storage }}" == "hpos" ]]; then
+            /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled yes --path="$RUNNER_TEMP/wordpress"
+          else
+            /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled no --path="$RUNNER_TEMP/wordpress"
+          fi
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_data_sync_enabled no --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar cache flush --path="$RUNNER_TEMP/wordpress"
+
+      - name: Run large-store benchmark
+        env:
+          SUPCHECKOUT_BENCH_ORDERS: ${{ matrix.orders }}
+          SUPCHECKOUT_BENCH_STORAGE: ${{ matrix.storage }}
+          SUPCHECKOUT_BENCH_SEED: '20260925'
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/performance/r6-large-store-benchmark.php" --path="$RUNNER_TEMP/wordpress"

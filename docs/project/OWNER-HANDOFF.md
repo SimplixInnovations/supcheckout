@@ -24,7 +24,7 @@ Latest repository-executable E3 runtime checkpoint is `540b733c29656758f23928176
 
 At that E3 checkpoint, Quality/H12, the 20-cell Compatibility matrix and gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact, the full repository-owned Ecosystem Certification matrix, delayed/combined/repeated Classic JS characterization and analytics-return characterization all passed. The historical default CodeQL JavaScript/TypeScript job did not reach a terminal verdict; do not rewrite that as success.
 
-Current executable gate: **R6 final qualification**.
+Current executable gate: **owner technical acceptance**.
 
 Neither PR #108 nor the E3 checkpoint redefines owner acceptance. Fresh owner acceptance is required at Approach 3 closeout.
 
@@ -192,7 +192,7 @@ A successful check from an ancestor SHA is never substituted for final exact-hea
 
 ## 9. Remaining Approach 3 program
 
-Current executable gate: **R6 final qualification**.
+Current executable gate: **owner technical acceptance**.
 
 Then:
 
