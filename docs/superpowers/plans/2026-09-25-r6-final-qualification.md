@@ -1,6 +1,6 @@
 ---
 feature: r6-final-qualification
-status: done-verified-awaiting-owner-acceptance
+status: candidate-ready-for-independent-review
 updated: 2026-09-25
 branch: r6/final-qualification-closure
 runtime-base: 776e0d3b98a54b78c502a792cc01fca7d757d6fe
@@ -228,12 +228,18 @@ Fix: restart and re-ready the built-in server between logically separate configu
 - token persistence PROVIDER CLARIFICATION REQUIRED
 - live recurring/cards/wallets/CDN/pentest/PCI/legal EXTERNAL REQUIRED
 
-### Final state
+### Final state (authoritative)
 
 ```text
-R6: done_verified
-Approach 3: candidate_for_owner_technical_acceptance
-current gate: owner_technical_acceptance
+R6 status: candidate_ready_for_independent_review
+Approach 3: candidate_for_independent_review
+current gate: r6_independent_review
 ```
 
+Historical sections above may contain older checkpoint wording; this section is current truth.
+
+Do not claim `done_verified` or owner acceptance until after independent R6 approval (`R6_REVIEWER_APPROVED_SHA`) and post-merge control-plane reconciliation.
+
 Do not publish. Approach 2 remains owner accepted until replaced.
+
+Provider HMAC / token persistence / auto-deduct capture / remote cycle identity remain **PROVIDER CLARIFICATION REQUIRED / UNPROVEN**.

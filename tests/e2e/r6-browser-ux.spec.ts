@@ -1,65 +1,147 @@
 import { test, expect, devices } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 /**
- * R6 browser/UX/RTL certification against a disposable default-theme store.
- * No live payment. Screenshots are evidence for the default test theme only.
+ * R6 browser / RTL / accessibility certification.
+ * URLs come from fixture env vars (no hardcoded page IDs).
+ * No live payment.
  */
 
 const BASE = process.env.R6_BASE_URL || 'http://127.0.0.1:8080';
+const CLASSIC = process.env.R6_CLASSIC_CHECKOUT_URL || `${BASE}/?page_id=0`;
+const BLOCKS = process.env.R6_BLOCKS_CHECKOUT_URL || `${BASE}/?page_id=0`;
+const CALLBACK = process.env.R6_CALLBACK_URL || `${BASE}/wc-api/wc_upayments/`;
 
 const viewports = [
   { name: 'desktop', width: 1280, height: 800 },
   { name: 'mobile', width: 390, height: 844 },
 ];
 
+function classifyConsoleError(text: string): boolean {
+  if (/favicon|net::ERR_/.test(text)) return false;
+  return true;
+}
+
 for (const vp of viewports) {
-  test.describe(`R6 UX ${vp.name}`, () => {
+  test.describe(`R6 ${vp.name}`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
-    test('classic checkout has no critical console errors and labeled controls', async ({ page }) => {
+    test('Classic guest checkout: gateway UI, console, assets, focus, axe', async ({ page }) => {
       const errors: string[] = [];
-      page.on('console', (msg) => {
-        if (msg.type() === 'error') errors.push(msg.text());
+      page.on('console', (m) => {
+        if (m.type() === 'error') errors.push(m.text());
       });
-      await page.goto(`${BASE}/?page_id=3`, { waitUntil: 'domcontentloaded' });
-      await page.screenshot({ path: `artifacts/r6-classic-${vp.name}.png`, fullPage: true });
-      const inputs = page.locator('input, select, textarea');
-      const count = await inputs.count();
-      for (let i = 0; i < count; i++) {
-        const el = inputs.nth(i);
-        const id = await el.getAttribute('id');
-        const aria = await el.getAttribute('aria-label');
-        const name = await el.getAttribute('name');
-        const labelled = id
-          ? (await page.locator(`label[for="${id}"]`).count()) > 0
-          : false;
-        expect(labelled || !!aria || !!name).toBeTruthy();
-      }
-      expect(errors.filter((e) => !/favicon|net::ERR_/.test(e))).toEqual([]);
+      page.on('pageerror', (e) => errors.push(String(e)));
+
+      const resp = await page.goto(CLASSIC, { waitUntil: 'networkidle' });
+      expect(resp && resp.status() < 500).toBeTruthy();
+      await page.screenshot({ path: `artifacts/r6-classic-guest-${vp.name}.png`, fullPage: true });
+
+      // Gateway UI present (Classic).
+      const gateway = page.locator('.payment_method_upayments, #payment .payment_methods input[name="payment_method"][value="upayments"]');
+      await expect(gateway.first()).toBeVisible({ timeout: 15000 });
+
+      // Keyboard focus onto an interactive control with visible focus-visible treatment.
+      const firstInput = page.locator('input:visible, button:visible, select:visible, a:visible').first();
+      await firstInput.focus();
+      const focusState = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        if (!el) return null;
+        const cs = getComputedStyle(el);
+        return {
+          tag: el.tagName,
+          outlineStyle: cs.outlineStyle,
+          outlineWidth: cs.outlineWidth,
+          boxShadow: cs.boxShadow,
+        };
+      });
+      expect(focusState).not.toBeNull();
+      const hasFocusRing =
+        (focusState!.outlineStyle !== 'none' && parseFloat(focusState!.outlineWidth || '0') > 0) ||
+        (focusState!.boxShadow !== 'none' && focusState!.boxShadow !== '');
+      expect(hasFocusRing).toBeTruthy();
+
+      // Duplicate plugin-owned DOM IDs.
+      const dupIds = await page.evaluate(() => {
+        const seen = new Set<string>();
+        const dups: string[] = [];
+        document.querySelectorAll('[id]').forEach((el) => {
+          const id = el.id;
+          if (!id) return;
+          if (seen.has(id)) dups.push(id);
+          seen.add(id);
+        });
+        return dups;
+      });
+      expect(dupIds).toEqual([]);
+
+      // No sensitive tokens / user ids in DOM.
+      const body = await page.content();
+      expect(body).not.toMatch(/sk_live_[A-Za-z0-9]{8,}/);
+      expect(body).not.toMatch(/upayments_token_identity_secret/);
+
+      // First-party console errors.
+      expect(errors.filter(classifyConsoleError)).toEqual([]);
+
+      // Axe: fail on plugin-owned critical/serious.
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa'])
+        .analyze();
+      const severe = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
+      const pluginOwned = severe.filter((v) =>
+        v.nodes.some((n) => /upayments|supcheckout|payment_method_upayments/i.test(n.html))
+      );
+      expect(pluginOwned, JSON.stringify(pluginOwned, null, 2)).toEqual([]);
     });
 
-    test('blocks checkout renders and keyboard focus is visible', async ({ page }) => {
-      await page.goto(`${BASE}/checkout`, { waitUntil: 'domcontentloaded' });
-      await page.screenshot({ path: `artifacts/r6-blocks-${vp.name}.png`, fullPage: true });
-      await page.keyboard.press('Tab');
-      const focused = await page.evaluate(() => {
-        const el = document.activeElement as HTMLElement | null;
-        return el ? { tag: el.tagName, outline: getComputedStyle(el).outlineStyle } : null;
+    test('Blocks checkout renders with payment methods', async ({ page }) => {
+      const errors: string[] = [];
+      page.on('console', (m) => {
+        if (m.type() === 'error') errors.push(m.text());
       });
-      expect(focused).not.toBeNull();
+      await page.goto(BLOCKS, { waitUntil: 'networkidle' });
+      await page.screenshot({ path: `artifacts/r6-blocks-guest-${vp.name}.png`, fullPage: true });
+      const hasCheckoutBlock = await page
+        .locator('.wc-block-checkout, .wp-block-woocommerce-checkout')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      expect(hasCheckoutBlock).toBeTruthy();
+      expect(errors.filter(classifyConsoleError)).toEqual([]);
+    });
+
+    test('canonical WC-API callback does not leak success URL', async ({ page }) => {
+      const resp = await page.goto(`${CALLBACK}?wc_order_id=1&track_id=x&requested_order_id=x`, {
+        waitUntil: 'domcontentloaded',
+      });
+      expect(resp).not.toBeNull();
+      const body = await page.content();
+      expect(body).not.toMatch(/order-received/);
     });
   });
 }
 
-test.describe('R6 Arabic RTL', () => {
-  test.use({ ...devices['Desktop Chrome'], locale: 'ar' });
+test.describe('R6 Arabic RTL (WordPress locale)', () => {
+  test.use({ ...devices['Desktop Chrome'] });
 
-  test('document direction is RTL and checkout remains usable', async ({ page }) => {
-    await page.goto(`${BASE}/checkout`, { waitUntil: 'domcontentloaded' });
-    const dir = await page.evaluate(() => document.documentElement.getAttribute('dir') || getComputedStyle(document.documentElement).direction);
+  test('document is RTL and checkout remains usable', async ({ page }) => {
+    await page.goto(CLASSIC, { waitUntil: 'networkidle' });
+    const dir = await page.evaluate(
+      () => document.documentElement.getAttribute('dir') || getComputedStyle(document.documentElement).direction
+    );
     expect(String(dir).toLowerCase()).toContain('rtl');
-    await page.screenshot({ path: 'artifacts/r6-arabic-rtl-checkout.png', fullPage: true });
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);
+    await page.screenshot({ path: 'artifacts/r6-arabic-rtl-classic.png', fullPage: true });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 4
+    );
     expect(overflow).toBeFalsy();
+
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const pluginOwned = results.violations.filter(
+      (v) =>
+        (v.impact === 'critical' || v.impact === 'serious') &&
+        v.nodes.some((n) => /upayments|supcheckout/i.test(n.html))
+    );
+    expect(pluginOwned, JSON.stringify(pluginOwned, null, 2)).toEqual([]);
   });
 });

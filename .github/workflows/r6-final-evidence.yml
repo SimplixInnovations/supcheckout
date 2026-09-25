@@ -1,0 +1,180 @@
+name: R6 Final Evidence
+
+on:
+  push:
+    branches:
+      - main
+      - 'r6/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php84-stability:
+    name: PHP 8.4 HTTP Stability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.4'
+          extensions: mysqli, curl, mbstring, zip, intl
+          coverage: none
+      - name: Install pinned wp-cli
+        run: |
+          curl -fsSL https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+      - name: Install WordPress + WooCommerce 11.1.0
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          SUPCHECKOUT_DB_NAME: wordpress
+          SUPCHECKOUT_DB_USER: root
+          SUPCHECKOUT_DB_PASSWORD: root
+          SUPCHECKOUT_DB_HOST: 127.0.0.1:3306
+        run: |
+          set -euo pipefail
+          sudo service mysql start
+          mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+          bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled no --path="$RUNNER_TEMP/wordpress"
+      - name: Run request-context HTTP test three times
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            echo "=== PHP 8.4 HTTP pass $i ==="
+            bash tests/integration/checkout-request-context-http.sh "$RUNNER_TEMP/wordpress"
+          done
+
+  security-audit:
+    name: Secret / Supply-chain Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Actions pin audit
+        run: bash tests/security/r6-actions-pin-audit.sh
+      - name: Custom secret scan
+        run: bash tests/security/r6-secret-scan.sh
+      - name: Gitleaks full history + tree
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks version
+          /tmp/gitleaks detect --source . --no-banner --redact
+          echo 'gitleaks history+tree: PASS'
+
+  proxy-dast:
+    name: Proxy / DAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, curl, mbstring, zip, intl
+          coverage: none
+      - name: Install pinned wp-cli
+        run: |
+          curl -fsSL https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+      - name: Install WordPress + WooCommerce
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          SUPCHECKOUT_DB_NAME: wordpress
+          SUPCHECKOUT_DB_USER: root
+          SUPCHECKOUT_DB_PASSWORD: root
+          SUPCHECKOUT_DB_HOST: 127.0.0.1:3306
+        run: |
+          set -euo pipefail
+          sudo service mysql start
+          mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+          bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+      - name: Resolve fixture URLs and run proxy + DAST
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: |
+          set -euo pipefail
+          eval "$(/tmp/wp-cli.phar eval-file tests/performance/r6-fixture-urls.php --path="$RUNNER_TEMP/wordpress")"
+          bash tests/integration/lib/reverse-proxy-smoke.sh "$RUNNER_TEMP/wordpress"
+          php tests/security/r6-dast-smoke.php "$R6_BASE_URL"
+
+  browser-rtl-axe:
+    name: Browser / RTL / Axe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, curl, mbstring, zip, intl
+          coverage: none
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - name: Install pinned wp-cli
+        run: |
+          curl -fsSL https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+      - name: Install WordPress + WooCommerce
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          SUPCHECKOUT_DB_NAME: wordpress
+          SUPCHECKOUT_DB_USER: root
+          SUPCHECKOUT_DB_PASSWORD: root
+          SUPCHECKOUT_DB_HOST: 127.0.0.1:3306
+        run: |
+          set -euo pipefail
+          sudo service mysql start
+          mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+          bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+      - name: Install Playwright + axe
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Install Arabic language pack and run browser suite
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar language core install ar --path="$RUNNER_TEMP/wordpress" || true
+          /tmp/wp-cli.phar site switch-language ar --path="$RUNNER_TEMP/wordpress" || true
+          eval "$(/tmp/wp-cli.phar eval-file tests/performance/r6-fixture-urls.php --path="$RUNNER_TEMP/wordpress")"
+          php -S 127.0.0.1:8080 -t "$RUNNER_TEMP/wordpress" >/tmp/r6-php-server.log 2>&1 &
+          echo $! > /tmp/r6-php-server.pid
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/wp-login.php >/dev/null && break; sleep 1; done
+          export R6_BASE_URL=http://127.0.0.1:8080
+          export R6_CLASSIC_CHECKOUT_URL="${R6_CLASSIC_CHECKOUT_URL}"
+          export R6_BLOCKS_CHECKOUT_URL="${R6_BLOCKS_CHECKOUT_URL}"
+          export R6_CALLBACK_URL="${R6_CALLBACK_URL}"
+          export R6_STATUS_URL="${R6_STATUS_URL}"
+          cd tests/e2e && npx playwright test --reporter=line
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: r6-browser-evidence
+          path: tests/e2e/artifacts
+          if-no-files-found: ignore
+
+  r6-final-evidence-gate:
+    name: R6 Final Evidence Gate
+    runs-on: ubuntu-latest
+    needs: [php84-stability, security-audit, proxy-dast, browser-rtl-axe]
+    steps:
+      - name: Require every R6 evidence job
+        run: |
+          set -euo pipefail
+          test "${{ needs.php84-stability.result }}" = "success"
+          test "${{ needs.security-audit.result }}" = "success"
+          test "${{ needs.proxy-dast.result }}" = "success"
+          test "${{ needs.browser-rtl-axe.result }}" = "success"
+          echo 'R6 Final Evidence Gate: PASS'

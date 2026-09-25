@@ -47,6 +47,8 @@ proxy_pid=$!
 
 sleep 1
 base="http://127.0.0.1:${proxy_port}"
+callback_url="${R6_CALLBACK_URL:-$base/wc-api/wc_upayments/}"
+status_url="${R6_STATUS_URL:-$base/}"
 
 echo "PROXY_SMOKE: request through forged-forward proxy"
 code=$(curl -sS -o /tmp/r6-proxy-body.html -w '%{http_code}' --max-time 20 "$base/wp-login.php" || echo 000)
@@ -57,20 +59,39 @@ if [[ "$code" != "200" && "$code" != "302" ]]; then
   exit 1
 fi
 
-# Callback through proxy must not invent a trusted absolute payment origin from forged headers.
+# Case 1: normal trusted Host + forged X-Forwarded-Host/Proto/For
 curl -sS -D /tmp/r6-proxy-cb.hdr -o /tmp/r6-proxy-cb.body --max-time 20 \
-  "$base/index.php?wc_upayments=1&wc_order_id=1&track_id=x&requested_order_id=x" || true
+  -H 'Host: 127.0.0.1:'"$proxy_port" \
+  -H 'X-Forwarded-Host: evil.example' \
+  -H 'X-Forwarded-Proto: https' \
+  -H 'X-Forwarded-For: 10.0.0.1' \
+  "$callback_url?wc_order_id=1&track_id=x&requested_order_id=x" || true
 
 if grep -qi 'evil.example' /tmp/r6-proxy-cb.body; then
   echo "FAIL: forged Host leaked into callback body"
   exit 1
 fi
-
-# No-cache expectations for public callback surface (when response is produced).
-if [[ -f /tmp/r6-proxy-cb.hdr ]]; then
-  echo '--- callback headers ---'
-  cat /tmp/r6-proxy-cb.hdr
+if grep -qi '^Location:.*evil.example' /tmp/r6-proxy-cb.hdr; then
+  echo "FAIL: forged Host leaked into Location header"
+  exit 1
 fi
 
-echo 'R6 local reverse-proxy smoke: PASS (forged forwarded headers did not rewrite trusted payment origin)'
+# Cache-Control must be explicitly no-cache / no-store for public callback.
+if ! grep -qiE 'Cache-Control:.*(no-cache|no-store|no-cache,)' /tmp/r6-proxy-cb.hdr; then
+  echo "FAIL: callback missing explicit no-cache Cache-Control"
+  cat /tmp/r6-proxy-cb.hdr || true
+  exit 1
+fi
+
+# Public status surface no-cache
+curl -sS -D /tmp/r6-proxy-st.hdr -o /tmp/r6-proxy-st.body --max-time 20 \
+  -H 'X-Forwarded-Host: evil.example' \
+  "$status_url" || true
+if ! grep -qiE 'Cache-Control:.*(no-cache|no-store)' /tmp/r6-proxy-st.hdr; then
+  echo "FAIL: public status missing explicit no-cache Cache-Control"
+  cat /tmp/r6-proxy-st.hdr || true
+  exit 1
+fi
+
+echo 'R6 local reverse-proxy smoke: PASS (forged forwarded headers did not rewrite trusted payment origin; no-cache present)'
 echo 'Real Cloudflare/CDN remains EXTERNAL REQUIRED'

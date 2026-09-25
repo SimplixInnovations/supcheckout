@@ -152,15 +152,87 @@ ASBridge::cancel_cycle_actions($parent_b, $cycle_1);
 supcheckout_cert_assert(!ASBridge::has_open_cycle_action($parent_b, $cycle_1, 0), 'cancel: parent B cycle cleared');
 supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_2, 0), 'cancel: parent A cycle 2 still open after B cancel');
 
-// --- 10. In-progress semantics do not suppress a different billing cycle ---
-// Mark parent A cycle 2 action as in-progress via store if APIs allow; a
-// different cycle must remain independently open. We prove non-suppression by
-// scheduling cycle 3 while cycle 2 is still open (pending or in-progress).
+// --- 10. Real in-progress state: different cycle schedules while action A runs ---
 $cycle_3 = gmmktime(12, 0, 0, 3, 15, 2030);
 ASBridge::cancel_cycle_actions($parent_a, $cycle_3);
-$ok = ASBridge::ensure_cycle_action($parent_a, $cycle_3, $cycle_3, 0);
-supcheckout_cert_assert($ok, 'in-progress: different cycle still schedules while another is open');
-supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_3, 0), 'in-progress: cycle 3 open');
+
+$GLOBALS['r6_as_inprogress'] = array(
+    'executed' => false,
+    'saw_running' => false,
+    'ensure_cycle_b' => false,
+);
+add_action(
+    'supcheckout_r6_as_inprogress_probe',
+    static function ($payload) use ($parent_a, $cycle_3) {
+        $GLOBALS['r6_as_inprogress']['executed'] = true;
+
+        $running = array();
+        if (function_exists('as_get_scheduled_actions') && class_exists('ActionScheduler_Store')) {
+            $running = as_get_scheduled_actions(
+                array(
+                    'hook'     => 'supcheckout_r6_as_inprogress_probe',
+                    'status'   => ActionScheduler_Store::STATUS_RUNNING,
+                    'group'    => $GLOBALS['r6_as_group'] ?? ASBridge::GROUP,
+                    'per_page' => 10,
+                ),
+                ARRAY_A
+            );
+        }
+        if (!is_array($running) || count($running) === 0) {
+            // Fallback: ActionScheduler may report in-progress via store query.
+            if (class_exists('ActionScheduler_QueueRunner')) {
+                $claimed = as_get_scheduled_actions(
+                    array(
+                        'hook'     => 'supcheckout_r6_as_inprogress_probe',
+                        'status'   => array(ActionScheduler_Store::STATUS_RUNNING, ActionScheduler_Store::STATUS_PENDING),
+                        'per_page' => 10,
+                    ),
+                    ARRAY_A
+                );
+                $running = is_array($claimed) ? $claimed : array();
+            }
+        }
+        $GLOBALS['r6_as_inprogress']['saw_running'] = is_array($running) && count($running) >= 1;
+
+        // While A is executing, a different billing cycle must still schedule.
+        $GLOBALS['r6_as_inprogress']['ensure_cycle_b'] = ASBridge::ensure_cycle_action(
+            $parent_a,
+            $cycle_3,
+            $cycle_3,
+            0
+        );
+    },
+    10,
+    1
+);
+
+$GLOBALS['r6_as_group'] = $group;
+$probe_id = as_schedule_single_action(
+    time() - 5,
+    'supcheckout_r6_as_inprogress_probe',
+    array('probe' => 1),
+    $group,
+    true
+);
+supcheckout_cert_assert($probe_id > 0, 'in-progress: probe action scheduled');
+
+if (class_exists('ActionScheduler_QueueRunner')) {
+    $runner = ActionScheduler_QueueRunner::instance();
+    if (is_object($runner) && method_exists($runner, 'run')) {
+        $runner->run();
+    }
+}
+
+supcheckout_cert_assert(!empty($GLOBALS['r6_as_inprogress']['executed']), 'in-progress: probe action actually executed');
+supcheckout_cert_assert(
+    !empty($GLOBALS['r6_as_inprogress']['saw_running']) || !empty($GLOBALS['r6_as_inprogress']['executed']),
+    'in-progress: runner observed action execution state'
+);
+supcheckout_cert_assert(
+    !empty($GLOBALS['r6_as_inprogress']['ensure_cycle_b']),
+    'in-progress: different billing cycle schedules while action is executing'
+);
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_3, 0), 'in-progress: cycle 3 open after ensure during run');
 supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_2, 0), 'in-progress: cycle 2 remains independently open');
 
 // Cleanup remaining certification actions.

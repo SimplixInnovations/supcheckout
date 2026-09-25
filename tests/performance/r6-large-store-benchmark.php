@@ -2,25 +2,24 @@
 /**
  * R6 large-store HistoricalEnrollment benchmark (orchestration only).
  *
- * Deterministic synthetic datasets. Never calls the provider. Fails if
- * payment egress is attempted. Proves orders loaded/request <= 50 and that
- * all eligible parents are eventually reached without stuck cursors.
+ * Disables LifecycleScheduler initial-scheduling hooks so the feeder is the
+ * only creator of due actions. Proves every exact eligible parent receives
+ * exactly one attempt-0 action. Never calls the provider.
  *
  * Usage: wp eval-file tests/performance/r6-large-store-benchmark.php --path=<wp>
- * Env:
- *   SUPCHECKOUT_BENCH_ORDERS=100|1000|5000|10000
- *   SUPCHECKOUT_BENCH_STORAGE=legacy|hpos
- *   SUPCHECKOUT_BENCH_SEED=20260925
+ * Env: SUPCHECKOUT_BENCH_ORDERS, SUPCHECKOUT_BENCH_STORAGE, SUPCHECKOUT_BENCH_SEED
  */
 
 require_once __DIR__ . '/../integration/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/ActionSchedulerBridge.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/HistoricalEnrollment.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/LifecycleScheduler.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
 
 use Simplixi\SUPCheckout\Subscription\Presentation;
 use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
+use Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler;
 
 $total_orders = (int) (getenv('SUPCHECKOUT_BENCH_ORDERS') ?: 100);
 $storage      = (string) (getenv('SUPCHECKOUT_BENCH_STORAGE') ?: 'legacy');
@@ -33,8 +32,7 @@ if (!in_array($storage, array('legacy', 'hpos'), true)) {
     throw new RuntimeException('SUPCHECKOUT_BENCH_STORAGE must be legacy or hpos');
 }
 
-// Provider-transport sentinel: fail if a real provider/payment host is contacted.
-// Local WordPress loopback (wp-cron, REST) is allowed.
+// Provider-transport sentinel: only real provider hosts fail. Loopback allowed.
 add_filter(
     'pre_http_request',
     static function ($preempt, $args, $url) {
@@ -52,12 +50,24 @@ add_filter(
     3
 );
 
-mt_srand($seed);
+// Test-only: stop LifecycleScheduler from creating due actions during fixtures.
+remove_action('woocommerce_payment_complete', array(LifecycleScheduler::class, 'maybe_schedule_initial'), 20);
+remove_action('woocommerce_order_status_completed', array(LifecycleScheduler::class, 'maybe_schedule_initial'), 20);
+remove_action('woocommerce_order_status_processing', array(LifecycleScheduler::class, 'maybe_schedule_initial'), 20);
+
+if (!class_exists('Action_Scheduler') && !class_exists('ActionScheduler') && class_exists('ActionScheduler_Versions')) {
+    \ActionScheduler_Versions::instance()->initialize_latest_version();
+}
+if (!ASBridge::is_ready()) {
+    throw new RuntimeException('ActionSchedulerBridge not ready');
+}
 
 Presentation::register_product_class();
 if (!class_exists('WCProductCustomType')) {
     throw new RuntimeException('WCProductCustomType unavailable');
 }
+
+mt_srand($seed);
 
 $user_id = wp_insert_user(array(
     'user_login' => 'r6bench-' . wp_generate_password(8, false, false),
@@ -86,6 +96,7 @@ $normal_product_id = (int) $normal_product->save();
 
 $created_order_ids = array();
 $eligible_parent_ids = array();
+$ineligible_upay_ids = array();
 $noise_count = 0;
 $upayments_count = 0;
 
@@ -94,7 +105,6 @@ for ($i = 0; $i < $total_orders; $i++) {
     $order  = wc_create_order(array('customer_id' => $user_id));
 
     if ($bucket < 2) {
-        // Eligible UPayments subscription parent: paid + custom_type + plan.
         $order->add_product($sub_product, 1);
         $order->set_payment_method('upayments');
         $order->update_meta_data('UPayments_order_id', 'merchant-r6-' . $i);
@@ -108,7 +118,6 @@ for ($i = 0; $i < $total_orders; $i++) {
         $eligible_parent_ids[] = (int) $order->get_id();
         $upayments_count++;
     } elseif ($bucket < 5) {
-        // UPayments paid but not eligible (paused / auto-deduct / no plan).
         $order->add_product($normal_product, 1);
         $order->set_payment_method('upayments');
         $order->update_meta_data('UPayments_order_id', 'merchant-r6-n' . $i);
@@ -120,10 +129,10 @@ for ($i = 0; $i < $total_orders; $i++) {
         $order->set_currency('KWD');
         $order->calculate_totals();
         $order->update_status('processing');
+        $ineligible_upay_ids[] = (int) $order->get_id();
         $upayments_count++;
         $noise_count++;
     } else {
-        // Ordinary / noise order that HistoricalEnrollment must skip.
         $order->add_product($normal_product, 1);
         $order->set_payment_method('cod');
         $order->set_currency('KWD');
@@ -137,43 +146,52 @@ for ($i = 0; $i < $total_orders; $i++) {
 }
 
 $expected_eligible = count($eligible_parent_ids);
-
 HistoricalEnrollment::reset_cursor();
+
+// Before feeder: eligible parent actions must be zero (hooks disabled).
+$pre_actions = 0;
+foreach ($eligible_parent_ids as $pid) {
+    if (ASBridge::has_any_open_cycle_attempt($pid, 0)) {
+        $pre_actions++;
+    }
+}
+if ($pre_actions !== 0) {
+    throw new RuntimeException('HARD FAIL: pre-feeder eligible actions already exist: ' . $pre_actions);
+}
 
 $invocations = 0;
 $max_loaded = 0;
 $total_scanned = 0;
 $total_scheduled = 0;
 $total_skipped = 0;
-$wall_start = microtime(true);
-$peak_memory = 0;
-$cursor_progression = array();
-$stuck_batches = 0;
-$last_signature = null;
-$actions_before = 0;
-
-if (function_exists('as_get_scheduled_actions')) {
-    $existing = as_get_scheduled_actions(
-        array(
-            'hook'  => \Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge::ACTION_DUE_PARENT,
-            'group' => \Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge::GROUP,
-            'per_page' => 1,
-        ),
-        ARRAY_A
-    );
-    $actions_before = is_array($existing) ? count($existing) : 0;
-}
+$query_deltas = array();
+$mem_deltas = array();
+$peak_deltas = array();
+$batch_walls = array();
+$stuck = 0;
+$last_sig = null;
+$complete_seen = false;
+$final_cursor = 0;
 
 $max_invocations = (int) ceil($total_orders / max(1, HistoricalEnrollment::BATCH_SIZE)) + 10;
-$final_cursor = 0;
-$complete_seen = false;
 
 while ($invocations < $max_invocations) {
-    $mem_before = memory_get_usage(true);
-    $stats = HistoricalEnrollment::run_batch();
-    $invocations++;
-    $peak_memory = max($peak_memory, memory_get_usage(true), $mem_before);
+    global $wpdb;
+    $q_before = (int) $wpdb->num_queries;
+    $m_before = memory_get_usage(true);
+    if (function_exists('memory_reset_peak_usage')) {
+        memory_reset_peak_usage();
+    }
+    $t0 = microtime(true);
 
+    $stats = HistoricalEnrollment::run_batch();
+
+    $t1 = microtime(true);
+    $m_after = memory_get_usage(true);
+    $q_after = (int) $wpdb->num_queries;
+    $peak = function_exists('memory_get_peak_usage') ? (int) memory_get_peak_usage(true) : $m_after;
+
+    $invocations++;
     $scanned   = isset($stats['scanned']) ? (int) $stats['scanned'] : 0;
     $scheduled = isset($stats['scheduled']) ? (int) $stats['scheduled'] : 0;
     $skipped   = isset($stats['skipped']) ? (int) $stats['skipped'] : 0;
@@ -188,14 +206,17 @@ while ($invocations < $max_invocations) {
     $total_scanned += $scanned;
     $total_scheduled += $scheduled;
     $total_skipped += $skipped;
-    $cursor_progression[] = $cursor;
+    $query_deltas[] = max(0, $q_after - $q_before);
+    $mem_deltas[] = max(0, $m_after - $m_before);
+    $peak_deltas[] = max(0, $peak - $m_before);
+    $batch_walls[] = $t1 - $t0;
     $final_cursor = $cursor;
 
-    $signature = $scanned . ':' . $scheduled . ':' . $skipped . ':' . $cursor;
-    if ($last_signature === $signature && !$complete) {
-        $stuck_batches++;
+    $sig = $scanned . ':' . $scheduled . ':' . $skipped . ':' . $cursor;
+    if ($last_sig === $sig && !$complete) {
+        $stuck++;
     }
-    $last_signature = $signature;
+    $last_sig = $sig;
 
     if ($complete) {
         $complete_seen = true;
@@ -203,64 +224,100 @@ while ($invocations < $max_invocations) {
     }
 }
 
-$wall_total = microtime(true) - $wall_start;
-
-if ($stuck_batches > 0) {
-    throw new RuntimeException('HARD FAIL: feeder examined the same first window repeatedly (stuck=' . $stuck_batches . ')');
-}
-if ($max_loaded > HistoricalEnrollment::BATCH_SIZE) {
-    throw new RuntimeException('HARD FAIL: max orders/request ' . $max_loaded . ' exceeds bound');
+if ($stuck > 0) {
+    throw new RuntimeException('HARD FAIL: feeder stuck on same window');
 }
 if (!$complete_seen) {
-    throw new RuntimeException('HARD FAIL: feeder never completed; cursor=' . $final_cursor);
+    throw new RuntimeException('HARD FAIL: feeder incomplete');
 }
 
-$prev = -1;
-foreach ($cursor_progression as $c) {
-    if ($c < $prev && $c !== 0) {
-        throw new RuntimeException('HARD FAIL: cursor regressed');
+// Exact per-eligible-parent identity proof.
+$eligible_with_action = 0;
+$missing_eligible = 0;
+$duplicate_actions = 0;
+foreach ($eligible_parent_ids as $pid) {
+    $order = wc_get_order($pid);
+    if (!$order instanceof WC_Order) {
+        $missing_eligible++;
+        continue;
     }
-    $prev = $c;
+    $run_at = HistoricalEnrollment::next_run_at($order);
+    if ($run_at === null) {
+        $missing_eligible++;
+        continue;
+    }
+    $open = 0;
+    for ($attempt = 0; $attempt <= ActionSchedulerBridge::MAX_RETRY_ATTEMPT; $attempt++) {
+        if (ASBridge::has_open_cycle_action($pid, $run_at, $attempt)) {
+            $open++;
+        }
+    }
+    if ($open === 1) {
+        $eligible_with_action++;
+    } elseif ($open === 0) {
+        $missing_eligible++;
+    } else {
+        $duplicate_actions += ($open - 1);
+    }
 }
 
-// All eligible parents must have been scanned at least once across the pass.
-if ($total_scanned < $expected_eligible) {
-    throw new RuntimeException(
-        'HARD FAIL: scanned ' . $total_scanned . ' < expected eligible ' . $expected_eligible
-    );
+// Ineligible UPayments parents must not have feeder-created attempt-0 actions.
+$noise_with_action = 0;
+foreach ($ineligible_upay_ids as $pid) {
+    $order = wc_get_order($pid);
+    if (!$order instanceof WC_Order) {
+        continue;
+    }
+    $run_at = HistoricalEnrollment::next_run_at($order);
+    if ($run_at === null) {
+        continue;
+    }
+    if (ASBridge::has_open_cycle_action($pid, $run_at, 0)) {
+        $noise_with_action++;
+    }
 }
 
-$actions_after = $actions_before;
-if (function_exists('as_get_scheduled_actions')) {
-    $now = as_get_scheduled_actions(
-        array(
-            'hook'  => \Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge::ACTION_DUE_PARENT,
-            'group' => \Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge::GROUP,
-            'per_page' => 1000,
-        ),
-        ARRAY_A
-    );
-    $actions_after = is_array($now) ? count($now) : 0;
+if ($missing_eligible > 0) {
+    throw new RuntimeException('HARD FAIL: missing eligible actions=' . $missing_eligible);
 }
+if ($duplicate_actions > 0) {
+    throw new RuntimeException('HARD FAIL: duplicate actions=' . $duplicate_actions);
+}
+if ($eligible_with_action !== $expected_eligible) {
+    throw new RuntimeException('HARD FAIL: eligible_with_action ' . $eligible_with_action . ' != expected ' . $expected_eligible);
+}
+
+$total_feeder_queries = array_sum($query_deltas);
+$max_queries = $query_deltas ? max($query_deltas) : 0;
+$avg_queries = $query_deltas ? round($total_feeder_queries / count($query_deltas), 2) : 0;
+$max_mem_delta = $mem_deltas ? max($mem_deltas) : 0;
+$max_peak_delta = $peak_deltas ? max($peak_deltas) : 0;
+$max_batch_wall = $batch_walls ? max($batch_walls) : 0;
+$avg_batch_wall = $batch_walls ? round(array_sum($batch_walls) / count($batch_walls), 6) : 0;
 
 $result = array(
     'storage' => $storage,
     'seed' => $seed,
     'total_orders' => $total_orders,
-    'upayments_orders' => $upayments_count,
+    'matching_upayments_orders' => $upayments_count,
     'eligible_parents' => $expected_eligible,
     'skipped_noise' => $noise_count,
     'feeder_invocations' => $invocations,
     'max_orders_loaded_per_request' => $max_loaded,
-    'total_scanned' => $total_scanned,
-    'total_scheduled' => $total_scheduled,
-    'total_skipped' => $total_skipped,
-    'final_cursor' => $final_cursor,
-    'stuck_equivalent_batches' => $stuck_batches,
-    'actions_created_delta' => max(0, $actions_after - $actions_before),
-    'wall_time_seconds' => round($wall_total, 4),
-    'peak_memory_bytes' => $peak_memory,
-    'all_eligible_reached' => true,
+    'total_feeder_queries' => $total_feeder_queries,
+    'max_queries_per_batch' => $max_queries,
+    'average_queries_per_batch' => $avg_queries,
+    'max_feeder_memory_delta' => $max_mem_delta,
+    'max_feeder_peak_delta' => $max_peak_delta,
+    'max_batch_wall_time' => round($max_batch_wall, 6),
+    'average_batch_wall_time' => $avg_batch_wall,
+    'total_feeder_wall_time' => round(array_sum($batch_walls), 6),
+    'actions_expected' => $expected_eligible,
+    'actions_found' => $eligible_with_action,
+    'duplicates' => $duplicate_actions,
+    'missing' => $missing_eligible,
+    'noise_with_action' => $noise_with_action,
+    'all_eligible_reached' => ($eligible_with_action === $expected_eligible && $missing_eligible === 0 && $duplicate_actions === 0),
     'provider_egress_attempts' => 0,
 );
 
