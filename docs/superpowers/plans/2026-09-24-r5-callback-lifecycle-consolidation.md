@@ -3,7 +3,8 @@ feature: r5-callback-lifecycle-consolidation
 status: candidate-ready-for-independent-review
 updated: 2026-09-24
 branch: r5/callback-lifecycle-consolidation
-commits: 1928df5..5baa649 (test-hardening on top)
+implementation: 1928df5..5baa649
+evidence-integrity commits: e1a5730..af64193
 ---
 
 # R5 Callback Lifecycle Consolidation (Option B)
@@ -93,4 +94,8 @@ R5-3: terminal-state sensitivity hardening (exact outcome/status/meta; payment_c
 
 ## Request-bag provenance wording
 
-Direct webhook compatibility reads the historical  source but extracts only the three canonical callback keys (, , ). No arbitrary request/cookie fields are forwarded into PaymentLifecycle. Callback values remain non-authoritative until provider status verification succeeds. Do not claim that callback-key provenance inside  is provably non-cookie.
+Direct webhook compatibility reads the historical `$_REQUEST` source but extracts only the three canonical callback keys: `wc_order_id`, `track_id`, and `requested_order_id`.
+
+No arbitrary request/cookie fields are forwarded into `PaymentLifecycle`. Callback values remain non-authoritative until `StatusVerifier` succeeds.
+
+Do not claim that the provenance of a canonical callback-key value inside `$_REQUEST` is provably non-cookie, because PHP's `request_order` / `variables_order` configuration may include cookie-derived values.
