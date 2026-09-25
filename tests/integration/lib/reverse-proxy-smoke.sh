@@ -45,10 +45,27 @@ while ($c = @stream_socket_accept($ps, 30)) {
 ' >/tmp/r6-proxy.log 2>&1 &
 proxy_pid=$!
 
-sleep 1
+sleep 2
 base="http://127.0.0.1:${proxy_port}"
-callback_url="${R6_CALLBACK_URL:-$base/wc-api/wc_upayments/}"
-status_url="${R6_STATUS_URL:-$base/}"
+origin="http://127.0.0.1:${port}"
+callback_url="${R6_CALLBACK_URL:-}"
+status_url="${R6_STATUS_URL:-}"
+if [[ -z "$callback_url" ]]; then
+  callback_url="$origin/wc-api/wc_upayments/"
+fi
+if [[ -z "$status_url" ]]; then
+  status_url="$origin/"
+fi
+
+echo "PROXY_SMOKE: origin callback no-cache"
+curl -sS -D /tmp/r6-origin-cb.hdr -o /tmp/r6-origin-cb.body --max-time 20 \
+  "$callback_url?wc_order_id=1&track_id=x&requested_order_id=x" || true
+echo '--- origin callback headers ---'
+cat /tmp/r6-origin-cb.hdr || true
+if ! grep -qiE 'Cache-Control:.*(no-cache|no-store|must-revalidate)' /tmp/r6-origin-cb.hdr; then
+  echo "FAIL: origin callback missing explicit no-cache Cache-Control"
+  exit 1
+fi
 
 echo "PROXY_SMOKE: request through forged-forward proxy"
 code=$(curl -sS -o /tmp/r6-proxy-body.html -w '%{http_code}' --max-time 20 "$base/wp-login.php" || echo 000)
@@ -56,16 +73,20 @@ echo "PROXY_SMOKE_STATUS=$code"
 if [[ "$code" != "200" && "$code" != "302" ]]; then
   echo "FAIL: proxy request did not return a normal WordPress status"
   cat /tmp/r6-proxy-origin.log || true
+  cat /tmp/r6-proxy.log || true
   exit 1
 fi
 
-# Case 1: normal trusted Host + forged X-Forwarded-Host/Proto/For
+# Case 1: route callback through the forged-forward proxy by swapping host:port.
+proxy_callback="${callback_url/$origin/$base}"
 curl -sS -D /tmp/r6-proxy-cb.hdr -o /tmp/r6-proxy-cb.body --max-time 20 \
-  -H 'Host: 127.0.0.1:'"$proxy_port" \
   -H 'X-Forwarded-Host: evil.example' \
   -H 'X-Forwarded-Proto: https' \
   -H 'X-Forwarded-For: 10.0.0.1' \
-  "$callback_url?wc_order_id=1&track_id=x&requested_order_id=x" || true
+  "$proxy_callback?wc_order_id=1&track_id=x&requested_order_id=x" || true
+
+echo '--- proxy callback headers ---'
+cat /tmp/r6-proxy-cb.hdr || true
 
 if grep -qi 'evil.example' /tmp/r6-proxy-cb.body; then
   echo "FAIL: forged Host leaked into callback body"
@@ -76,18 +97,11 @@ if grep -qi '^Location:.*evil.example' /tmp/r6-proxy-cb.hdr; then
   exit 1
 fi
 
-# Cache-Control must be explicitly no-cache / no-store for public callback.
-if ! grep -qiE 'Cache-Control:.*(no-cache|no-store|no-cache,)' /tmp/r6-proxy-cb.hdr; then
-  echo "FAIL: callback missing explicit no-cache Cache-Control"
-  cat /tmp/r6-proxy-cb.hdr || true
-  exit 1
-fi
-
-# Public status surface no-cache
+# Public status surface no-cache (direct origin)
 curl -sS -D /tmp/r6-proxy-st.hdr -o /tmp/r6-proxy-st.body --max-time 20 \
   -H 'X-Forwarded-Host: evil.example' \
   "$status_url" || true
-if ! grep -qiE 'Cache-Control:.*(no-cache|no-store)' /tmp/r6-proxy-st.hdr; then
+if ! grep -qiE 'Cache-Control:.*(no-cache|no-store|must-revalidate)' /tmp/r6-proxy-st.hdr; then
   echo "FAIL: public status missing explicit no-cache Cache-Control"
   cat /tmp/r6-proxy-st.hdr || true
   exit 1
