@@ -195,4 +195,3 @@ FunnelKit one-click upsells, CartFlows upsells/downsells, automatic gateway refu
 **APPROACH 3 CANDIDATE FOR OWNER TECHNICAL ACCEPTANCE**
 
 Frozen Approach 2 remains the accepted baseline until the owner explicitly replaces it. No publication.
-
