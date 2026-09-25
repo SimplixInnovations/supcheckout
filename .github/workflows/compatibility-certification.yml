@@ -192,6 +192,9 @@ jobs:
           SUPCHECKOUT_HPOS_MODE: ${{ matrix.storage }}
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/HposCompatibilityTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: Verify Action Scheduler cross-version runtime
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/ActionSchedulerCompatibilityRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Verify finalized Woo order economics authority
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/OrderEconomicsRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 

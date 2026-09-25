@@ -62,35 +62,60 @@ if [[ ! "$checkout_page_id" =~ ^[1-9][0-9]*$ ]]; then
   exit 69
 fi
 
+# PHP's development server is single-process and can die under WooCommerce/AS
+# async-runner pressure (observed as PHP 8.4 segfault + curl 52). Restart it
+# between logically separate configuration matrices so each matrix starts from
+# a live, ready process. Transport failures remain hard failures.
+stop_php_server() {
+  if [[ -n "$server_pid" ]]; then
+    kill "$server_pid" 2>/dev/null || true
+    wait "$server_pid" 2>/dev/null || true
+    server_pid=''
+  fi
+}
+
+start_php_server() {
+  local label="$1"
+  local attempt=0
+  local last_ready_curl_rc=0
+
+  stop_php_server
+  : >"$server_log"
+  php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
+  server_pid=$!
+
+  for attempt in $(seq 1 30); do
+    if curl -fsS --max-time 10 "$base_url/wp-login.php" >/dev/null; then
+      return 0
+    else
+      last_ready_curl_rc=$?
+    fi
+    if ! kill -0 "$server_pid" 2>/dev/null; then
+      supcheckout_dump_http_server_diagnostics \
+        "${label} / PHP built-in server died before ready" \
+        "$last_ready_curl_rc" \
+        "$server_pid" \
+        "$server_log"
+      return 70
+    fi
+    sleep 1
+  done
+
+  supcheckout_dump_http_server_diagnostics \
+    "${label} / PHP built-in server readiness" \
+    "$last_ready_curl_rc" \
+    "$server_pid" \
+    "$server_log"
+  return 70
+}
+
 # The preceding activation safety test intentionally persists malformed gateway
 # settings. Normalize the disposable HTTP fixture with the raw certification
 # writer before starting a web request. Using normal update_option() here would
 # invoke WooCommerce's settings-change observer against the malformed old value
 # and test WooCommerce internals instead of SUPCheckout request-context safety.
 set_gateway_state KWD yes certification-key
-
-php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
-server_pid=$!
-
-ready=0
-last_ready_curl_rc=0
-for attempt in $(seq 1 30); do
-  if curl -fsS --max-time 10 "$base_url/wp-login.php" >/dev/null; then
-    ready=1
-    break
-  else
-    last_ready_curl_rc=$?
-  fi
-  sleep 1
-done
-if [[ "$ready" != "1" ]]; then
-  supcheckout_dump_http_server_diagnostics \
-    'PHP built-in server readiness' \
-    "$last_ready_curl_rc" \
-    "$server_pid" \
-    "$server_log"
-  exit 70
-fi
+start_php_server 'bootstrap eligible KWD configuration'
 
 assert_probe() {
   local label="$1"
@@ -178,6 +203,10 @@ run_context_matrix() {
   local state_label="$1"
   local expect_gateway="$2"
 
+  # Fresh PHP built-in server per configuration matrix avoids carrying
+  # request-scoped/Action-Scheduler state into the next matrix on PHP 8.4+.
+  start_php_server "$state_label"
+
   assert_probe "$state_label / Classic checkout" \
     "$base_url/index.php?page_id=${checkout_page_id}&supcheckout_context_probe=1" \
     1 0 0 0 0 1 "$expect_gateway"
@@ -208,6 +237,7 @@ assert_probe 'eligible KWD configuration / sessionless REST' \
 # context, rather than only in a CLI/source-shape harness.
 set_gateway_state KWD no certification-key
 run_context_matrix 'disabled configuration' 0
+start_php_server 'disabled configuration / sessionless REST'
 assert_probe 'disabled configuration / sessionless REST' \
   "$base_url/index.php?rest_route=/supcheckout-cert/v1/context&sessionless=1" \
   0 0 0 0 1 0 0

@@ -57,7 +57,10 @@ jobs:
         run: php -l tests/provider/sandbox-charge-smoke.php
       - name: Execute one bounded public-sandbox Charge initialization
         env:
-          # Provider-documented public test credential. Never substitute a merchant production token.
+          # Historical public sandbox test token used only for a bounded Charge
+          # initialization smoke. Confirm against current first-party UPayments
+          # sandbox documentation before any production claim. Never substitute
+          # a merchant production token.
           SUPCHECKOUT_UPAYMENTS_SANDBOX_TOKEN: jtest123
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}

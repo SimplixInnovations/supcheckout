@@ -1,9 +1,13 @@
 ---
 feature: r6-final-qualification
-status: in-progress
+status: candidate-ready-for-independent-review
 updated: 2026-09-25
-branch: r6/final-qualification
-base: 4689d1416d075a656ff9d6ac311a475cb8af4c6a
+branch: r6/final-qualification-closure
+runtime-base: 776e0d3b98a54b78c502a792cc01fca7d757d6fe
+evidence-series: r6/final-qualification-closure (this document + harnesses + workflows)
+artifact-filename: supcheckout-0.1.0.zip
+artifact-files: 62
+artifact-sha256: 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
 ---
 
 # R6 Final Qualification
@@ -195,3 +199,47 @@ FunnelKit one-click upsells, CartFlows upsells/downsells, automatic gateway refu
 **APPROACH 3 CANDIDATE FOR OWNER TECHNICAL ACCEPTANCE**
 
 Frozen Approach 2 remains the accepted baseline until the owner explicitly replaces it. No publication.
+
+## One-pass absolute-final closure (2026-09-25)
+
+### Current-main CI failure closure
+
+PHP 8.4 / WC 11.1.0 / legacy `checkout-request-context-http.sh` died as built-in-server segfault (curl 52) during Store API cart after prior matrices.
+
+Root cause: PHP development server is single-process and unstable under successive WooCommerce/Action-Scheduler request lifecycles on PHP 8.4.
+
+Fix: restart and re-ready the built-in server between logically separate configuration matrices; retain hard transport failure and server-death diagnostics.
+
+### Added permanent owners
+
+- `tests/integration/ActionSchedulerCompatibilityRuntimeTest.php` (registered in Compatibility after storage selection)
+- `tests/performance/r6-large-store-benchmark.php` + `.github/workflows/r6-large-store-benchmark.yml` (100/1k/5k/10k × legacy/HPOS)
+- `tests/security/r6-secret-scan.sh`, `r6-actions-pin-audit.sh`, `r6-dast-smoke.php`
+- `tests/integration/lib/reverse-proxy-smoke.sh`
+- `tests/e2e/r6-browser-ux.spec.ts`
+- `docs/project/R6-COVERAGE-MATRIX.md`
+- `docs/project/PROVIDER-CLARIFICATION-PACKAGE.md`
+
+### External blockers (unchanged)
+
+- auto-deduct CAPTURED semantics UNPROVEN
+- remote cycle identity UNPROVEN
+- HMAC PROVIDER CLARIFICATION REQUIRED
+- token persistence PROVIDER CLARIFICATION REQUIRED
+- live recurring/cards/wallets/CDN/pentest/PCI/legal EXTERNAL REQUIRED
+
+### Final state (authoritative)
+
+```text
+R6 status: candidate_ready_for_independent_review
+Approach 3: candidate_for_independent_review
+current gate: r6_independent_review
+```
+
+Historical sections above may contain older checkpoint wording; this section is current truth.
+
+Do not claim `done_verified` or owner acceptance until after independent R6 approval (`R6_REVIEWER_APPROVED_SHA`) and post-merge control-plane reconciliation.
+
+Do not publish. Approach 2 remains owner accepted until replaced.
+
+Provider HMAC / token persistence / auto-deduct capture / remote cycle identity remain **PROVIDER CLARIFICATION REQUIRED / UNPROVEN**.

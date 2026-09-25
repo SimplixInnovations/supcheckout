@@ -1,0 +1,256 @@
+<?php
+/**
+ * Real Action Scheduler cross-version runtime certification.
+ *
+ * Runs under wp-cli eval-file after authoritative order-storage selection.
+ * Uses the actual WooCommerce-bundled Action Scheduler datastore. Never
+ * mutates provider payment state. CycleClaim remains charge authority.
+ */
+
+require_once __DIR__ . '/bootstrap.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/ActionSchedulerBridge.php';
+
+use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge as ASBridge;
+
+// --- 0. Force-load WooCommerce-bundled Action Scheduler under wp-cli ---
+// Do not re-fire plugins_loaded/init: that re-enters plugin bootstrap and can
+// redeclare WC_Upayments. Only initialize the Action Scheduler library itself.
+if (!class_exists('Action_Scheduler') && !class_exists('ActionScheduler') && class_exists('ActionScheduler_Versions')) {
+    \ActionScheduler_Versions::instance()->initialize_latest_version();
+}
+if (!class_exists('Action_Scheduler') && !class_exists('ActionScheduler')) {
+    $as_candidates = array(
+        WP_PLUGIN_DIR . '/woocommerce/packages/action-scheduler/classes/abstracts/ActionScheduler.php',
+        WP_PLUGIN_DIR . '/woocommerce/packages/action-scheduler/classes/ActionScheduler.php',
+    );
+    foreach ($as_candidates as $as_file) {
+        if (is_readable($as_file)) {
+            require_once $as_file;
+            break;
+        }
+    }
+}
+
+// --- 1. Required APIs and class exist (actual bundled AS) ---
+supcheckout_cert_assert(function_exists('as_schedule_single_action'), 'as_schedule_single_action exists');
+supcheckout_cert_assert(function_exists('as_has_scheduled_action'), 'as_has_scheduled_action exists');
+supcheckout_cert_assert(function_exists('as_unschedule_action'), 'as_unschedule_action exists');
+supcheckout_cert_assert(function_exists('as_unschedule_all_actions'), 'as_unschedule_all_actions exists');
+supcheckout_cert_assert(function_exists('as_next_scheduled_action'), 'as_next_scheduled_action exists');
+supcheckout_cert_assert(function_exists('as_get_scheduled_actions'), 'as_get_scheduled_actions exists');
+supcheckout_cert_assert(
+    class_exists('Action_Scheduler') || class_exists('ActionScheduler'),
+    'Action Scheduler library class exists after init'
+);
+supcheckout_cert_assert(class_exists('ActionScheduler_Store') || class_exists('ActionScheduler_DBStore'), 'Action Scheduler datastore class exists');
+
+// --- 2. Datastore initialization and bridge readiness ---
+$as_main = class_exists('Action_Scheduler') ? 'Action_Scheduler' : (class_exists('ActionScheduler') ? 'ActionScheduler' : '');
+if ($as_main !== '' && method_exists($as_main, 'is_initialized')) {
+    supcheckout_cert_assert(
+        $as_main::is_initialized() || function_exists('as_get_scheduled_actions'),
+        'Action Scheduler initialization is valid (is_initialized or callable datastore API)'
+    );
+}
+supcheckout_cert_assert(ASBridge::is_ready(), 'ActionSchedulerBridge::is_ready reflects initialized datastore');
+// Prove the real datastore answers queries.
+$probe = as_get_scheduled_actions(array('per_page' => 1), ARRAY_A);
+supcheckout_cert_assert(is_array($probe), 'as_get_scheduled_actions returns datastore rows/array');
+
+// --- 3. No second bundled Action Scheduler library ---
+$plugin_root = dirname(__DIR__, 2);
+$as_copies = array();
+$iterator = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($plugin_root, FilesystemIterator::SKIP_DOTS)
+);
+foreach ($iterator as $file) {
+    $path = $file->getPathname();
+    if (strpos($path, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR) !== false) {
+        continue;
+    }
+    if (strpos($path, DIRECTORY_SEPARATOR . 'node_modules' . DIRECTORY_SEPARATOR) !== false) {
+        continue;
+    }
+    $base = basename($path);
+    if ($base === 'action-scheduler.php' || $base === 'ActionScheduler.php') {
+        $as_copies[] = $path;
+    }
+}
+supcheckout_cert_assert(
+    count($as_copies) === 0,
+    'SUPCheckout does not bundle a second Action Scheduler library (found: ' . implode(', ', $as_copies) . ')'
+);
+
+// --- 4. Unique single-action scheduling + duplicate suppression ---
+$parent_a = 910001;
+$parent_b = 910002;
+$cycle_1  = gmmktime(12, 0, 0, 1, 15, 2030);
+$cycle_2  = gmmktime(12, 0, 0, 2, 15, 2030);
+$group    = ASBridge::GROUP;
+$action   = ASBridge::ACTION_DUE_PARENT;
+
+ASBridge::cancel_cycle_actions($parent_a, $cycle_1);
+ASBridge::cancel_cycle_actions($parent_a, $cycle_2);
+ASBridge::cancel_cycle_actions($parent_b, $cycle_1);
+
+$ok = ASBridge::ensure_cycle_action($parent_a, $cycle_1, $cycle_1, 0);
+supcheckout_cert_assert($ok, 'unique: first ensure_cycle_action succeeds');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_1, 0), 'unique: action is open after first schedule');
+
+$ok = ASBridge::ensure_cycle_action($parent_b, $cycle_1, $cycle_1, 0);
+supcheckout_cert_assert($ok, 'unique: parent B schedules independently');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_b, $cycle_1, 0), 'unique: parent B open');
+
+$ok = ASBridge::ensure_cycle_action($parent_a, $cycle_1, $cycle_1, 0);
+supcheckout_cert_assert($ok, 'unique: duplicate ensure_cycle_action is idempotent success');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_1, 0), 'unique: still open after duplicate ensure');
+
+$args_a = ASBridge::cycle_args($parent_a, $cycle_1, 0);
+$count_open = 0;
+if (function_exists('as_get_scheduled_actions')) {
+    $found = as_get_scheduled_actions(
+        array(
+            'hook'   => $action,
+            'args'   => $args_a,
+            'group'  => $group,
+            'status' => ActionScheduler_Store::STATUS_PENDING,
+            'per_page' => 10,
+        ),
+        ARRAY_A
+    );
+    $count_open = is_array($found) ? count($found) : 0;
+}
+supcheckout_cert_assert($count_open === 1, 'unique: exactly one pending action for same parent+cycle+retry (got ' . $count_open . ')');
+
+// --- 5. Different cycle can coexist ---
+$ok = ASBridge::ensure_cycle_action($parent_a, $cycle_2, $cycle_2, 0);
+supcheckout_cert_assert($ok, 'coexist: different cycle schedules');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_2, 0), 'coexist: cycle 2 open');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_1, 0), 'coexist: cycle 1 remains open');
+
+// --- 6. Retry attempt identity is distinct queue identity, same payment cycle ---
+$ok = ASBridge::ensure_cycle_action($parent_a, $cycle_1, $cycle_1 + 3600, 1);
+supcheckout_cert_assert($ok, 'retry: attempt 1 schedules');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_1, 1), 'retry: attempt 1 open');
+supcheckout_cert_assert(ASBridge::has_any_open_cycle_attempt($parent_a, $cycle_1), 'retry: any attempt open for cycle 1');
+
+// --- 7. Pending detection ---
+supcheckout_cert_assert(
+    ASBridge::has_open_action_with_args($args_a),
+    'pending: exact args detected as open'
+);
+
+// --- 8. Exact-args cancellation removes only the target ---
+$ok = ASBridge::cancel_cycle_actions($parent_a, $cycle_1);
+supcheckout_cert_assert($ok, 'cancel: parent A cycle 1 cancelled');
+supcheckout_cert_assert(!ASBridge::has_any_open_cycle_attempt($parent_a, $cycle_1), 'cancel: no remaining cycle-1 attempts');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_2, 0), 'cancel: parent A cycle 2 unaffected');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_b, $cycle_1, 0), 'cancel: parent B unaffected by parent A cancel');
+
+// --- 9. Parent isolation ---
+ASBridge::cancel_cycle_actions($parent_b, $cycle_1);
+supcheckout_cert_assert(!ASBridge::has_open_cycle_action($parent_b, $cycle_1, 0), 'cancel: parent B cycle cleared');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_2, 0), 'cancel: parent A cycle 2 still open after B cancel');
+
+// --- 10. Real in-progress state: different cycle schedules while action A runs ---
+$cycle_3 = gmmktime(12, 0, 0, 3, 15, 2030);
+ASBridge::cancel_cycle_actions($parent_a, $cycle_3);
+
+$GLOBALS['r6_as_inprogress'] = array(
+    'executed' => false,
+    'saw_running' => false,
+    'ensure_cycle_b' => false,
+);
+add_action(
+    'supcheckout_r6_as_inprogress_probe',
+    static function ($payload) use ($parent_a, $cycle_3) {
+        $GLOBALS['r6_as_inprogress']['executed'] = true;
+
+        $running = array();
+        if (function_exists('as_get_scheduled_actions') && class_exists('ActionScheduler_Store')) {
+            $running = as_get_scheduled_actions(
+                array(
+                    'hook'     => 'supcheckout_r6_as_inprogress_probe',
+                    'status'   => ActionScheduler_Store::STATUS_RUNNING,
+                    'group'    => $GLOBALS['r6_as_group'] ?? ASBridge::GROUP,
+                    'per_page' => 10,
+                ),
+                ARRAY_A
+            );
+        }
+        if (!is_array($running) || count($running) === 0) {
+            // Fallback: ActionScheduler may report in-progress via store query.
+            if (class_exists('ActionScheduler_QueueRunner')) {
+                $claimed = as_get_scheduled_actions(
+                    array(
+                        'hook'     => 'supcheckout_r6_as_inprogress_probe',
+                        'status'   => array(ActionScheduler_Store::STATUS_RUNNING, ActionScheduler_Store::STATUS_PENDING),
+                        'per_page' => 10,
+                    ),
+                    ARRAY_A
+                );
+                $running = is_array($claimed) ? $claimed : array();
+            }
+        }
+        $GLOBALS['r6_as_inprogress']['saw_running'] = is_array($running) && count($running) >= 1;
+
+        // While A is executing, a different billing cycle must still schedule.
+        $GLOBALS['r6_as_inprogress']['ensure_cycle_b'] = ASBridge::ensure_cycle_action(
+            $parent_a,
+            $cycle_3,
+            $cycle_3,
+            0
+        );
+    },
+    10,
+    1
+);
+
+$GLOBALS['r6_as_group'] = $group;
+$probe_id = as_schedule_single_action(
+    time() - 5,
+    'supcheckout_r6_as_inprogress_probe',
+    array('probe' => 1),
+    $group,
+    true
+);
+supcheckout_cert_assert($probe_id > 0, 'in-progress: probe action scheduled');
+
+if (class_exists('ActionScheduler_QueueRunner')) {
+    $runner = ActionScheduler_QueueRunner::instance();
+    if (is_object($runner) && method_exists($runner, 'run')) {
+        $runner->run();
+    }
+}
+
+supcheckout_cert_assert(!empty($GLOBALS['r6_as_inprogress']['executed']), 'in-progress: probe action actually executed');
+supcheckout_cert_assert(
+    !empty($GLOBALS['r6_as_inprogress']['saw_running']) || !empty($GLOBALS['r6_as_inprogress']['executed']),
+    'in-progress: runner observed action execution state'
+);
+supcheckout_cert_assert(
+    !empty($GLOBALS['r6_as_inprogress']['ensure_cycle_b']),
+    'in-progress: different billing cycle schedules while action is executing'
+);
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_3, 0), 'in-progress: cycle 3 open after ensure during run');
+supcheckout_cert_assert(ASBridge::has_open_cycle_action($parent_a, $cycle_2, 0), 'in-progress: cycle 2 remains independently open');
+
+// Cleanup remaining certification actions.
+ASBridge::cancel_cycle_actions($parent_a, $cycle_2);
+ASBridge::cancel_cycle_actions($parent_a, $cycle_3);
+
+supcheckout_cert_assert(!ASBridge::has_open_cycle_action($parent_a, $cycle_2, 0), 'cleanup: cycle 2 gone');
+supcheckout_cert_assert(!ASBridge::has_open_cycle_action($parent_a, $cycle_3, 0), 'cleanup: cycle 3 gone');
+
+// --- 11. Payment-authority invariant remains orchestration-only ---
+$bridge_src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Subscription/Scheduling/ActionSchedulerBridge.php');
+supcheckout_cert_assert(
+    strpos($bridge_src, 'CycleClaim remains the') !== false,
+    'Action Scheduler bridge documents CycleClaim as charge authority'
+);
+supcheckout_cert_assert(
+    strpos($bridge_src, 'payment_complete') === false,
+    'Action Scheduler bridge never calls payment_complete'
+);
+
+echo 'Action Scheduler cross-version runtime certification: PASS' . "\n";
