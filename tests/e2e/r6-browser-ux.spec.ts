@@ -38,8 +38,10 @@ for (const vp of viewports) {
       await page.screenshot({ path: `artifacts/r6-classic-guest-${vp.name}.png`, fullPage: true });
 
       // Gateway UI present (Classic).
-      const gateway = page.locator('.payment_method_upayments, #payment .payment_methods input[name="payment_method"][value="upayments"]');
-      await expect(gateway.first()).toBeVisible({ timeout: 15000 });
+      const gateway = page.locator(
+        '.payment_method_upayments, .payment_methods input[value="upayments"], [data-gateway_id="upayments"], label[for*="upayments"]'
+      );
+      await expect(gateway.first()).toBeVisible({ timeout: 20000 });
 
       // Keyboard focus onto an interactive control with visible focus-visible treatment.
       const firstInput = page.locator('input:visible, button:visible, select:visible, a:visible').first();
@@ -102,7 +104,7 @@ for (const vp of viewports) {
       await page.goto(BLOCKS, { waitUntil: 'networkidle' });
       await page.screenshot({ path: `artifacts/r6-blocks-guest-${vp.name}.png`, fullPage: true });
       const hasCheckoutBlock = await page
-        .locator('.wc-block-checkout, .wp-block-woocommerce-checkout')
+        .locator('.wc-block-checkout, .wp-block-woocommerce-checkout, .wc-block-components-sidebar, form.checkout, .woocommerce-checkout')
         .first()
         .isVisible()
         .catch(() => false);

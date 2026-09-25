@@ -11,6 +11,18 @@ $base = getenv('SUPCHECKOUT_SITE_URL') ?: 'http://127.0.0.1:8080';
 update_option('home', $base);
 update_option('siteurl', $base);
 
+// Seed eligible gateway so Classic/Blocks UI can render SUPCheckout.
+// Raw option write avoids Woo settings-change observer on malformed history.
+$settings = array(
+    'enabled' => 'yes',
+    'api_key' => 'certification-key',
+    'currency' => 'KWD',
+);
+update_option('woocommerce_upayments_settings', $settings);
+update_option('woocommerce_currency', 'KWD');
+update_option('woocommerce_coming_soon', 'no');
+wp_cache_flush();
+
 ob_start();
 
 // Classic checkout page with [woocommerce_checkout].

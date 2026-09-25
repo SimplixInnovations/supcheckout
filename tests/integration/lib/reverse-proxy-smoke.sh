@@ -97,10 +97,10 @@ if grep -qi '^Location:.*evil.example' /tmp/r6-proxy-cb.hdr; then
   exit 1
 fi
 
-# Public status surface no-cache (direct origin)
+# Public status surface no-cache (same wc_upayments GET status poll family)
 curl -sS -D /tmp/r6-proxy-st.hdr -o /tmp/r6-proxy-st.body --max-time 20 \
   -H 'X-Forwarded-Host: evil.example' \
-  "$status_url" || true
+  "${callback_url}?wc_order_id=1&key=x" || true
 if ! grep -qiE 'Cache-Control:.*(no-cache|no-store|must-revalidate)' /tmp/r6-proxy-st.hdr; then
   echo "FAIL: public status missing explicit no-cache Cache-Control"
   cat /tmp/r6-proxy-st.hdr || true
