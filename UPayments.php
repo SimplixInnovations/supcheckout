@@ -417,7 +417,7 @@ function woocommerceUpaymentsInit() {
          * PHASE 8S: Low-level transport helper for the four legacy authenticated
          * UPayments API calls (charge, create-customer-unique-token,
          * check-payment-button-status, retrieve-customer-cards). It is NOT used
-         * by verify_payment_status() (PR #7 trust anchor) or the Scheduler
+         * by PaymentLifecycle StatusVerifier binding (R5) or the Scheduler
          * auto-deduct dispatcher (PR #8), each of which has its own separately
          * reviewed transport policy.
          *
@@ -497,539 +497,49 @@ function woocommerceUpaymentsInit() {
 
             return $outcome;
         }
-
         /**
-         * Verify a UPayments payment status through the Bearer-authenticated
-         * Get Payment Status API and bind the response to the given WooCommerce order.
-         *
-         * SECURITY: This is the authoritative trust path for main checkout
-         * browser-return and webhook paid-state transitions. Inbound callback
-         * fields (browser return / webhook) are NEVER authoritative.
-         * Authentication is the UPayments server-side response, schema-validated
-         * and bound to the order. The subscription auto-deduction Scheduler has
-         * its own separate payment flow and is out of scope of this helper.
-         *
-         * @param WC_Order $order
-         * @param string   $track_id  Lookup cursor received from the callback.
-         * @return array{
-         *     verified: bool,
-         *     transaction: array|null,
-         *     reason: string
-         * }
-         */
-        private function verify_payment_status($order, $track_id)
-        {
-            $result = array(
-                'verified'    => false,
-                'transaction' => null,
-                'reason'      => '',
-            );
-
-            try {
-                if (!$order instanceof WC_Order) {
-                    $result['reason'] = 'invalid_order';
-                    return $result;
-                }
-
-                $track_id = is_string($track_id) ? trim($track_id) : '';
-                if ($track_id === '') {
-                    $result['reason'] = 'missing_track_id';
-                    return $result;
-                }
-
-                $local_order_id = (string) $order->get_id();
-                $local_currency = $this->getCurrencyCode($order->get_currency());
-                $local_upay_order_id = $order->get_meta('UPayments_order_id');
-                if (!is_string($local_upay_order_id) || $local_upay_order_id === '') {
-                    $result['reason'] = 'missing_local_upay_order_id';
-                    return $result;
-                }
-
-                $transport = $this->execute_upayments_request(
-                    'get-payment-status/' . rawurlencode($track_id),
-                    'GET'
-                );
-                $response_body = $transport['body'];
-                $http_code = (int) $transport['http_status'];
-
-                if ($response_body === null || (int) $transport['curl_errno'] !== 0) {
-                    $result['reason'] = 'network_error';
-                    $this->log('UPayments payment status verification failed (network).', 'warning');
-                    return $result;
-                }
-
-                if ($http_code !== 201) {
-                    $result['reason'] = 'unexpected_http_' . $http_code;
-                    $this->log('UPayments payment status verification failed (HTTP status).', 'warning');
-                    return $result;
-                }
-
-                $decoded = json_decode((string) $response_body, true);
-                if (!is_array($decoded) || empty($decoded['status']) || $decoded['status'] !== true) {
-                    $result['reason'] = 'invalid_top_level';
-                    $this->log('UPayments payment status verification failed (top-level status).', 'warning');
-                    return $result;
-                }
-
-                $transaction = isset($decoded['data']['transaction']) && is_array($decoded['data']['transaction'])
-                    ? $decoded['data']['transaction']
-                    : null;
-                if ($transaction === null) {
-                    $result['reason'] = 'missing_transaction';
-                    $this->log('UPayments payment status verification failed (missing transaction).', 'warning');
-                    return $result;
-                }
-
-                // Required-field gating.
-                $required = array('result', 'track_id', 'merchant_requested_order_id', 'total_price', 'currency_type', 'payment_id', 'payment_type', 'reference');
-                foreach ($required as $field) {
-                    if (!array_key_exists($field, $transaction) || $transaction[$field] === null || $transaction[$field] === '') {
-                        $result['reason'] = 'missing_field_' . $field;
-                        $this->log('UPayments transaction binding failed.', 'warning');
-                        return $result;
-                    }
-                }
-
-                // B1 — track_id echo.
-                if ((string) $transaction['track_id'] !== $track_id) {
-                    $result['reason'] = 'binding_track_id';
-                    $this->log('UPayments transaction binding failed.', 'warning');
-                    return $result;
-                }
-
-                // B2 — merchant_requested_order_id == UPayments_order_id.
-                if ((string) $transaction['merchant_requested_order_id'] !== $local_upay_order_id) {
-                    $result['reason'] = 'binding_merchant_requested_order_id';
-                    $this->log('UPayments transaction binding failed.', 'warning');
-                    return $result;
-                }
-
-                // B3 — reference == WooCommerce order id.
-                if ((string) $transaction['reference'] !== $local_order_id) {
-                    $result['reason'] = 'binding_reference';
-                    $this->log('UPayments transaction binding failed.', 'warning');
-                    return $result;
-                }
-
-                // B4 — currency.
-                $expected_currency = strtoupper(trim($local_currency));
-                $verified_currency = strtoupper(trim((string) $transaction['currency_type']));
-                if ($expected_currency === '' || $verified_currency !== $expected_currency) {
-                    $result['reason'] = 'binding_currency';
-                    $this->log('UPayments transaction binding failed.', 'warning');
-                    return $result;
-                }
-
-                // B5 — amount (decimal-safe, normalized string comparison).
-                $verified_amount = (string) $transaction['total_price'];
-                if (!is_numeric($verified_amount)) {
-                    $result['reason'] = 'amount_not_numeric';
-                    $this->log('UPayments transaction binding failed.', 'warning');
-                    return $result;
-                }
-                $decimals = function_exists('wc_get_price_decimals') ? (int) wc_get_price_decimals() : 2;
-                $expected_amount = wc_format_decimal((string) $order->get_total(), $decimals);
-                $normalized_amount = wc_format_decimal($verified_amount, $decimals);
-                if ($normalized_amount !== $expected_amount) {
-                    $result['reason'] = 'binding_amount';
-                    $this->log('UPayments transaction binding failed.', 'warning');
-                    return $result;
-                }
-
-                // CAPTURED-only policy.
-                if ((string) $transaction['result'] !== 'CAPTURED') {
-                    $result['reason'] = 'not_captured';
-                    return $result;
-                }
-
-                $result['verified']    = true;
-                $result['transaction'] = $transaction;
-                $result['reason']      = 'captured';
-                return $result;
-            } catch (\Throwable $e) {
-                // Fail-closed: any unexpected internal exception during verification
-                // must not leak transport or data details and must not authorize a paid transition.
-                $result['verified']    = false;
-                $result['transaction'] = null;
-                $result['reason']      = 'verification_exception';
-                $this->log('UPayments payment status verification failed (verification exception).', 'warning');
-                return $result;
-            }
-        }
-
-        /**
-         * Neutral fallback URL for verification outcomes that must not disclose
-         * the WooCommerce order-received URL.
-         *
-         * The WooCommerce order-received URL contains a privileged `?key=` token
-         * that authorizes viewing that order without further authentication. A
-         * browser request that has not yet bound authoritatively to a UPayments
-         * transaction must NEVER be redirected to such a URL.
-         *
-         * The fallback:
-         *  - contains no WooCommerce order key;
-         *  - is not an order-pay URL;
-         *  - does not invite immediate repayment;
-         *  - carries a static `upayments_verification=pending` marker so the
-         *    destination page can render a friendly pending state.
-         *
-         * @return string
-         */
-        private function get_payment_verification_fallback_url()
-        {
-            $base = is_user_logged_in()
-                ? wc_get_page_permalink('myaccount')
-                : home_url('/');
-
-            return add_query_arg('upayments_verification', 'pending', $base);
-        }
-
-        /**
-         * Process the customer browser return from UPayments.
-         *
-         * SECURITY: The inbound $_GET result/payment_id/track_id/post_date/tran_id/
-         * ref/auth fields are NEVER authoritative. Only a verified authoritative
-         * Get Payment Status response with all bindings satisfied and
-         * result === 'CAPTURED' may authorize the WooCommerce paid-state transition.
-         * Browser paths that fail local preflight or unauthenticated binding MUST
-         * be redirected to the neutral fallback URL — never to the order-received
-         * URL, which embeds the WooCommerce order key.
+         * Public browser compatibility entrypoint (T3: direct callers may omit GET page).
+         * Explicit browser mode — never spoofed via superglobals.
          */
         public function return_from_upayments()
         {
-            // Public browser return/redirect responses must never be shared-cacheable.
             if (function_exists('wc_nocache_headers')) {
                 wc_nocache_headers();
             } elseif (function_exists('nocache_headers')) {
                 nocache_headers();
             }
-
-            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- External UPayments browser return cannot carry a WordPress nonce; all inbound identifiers are sanitized and paid-state authority requires authenticated provider status verification.
-            if (!isset($_GET["wc_order_id"])) {
-                $this->log("Return callback received without wc_order_id.");
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
-
-            $raw_order_id = sanitize_text_field(wp_unslash($_GET["wc_order_id"]));
-            $order_id = absint($raw_order_id);
-            if ($order_id <= 0) {
-                $this->log("Return callback received with invalid wc_order_id.");
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
-
-            $order = wc_get_order($order_id);
-            if (!$order instanceof WC_Order) {
-                $this->log("Return callback received but order could not be loaded.");
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
-
-            if ($order->get_payment_method() !== $this->id) {
-                $this->log("Return callback received for non-UPayments order.");
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
-
-            // Order preconditions: require locally generated UPayments_order_id.
-            $local_upay_order_id = $order->get_meta('UPayments_order_id');
-            if (!is_string($local_upay_order_id) || $local_upay_order_id === '') {
-                $this->log("Return callback received but UPayments_order_id is missing.");
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
-
-            $track_id = isset($_GET["track_id"])
-                ? sanitize_text_field(wp_unslash($_GET["track_id"]))
-                : '';
-            if ($track_id === '') {
-                $this->log("Return callback received without track_id.");
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
-
-            // A2 — requested_order_id is a cheap local preflight, NOT authentication.
-            // Required to be present and strictly equal to local UPayments_order_id
-            // BEFORE any authenticated status request is made. Paid-state authority
-            // still requires Bearer-authenticated Get Payment Status + B1-B5 +
-            // authoritative result === 'CAPTURED'.
-            $requested_order_id = isset($_GET["requested_order_id"])
-                ? sanitize_text_field(wp_unslash($_GET["requested_order_id"]))
-                : '';
-            if ($requested_order_id === '' || $requested_order_id !== $local_upay_order_id) {
-                $this->log("Return callback requested_order_id preflight failed.", 'warning');
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
+            // Historical browser callers populate GET callback fields (page marker optional).
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- External UPayments browser return cannot carry a WordPress nonce; identifiers are sanitized and paid-state authority requires authenticated provider status verification.
+            $get_bag = (isset($_GET) && is_array($_GET)) ? $_GET : array();
             // phpcs:enable WordPress.Security.NonceVerification.Recommended
-
-            // A1 — _upay_verified_capture means the original capture has already
-            // been authoritatively verified. A later callback/URL replay must
-            // NEVER be allowed to overwrite subsequent WooCommerce lifecycle states
-            // (refunded, custom fulfillment, merchant/admin status changes, etc.).
-            // Short-circuit unconditionally on the flag alone. We still use the
-            // neutral fallback so a public replay never receives a fresh
-            // order-received URL.
-            if ((string) $order->get_meta('_upay_verified_capture') === '1') {
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
-
-            // A5 — never resurrect a refunded order. The refund status itself
-            // prohibits order mutation. Do not disclose an order-received URL
-            // for a non-captured path; use the neutral fallback.
-            if ($order->has_status('refunded')) {
-                $this->log("Return callback received for refunded order; leaving status unchanged.");
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
-
-            $this->log("Return callback received; verifying payment status.");
-
-            // Browser-side fail-closed exception containment. The internal
-            // verifier already catches Throwable, but the verification success
-            // path in this handler performs metadata writes, status transition,
-            // verified-flag writes, order save, and cart handling. Any unexpected
-            // Throwable in this section must not mark the order failed, must not
-            // cancel, must not set verified-success flags, must not log
-            // transport/data details, and must not return the customer to
-            // checkout.
-            try {
-                $verification = $this->verify_payment_status($order, $track_id);
-
-                if (!$verification['verified']) {
-                    $reason = (string) $verification['reason'];
-
-                    // The remote transaction identity has been authenticated
-                    // and bound even though payment is not CAPTURED. However,
-                    // Get Payment Status authenticates the UPayments transaction,
-                    // NOT the browser requester. There is therefore no reason to
-                    // disclose WooCommerce's order-received URL (which embeds the
-                    // ?key= order-key bearer token) for a payment that is NOT
-                    // CAPTURED. Backend order status remains unchanged.
-                    if ($reason === 'not_captured') {
-                        $this->log("Return callback: authenticated response not CAPTURED.");
-                        wp_safe_redirect($this->get_payment_verification_fallback_url());
-                        exit();
-                    }
-
-                    // All other reasons are transport / HTTP / schema / binding
-                    // failures. They must not disclose the WooCommerce order key.
-                    $this->log("Return callback: verification failed (" . $reason . ").");
-                    wp_safe_redirect($this->get_payment_verification_fallback_url());
-                    exit();
-                }
-
-                $transaction = $verification['transaction'];
-                $verified_payment_id = (string) $transaction['payment_id'];
-
-                // Write verified metadata from the authenticated response only.
-                $order->update_meta_data('UPayments_Result', (string) $transaction['result']);
-                $order->update_meta_data('UPayments_PaymentID', $verified_payment_id);
-                $order->update_meta_data('UPayments_TrackID', (string) $transaction['track_id']);
-                $order->update_meta_data('UPayments_payment_type', (string) $transaction['payment_type']);
-                // UPayments_Ref comes from the authenticated transaction.reference field
-                // (not the legacy unverified callback 'ref' field). See A8.
-                $order->update_meta_data('UPayments_Ref', (string) $transaction['reference']);
-                $order->update_meta_data('_payment_method_title', 'UPayments');
-
-                // A4 — capture update_status() return value; only set success flags
-                // after a successful WooCommerce state transition (or when the order
-                // is already in the exact target paid state).
-                $current_status = $order->get_status();
-                $paid_order_status = 'processing';
-                if ($current_status === 'completed' || $this->getIsOrderComplete()) {
-                    $paid_order_status = 'completed';
-                }
-
-                $status_transition_ok = true;
-                if ($current_status !== $paid_order_status) {
-                    $status_transition_ok = $order->update_status(
-                        $paid_order_status,
-                        __('Payment successful with UPayments. PaymentID: ', 'supcheckout') . $verified_payment_id
-                    );
-                }
-
-                if (!$status_transition_ok) {
-                    $this->log("Return callback: WooCommerce update_status returned false; verified flags not written.", 'warning');
-                    wp_safe_redirect($this->get_payment_verification_fallback_url());
-                    exit();
-                }
-
-                // Set verified flag AFTER successful transition.
-                $order->update_meta_data('_upay_verified_capture', 1);
-                // Backward-compatibility write for legacy readers (not a security gate).
-                $order->update_meta_data('UPayments_webhook_triggered', 1);
-                $order->save();
-
-                $this->log("UPayments CAPTURED status verified.");
-
-                if (function_exists('WC') && WC() && WC()->cart) {
-                    WC()->cart->empty_cart();
-                }
-
-                wp_safe_redirect($this->get_return_url($order));
-                exit();
-            } catch (\Throwable $e) {
-                // A6 — fail-closed exception containment. Never mark failed;
-                // never mark cancelled; never deliberately roll the order back
-                // (rollback is out of scope and could cause more damage); never
-                // set a success flag merely because an exception occurred; do
-                // not empty the cart; do not log $e->getMessage() — it could
-                // contain transport/data details.
-                $this->log("Return callback: unexpected internal error during verified payment processing.", 'warning');
-                wp_safe_redirect($this->get_payment_verification_fallback_url());
-                exit();
-            }
+            \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_compat_callback('browser', $get_bag);
+            exit();
         }
 
         /**
-         * Handle the UPayments server-to-server webhook (notificationUrl).
-         *
-         * SECURITY: The inbound $_REQUEST result/payment_id/track_id/post_date/
-         * tran_id/ref/auth fields are NEVER authoritative. Only a verified
-         * authoritative Get Payment Status response with all bindings satisfied
-         * and result === 'CAPTURED' may authorize the WooCommerce paid-state
-         * transition. Internal exceptions must NOT mark the order failed.
+         * Public webhook compatibility entrypoint.
+         * Explicit webhook mode even if request globals contradict.
          */
         public function web_hook_handler()
         {
-            // Public webhook responses must never be shared-cacheable.
             if (function_exists('wc_nocache_headers')) {
                 wc_nocache_headers();
             } elseif (function_exists('nocache_headers')) {
                 nocache_headers();
             }
-
-            $this->log("Webhook received; verifying payment status.");
-
-            try {
-                // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Server-to-server provider webhook cannot use a WordPress nonce; identifiers are sanitized and no paid state is trusted without authenticated provider status verification.
-                if (!isset($_REQUEST["wc_order_id"])) {
-                    $this->log("Webhook received without wc_order_id.");
-                    exit();
+            // Historical direct webhooks populated $_REQUEST only (often not $_POST).
+            // Forward only canonical callback keys — never cookies or the raw bag.
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- External provider webhook cannot carry a WordPress nonce; identifiers are sanitized and paid-state authority requires authenticated provider status verification.
+            $request = (isset($_REQUEST) && is_array($_REQUEST)) ? $_REQUEST : array();
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended
+            $primary = array();
+            foreach (array('wc_order_id', 'track_id', 'requested_order_id') as $key) {
+                if (array_key_exists($key, $request)) {
+                    $primary[$key] = $request[$key];
                 }
-
-                $raw_order_id = sanitize_text_field(wp_unslash($_REQUEST["wc_order_id"]));
-                $order_id = absint($raw_order_id);
-                if ($order_id <= 0) {
-                    $this->log("Webhook received with invalid wc_order_id.");
-                    exit();
-                }
-
-                $order = wc_get_order($order_id);
-                if (!$order instanceof WC_Order) {
-                    $this->log("Webhook received but order could not be loaded.");
-                    exit();
-                }
-
-                if ($order->get_payment_method() !== $this->id) {
-                    $this->log("Webhook received for non-UPayments order.");
-                    exit();
-                }
-
-                // Order preconditions: require locally generated UPayments_order_id.
-                $local_upay_order_id = $order->get_meta('UPayments_order_id');
-                if (!is_string($local_upay_order_id) || $local_upay_order_id === '') {
-                    $this->log("Webhook received but UPayments_order_id is missing.");
-                    exit();
-                }
-
-                $track_id = isset($_REQUEST["track_id"])
-                    ? sanitize_text_field(wp_unslash($_REQUEST["track_id"]))
-                    : '';
-                if ($track_id === '') {
-                    $this->log("Webhook received without track_id.");
-                    exit();
-                }
-
-                // A2 — requested_order_id is a cheap local preflight, NOT authentication.
-                // Required to be present and strictly equal to local UPayments_order_id
-                // BEFORE any authenticated status request is made. Paid-state authority
-                // still requires Bearer-authenticated Get Payment Status + B1-B5 +
-                // authoritative result === 'CAPTURED'.
-                $requested_order_id = isset($_REQUEST["requested_order_id"])
-                    ? sanitize_text_field(wp_unslash($_REQUEST["requested_order_id"]))
-                    : '';
-                if ($requested_order_id === '' || $requested_order_id !== $local_upay_order_id) {
-                    $this->log("Webhook requested_order_id preflight failed.", 'warning');
-                    exit();
-                }
-                // phpcs:enable WordPress.Security.NonceVerification.Recommended
-
-                // A1 — _upay_verified_capture means the original capture has already
-                // been authoritatively verified. Webhook must never drive lifecycle state
-                // again after a verified capture.
-                if ((string) $order->get_meta('_upay_verified_capture') === '1') {
-                    exit();
-                }
-
-                // A5 — never resurrect a refunded order.
-                if ($order->has_status('refunded')) {
-                    $this->log("Webhook received for refunded order; leaving status unchanged.");
-                    exit();
-                }
-
-                $verification = $this->verify_payment_status($order, $track_id);
-
-                if (!$verification['verified']) {
-                    $this->log("Webhook: verification failed (" . $verification['reason'] . ").");
-                    exit();
-                }
-
-                $transaction = $verification['transaction'];
-                $verified_payment_id = (string) $transaction['payment_id'];
-
-                // Write verified metadata from the authenticated response only.
-                $order->update_meta_data('UPayments_Result', (string) $transaction['result']);
-                $order->update_meta_data('UPayments_PaymentID', $verified_payment_id);
-                $order->update_meta_data('UPayments_TrackID', (string) $transaction['track_id']);
-                $order->update_meta_data('UPayments_payment_type', (string) $transaction['payment_type']);
-                // UPayments_Ref comes from the authenticated transaction.reference field
-                // (not the legacy unverified callback 'ref' field). See A8.
-                $order->update_meta_data('UPayments_Ref', (string) $transaction['reference']);
-                $order->update_meta_data('_payment_method_title', 'UPayments');
-
-                // A4 — capture update_status() return value; only set success flags
-                // after a successful WooCommerce state transition (or when the order
-                // is already in the exact target paid state).
-                $current_status = $order->get_status();
-                $paid_order_status = 'processing';
-                if ($current_status === 'completed' || $this->getIsOrderComplete()) {
-                    $paid_order_status = 'completed';
-                }
-
-                $status_transition_ok = true;
-                if ($current_status !== $paid_order_status) {
-                    $status_transition_ok = $order->update_status(
-                        $paid_order_status,
-                        __('Payment successful with UPayments. PaymentID: ', 'supcheckout') . $verified_payment_id
-                    );
-                }
-
-                if (!$status_transition_ok) {
-                    $this->log("Webhook: WooCommerce update_status returned false; verified flags not written.", 'warning');
-                    exit();
-                }
-
-                // Set verified flag AFTER successful transition.
-                $order->update_meta_data('_upay_verified_capture', 1);
-                // Backward-compatibility write for legacy readers (not a security gate).
-                $order->update_meta_data('UPayments_webhook_triggered', 1);
-                $order->save();
-
-                $this->log("UPayments CAPTURED status verified.");
-
-                exit();
-            } catch (\Throwable $e) {
-                // A6 — fail-closed exception containment. An unexpected internal
-                // Throwable must not mark payment failed, must not cancel, must not
-                // empty the cart, must not set the verified-success flag, and must
-                // not include transport/data details in the logged diagnostic.
-                $this->log("Webhook: unexpected internal error during verification.", 'warning');
-                exit();
             }
+            \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_compat_callback('webhook', $primary);
+            exit();
         }
 
         public function check_ipn_response()

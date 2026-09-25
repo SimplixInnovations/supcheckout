@@ -46,15 +46,78 @@ final class PaymentLifecycle {
      */
     public static function handle_callback() {
         // Provider callbacks cannot carry a WordPress nonce; authority comes only from authenticated status binding.
-        $get = $_GET; // phpcs:ignore WordPress.Security.NonceVerification -- Public callback values are untrusted routing hints only.
-        $post = $_POST; // phpcs:ignore WordPress.Security.NonceVerification -- Provider status verification supplies payment authority.
+        $get = self::request_get();
+        $post = self::request_post();
 
         if (array_key_exists('get_order_status', $get)) {
             PublicOrderStatus::handle();
             return;
         }
 
-        $is_browser = array_key_exists('page', $get);
+        // Normal WC-API route: infer mode from the historical GET page marker.
+        $mode = array_key_exists('page', $get) ? 'browser' : 'webhook';
+        self::handle_callback_mode($mode, $get, $post);
+    }
+
+    /**
+     * Explicit compatibility-mode + request-bag entrypoint for legacy adapters.
+     *
+     * $primary is the historical source bag (browser: GET; webhook: REQUEST
+     * callback keys). $secondary is optional. Never rewrites superglobals.
+     * Only the three callback keys are honored from $primary/$secondary.
+     */
+    public static function handle_compat_callback($mode, array $primary, array $secondary = array()) {
+        if ($mode !== 'browser' && $mode !== 'webhook') {
+            self::log('callback_compat_mode_invalid', 'warning');
+            self::finish_callback(false, false, null, null);
+        }
+        $primary = self::extract_callback_keys($primary);
+        $secondary = self::extract_callback_keys($secondary);
+        // Historical adapters use a single source bag; merge as primary+secondary
+        // without inventing GET/POST conflict semantics that never applied.
+        self::handle_callback_mode($mode, $primary, $secondary, true);
+    }
+
+    /**
+     * Keep only canonical callback identity keys. Never forward cookies/PII bags.
+     */
+    private static function extract_callback_keys(array $bag) {
+        $out = array();
+        foreach (array('wc_order_id', 'track_id', 'requested_order_id') as $key) {
+            if (array_key_exists($key, $bag)) {
+                $out[$key] = $bag[$key];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Single ambient GET read for callback routing hints. Never written.
+     */
+    private static function request_get() {
+        return $_GET; // phpcs:ignore WordPress.Security.NonceVerification -- Public callback values are untrusted routing hints only.
+    }
+
+    private static function request_post() {
+        return $_POST; // phpcs:ignore WordPress.Security.NonceVerification -- Provider status verification supplies payment authority.
+    }
+
+    /**
+     * Single canonical financial callback implementation.
+     * Mode is explicit routing/termination policy only — never payment truth.
+     */
+    private static function handle_callback_mode($mode, array $get, array $post = array(), $compat_merge = false) {
+        $is_browser = ($mode === 'browser');
+
+        // Normal WC-API keeps GET/POST conflict detection. Compatibility
+        // adapters pass one historical bag (+ optional secondary) and must not
+        // invent conflicts that the original caller never had.
+        if ($compat_merge) {
+            $merged = array_merge($post, $get);
+            $get = $merged;
+            $post = array();
+        }
+
         $order_field = self::merge_request_value($get, $post, 'wc_order_id');
         $track_field = self::merge_request_value($get, $post, 'track_id');
         $requested_field = self::merge_request_value($get, $post, 'requested_order_id');

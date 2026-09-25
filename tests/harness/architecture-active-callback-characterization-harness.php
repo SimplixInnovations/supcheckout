@@ -402,8 +402,8 @@ namespace {
             'legacy web_hook_handler compatibility method remains present'
         );
         t1_assert(
-            strpos($gateway_source, 'function verify_payment_status') !== false,
-            'legacy verify_payment_status compatibility implementation remains present'
+            strpos($gateway_source, 'function verify_payment_status') === false,
+            'legacy verify_payment_status is retired after R5 consolidation'
         );
     }
 
