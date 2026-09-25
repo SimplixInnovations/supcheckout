@@ -69,14 +69,25 @@ $classic_url = get_permalink($classic_id);
 
 // Blocks checkout page: dedicated page with Checkout block markup.
 $blocks_id = (int) get_option('r6_blocks_checkout_page_id');
+$blocks_content = '<!-- wp:woocommerce/checkout -->' . "\n"
+    . '<div class="wp-block-woocommerce-checkout">' . "\n"
+    . '<!-- wp:woocommerce/checkout-fields-block /-->' . "\n"
+    . '<!-- wp:woocommerce/checkout-totals-block /-->' . "\n"
+    . '</div>' . "\n"
+    . '<!-- /wp:woocommerce/checkout -->';
 if ($blocks_id <= 0) {
     $blocks_id = (int) wp_insert_post(array(
         'post_title'   => 'R6 Blocks Checkout',
-        'post_content' => '<!-- wp:woocommerce/checkout -->',
+        'post_content' => $blocks_content,
         'post_status'  => 'publish',
         'post_type'    => 'page',
     ));
     update_option('r6_blocks_checkout_page_id', $blocks_id);
+} else {
+    wp_update_post(array(
+        'ID'           => $blocks_id,
+        'post_content' => $blocks_content,
+    ));
 }
 $blocks_url = get_permalink($blocks_id);
 
