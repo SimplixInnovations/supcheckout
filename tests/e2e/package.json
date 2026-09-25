@@ -4,6 +4,6 @@
   "description": "R6 browser/RTL/accessibility certification fixtures only. Not part of the distributable plugin.",
   "devDependencies": {
     "@axe-core/playwright": "4.10.2",
-    "@playwright/test": "1.54.2"
+    "@playwright/test": "1.63.0"
   }
 }
