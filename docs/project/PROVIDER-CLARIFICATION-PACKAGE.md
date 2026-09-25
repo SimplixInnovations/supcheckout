@@ -1,7 +1,7 @@
 # UPayments Provider Clarification Package
 
-**Status:** EXTERNAL REQUIRED until first-party answers exist  
-**Last evidence update:** 2026-09-25  
+**Status:** EXTERNAL REQUIRED until first-party answers exist
+**Last evidence update:** 2026-09-25
 **No secrets in this document.**
 
 ## Why this package exists

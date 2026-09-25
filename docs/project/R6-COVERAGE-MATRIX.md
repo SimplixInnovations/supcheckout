@@ -1,6 +1,6 @@
 # R6 Requirement Traceability Matrix
 
-Living map: requirement → exact owner → result → classification.  
+Living map: requirement → exact owner → result → classification.
 Base for this pass: `776e0d3b98a54b78c502a792cc01fca7d757d6fe`.
 
 | Requirement | Exact owner | Result | Classification |

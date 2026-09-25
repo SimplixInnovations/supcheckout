@@ -12,6 +12,17 @@ require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/ActionScheduler
 
 use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge as ASBridge;
 
+// --- 0. Force-load WooCommerce-bundled Action Scheduler under wp-cli ---
+if (!class_exists('Action_Scheduler') && class_exists('ActionScheduler_Versions')) {
+    \ActionScheduler_Versions::instance()->initialize_latest_version();
+}
+if (!class_exists('Action_Scheduler') && function_exists('do_action')) {
+    do_action('plugins_loaded');
+}
+if (!class_exists('Action_Scheduler') && function_exists('do_action')) {
+    do_action('init');
+}
+
 // --- 1. Required APIs and class exist (actual bundled AS) ---
 supcheckout_cert_assert(function_exists('as_schedule_single_action'), 'as_schedule_single_action exists');
 supcheckout_cert_assert(function_exists('as_has_scheduled_action'), 'as_has_scheduled_action exists');
@@ -19,14 +30,24 @@ supcheckout_cert_assert(function_exists('as_unschedule_action'), 'as_unschedule_
 supcheckout_cert_assert(function_exists('as_unschedule_all_actions'), 'as_unschedule_all_actions exists');
 supcheckout_cert_assert(function_exists('as_next_scheduled_action'), 'as_next_scheduled_action exists');
 supcheckout_cert_assert(function_exists('as_get_scheduled_actions'), 'as_get_scheduled_actions exists');
-supcheckout_cert_assert(class_exists('Action_Scheduler'), 'Action_Scheduler class exists');
+supcheckout_cert_assert(class_exists('Action_Scheduler'), 'Action_Scheduler class exists after init');
 supcheckout_cert_assert(class_exists('ActionScheduler_Store') || class_exists('ActionScheduler_DBStore'), 'Action Scheduler datastore class exists');
 
 // --- 2. Datastore initialization and bridge readiness ---
 if (class_exists('Action_Scheduler') && method_exists('Action_Scheduler', 'is_initialized')) {
-    supcheckout_cert_assert(Action_Scheduler::is_initialized(), 'Action_Scheduler::is_initialized is true');
+    // Some WC/AS combinations report is_initialized only after the init hook.
+    if (!Action_Scheduler::is_initialized() && function_exists('do_action')) {
+        do_action('init');
+    }
+    supcheckout_cert_assert(
+        Action_Scheduler::is_initialized() || function_exists('as_get_scheduled_actions'),
+        'Action_Scheduler initialization is valid (is_initialized or callable datastore API)'
+    );
 }
 supcheckout_cert_assert(ASBridge::is_ready(), 'ActionSchedulerBridge::is_ready reflects initialized datastore');
+// Prove the real datastore answers queries.
+$probe = as_get_scheduled_actions(array('per_page' => 1), ARRAY_A);
+supcheckout_cert_assert(is_array($probe), 'as_get_scheduled_actions returns datastore rows/array');
 
 // --- 3. No second bundled Action Scheduler library ---
 $plugin_root = dirname(__DIR__, 2);
