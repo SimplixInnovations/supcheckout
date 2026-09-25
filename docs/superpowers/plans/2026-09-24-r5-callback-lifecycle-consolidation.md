@@ -3,7 +3,7 @@ feature: r5-callback-lifecycle-consolidation
 status: candidate-ready-for-independent-review
 updated: 2026-09-24
 branch: r5/callback-lifecycle-consolidation
-commits: 1928df5..final
+commits: 1928df5..5baa649 (test-hardening on top)
 ---
 
 # R5 Callback Lifecycle Consolidation (Option B)
@@ -90,3 +90,7 @@ R5-3: terminal-state sensitivity hardening (exact outcome/status/meta; payment_c
 - direct browser: GET bag; direct webhook: REQUEST callback-key bag only (no cookie forwarding)
 - real Woo CallbackLifecycleRuntimeTest registered in 20-cell Compatibility
 - terminal FAILED / CANCELED / PENDING / INDETERMINATE / refunded protection covered
+
+## Request-bag provenance wording
+
+Direct webhook compatibility reads the historical  source but extracts only the three canonical callback keys (, , ). No arbitrary request/cookie fields are forwarded into PaymentLifecycle. Callback values remain non-authoritative until provider status verification succeeds. Do not claim that callback-key provenance inside  is provably non-cookie.

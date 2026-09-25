@@ -82,13 +82,17 @@ supcheckout_cert_assert(!is_wp_error($user_id), 'R5 user created');
 $user_id = (int) $user_id;
 
 $payment_complete_count = 0;
-add_action('woocommerce_payment_complete', function ($oid) use (&$payment_complete_count, &$user_id) {
-    $payment_complete_count++;
+$captured_order_id = 0;
+add_action('woocommerce_payment_complete', function ($oid) use (&$payment_complete_count, &$captured_order_id) {
+    if ((int) $oid === (int) $captured_order_id) {
+        $payment_complete_count++;
+    }
 }, 10, 1);
 
 // --- CAPTURED exact postconditions ---
 $order = supcheckout_r5_make_order($user_id, 'cap');
 $order_id = (int) $order->get_id();
+$captured_order_id = $order_id;
 $outcome = supcheckout_r5_process($order, 'CAPTURED');
 supcheckout_cert_note('captured outcome=' . json_encode($outcome));
 supcheckout_cert_assert(is_array($outcome) && ($outcome['state'] ?? '') === 'captured', 'CAPTURED outcome.state=captured');
@@ -188,16 +192,35 @@ if ($fresh_ind instanceof WC_Order) {
     supcheckout_cert_assert((string) $fresh_ind->get_meta('_upay_verified_capture') !== '1', 'INDETERMINATE has no verified capture');
 }
 
-// --- Refunded protection ---
+// --- Refunded protection: no identity/payment mutation ---
 $refunded = supcheckout_r5_make_order($user_id, 'ref');
 $refunded->update_status('refunded');
 $refunded->save();
+$ref_before_status = $refunded->get_status();
+$ref_before_txn = (string) $refunded->get_transaction_id();
+$ref_before_verified = (string) $refunded->get_meta('_upay_verified_capture');
+$ref_before_result = (string) $refunded->get_meta('UPayments_Result');
+$ref_before_payment = (string) $refunded->get_meta('UPayments_PaymentID');
 $outcome = supcheckout_r5_process($refunded, 'CAPTURED');
 $fresh_ref = wc_get_order($refunded->get_id());
 if ($fresh_ref instanceof WC_Order) {
-    supcheckout_cert_assert($fresh_ref->has_status('refunded'), 'refunded status exactly refunded');
-    supcheckout_cert_assert((string) $fresh_ref->get_meta('_upay_verified_capture') !== '1', 'refunded callback adds no verified capture');
-    supcheckout_cert_assert((string) $fresh_ref->get_transaction_id() === '' || (string) $fresh_ref->get_transaction_id() !== 'pay-r5-1' || true, 'no forced transaction resurrection');
+    supcheckout_cert_assert($fresh_ref->has_status('refunded'), 'refunded status remains exactly refunded');
+    supcheckout_cert_assert(
+        (string) $fresh_ref->get_transaction_id() === $ref_before_txn,
+        'refunded transaction ID unchanged by CAPTURED callback'
+    );
+    supcheckout_cert_assert(
+        (string) $fresh_ref->get_meta('_upay_verified_capture') === $ref_before_verified,
+        'refunded _upay_verified_capture unchanged'
+    );
+    supcheckout_cert_assert(
+        (string) $fresh_ref->get_meta('UPayments_Result') !== 'CAPTURED' || $ref_before_result === 'CAPTURED',
+        'refunded UPayments_Result does not become CAPTURED'
+    );
+    supcheckout_cert_assert(
+        (string) $fresh_ref->get_meta('UPayments_PaymentID') !== 'pay-r5-1' || $ref_before_payment === 'pay-r5-1',
+        'refunded UPayments_PaymentID does not become pay-r5-1'
+    );
 }
 
 wp_set_current_user(0);
