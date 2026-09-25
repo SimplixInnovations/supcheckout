@@ -14,10 +14,12 @@
  */
 
 require_once __DIR__ . '/../integration/bootstrap.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/ActionSchedulerBridge.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/HistoricalEnrollment.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
 
 use Simplixi\SUPCheckout\Subscription\Presentation;
+use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
 
 $total_orders = (int) (getenv('SUPCHECKOUT_BENCH_ORDERS') ?: 100);

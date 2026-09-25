@@ -13,14 +13,10 @@ require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/ActionScheduler
 use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge as ASBridge;
 
 // --- 0. Force-load WooCommerce-bundled Action Scheduler under wp-cli ---
+// Do not re-fire plugins_loaded/init: that re-enters plugin bootstrap and can
+// redeclare WC_Upayments. Only initialize the Action Scheduler library itself.
 if (!class_exists('Action_Scheduler') && class_exists('ActionScheduler_Versions')) {
     \ActionScheduler_Versions::instance()->initialize_latest_version();
-}
-if (!class_exists('Action_Scheduler') && function_exists('do_action')) {
-    do_action('plugins_loaded');
-}
-if (!class_exists('Action_Scheduler') && function_exists('do_action')) {
-    do_action('init');
 }
 
 // --- 1. Required APIs and class exist (actual bundled AS) ---
@@ -35,10 +31,6 @@ supcheckout_cert_assert(class_exists('ActionScheduler_Store') || class_exists('A
 
 // --- 2. Datastore initialization and bridge readiness ---
 if (class_exists('Action_Scheduler') && method_exists('Action_Scheduler', 'is_initialized')) {
-    // Some WC/AS combinations report is_initialized only after the init hook.
-    if (!Action_Scheduler::is_initialized() && function_exists('do_action')) {
-        do_action('init');
-    }
     supcheckout_cert_assert(
         Action_Scheduler::is_initialized() || function_exists('as_get_scheduled_actions'),
         'Action_Scheduler initialization is valid (is_initialized or callable datastore API)'
