@@ -136,14 +136,14 @@ R3  subscription safety
  ↓
 R4  scalability / idempotency / observability
  ↓
-R5/T4 separately gated callback-consolidation architecture decision
+R5  callback lifecycle consolidation (Option B / ADR-003) — DONE / VERIFIED
  ↓
 R6  exact-head qualification + fresh owner re-acceptance
  ↓
 explicit version/publication decision
 ```
 
-R0-R4 are bounded evidence-first work under the approved post-T3 plan. **R5/T4 is not pre-authorized by T3** and requires its own architecture decision before runtime implementation.
+R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used its own architecture decision (Option B / ADR-003) and is complete. **R6 is the current executable gate.**
 
 ## 7. Active-work ledger
 
@@ -156,7 +156,7 @@ R0-R4 are bounded evidence-first work under the approved post-T3 plan. **R5/T4 i
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active task | **None — next engineering gate is R5/T4 architecture decision** |
+| Active task | **R6 final qualification** |
 | Latest repository-executable E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | Latest candidate package at that checkpoint | 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c` |
 | R0 / R1 / E1 | **DONE / VERIFIED and integrated through PR #108** |
@@ -165,7 +165,8 @@ R0-R4 are bounded evidence-first work under the approved post-T3 plan. **R5/T4 i
 | R2 | **DONE / VERIFIED** — certified PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; candidate package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3` |
 | R3 | **DONE / VERIFIED** — certified PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a`, squash-merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
 | R4 | **DONE / VERIFIED** — certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, squash-merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
-| Current operational gate | **R5/T4 architecture decision** |
+| R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
+| Current operational gate | **R6 final qualification** |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
@@ -268,4 +269,4 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 ## 13. Immediate next step
 
-R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). Next gate is **R5/T4 architecture decision** (A / B / DEFER). Do not implement T4 callback consolidation before an explicit owner decision.
+R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). Next gate is **R6 final qualification**. Do not publish without explicit owner authorization.

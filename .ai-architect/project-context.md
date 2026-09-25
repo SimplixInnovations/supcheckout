@@ -90,5 +90,5 @@ Control-plane/tests only. No production source or package-byte change.
 - Repository-executable E3 checkpoint: `540b733c29656758f2392817649fc3d4a4db585d`; deterministic candidate package: **55 files**, SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 - The temporary PR #108 feature branch was deleted after merge. No feature branch is intentionally retained between bounded tranches.
 - Frozen owner-accepted Approach 2 baseline remains `0c883d609906676966002eb022a82a9656eeacc5` with accepted package SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
-- Current next engineering gate: **R3 subscription safety** (R2 **DONE / VERIFIED**, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`).
-- R5/T4 callback consolidation remains separately architecture-gated; the merged T3/post-T3 evidence does not by itself authorize that runtime consolidation.
+- Current next engineering gate: **R6 final qualification** (R5 **DONE / VERIFIED**, Option B / ADR-003, certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`).
+- R5 callback consolidation is complete: legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only; explicit browser/webhook adapters; legacy private verifier retired; provider egress unchanged.

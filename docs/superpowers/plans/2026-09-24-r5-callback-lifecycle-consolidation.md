@@ -1,10 +1,14 @@
 ---
 feature: r5-callback-lifecycle-consolidation
-status: candidate-ready-for-independent-review
-updated: 2026-09-24
-branch: r5/callback-lifecycle-consolidation
+status: done-verified-merged
+updated: 2026-09-25
+branch: r5/callback-lifecycle-consolidation (deleted after merge)
 implementation: 1928df5..5baa649
 evidence-integrity commits: e1a5730..af64193
+certified-head: 6fc225fc736da107de533ba8e19a12dc5c37227d
+merged-main: 50170ea7f0d17b792e133a70beee48da7e2b6326
+package-files: 62
+package-sha256: 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
 ---
 
 # R5 Callback Lifecycle Consolidation (Option B)

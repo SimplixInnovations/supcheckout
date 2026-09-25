@@ -34,11 +34,12 @@ Do not move this anchor without an explicit fresh owner acceptance event.
 - T3 — **DONE / VERIFIED / runtime-neutral**, certified PR #107 head `f7c7d596dc4a2c8464d1acdf13dfe51028a5f9e0`, merged main `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`.
 - R2 — **DONE / VERIFIED**, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`.
 - R3 — **DONE / VERIFIED**, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`.
-- R4 — **DONE / VERIFIED / latest runtime-bearing**, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`.
+- R4 — **DONE / VERIFIED**, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`.
+- R5 — **DONE / VERIFIED / latest runtime-bearing**, Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
 - Quality Platform Q1-Q19 — **DONE / VERIFIED; permanently closed at Q19**. Do not invent Q20.
 - Enterprise Tasks 1-8 — **DONE / VERIFIED**.
 
-T3 proved that a direct `return_from_upayments()` caller may not carry the GET `page` marker used by `PaymentLifecycle::handle_callback()` to infer browser mode. **R5/T4 consolidation therefore requires its own architecture decision.**
+T3 proved that a direct `return_from_upayments()` caller may not carry the GET `page` marker used by `PaymentLifecycle::handle_callback()` to infer browser mode. R5 Option B solved this with an explicit-mode seam (`handle_compat_callback`) rather than superglobal spoofing.
 
 ## Current program
 
@@ -73,7 +74,9 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **R5/T4 architecture decision**.
+Current executable gate: **R6 final qualification**.
+
+R5 is **DONE / VERIFIED** (PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`, package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
 R2 is **DONE / VERIFIED** (PR #110 certified head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`, package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3`).
 
@@ -81,22 +84,26 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 
 1. **R3:** DONE / VERIFIED — first-card elimination, economic/identity binding, immutable cycle snapshot, parent discovery, pause/resume/cancel, held-cycle reconciliation without blind replay.
 3. **R4:** DONE / VERIFIED — bounded HistoricalEnrollment (BATCH_SIZE=50), Action Scheduler group `supcheckout`, args `{parent_order_id, cycle_due_gmt, retry_attempt}`, CycleClaim remains provider-mutation authority, retries 0..3 (+1h/+6h/+24h), HELD/dispatching/ambiguous never auto-next-charge.
-4. **R5/T4:** separately approve architecture before callback consolidation.
+4. **R5:** DONE / VERIFIED — Option B / ADR-003 explicit-mode seam; legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only; legacy private verifier retired; provider egress unchanged.
 5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.
 
-## Immediate R5/T4 decision boundary
+## R5 architecture truth (recorded)
 
-R4 is closed. The next gate is an **owner architecture decision**, not another RED/GREEN tranche.
+- legacy public compatibility methods: retained
+- financial lifecycle: PaymentLifecycle only
+- `return_from_upayments`: explicit browser compatibility adapter
+- `web_hook_handler`: explicit webhook compatibility adapter
+- `check_ipn_response`: normal canonical inference
+- historical direct webhook source: `$_REQUEST` canonical callback keys (`wc_order_id`, `track_id`, `requested_order_id`)
+- normal WC-API: GET/POST conflict-aware inference
+- legacy private verifier: retired
+- provider egress: unchanged (3 sites)
 
-Evaluate `docs/superpowers/plans/2026-09-23-r5-t4-callback-architecture-options.md` against post-R4 main `10a33b4`.
+Provider blockers remain **UNPROVEN / PROVIDER CLARIFICATION REQUIRED** for auto-deduct capture, remote cycle identity, HMAC and token persistence. Do not promote them.
 
-Options:
+## Immediate R6 boundary
 
-- **A** — retain current dual callback adapters (zero runtime change)
-- **B** — thin normalization in `UPayments.php` then delegate to `PaymentLifecycle` (must characterize payment-lifecycle semantic deltas, not only browser/webhook inference)
-- **DEFER** — leave R5 out of Approach 3
-
-No T4 runtime change without explicit `R5_DECISION=A|B|DEFER`. Approach 2 acceptance unchanged. Publication unauthorized.
+R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. The current gate is **R6 final qualification**. Approach 2 acceptance unchanged. Publication unauthorized.
 
 ## Permanent invariants
 

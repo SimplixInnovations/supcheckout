@@ -88,7 +88,7 @@ The latest repository-executable E3 runtime checkpoint within the PR #108 milest
 
 Neither T2, T3 nor PR #108 silently redefines owner acceptance. A fresh owner acceptance is required at Approach 3 closeout.
 
-Current post-T3 state: R0, R1 and E1 are **DONE / VERIFIED** and integrated through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; repository-executable generic E2 is **DONE / CERTIFIED**; E3 repository-executable runtime evidence is **DONE / VERIFIED** at the exact checkpoint above; R2 callback portability/cache safety is **DONE / VERIFIED** at certified PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c` / merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; R3 subscription safety is **DONE / VERIFIED** at certified PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a` / merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`. Named paid/licensed/vendor-infrastructure qualification remains external/unverified until actually exercised. The current executable gate is **R5/T4 architecture decision**, followed by R6 final exact-head qualification plus owner re-acceptance. R4 subscription scalability/observability is **DONE / VERIFIED** at certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a` / merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`.
+Current post-T3 state: R0, R1 and E1 are **DONE / VERIFIED** and integrated through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; repository-executable generic E2 is **DONE / CERTIFIED**; E3 repository-executable runtime evidence is **DONE / VERIFIED** at the exact checkpoint above; R2 callback portability/cache safety is **DONE / VERIFIED** at certified PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c` / merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; R3 subscription safety is **DONE / VERIFIED** at certified PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a` / merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`. Named paid/licensed/vendor-infrastructure qualification remains external/unverified until actually exercised. R4 subscription scalability/observability is **DONE / VERIFIED** at certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a` / merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`. R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003) at certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`. The current executable gate is **R6 final exact-head qualification** plus owner re-acceptance.
 
 No public GitHub Release or WordPress.org publication is authorized.
 
@@ -179,7 +179,7 @@ The root README is a public product landing page, not an internal certification 
 - Update living state docs when verified project truth changes.
 - Preserve historical records instead of rewriting milestone facts.
 - Do not create a new phase merely because documentation needs maintenance.
-- R5/T4 callback consolidation requires a separate architecture decision; T3 characterization alone is not approval.
+- R5 callback consolidation is complete under Option B / ADR-003; T3 characterization remains historical evidence and does not authorize further callback architecture churn.
 
 ## Merge and release discipline
 
