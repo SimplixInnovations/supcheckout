@@ -15,8 +15,20 @@ use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge as ASBrid
 // --- 0. Force-load WooCommerce-bundled Action Scheduler under wp-cli ---
 // Do not re-fire plugins_loaded/init: that re-enters plugin bootstrap and can
 // redeclare WC_Upayments. Only initialize the Action Scheduler library itself.
-if (!class_exists('Action_Scheduler') && class_exists('ActionScheduler_Versions')) {
+if (!class_exists('Action_Scheduler') && !class_exists('ActionScheduler') && class_exists('ActionScheduler_Versions')) {
     \ActionScheduler_Versions::instance()->initialize_latest_version();
+}
+if (!class_exists('Action_Scheduler') && !class_exists('ActionScheduler')) {
+    $as_candidates = array(
+        WP_PLUGIN_DIR . '/woocommerce/packages/action-scheduler/classes/abstracts/ActionScheduler.php',
+        WP_PLUGIN_DIR . '/woocommerce/packages/action-scheduler/classes/ActionScheduler.php',
+    );
+    foreach ($as_candidates as $as_file) {
+        if (is_readable($as_file)) {
+            require_once $as_file;
+            break;
+        }
+    }
 }
 
 // --- 1. Required APIs and class exist (actual bundled AS) ---
@@ -26,14 +38,18 @@ supcheckout_cert_assert(function_exists('as_unschedule_action'), 'as_unschedule_
 supcheckout_cert_assert(function_exists('as_unschedule_all_actions'), 'as_unschedule_all_actions exists');
 supcheckout_cert_assert(function_exists('as_next_scheduled_action'), 'as_next_scheduled_action exists');
 supcheckout_cert_assert(function_exists('as_get_scheduled_actions'), 'as_get_scheduled_actions exists');
-supcheckout_cert_assert(class_exists('Action_Scheduler'), 'Action_Scheduler class exists after init');
+supcheckout_cert_assert(
+    class_exists('Action_Scheduler') || class_exists('ActionScheduler'),
+    'Action Scheduler library class exists after init'
+);
 supcheckout_cert_assert(class_exists('ActionScheduler_Store') || class_exists('ActionScheduler_DBStore'), 'Action Scheduler datastore class exists');
 
 // --- 2. Datastore initialization and bridge readiness ---
-if (class_exists('Action_Scheduler') && method_exists('Action_Scheduler', 'is_initialized')) {
+$as_main = class_exists('Action_Scheduler') ? 'Action_Scheduler' : (class_exists('ActionScheduler') ? 'ActionScheduler' : '');
+if ($as_main !== '' && method_exists($as_main, 'is_initialized')) {
     supcheckout_cert_assert(
-        Action_Scheduler::is_initialized() || function_exists('as_get_scheduled_actions'),
-        'Action_Scheduler initialization is valid (is_initialized or callable datastore API)'
+        $as_main::is_initialized() || function_exists('as_get_scheduled_actions'),
+        'Action Scheduler initialization is valid (is_initialized or callable datastore API)'
     );
 }
 supcheckout_cert_assert(ASBridge::is_ready(), 'ActionSchedulerBridge::is_ready reflects initialized datastore');

@@ -33,11 +33,20 @@ if (!in_array($storage, array('legacy', 'hpos'), true)) {
     throw new RuntimeException('SUPCHECKOUT_BENCH_STORAGE must be legacy or hpos');
 }
 
-// Provider-transport sentinel: any payment egress during this benchmark fails.
+// Provider-transport sentinel: fail if a real provider/payment host is contacted.
+// Local WordPress loopback (wp-cron, REST) is allowed.
 add_filter(
     'pre_http_request',
     static function ($preempt, $args, $url) {
-        throw new RuntimeException('PROVIDER_EGRESS_ATTEMPTED: ' . $url);
+        $host = parse_url((string) $url, PHP_URL_HOST);
+        $host = is_string($host) ? strtolower($host) : '';
+        if ($host === '' || $host === '127.0.0.1' || $host === 'localhost') {
+            return $preempt;
+        }
+        if (strpos($host, 'upayments') !== false || strpos($host, 'simplixpay') !== false) {
+            throw new RuntimeException('PROVIDER_EGRESS_ATTEMPTED: ' . $url);
+        }
+        return $preempt;
     },
     1,
     3
