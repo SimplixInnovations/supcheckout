@@ -11,6 +11,17 @@ const BASE = process.env.R6_BASE_URL || 'http://127.0.0.1:8080';
 const CLASSIC = process.env.R6_CLASSIC_CHECKOUT_URL || `${BASE}/?page_id=0`;
 const BLOCKS = process.env.R6_BLOCKS_CHECKOUT_URL || `${BASE}/?page_id=0`;
 const CALLBACK = process.env.R6_CALLBACK_URL || `${BASE}/wc-api/wc_upayments/`;
+const PRODUCT = process.env.R6_PRODUCT_URL || '';
+
+async function ensureCart(page: import('@playwright/test').Page) {
+  if (!PRODUCT) return;
+  await page.goto(PRODUCT, { waitUntil: 'domcontentloaded' });
+  const add = page.locator('button.single_add_to_cart_button, button[name="add-to-cart"], .wc-block-components-product-button button');
+  if (await add.first().isVisible().catch(() => false)) {
+    await add.first().click();
+    await page.waitForLoadState('domcontentloaded');
+  }
+}
 
 const viewports = [
   { name: 'desktop', width: 1280, height: 800 },
@@ -35,6 +46,8 @@ for (const vp of viewports) {
 
       const resp = await page.goto(CLASSIC, { waitUntil: 'networkidle' });
       expect(resp && resp.status() < 500).toBeTruthy();
+      await ensureCart(page);
+      await page.goto(CLASSIC, { waitUntil: 'networkidle' });
       await page.screenshot({ path: `artifacts/r6-classic-guest-${vp.name}.png`, fullPage: true });
 
       // Gateway UI present (Classic).
@@ -101,6 +114,7 @@ for (const vp of viewports) {
       page.on('console', (m) => {
         if (m.type() === 'error') errors.push(m.text());
       });
+      await ensureCart(page);
       await page.goto(BLOCKS, { waitUntil: 'networkidle' });
       await page.screenshot({ path: `artifacts/r6-blocks-guest-${vp.name}.png`, fullPage: true });
       const hasCheckoutBlock = await page
