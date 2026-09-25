@@ -103,6 +103,9 @@ jobs:
       - name: Resolve fixture URLs and run proxy + DAST
         env:
           WP_CLI_BIN: /tmp/wp-cli.phar
+          SUPCHECKOUT_SITE_URL: http://127.0.0.1:8090
+          SUPCHECKOUT_PROXY_ORIGIN_PORT: '8090'
+          SUPCHECKOUT_PROXY_PORT: '8091'
         run: |
           set -euo pipefail
           eval "$(/tmp/wp-cli.phar eval-file tests/performance/r6-fixture-urls.php --path="$RUNNER_TEMP/wordpress")"
