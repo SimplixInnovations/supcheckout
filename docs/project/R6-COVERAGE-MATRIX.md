@@ -27,14 +27,16 @@ Base for this pass: `776e0d3b98a54b78c502a792cc01fca7d757d6fe`.
 | Recurring failure injection | `ecosystem-subscription-lifecycle-matrix-harness` 89/0, R3 safety 12/0, CycleClaim concurrency | ≤1 dispatch, HELD, no replay | VERIFIED |
 | Classic/Blocks checkout browser | `tests/e2e/r6-browser-ux.spec.ts` (Playwright) + default theme | screenshots + axe | VERIFIED — R6 Final Evidence / Browser / RTL / Axe |
 | Mobile/desktop viewport | same | two viewports | VERIFIED — R6 Final Evidence / Browser / RTL / Axe |
-| Console / broken assets / labels | same | assertions in spec | VERIFIED — R6 Final Evidence / Browser / RTL / Axe |
+| Console / labels / focus / axe | same | assertions in spec | VERIFIED — R6 Final Evidence / Browser / RTL / Axe |
+| Broken plugin network assets | same | requestfailed/resource assertions not in final spec | PENDING — add requestfailed assertions before VERIFIED |
 | Arabic/RTL default theme | `tests/e2e/r6-browser-ux.spec.ts` RTL project + locale ar | WordPress ar locale + dir=rtl | VERIFIED — R6 Final Evidence WordPress ar locale + dir=rtl |
 | Local reverse proxy | `tests/integration/lib/reverse-proxy-smoke.sh` | callback URL, no-cache, spoofed headers fail-closed | VERIFIED — R6 Final Evidence / Proxy / DAST |
 | Real Cloudflare/CDN | — | edge product | EXTERNAL REQUIRED |
-| Automated DAST | `tests/security/r6-dast-smoke.php` | authenticated/unauth probes + pinned gitleaks | VERIFIED — bounded HTTP security smoke + gitleaks (professional pentest EXTERNAL) |
+| Automated DAST | `tests/security/r6-dast-smoke.php` | unauthenticated public probes only | VERIFIED — bounded unauthenticated HTTP smoke + gitleaks; authenticated DAST PENDING; professional pentest EXTERNAL |
 | Professional pentest | — | independent | EXTERNAL REQUIRED |
 | Secrets current tree | `tests/security/r6-secret-scan.sh` + CI | no real secrets | VERIFIED — R6 Final Evidence / Secret / Supply-chain Audit |
-| Secrets git history / ZIP | same | history + package scan | VERIFIED — gitleaks history/tree + package |
+| Secrets git history / tree | gitleaks + r6-secret-scan | history + tree | VERIFIED — gitleaks history/tree + custom scan |
+| Secrets final ZIP | Release Artifact package + r6-secret-scan ZIP path | package scan only when ZIP present | PENDING — dedicated package-scan step in Secret job before VERIFIED |
 | Actions pinned by SHA | `tests/security/r6-actions-pin-audit.sh` | all `uses:` pinned | VERIFIED (local + hosted pin audit) |
 | CodeQL / dependency audit | permanent workflows | green | VERIFIED |
 | HMAC mandatory? | `docs/project/PROVIDER-CLARIFICATION-PACKAGE.md` | contradictory first-party docs | PROVIDER CLARIFICATION REQUIRED |

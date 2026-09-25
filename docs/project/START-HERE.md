@@ -143,7 +143,7 @@ R6  exact-head qualification + fresh owner re-acceptance
 explicit version/publication decision
 ```
 
-R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used its own architecture decision (Option B / ADR-003) and is complete. **R6 is the current executable gate.**
+R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used its own architecture decision (Option B / ADR-003) and is complete. **R6 is DONE / VERIFIED. The current gate is owner technical acceptance.**
 
 ## 7. Active-work ledger
 

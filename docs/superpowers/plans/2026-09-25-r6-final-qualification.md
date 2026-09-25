@@ -1,6 +1,6 @@
 ---
 feature: r6-final-qualification
-status: candidate-ready-for-independent-review
+status: done-verified-awaiting-owner-acceptance
 updated: 2026-09-25
 branch: r6/final-qualification-closure
 runtime-base: 776e0d3b98a54b78c502a792cc01fca7d757d6fe
