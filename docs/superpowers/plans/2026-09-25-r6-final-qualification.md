@@ -231,15 +231,20 @@ Fix: restart and re-ready the built-in server between logically separate configu
 ### Final state (authoritative)
 
 ```text
-R6 status: candidate_ready_for_independent_review
-Approach 3: candidate_for_independent_review
-current gate: r6_independent_review
+R6 status: done_verified
+R6 certified head: 4eccf884f95fe510a478c243ecb32d039f9468a9
+R6 merged main: 3bd37c6a925ec724c7fbf8d8c0346fd7e21931cf
+Approach 3: candidate_for_owner_technical_acceptance
+current gate: owner_technical_acceptance
+package: supcheckout-0.1.0.zip / 62 files / 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
 ```
 
-Historical sections above may contain older checkpoint wording; this section is current truth.
+Independent review token: `R6_REVIEWER_APPROVED_SHA=4eccf884f95fe510a478c243ecb32d039f9468a9`.
 
-Do not claim `done_verified` or owner acceptance until after independent R6 approval (`R6_REVIEWER_APPROVED_SHA`) and post-merge control-plane reconciliation.
+Do not claim Approach 3 owner acceptance until the owner explicitly says so.
 
 Do not publish. Approach 2 remains owner accepted until replaced.
 
 Provider HMAC / token persistence / auto-deduct capture / remote cycle identity remain **PROVIDER CLARIFICATION REQUIRED / UNPROVEN**.
+
+Recurring engineering fail-closed safety: VERIFIED. Automatic recurring `VERIFIED_SUCCESS`: UNREACHABLE / FAIL-CLOSED.
