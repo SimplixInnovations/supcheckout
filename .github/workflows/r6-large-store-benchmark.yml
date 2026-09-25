@@ -50,6 +50,8 @@ jobs:
           sudo service mysql start
           mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
           bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar option update woocommerce_coming_soon no --path="$RUNNER_TEMP/wordpress"
 
       - name: Select authoritative order store
         run: |

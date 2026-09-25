@@ -17,7 +17,7 @@ require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/LifecycleSchedu
 require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
 
 use Simplixi\SUPCheckout\Subscription\Presentation;
-use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
+use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge as ASBridge;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
 use Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler;
 
@@ -247,7 +247,7 @@ foreach ($eligible_parent_ids as $pid) {
         continue;
     }
     $open = 0;
-    for ($attempt = 0; $attempt <= ActionSchedulerBridge::MAX_RETRY_ATTEMPT; $attempt++) {
+    for ($attempt = 0; $attempt <= ASBridge::MAX_RETRY_ATTEMPT; $attempt++) {
         if (ASBridge::has_open_cycle_action($pid, $run_at, $attempt)) {
             $open++;
         }
