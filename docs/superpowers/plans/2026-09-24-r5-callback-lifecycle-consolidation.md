@@ -63,23 +63,26 @@ After both adapters delegate, remove private `verify_payment_status()` and
 
 ## Tasks
 
-- [ ] T1: ADR + architecture contract + this plan — acceptance: decision recorded before code (covers: S2)
-- [ ] T2: RED explicit-mode + semantic-delta characterization — acceptance: RED fails before GREEN (covers: S2)
-- [ ] T3: handle_callback_mode + handle_compat_callback seam — acceptance: one financial body (covers: S2)
-- [ ] T4: Thin return_from_upayments / web_hook_handler — acceptance: explicit mode, no superglobal spoof (covers: S2)
-- [ ] T5: Retire dead verifier + ratchets — acceptance: zero production callers; ratchets reviewed (covers: S2)
-- [ ] T6: Full qualification + draft PR — acceptance: exact-head CI green; stop for reviewer (covers: S2)
+- [x] T1: ADR + architecture contract + this plan — acceptance: decision recorded before code (covers: S2)
+- [x] T2: RED explicit-mode + semantic-delta characterization — acceptance: RED fails before GREEN (covers: S2)
+- [x] T3: handle_callback_mode + handle_compat_callback seam — acceptance: one financial body (covers: S2)
+- [x] T4: Thin return_from_upayments / web_hook_handler — acceptance: explicit mode, no superglobal spoof (covers: S2)
+- [x] T5: Retire dead verifier + ratchets — acceptance: zero production callers; ratchets reviewed (covers: S2)
+- [x] T6: Full qualification + draft PR — acceptance: exact-head CI green; stop for reviewer (covers: S2)
 
 ## Progress ledger
 
 | Task | RED | GREEN | Evidence |
 |---|---|---|---|
-| T1 | n/a | pending | ADR-003 |
-| T2 | pending | pending | pending |
-| T3 | pending | pending | pending |
-| T4 | pending | pending | pending |
-| T5 | pending | pending | pending |
-| T6 | pending | pending | pending |
+| T1 | n/a | ADR-003 + approved_r5_seam | decision before code |
+| T2 | CallbackModeNormalizationTest 4 FAIL at 35f87d3 predecessor | 6/0 then extended | explicit mode + retirement pins |
+| T3 | handle_compat_callback absent | handle_callback_mode single body | one financial path |
+| T4 | adapters still full bodies | thin GET/REQUEST bags | no superglobal spoof |
+| T5 | verifier still present | removed; UPayments 88194→63064 | call-site proof |
+| T6 | — | exact-head 58/58 | draft PR #116 |
+
+R5-2: REQUEST-only compatibility restoration; real Woo CallbackLifecycleRuntimeTest; 20-cell registration.
+R5-3: terminal-state sensitivity hardening (exact outcome/status/meta; payment_complete count; post-capture protection). Historical RED for early T3 financial bodies was recorded in characterization harness; some intermediate unit RED is historical and not re-derived.
 
 ## R5-2 correction record
 
