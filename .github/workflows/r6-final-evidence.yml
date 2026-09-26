@@ -11,14 +11,19 @@ permissions:
   contents: read
 
 jobs:
-  php84-stability:
-    name: PHP 8.4 HTTP Stability
+  request-context-stability:
+    name: Request-context stability PHP ${{ matrix.php }} / ${{ matrix.storage }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+        storage: [legacy, hpos]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
-          php-version: '8.4'
+          php-version: ${{ matrix.php }}
           extensions: mysqli, curl, mbstring, zip, intl
           coverage: none
       - name: Install pinned wp-cli
@@ -39,17 +44,24 @@ jobs:
           mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
           bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
-          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled no --path="$RUNNER_TEMP/wordpress"
+          if [[ "${{ matrix.storage }}" == "hpos" ]]; then
+            /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled yes --path="$RUNNER_TEMP/wordpress"
+          else
+            /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled no --path="$RUNNER_TEMP/wordpress"
+          fi
+          /tmp/wp-cli.phar option update woocommerce_custom_orders_table_data_sync_enabled no --path="$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar option update woocommerce_coming_soon no --path="$RUNNER_TEMP/wordpress"
-      - name: Run request-context HTTP test three times
+          /tmp/wp-cli.phar cache flush --path="$RUNNER_TEMP/wordpress"
+      - name: Run request-context HTTP test five consecutive times (hard-fail)
         env:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: |
           set -euo pipefail
-          for i in 1 2 3; do
-            echo "=== PHP 8.4 HTTP pass $i ==="
+          for i in 1 2 3 4 5; do
+            echo "=== PHP ${{ matrix.php }} / ${{ matrix.storage }} HTTP pass $i/5 ==="
             bash tests/integration/checkout-request-context-http.sh "$RUNNER_TEMP/wordpress"
           done
+          echo "STABILITY ${{ matrix.php }}/${{ matrix.storage }}: 5/5"
 
   security-audit:
     name: Secret / Supply-chain Audit
@@ -190,12 +202,12 @@ jobs:
   r6-final-evidence-gate:
     name: R6 Final Evidence Gate
     runs-on: ubuntu-latest
-    needs: [php84-stability, security-audit, proxy-dast, browser-rtl-axe]
+    needs: [request-context-stability, security-audit, proxy-dast, browser-rtl-axe]
     steps:
       - name: Require every R6 evidence job
         run: |
           set -euo pipefail
-          test "${{ needs.php84-stability.result }}" = "success"
+          test "${{ needs.request-context-stability.result }}" = "success"
           test "${{ needs.security-audit.result }}" = "success"
           test "${{ needs.proxy-dast.result }}" = "success"
           test "${{ needs.browser-rtl-axe.result }}" = "success"
