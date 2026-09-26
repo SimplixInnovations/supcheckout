@@ -26,17 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/generate-sbom-evidence.py evidence/sbom /tmp/sbom-artifact/supcheckout-0.1.0.zip | tee evidence/sbom/summary.txt
-          # structural validation already fails empty/malformed SBOM
-          python3 - <<'PY'
-          import json,sys
-          from pathlib import Path
-          for name, minc in (("runtime-sbom.cdx.json", 50), ("dev-sbom.cdx.json", 1)):
-              p=Path("evidence/sbom")/name
-              o=json.loads(p.read_text())
-              assert o["bomFormat"]=="CycloneDX"
-              assert len(o["components"])>=minc
-              print(f"VALIDATED {name} components={len(o['components'])}")
-          PY
+          python3 scripts/validate-sbom-evidence.py evidence/sbom
       - name: Upload evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
