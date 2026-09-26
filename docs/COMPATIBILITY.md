@@ -24,7 +24,7 @@ Exact checkpoint evidence:
 
 The GitHub default CodeQL JavaScript/TypeScript job did not reach a terminal verdict for this historical checkpoint. This matrix therefore does not claim CodeQL success for `540b733c29656758f2392817649fc3d4a4db585d`. Exact descendant merge/release qualification still requires CodeQL/security green.
 
-Owner technical acceptance remains **ACCEPTED only for the frozen Approach 2 regression reference** `0c883d609906676966002eb022a82a9656eeacc5` and package SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`. The E3 checkpoint does not redefine owner acceptance. Publication remains unauthorized.
+Owner technical acceptance is **ACCEPTED for Approach 3** (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`) at `146d65a1c182630c1acc651cacafe30cff5f6b79` and package SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`. Historical Approach 2 is superseded. Publication remains unauthorized. Provider contracts remain uncertified.
 
 ## Platform matrix
 

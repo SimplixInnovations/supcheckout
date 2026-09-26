@@ -183,6 +183,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('Current executable gate: **R6 independent review**.', $status);
         self::assertStringNotContainsString('Current executable gate: **R6 independent review**.', $handoff);
         self::assertStringNotContainsString('current_gate: e3-theme-cache-analytics', $contract);
+
+        // Approach 3 is the current owner-accepted baseline; reject stale Approach-2-as-current claims.
+        self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $agents);
+        self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $status);
+        self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $handoff);
+        self::assertStringNotContainsString('ACCEPTED only for the frozen Approach 2', $status);
+        self::assertStringNotContainsString('A fresh owner acceptance is required at Approach 3 closeout.', $agents);
     }
 
     public function test_architecture_contract_records_t3_and_rejects_the_obsolete_t2_next_candidate(): void {

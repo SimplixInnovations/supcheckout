@@ -20,12 +20,16 @@ SUPCheckout remains UPayments-only. Do not introduce generic provider routing.
 
 ## Frozen owner-accepted regression baseline
 
-- source SHA: `0c883d609906676966002eb022a82a9656eeacc5`;
-- package: `supcheckout-0.1.0.zip`;
-- files: 51;
-- SHA-256: `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
+Owner technical acceptance: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`.
 
-Do not move this anchor without an explicit fresh owner acceptance event.
+- source SHA: `146d65a1c182630c1acc651cacafe30cff5f6b79`;
+- package: `supcheckout-0.1.0.zip`;
+- files: 62;
+- SHA-256: `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
+
+Historical Approach 2 (superseded): `0c883d609906676966002eb022a82a9656eeacc5` / 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
+
+Do not move this anchor without an explicit fresh owner acceptance event. Publication remains NOT AUTHORIZED.
 
 ## Merged Approach 3 history
 
@@ -103,7 +107,7 @@ Provider blockers remain **UNPROVEN / PROVIDER CLARIFICATION REQUIRED** for auto
 
 ## Immediate R6 boundary
 
-R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. The current gate is **R6 final qualification**. Approach 2 acceptance unchanged. Publication unauthorized.
+R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`. Publication unauthorized.
 
 ## Permanent invariants
 
