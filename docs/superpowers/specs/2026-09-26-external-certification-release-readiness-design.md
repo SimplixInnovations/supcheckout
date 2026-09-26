@@ -1,8 +1,8 @@
 # External Certification & Release Readiness — Design Spec
 
-**Date:** 2026-09-26  
-**Binding spec:** master instruction for SUPCheckout external-certification and enterprise release readiness  
-**Base:** `f7a017124d04ced50ea4dae283fe198301dc6eba`  
+**Date:** 2026-09-26
+**Binding spec:** master instruction for SUPCheckout external-certification and enterprise release readiness
+**Base:** `f7a017124d04ced50ea4dae283fe198301dc6eba`
 **Branch:** `release/external-certification-readiness`
 
 ## Architecture constraint

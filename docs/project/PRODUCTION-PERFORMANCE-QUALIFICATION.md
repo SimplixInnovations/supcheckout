@@ -9,7 +9,7 @@ Synthetic 10k HistoricalEnrollment:
 - queries/memory/wall-time measured
 - no provider egress
 
-**Classification:** `VERIFIED — BOUNDED (synthetic)`  
+**Classification:** `VERIFIED — BOUNDED (synthetic)`
 **Not** production-throughput proof.
 
 ## Representative staging workload (EXTERNAL REQUIRED)

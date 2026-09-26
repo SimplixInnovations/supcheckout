@@ -1,7 +1,7 @@
 # External Certification & Release Readiness — Plan
 
-**Status:** in progress  
-**Branch:** `release/external-certification-readiness`  
+**Status:** in progress
+**Branch:** `release/external-certification-readiness`
 **Base:** `f7a017124d04ced50ea4dae283fe198301dc6eba`
 
 ## Ledger

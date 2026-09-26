@@ -1,7 +1,7 @@
 # UPayments Contract Snapshot — 2026-09-26
 
-**Purpose:** first-party documentation evidence for release-readiness classification.  
-**Rule:** do not copy entire provider pages. Short excerpts only.  
+**Purpose:** first-party documentation evidence for release-readiness classification.
+**Rule:** do not copy entire provider pages. Short excerpts only.
 **Not production auth authority.** Sandbox behavior is `SANDBOX_AUTH_OBSERVATION` only.
 
 ## Sources (fetched for this program; record provider “updated” date if exposed)
@@ -28,18 +28,18 @@ Status page:  Authorization: Bearer documented
 FAQ:          all requests use Bearer; HMAC currently rolling out
 ```
 
-**HMAC: PROVIDER CLARIFICATION REQUIRED**  
+**HMAC: PROVIDER CLARIFICATION REQUIRED**
 Do not declare mandatory or optional from docs alone.
 
 ## Sandbox credentials
 
-Current Test Mode exposes one public test-key family plus HMAC secret.  
-Postman/Add Card/Create Token pages still expose `jtest123`-era examples.  
+Current Test Mode exposes one public test-key family plus HMAC secret.
+Postman/Add Card/Create Token pages still expose `jtest123`-era examples.
 Neither family is uniquely canonical unless UPayments confirms.
 
 ## Tokens
 
-Provider subscription guide: generated customer/card tokens are **never stored locally**.  
+Provider subscription guide: generated customer/card tokens are **never stored locally**.
 SUPCheckout currently retains protected metadata:
 
 ```text
@@ -47,12 +47,12 @@ _upay_credit_card_token
 _upay_customer_unique_token
 ```
 
-**token persistence: PROVIDER CLARIFICATION REQUIRED**  
+**token persistence: PROVIDER CLARIFICATION REQUIRED**
 Do not delete/migrate protected fields without approved migration design.
 
 ## Webhook security
 
-FAQ: signed. Webhook reference: no complete verification contract.  
+FAQ: signed. Webhook reference: no complete verification contract.
 Defense-in-depth clarification item only. Payment authority remains StatusVerifier.
 
 ## Capture / cycle (from earlier audits, still open)

@@ -1,7 +1,7 @@
 # UPayments Provider Contact Draft
 
-**Status:** READY_TO_SEND — OWNER ACTION REQUIRED  
-**Do NOT send without:** `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`  
+**Status:** READY_TO_SEND — OWNER ACTION REQUIRED
+**Do NOT send without:** `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`
 **No secrets in this document.**
 
 ## Authentication

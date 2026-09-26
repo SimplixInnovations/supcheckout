@@ -14,7 +14,7 @@ UPayments → SUPCheckout callback → StatusVerifier → Woo order
 
 ## Explicit fact
 
-SUPCheckout does **not** handle raw PAN/CVV (provider-hosted payment page / tokenization).  
+SUPCheckout does **not** handle raw PAN/CVV (provider-hosted payment page / tokenization).
 `NOT TESTED` for any undocumented card-data path; treat as absent unless evidence says otherwise.
 
 ## Surfaces
@@ -28,5 +28,5 @@ SUPCheckout does **not** handle raw PAN/CVV (provider-hosted payment page / toke
 | Logs | request ids, non-secret meta | must not log secrets |
 | Backups | DB including token meta | token persistence clarification required |
 
-**PCI:** `EXTERNAL ORGANIZATIONAL/ACQUIRER/QSA REVIEW REQUIRED`  
+**PCI:** `EXTERNAL ORGANIZATIONAL/ACQUIRER/QSA REVIEW REQUIRED`
 **legal/privacy:** `EXTERNAL REVIEW REQUIRED`
