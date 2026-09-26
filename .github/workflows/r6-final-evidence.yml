@@ -26,6 +26,15 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: mysqli, curl, mbstring, zip, intl
           coverage: none
+      - name: Install nginx + PHP-FPM
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx
+          # setup-php ships php-fpm; also ensure distro fpm package exists as fallback
+          sudo apt-get install -y -qq "php${{ matrix.php }}-fpm" || true
+          php-fpm${{ matrix.php }} -v || php-fpm -v || true
+          nginx -v
       - name: Install pinned wp-cli
         run: |
           curl -fsSL https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
@@ -52,16 +61,16 @@ jobs:
           /tmp/wp-cli.phar option update woocommerce_custom_orders_table_data_sync_enabled no --path="$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar option update woocommerce_coming_soon no --path="$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar cache flush --path="$RUNNER_TEMP/wordpress"
-      - name: Run request-context HTTP test five consecutive times (hard-fail)
+      - name: Run request-context HTTP test ten consecutive times (hard-fail, nginx+php-fpm)
         env:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: |
           set -euo pipefail
-          for i in 1 2 3 4 5; do
-            echo "=== PHP ${{ matrix.php }} / ${{ matrix.storage }} HTTP pass $i/5 ==="
+          for i in $(seq 1 10); do
+            echo "=== PHP ${{ matrix.php }} / ${{ matrix.storage }} HTTP pass $i/10 ==="
             bash tests/integration/checkout-request-context-http.sh "$RUNNER_TEMP/wordpress"
           done
-          echo "STABILITY ${{ matrix.php }}/${{ matrix.storage }}: 5/5"
+          echo "STABILITY ${{ matrix.php }}/${{ matrix.storage }}: 10/10"
 
   security-audit:
     name: Secret / Supply-chain Audit
