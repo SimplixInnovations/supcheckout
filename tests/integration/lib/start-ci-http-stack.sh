@@ -46,23 +46,27 @@ if [[ -z "$FPM_BIN" ]]; then
   return 72
 fi
 
+# Use a unique unix socket to avoid TCP port collisions between iterations.
+FPM_SOCK="$conf_dir/fpm.sock"
+rm -f "$FPM_SOCK"
+
 cat >"$conf_dir/fpm.conf" <<EOF
 [global]
 error_log = $conf_dir/fpm-error.log
 daemonize = no
 
 [www]
-listen = 127.0.0.1:9000
-listen.allowed_clients = 127.0.0.1
+listen = $FPM_SOCK
+listen.mode = 0666
 pm = dynamic
 pm.max_children = 16
 pm.start_servers = 4
 pm.min_spare_servers = 2
 pm.max_spare_servers = 8
-request_terminate_timeout = 30s
+request_terminate_timeout = 15s
 catch_workers_output = yes
 php_admin_value[error_log] = $conf_dir/php-error.log
-php_admin_value[max_execution_time] = 20
+php_admin_value[max_execution_time] = 12
 EOF
 
 # Portable fastcgi params (avoid depending on distro nginx include path).
@@ -107,7 +111,7 @@ http {
     location ~ \\.php\$ {
       include $conf_dir/fastcgi_params;
       fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-      fastcgi_pass 127.0.0.1:9000;
+      fastcgi_pass unix:$FPM_SOCK;
       fastcgi_read_timeout 15s;
       fastcgi_send_timeout 15s;
     }
@@ -115,16 +119,22 @@ http {
 }
 EOF
 
-# Free ports from any previous stack instance before binding.
+# Free HTTP port from any previous stack instance before binding.
 if command -v fuser >/dev/null 2>&1; then
   fuser -k "${port}/tcp" 2>/dev/null || true
-  fuser -k "9000/tcp" 2>/dev/null || true
 fi
 sleep 0.5
 
 "$FPM_BIN" -y "$conf_dir/fpm.conf" -F >"$conf_dir/fpm-stdout.log" 2>&1 &
 PHP_FPM_PID=$!
-sleep 1
+
+# Wait for the FPM socket to accept connections.
+for _ in $(seq 1 20); do
+  if [[ -S "$FPM_SOCK" ]]; then
+    break
+  fi
+  sleep 0.5
+done
 
 if ! command -v nginx >/dev/null 2>&1; then
   echo "nginx not found" >&2
@@ -138,8 +148,12 @@ sleep 1
 
 ready=0
 for _ in $(seq 1 30); do
+  # Readiness must exercise PHP-FPM, not only static files.
   if curl -fsS --max-time 5 "http://127.0.0.1:${port}/wp-login.php" >/dev/null 2>&1; then
     ready=1
+    break
+  fi
+  if ! kill -0 "$PHP_FPM_PID" 2>/dev/null || ! kill -0 "$HTTP_STACK_PID" 2>/dev/null; then
     break
   fi
   sleep 1
