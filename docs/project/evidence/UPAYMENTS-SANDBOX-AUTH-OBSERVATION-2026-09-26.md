@@ -2,8 +2,8 @@
 
 **Classification:** `SANDBOX_AUTH_OBSERVATION` (NOT `PRODUCTION_AUTH_CONTRACT`)
 
-**Endpoint:** `POST https://sandboxapi.upayments.com/api/v1/charge`  
-**Fetched:** 2026-09-26T16:33Z UTC  
+**Endpoint:** `POST https://sandboxapi.upayments.com/api/v1/charge`
+**Fetched:** 2026-09-26T16:33Z UTC
 **Credentials:** publicly documented Test Mode / sandbox examples (ephemeral; not committed as source constants)
 
 ## HMAC spec (first-party HMAC Authentication page)
