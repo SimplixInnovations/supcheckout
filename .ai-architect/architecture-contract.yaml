@@ -17,8 +17,13 @@ baselines:
   owner_accepted_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79
   owner_accepted_approach3_package_sha256: 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
   owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3
-  accepted_package_sha256: 58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655
-  accepted_package_files: 51
+  owner_accepted_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79
+  owner_accepted_approach3_package_sha256: 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
+  owner_accepted_approach3_package_files: 62
+  historical_approach2_source: 0c883d609906676966002eb022a82a9656eeacc5
+  historical_approach2_package_sha256: 58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655
+  historical_approach2_package_files: 51
+  publication_authorized: false
   latest_merged_approach_3_main: 1c95bc9434784c705e98245f3f9d65f95f4de7ef
   latest_runtime_bearing_merged_main: 10a33b4d10e7ec4e45ba5d7a01139ce0777bf382
 
@@ -181,7 +186,7 @@ tranches:
     generic_e2_status: done_certified
     e3_repository_status: done_verified
     e3_codeql_historical_status: nonterminal_hosted_default_setup
-    current_gate: publication_not_authorized
+    current_gate: external_certification_release_readiness
     r6_status: done_verified
     approach3_status: owner_accepted
     r5_decision: B

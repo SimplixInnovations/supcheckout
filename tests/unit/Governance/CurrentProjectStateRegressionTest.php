@@ -142,14 +142,14 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('R3 subscription safety is **DONE / VERIFIED**', $agents);
         self::assertStringContainsString('R5 callback lifecycle consolidation is **DONE / VERIFIED**', $agents);
         self::assertStringContainsString('.github/workflows/ecosystem-certification.yml', $agents);
-        self::assertStringContainsString('Current operational gate | **publication decision — NOT AUTHORIZED**', $start);
+        self::assertStringContainsString('Current operational gate | **external certification & release readiness**', $start);
         self::assertStringContainsString('E3 repository-executable | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R2 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R3 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R4 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R5 | **DONE / VERIFIED**', $start);
-        self::assertStringContainsString('Current executable gate: **publication decision — NOT AUTHORIZED**.', $status);
-        self::assertStringContainsString('Current executable gate: **publication decision — NOT AUTHORIZED**.', $handoff);
+        self::assertStringContainsString('Current executable gate: **external certification & release readiness**.', $status);
+        self::assertStringContainsString('Current executable gate: **external certification & release readiness**.', $handoff);
         self::assertStringContainsString('E3 repository-executable exact-head checkpoint: `' . self::POST_T3_E3_RUNTIME_CHECKPOINT_SHA . '`', $implementation);
         self::assertStringContainsString('latest_e3_runtime_checkpoint: ' . self::POST_T3_E3_RUNTIME_CHECKPOINT_SHA, $contract);
         self::assertStringContainsString('e3_repository_status: done_verified', $contract);
@@ -158,7 +158,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('r4_status: done_verified', $contract);
         self::assertStringContainsString('r5_status: done_verified', $contract);
         self::assertStringContainsString('r6_status: done_verified', $contract);
-        self::assertStringContainsString('current_gate: publication_not_authorized', $contract);
+        self::assertStringContainsString('current_gate: external_certification_release_readiness', $contract);
         self::assertStringContainsString('approach3_status: owner_accepted', $contract);
         self::assertStringContainsString('owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $contract);
         self::assertStringContainsString('owner_accepted_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79', $contract);

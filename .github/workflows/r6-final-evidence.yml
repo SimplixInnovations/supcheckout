@@ -40,7 +40,7 @@ jobs:
           curl -fsSL https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
           echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
           chmod +x /tmp/wp-cli.phar
-      - name: Install WordPress + WooCommerce 11.1.0
+      - name: Install WordPress + WooCommerce 11.1.2
         env:
           GITHUB_WORKSPACE: ${{ github.workspace }}
           SUPCHECKOUT_DB_NAME: wordpress
@@ -51,7 +51,7 @@ jobs:
           set -euo pipefail
           sudo service mysql start
           mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
-          bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+          bash scripts/install-wp-test-environment.sh 7.1.2 11.1.2 "$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
           if [[ "${{ matrix.storage }}" == "hpos" ]]; then
             /tmp/wp-cli.phar option update woocommerce_custom_orders_table_enabled yes --path="$RUNNER_TEMP/wordpress"
@@ -123,7 +123,7 @@ jobs:
           set -euo pipefail
           sudo service mysql start
           mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
-          bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+          bash scripts/install-wp-test-environment.sh 7.1.2 11.1.2 "$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar option update woocommerce_coming_soon no --path="$RUNNER_TEMP/wordpress"
       - name: Resolve fixture URLs and run proxy + DAST
@@ -171,7 +171,7 @@ jobs:
           set -euo pipefail
           sudo service mysql start
           mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
-          bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+          bash scripts/install-wp-test-environment.sh 7.1.2 11.1.2 "$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar option update woocommerce_coming_soon no --path="$RUNNER_TEMP/wordpress"
       - name: Install Playwright + axe

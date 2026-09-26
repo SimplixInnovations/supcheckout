@@ -78,7 +78,7 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **publication decision — NOT AUTHORIZED**. Approach 3 is owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`.
+Current executable gate: **external certification & release readiness**. Approach 3 owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
 
 R5 is **DONE / VERIFIED** (PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`, package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 

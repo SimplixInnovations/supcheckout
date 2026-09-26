@@ -253,7 +253,7 @@ jobs:
           test -n "$ZIP"
           SUPCHECKOUT_PLUGIN_ZIP="$ZIP" \
           WP_CLI_BIN=/tmp/wp-cli.phar \
-          bash scripts/install-wp-test-environment.sh 7.1 11.1.0 "$RUNNER_TEMP/wordpress"
+          bash scripts/install-wp-test-environment.sh 7.1.2 11.1.2 "$RUNNER_TEMP/wordpress"
 
       - name: Seed malformed protected settings for packaged plugin
         env:
