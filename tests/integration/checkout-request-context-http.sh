@@ -37,13 +37,16 @@ PHP_FPM_PID=''
 
 cleanup() {
   rm -f "$probe_dest" "$as_isolation_dest"
-  if [[ -n "$HTTP_STACK_PID" ]]; then
-    kill "$HTTP_STACK_PID" 2>/dev/null || true
-    wait "$HTTP_STACK_PID" 2>/dev/null || true
-  fi
-  if [[ -n "$PHP_FPM_PID" ]]; then
-    kill "$PHP_FPM_PID" 2>/dev/null || true
-    wait "$PHP_FPM_PID" 2>/dev/null || true
+  # Only tear down a stack we started. Reused stacks are owned by the caller.
+  if [[ "${SUPCHECKOUT_HTTP_STACK_STARTED:-0}" != "1" ]]; then
+    if [[ -n "$HTTP_STACK_PID" ]]; then
+      kill "$HTTP_STACK_PID" 2>/dev/null || true
+      wait "$HTTP_STACK_PID" 2>/dev/null || true
+    fi
+    if [[ -n "$PHP_FPM_PID" ]]; then
+      kill "$PHP_FPM_PID" 2>/dev/null || true
+      wait "$PHP_FPM_PID" 2>/dev/null || true
+    fi
   fi
 }
 trap cleanup EXIT
@@ -97,9 +100,14 @@ fi
 set_gateway_state KWD yes certification-key
 
 # Production-style concurrent HTTP stack (nginx + PHP-FPM).
-# Sourced so HTTP_STACK_PID / PHP_FPM_PID land in this shell for cleanup.
-# shellcheck source=/dev/null
-source "$http_stack" "$wp_root" "$port"
+# Reuse a caller-provided stack when SUPCHECKOUT_HTTP_STACK_STARTED=1 so
+# multi-iteration stability runs do not race restart/bind on the same port.
+if [[ "${SUPCHECKOUT_HTTP_STACK_STARTED:-0}" != "1" ]]; then
+  # shellcheck source=/dev/null
+  source "$http_stack" "$wp_root" "$port"
+else
+  echo "Reusing existing nginx+php-fpm stack on 127.0.0.1:${port}"
+fi
 
 assert_probe() {
   local label="$1"

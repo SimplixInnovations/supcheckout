@@ -66,6 +66,11 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: |
           set -euo pipefail
+          # Start one nginx+php-fpm stack; iterate certification matrices against it.
+          # shellcheck source=/dev/null
+          source tests/integration/lib/start-ci-http-stack.sh "$RUNNER_TEMP/wordpress" 8080
+          trap 'kill "${HTTP_STACK_PID:-}" "${PHP_FPM_PID:-}" 2>/dev/null || true' EXIT
+          export SUPCHECKOUT_HTTP_STACK_STARTED=1
           for i in $(seq 1 10); do
             echo "=== PHP ${{ matrix.php }} / ${{ matrix.storage }} HTTP pass $i/10 ==="
             bash tests/integration/checkout-request-context-http.sh "$RUNNER_TEMP/wordpress"
