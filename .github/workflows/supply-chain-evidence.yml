@@ -25,6 +25,7 @@ jobs:
       - name: Generate SBOM + license inventory
         run: |
           set -euo pipefail
+          mkdir -p evidence/sbom
           python3 scripts/generate-sbom-evidence.py evidence/sbom /tmp/sbom-artifact/supcheckout-0.1.0.zip | tee evidence/sbom/summary.txt
           python3 scripts/validate-sbom-evidence.py evidence/sbom
       - name: Upload evidence
