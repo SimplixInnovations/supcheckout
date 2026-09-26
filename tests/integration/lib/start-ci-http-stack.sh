@@ -164,8 +164,11 @@ ready=0
 for _ in $(seq 1 30); do
   # Readiness must execute PHP-FPM (not only static files).
   if curl -fsS --max-time 5 "http://127.0.0.1:${port}/supcheckout-fpm-probe.php" 2>/dev/null | grep -q FPM_OK; then
-    ready=1
-    break
+    # Also require WordPress itself to respond via FPM.
+    if curl -fsS --max-time 10 "http://127.0.0.1:${port}/wp-login.php" >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
   fi
   if ! kill -0 "$PHP_FPM_PID" 2>/dev/null || ! kill -0 "$HTTP_STACK_PID" 2>/dev/null; then
     break
