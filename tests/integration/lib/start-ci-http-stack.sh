@@ -46,6 +46,13 @@ if [[ -z "$FPM_BIN" ]]; then
   return 72
 fi
 
+# Reject an FPM binary from a different PHP major.minor than the CLI.
+FPM_VER="$("$FPM_BIN" -v 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1 || true)"
+if [[ -n "$FPM_VER" && "$FPM_VER" != "$PHP_VER" ]]; then
+  echo "php-fpm version mismatch: FPM=$FPM_VER CLI=$PHP_VER ($FPM_BIN)" >&2
+  return 74
+fi
+
 # Use a unique unix socket to avoid TCP port collisions between iterations.
 FPM_SOCK="$conf_dir/fpm.sock"
 rm -f "$FPM_SOCK"

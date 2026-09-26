@@ -344,6 +344,14 @@ jobs:
           coverage: none
           tools: none
 
+      - name: Install nginx + PHP-FPM for request-context HTTP gate
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx
+          sudo apt-get install -y -qq "php8.3-fpm" || true
+          nginx -v
+
       - name: Install pinned WP-CLI
         shell: bash
         run: |
