@@ -54,10 +54,15 @@ daemonize = no
 [www]
 listen = 127.0.0.1:9000
 listen.allowed_clients = 127.0.0.1
-pm = static
-pm.max_children = 8
+pm = dynamic
+pm.max_children = 16
+pm.start_servers = 4
+pm.min_spare_servers = 2
+pm.max_spare_servers = 8
+request_terminate_timeout = 30s
 catch_workers_output = yes
 php_admin_value[error_log] = $conf_dir/php-error.log
+php_admin_value[max_execution_time] = 20
 EOF
 
 # Portable fastcgi params (avoid depending on distro nginx include path).
@@ -103,10 +108,19 @@ http {
       include $conf_dir/fastcgi_params;
       fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
       fastcgi_pass 127.0.0.1:9000;
+      fastcgi_read_timeout 15s;
+      fastcgi_send_timeout 15s;
     }
   }
 }
 EOF
+
+# Free ports from any previous stack instance before binding.
+if command -v fuser >/dev/null 2>&1; then
+  fuser -k "${port}/tcp" 2>/dev/null || true
+  fuser -k "9000/tcp" 2>/dev/null || true
+fi
+sleep 0.5
 
 "$FPM_BIN" -y "$conf_dir/fpm.conf" -F >"$conf_dir/fpm-stdout.log" 2>&1 &
 PHP_FPM_PID=$!
