@@ -1,6 +1,6 @@
 ---
 feature: r6-final-qualification
-status: done-verified-awaiting-owner-acceptance
+status: done-verified-owner-accepted
 updated: 2026-09-25
 branch: r6/final-qualification-closure
 runtime-base: 776e0d3b98a54b78c502a792cc01fca7d757d6fe
@@ -234,16 +234,18 @@ Fix: restart and re-ready the built-in server between logically separate configu
 R6 status: done_verified
 R6 certified head: 4eccf884f95fe510a478c243ecb32d039f9468a9
 R6 merged main: 3bd37c6a925ec724c7fbf8d8c0346fd7e21931cf
-Approach 3: candidate_for_owner_technical_acceptance
-current gate: owner_technical_acceptance
+owner acceptance: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3
+accepted source: 146d65a1c182630c1acc651cacafe30cff5f6b79
 package: supcheckout-0.1.0.zip / 62 files / 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
+Approach 3: owner_accepted
+current gate: publication_not_authorized
 ```
 
 Independent review token: `R6_REVIEWER_APPROVED_SHA=4eccf884f95fe510a478c243ecb32d039f9468a9`.
 
-Do not claim Approach 3 owner acceptance until the owner explicitly says so.
+Approach 3 replaces Approach 2 as the owner-accepted technical baseline (Approach 2 retained as historical).
 
-Do not publish. Approach 2 remains owner accepted until replaced.
+Do not publish. Publication remains **NOT AUTHORIZED**.
 
 Provider HMAC / token persistence / auto-deduct capture / remote cycle identity remain **PROVIDER CLARIFICATION REQUIRED / UNPROVEN**.
 

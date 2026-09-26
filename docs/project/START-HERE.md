@@ -74,16 +74,18 @@ Historical documents may contain former product names, old repository coordinate
 
 ## 4. Frozen acceptance reference and current Approach 3 coordinate
 
-The owner-accepted Approach 2 regression reference remains:
+The owner-accepted technical baseline is now **Approach 3** (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`):
 
-- source: `0c883d609906676966002eb022a82a9656eeacc5`;
+- source: `146d65a1c182630c1acc651cacafe30cff5f6b79`;
 - package: `supcheckout-0.1.0.zip`;
-- files: 51;
-- SHA-256: `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
+- files: 62;
+- SHA-256: `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
 
-That accepted baseline is frozen until an explicit fresh owner acceptance at Approach 3 closeout.
+Historical Approach 2 (superseded, retained for audit): source `0c883d609906676966002eb022a82a9656eeacc5`, 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
-Approach 3 has advanced through three verified tranches:
+This acceptance covers the verified repository engineering baseline only. It is **not** publication authorization and does **not** certify unresolved external/provider contracts. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
+
+Approach 3 advanced through verified tranches (historical):
 
 - **T1 DONE / VERIFIED** — architecture guardrails and active callback characterization; merged main `beb89ac0c4d8c0e9b7c8b2de1e13c237bbd37b15`.
 - **T2 DONE / VERIFIED / runtime-bearing** — bounded legacy callback fallback consolidation; merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`; deterministic candidate package 51 files / SHA-256 `368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04`.
@@ -150,13 +152,13 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | Field | Current value |
 |---|---|
 | Program phase | **Approach 3 post-T3 ecosystem hardening** |
-| Approach 2 | **DONE / VERIFIED / owner accepted** |
-| Frozen accepted baseline | `0c883d609906676966002eb022a82a9656eeacc5` |
+| Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED** |
+| Frozen accepted baseline | `146d65a1c182630c1acc651cacafe30cff5f6b79` (Approach 3) |
 | T1 | **DONE / VERIFIED** |
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active task | **owner technical acceptance** |
+| Active task | **none — publication not authorized** |
 | Latest repository-executable E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | Latest candidate package at that checkpoint | 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c` |
 | R0 / R1 / E1 | **DONE / VERIFIED and integrated through PR #108** |
@@ -166,7 +168,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R3 | **DONE / VERIFIED** — certified PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a`, squash-merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
 | R4 | **DONE / VERIFIED** — certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, squash-merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
-| Current operational gate | **owner technical acceptance** |
+| Current operational gate | **publication decision — NOT AUTHORIZED** |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
@@ -269,4 +271,4 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 ## 13. Immediate next step
 
-R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED** at certified head `4eccf884f95fe510a478c243ecb32d039f9468a9` / merged main `3bd37c6a925ec724c7fbf8d8c0346fd7e21931cf`. Current gate is **owner technical acceptance**. Do not publish without explicit owner authorization.
+R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3` at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Approach 3 replaces Approach 2 as the accepted technical baseline. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.

@@ -14,6 +14,9 @@ decision:
 baselines:
   live_main_at_decision: 0b153c661314669924c81e89fd71bfd2c734310b
   frozen_accepted_approach_2_sha: 0c883d609906676966002eb022a82a9656eeacc5
+  owner_accepted_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79
+  owner_accepted_approach3_package_sha256: 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
+  owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3
   accepted_package_sha256: 58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655
   accepted_package_files: 51
   latest_merged_approach_3_main: 1c95bc9434784c705e98245f3f9d65f95f4de7ef
@@ -178,9 +181,9 @@ tranches:
     generic_e2_status: done_certified
     e3_repository_status: done_verified
     e3_codeql_historical_status: nonterminal_hosted_default_setup
-    current_gate: owner_technical_acceptance
+    current_gate: publication_not_authorized
     r6_status: done_verified
-    approach3_status: candidate_for_owner_technical_acceptance
+    approach3_status: owner_accepted
     r5_decision: B
     r5_status: done_verified
     r5_certified_head: 6fc225fc736da107de533ba8e19a12dc5c37227d
@@ -198,7 +201,7 @@ tranches:
     r4_certified_head: 1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a
     r4_merged_main: 10a33b4d10e7ec4e45ba5d7a01139ce0777bf382
     r4_package_sha256: 2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b
-    goal: R6 independently approved and merged. Await owner technical acceptance. Provider blockers remain external. Do not publish.
+    goal: Approach 3 is owner accepted at 146d65a1c182630c1acc651cacafe30cff5f6b79. Provider blockers remain external. Automatic recurring VERIFIED_SUCCESS stays fail-closed. Do not publish.
 
 r2_contract:
   url_generation:

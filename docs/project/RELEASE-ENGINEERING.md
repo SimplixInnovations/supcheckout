@@ -1,11 +1,12 @@
 # SUPCheckout for UPayments — Release Engineering
 
-**Current status:** owner technical acceptance COMPLETED for frozen Approach 2 baseline `0c883d609906676966002eb022a82a9656eeacc5`; Approach 3 architecture decision APPROVED / RECORDED; T1 DONE / VERIFIED on merged main `beb89ac0c4d8c0e9b7c8b2de1e13c237bbd37b15`; runtime-bearing T2 DONE / VERIFIED on merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1` with deterministic non-accepted candidate package 51 files / SHA-256 `368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04`; frozen Approach 2 package remains the accepted regression baseline until Approach 3 closeout re-acceptance; explicit release administration (tag/GitHub Release/WordPress.org publication) remains NOT AUTHORIZED
+**Current status:** owner technical acceptance COMPLETED for Approach 3 (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`) at `146d65a1c182630c1acc651cacafe30cff5f6b79`; package 62 files / SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`; explicit release administration (tag/GitHub Release/WordPress.org publication) remains NOT AUTHORIZED; automatic recurring `VERIFIED_SUCCESS` remains FAIL-CLOSED pending provider contracts
 **Canonical GitHub repository:** `SimplixInnovations/supcheckout`
 **Canonical plugin/package slug:** `supcheckout`
 **Development version:** `0.1.0`
-**Accepted Approach 2 baseline:** `0c883d609906676966002eb022a82a9656eeacc5`
-**Accepted package:** `supcheckout-0.1.0.zip` — **51 files**, SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
+**Accepted Approach 3 baseline:** `146d65a1c182630c1acc651cacafe30cff5f6b79`
+**Accepted package:** `supcheckout-0.1.0.zip` — **62 files**, SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
+**Historical Approach 2 (superseded):** `0c883d609906676966002eb022a82a9656eeacc5` / 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
 
 ## Certification anchors
 

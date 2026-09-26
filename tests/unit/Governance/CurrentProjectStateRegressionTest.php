@@ -142,14 +142,14 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('R3 subscription safety is **DONE / VERIFIED**', $agents);
         self::assertStringContainsString('R5 callback lifecycle consolidation is **DONE / VERIFIED**', $agents);
         self::assertStringContainsString('.github/workflows/ecosystem-certification.yml', $agents);
-        self::assertStringContainsString('Current operational gate | **owner technical acceptance**', $start);
+        self::assertStringContainsString('Current operational gate | **publication decision — NOT AUTHORIZED**', $start);
         self::assertStringContainsString('E3 repository-executable | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R2 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R3 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R4 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R5 | **DONE / VERIFIED**', $start);
-        self::assertStringContainsString('Current executable gate: **owner technical acceptance**.', $status);
-        self::assertStringContainsString('Current executable gate: **owner technical acceptance**.', $handoff);
+        self::assertStringContainsString('Current executable gate: **publication decision — NOT AUTHORIZED**.', $status);
+        self::assertStringContainsString('Current executable gate: **publication decision — NOT AUTHORIZED**.', $handoff);
         self::assertStringContainsString('E3 repository-executable exact-head checkpoint: `' . self::POST_T3_E3_RUNTIME_CHECKPOINT_SHA . '`', $implementation);
         self::assertStringContainsString('latest_e3_runtime_checkpoint: ' . self::POST_T3_E3_RUNTIME_CHECKPOINT_SHA, $contract);
         self::assertStringContainsString('e3_repository_status: done_verified', $contract);
@@ -158,8 +158,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('r4_status: done_verified', $contract);
         self::assertStringContainsString('r5_status: done_verified', $contract);
         self::assertStringContainsString('r6_status: done_verified', $contract);
-        self::assertStringContainsString('current_gate: owner_technical_acceptance', $contract);
-        self::assertStringContainsString('approach3_status: candidate_for_owner_technical_acceptance', $contract);
+        self::assertStringContainsString('current_gate: publication_not_authorized', $contract);
+        self::assertStringContainsString('approach3_status: owner_accepted', $contract);
+        self::assertStringContainsString('owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $contract);
+        self::assertStringContainsString('owner_accepted_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79', $contract);
         self::assertStringContainsString('r5_decision: B', $contract);
         self::assertStringContainsString('r5_certified_head: 6fc225fc736da107de533ba8e19a12dc5c37227d', $contract);
         self::assertStringContainsString('r5_merged_main: 50170ea7f0d17b792e133a70beee48da7e2b6326', $contract);
@@ -181,6 +183,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('Current executable gate: **R6 independent review**.', $status);
         self::assertStringNotContainsString('Current executable gate: **R6 independent review**.', $handoff);
         self::assertStringNotContainsString('current_gate: e3-theme-cache-analytics', $contract);
+
+        // Approach 3 is the current owner-accepted baseline; reject stale Approach-2-as-current claims.
+        self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $agents);
+        self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $status);
+        self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $handoff);
+        self::assertStringNotContainsString('ACCEPTED only for the frozen Approach 2', $status);
+        self::assertStringNotContainsString('A fresh owner acceptance is required at Approach 3 closeout.', $agents);
     }
 
     public function test_architecture_contract_records_t3_and_rejects_the_obsolete_t2_next_candidate(): void {

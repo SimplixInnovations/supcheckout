@@ -69,10 +69,12 @@ Historical records may intentionally contain former product names, repository co
 
 Repository Foundation, Phase 0, Phase 9I, Provider Payment Lifecycle, Security Threat Model, Architecture A1-A5, Quality Platform Q1-Q19, Enterprise Tasks 1-8, Approach 2 and the bounded pre-acceptance hardening sequence are **DONE / VERIFIED**. Quality Platform is permanently closed at Q19. **Never invent Q20.**
 
-The frozen owner-accepted Approach 2 regression reference remains:
+The owner-accepted technical baseline is Approach 3 (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`):
 
-- source `0c883d609906676966002eb022a82a9656eeacc5`;
-- deterministic 51-file package SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
+- source `146d65a1c182630c1acc651cacafe30cff5f6b79`;
+- deterministic 62-file package SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
+
+Historical Approach 2 (superseded): `0c883d609906676966002eb022a82a9656eeacc5` / 51-file package SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
 Approach 3 architecture is **APPROVED / RECORDED**:
 
@@ -86,9 +88,9 @@ The current successor program is **post-t3-ecosystem-hardening**, governed by `d
 
 The latest repository-executable E3 runtime checkpoint within the PR #108 milestone is `540b733c29656758f2392817649fc3d4a4db585d`. Quality/H12, all 20 Compatibility cells plus Compatibility Gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact and the complete Ecosystem Certification matrix succeeded at that exact head. The E3 matrix covers five free parent themes with real child-theme template overrides, four legally runnable free cache/optimizer coexistence plugins, delayed/combined/repeated Classic script execution, and analytics-return replay characterization. The GitHub default CodeQL JavaScript/TypeScript job did not reach a terminal verdict at that historical checkpoint, so do not describe CodeQL as successful for that SHA. Its deterministic package is 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 
-Neither T2, T3 nor PR #108 silently redefines owner acceptance. A fresh owner acceptance is required at Approach 3 closeout.
+Approach 3 is owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
 
-Current post-T3 state: R0, R1 and E1 are **DONE / VERIFIED** and integrated through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; repository-executable generic E2 is **DONE / CERTIFIED**; E3 repository-executable runtime evidence is **DONE / VERIFIED** at the exact checkpoint above; R2 callback portability/cache safety is **DONE / VERIFIED** at certified PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c` / merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; R3 subscription safety is **DONE / VERIFIED** at certified PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a` / merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`. Named paid/licensed/vendor-infrastructure qualification remains external/unverified until actually exercised. R4 subscription scalability/observability is **DONE / VERIFIED** at certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a` / merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`. R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003) at certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`. The current executable gate is **R6 final exact-head qualification** plus owner re-acceptance.
+Current post-T3 state: R0, R1 and E1 are **DONE / VERIFIED** and integrated through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; repository-executable generic E2 is **DONE / CERTIFIED**; E3 repository-executable runtime evidence is **DONE / VERIFIED** at the exact checkpoint above; R2 callback portability/cache safety is **DONE / VERIFIED** at certified PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c` / merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`; R3 subscription safety is **DONE / VERIFIED** at certified PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a` / merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`. Named paid/licensed/vendor-infrastructure qualification remains external/unverified until actually exercised. R4 subscription scalability/observability is **DONE / VERIFIED** at certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a` / merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`. R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003) at certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`. The current executable gate is **publication decision — NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains FAIL-CLOSED.
 
 No public GitHub Release or WordPress.org publication is authorized.
 
