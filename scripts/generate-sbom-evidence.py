@@ -26,10 +26,17 @@ def sha256_file(p: Path) -> str:
 
 
 def _stable_timestamp() -> str:
+    # Prefer explicit SOURCE_DATE_EPOCH (set from exact commit time in CI).
     epoch = os.environ.get("SOURCE_DATE_EPOCH")
-    if epoch:
-        return datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    raise SystemExit("SOURCE_DATE_EPOCH is required for deterministic SBOM generation")
+    if not epoch:
+        # Fallback: exact HEAD commit time — still deterministic for a given SHA.
+        import subprocess
+        epoch = subprocess.check_output(["git", "log", "-1", "--format=%ct"], cwd=str(ROOT)).decode().strip()
+    if not epoch:
+        raise SystemExit("SOURCE_DATE_EPOCH or git commit time required for deterministic SBOM")
+    ts = datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print("SOURCE_DATE_EPOCH_USED=" + str(epoch) + " timestamp=" + ts)
+    return ts
 
 
 def cyclone_dx(name: str, components: list[dict], serial: str) -> dict:
