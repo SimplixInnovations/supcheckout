@@ -2,10 +2,10 @@
 
 > **SUPERSEDED AS CURRENT-STATE AUTHORITY — HISTORICAL PROGRAM PLAYBOOK.** This document preserves the original SimplixPay-era program, decisions and sequencing. Do not treat its product name, repository coordinate, “current posture,” current-gate language or pending-work lists as present state. Current authority order is `AGENTS.md` → `PROJECT-STATUS.md` → `OWNER-HANDOFF.md` → `NAMING-IDENTITY-STANDARD.md` / `RELEASE-ENGINEERING.md`.
 
-**Repository:** `SimplixInnovations/simplixpay-upayments`  
-**Upstream:** `upaymentskwt/woocommerce`  
-**Document purpose:** authoritative project plan, engineering standard, status ledger, clean-chat handoff, and Agent execution guide  
-**Baseline date:** 2026-08-24  
+**Repository:** `SimplixInnovations/simplixpay-upayments`
+**Upstream:** `upaymentskwt/woocommerce`
+**Document purpose:** authoritative project plan, engineering standard, status ledger, clean-chat handoff, and Agent execution guide
+**Baseline date:** 2026-08-24
 **Last independently verified implementation `main`:** `01f3fc59eed8641b3e5372558f61a7a0f0cdfac9`
 **Current project posture:** engineering hardening; **not yet a generally certified public production release**
 
@@ -525,7 +525,7 @@ This order is not an excuse to defer a critical security defect discovered later
 # PHASE 0 — RELEASE & REPOSITORY SAFETY
 
 **Status:** DONE / VERIFIED
-**Priority:** P0  
+**Priority:** P0
 **Dependency:** H12 DONE / VERIFIED
 
 Phase 0 closed through the independently verified repository-foundation and release-identity work. The following sections retain the original phase contract for audit/reference; they are not current implementation instructions. See `docs/project/PHASE-0-RELEASE-IDENTITY.md` and `PROJECT-STATUS.md` for closure evidence.
@@ -655,7 +655,7 @@ Physical basename/folder/text-domain migration remains a later separately tested
 # PHASE 9I — HISTORICAL TOKEN-IDENTITY MIGRATION
 
 **Status:** DONE / VERIFIED
-**Priority:** P0  
+**Priority:** P0
 **Dependency:** H12 DONE / VERIFIED; Phase 0 DONE / VERIFIED
 
 Phase 9I closed through three independently reviewed implementation tranches: preflight PR #11, executor PR #12 and operations PR #13. The sections below retain the original design requirements as permanent safety contracts. See `docs/project/PHASE-9I-MIGRATION.md` for exact merge/evidence details.

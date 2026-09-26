@@ -73,8 +73,8 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1"
-          "11.1.0"
+          "7.1.2"
+          "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
       - name: Activate SUPCheckout and select authoritative order store
@@ -152,8 +152,8 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1"
-          "11.1.0"
+          "7.1.2"
+          "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
       - name: Activate SUPCheckout
@@ -243,8 +243,8 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1"
-          "11.1.0"
+          "7.1.2"
+          "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
       - name: Activate SUPCheckout
@@ -368,8 +368,8 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1"
-          "11.1.0"
+          "7.1.2"
+          "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
       - name: Activate SUPCheckout and HPOS
@@ -464,8 +464,8 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1"
-          "11.1.0"
+          "7.1.2"
+          "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
       - name: Activate SUPCheckout
@@ -527,8 +527,8 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1"
-          "11.1.0"
+          "7.1.2"
+          "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
       - name: Activate SUPCheckout

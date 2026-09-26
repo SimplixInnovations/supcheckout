@@ -1,5 +1,19 @@
 # SUPCheckout for UPayments — Engineering Roadmap
 
+## Current state (authoritative)
+
+```text
+Approach 3: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE (146d65a1c182630c1acc651cacafe30cff5f6b79)
+Approach 2: HISTORICAL / SUPERSEDED
+Active program: external-certification-release-readiness
+Current repository maintenance base: f7a017124d04ced50ea4dae283fe198301dc6eba
+Accepted package: supcheckout-0.1.0.zip / 62 files / 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
+Publication: NOT AUTHORIZED
+```
+
+Sections below labeled Historical are retained audit evidence and are not current state.
+
+
 This is the public high-level sequence. `docs/project/PROJECT-STATUS.md` owns current verified state. Historical phase/quality records preserve detailed closeout evidence and are not rewritten into current branding.
 
 ## Completed engineering foundations
