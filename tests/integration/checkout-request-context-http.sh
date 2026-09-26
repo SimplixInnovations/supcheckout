@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# Real HTTP request-context certification for SUPCheckout.
+#
+# Authoritative HTTP runtime is nginx + PHP-FPM (production-style concurrent
+# web stack). PHP's built-in development server (php -S) is NOT used for the
+# permanent gate: it segfaulted under multi-request WordPress/Woo workloads
+# even after Action Scheduler / WP-Cron isolation (PHP 8.2.34 / 8.4.x).
+#
+# Action Scheduler / WP-Cron background activity was isolated as a potential
+# contributor, but PHP's built-in development server still segfaulted after
+# isolation. The permanent HTTP certification therefore uses a production-style
+# concurrent web runtime.
+#
+# Certification request transport failures remain hard failures. Only
+# infrastructure readiness may retry.
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
@@ -12,19 +26,27 @@ probe_source="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}/tests/integratio
 as_isolation_source="${GITHUB_WORKSPACE}/tests/integration/fixtures/request-context-as-isolation.php"
 state_fixture="${GITHUB_WORKSPACE}/tests/integration/RequestContextState.php"
 diagnostics_helper="${GITHUB_WORKSPACE}/tests/integration/lib/http-server-diagnostics.sh"
+http_stack="${GITHUB_WORKSPACE}/tests/integration/lib/start-ci-http-stack.sh"
 probe_dest="$wp_root/wp-content/mu-plugins/supcheckout-request-context-probe.php"
 as_isolation_dest="$wp_root/wp-content/mu-plugins/supcheckout-request-context-as-isolation.php"
 port="${SUPCHECKOUT_CONTEXT_PORT:-8080}"
 base_url="http://127.0.0.1:${port}"
 server_log="${RUNNER_TEMP:-/tmp}/supcheckout-http-server.log"
-server_pid=''
+HTTP_STACK_PID=''
+PHP_FPM_PID=''
 
 cleanup() {
   rm -f "$probe_dest" "$as_isolation_dest"
-  if [[ -n "$server_pid" ]]; then
-    # Kill the whole process group so PHP_CLI_SERVER_WORKERS children die too.
-    kill -- -"$server_pid" 2>/dev/null || kill "$server_pid" 2>/dev/null || true
-    wait "$server_pid" 2>/dev/null || true
+  # Only tear down a stack we started. Reused stacks are owned by the caller.
+  if [[ "${SUPCHECKOUT_HTTP_STACK_STARTED:-0}" != "1" ]]; then
+    if [[ -n "$HTTP_STACK_PID" ]]; then
+      kill "$HTTP_STACK_PID" 2>/dev/null || true
+      wait "$HTTP_STACK_PID" 2>/dev/null || true
+    fi
+    if [[ -n "$PHP_FPM_PID" ]]; then
+      kill "$PHP_FPM_PID" 2>/dev/null || true
+      wait "$PHP_FPM_PID" 2>/dev/null || true
+    fi
   fi
 }
 trap cleanup EXIT
@@ -35,6 +57,7 @@ trap cleanup EXIT
 [[ -f "$state_fixture" ]] || { echo "Request-context state fixture missing: $state_fixture" >&2; exit 67; }
 [[ -f "$wp_root/wp-load.php" ]] || { echo "WordPress runtime missing: $wp_root" >&2; exit 68; }
 [[ -f "$diagnostics_helper" ]] || { echo "HTTP diagnostics helper missing: $diagnostics_helper" >&2; exit 71; }
+[[ -f "$http_stack" ]] || { echo "HTTP stack helper missing: $http_stack" >&2; exit 71; }
 
 # shellcheck source=/dev/null
 source "$diagnostics_helper"
@@ -52,17 +75,15 @@ set_gateway_state() {
 
 mkdir -p "$wp_root/wp-content/mu-plugins"
 cp "$probe_source" "$probe_dest"
-# TEST-ONLY isolation: the request-context test certifies Woo request context /
-# gateway availability / REST-session behavior. It does NOT certify Action
-# Scheduler execution. Action Scheduler remains certified separately under its
-# real runtime matrix (ActionSchedulerCompatibilityRuntimeTest + R4/R6 jobs).
-# Disable the AS async loopback runner so unrelated background HTTP cannot
-# destabilize this disposable PHP built-in server (curl 52 / empty reply).
+# TEST-ONLY: AS async/cron isolation is retained as a potential-contributor
+# control. AS itself is certified separately (ActionSchedulerCompatibilityRuntimeTest
+# + R4/R6 jobs). This is NOT described as the proven root cause of the historical
+# php -S segfault.
 cp "$as_isolation_source" "$as_isolation_dest"
 
 # Keep all generated WordPress URLs on the disposable loopback HTTP origin so
 # canonical redirects cannot turn a certification request into a DNS/network
-# dependency. Explicitly keep the disposable store live as well.
+# dependency.
 "$wp_cli" option update home "$base_url" --path="$wp_root" >/dev/null
 "$wp_cli" option update siteurl "$base_url" --path="$wp_root" >/dev/null
 "$wp_cli" option update woocommerce_coming_soon no --path="$wp_root" >/dev/null
@@ -73,75 +94,20 @@ if [[ ! "$checkout_page_id" =~ ^[1-9][0-9]*$ ]]; then
   exit 69
 fi
 
-# PHP's development server is single-process by default and can die under
-# WooCommerce/AS async-runner pressure (PHP 8.2/8.4 curl 52 / empty reply).
-# Mitigations (test-only):
-#   1. AS async loopback disabled via mu-plugin (above).
-#   2. PHP_CLI_SERVER_WORKERS > 1 when supported (PHP 7.4+ Linux).
-#   3. Restart the server between configuration matrices.
-# Transport failures on certification requests remain hard failures — we never
-# retry a failed business assertion until one passes.
-stop_php_server() {
-  if [[ -n "$server_pid" ]]; then
-    kill -- -"$server_pid" 2>/dev/null || kill "$server_pid" 2>/dev/null || true
-    wait "$server_pid" 2>/dev/null || true
-    server_pid=''
-  fi
-}
-
-start_php_server() {
-  local label="$1"
-  local attempt=0
-  local last_ready_curl_rc=0
-  local workers="${SUPCHECKOUT_PHP_SERVER_WORKERS:-4}"
-
-  stop_php_server
-  : >"$server_log"
-  # DISABLE_WP_CRON: a due action_scheduler_run_queue WP-Cron event can still
-  # fire the queue during multi-minute loops. The mu-plugin also unschedules
-  # that hook; disabling cron spawn is belt-and-braces for this disposable cert.
-  # Process-group session when setsid exists so workers are cleaned up together.
-  if command -v setsid >/dev/null 2>&1; then
-    PHP_CLI_SERVER_WORKERS="$workers" DISABLE_WP_CRON=1 \
-      setsid php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
-  else
-    PHP_CLI_SERVER_WORKERS="$workers" DISABLE_WP_CRON=1 \
-      php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
-  fi
-  server_pid=$!
-
-  for attempt in $(seq 1 30); do
-    if curl -fsS --max-time 10 "$base_url/wp-login.php" >/dev/null; then
-      return 0
-    else
-      last_ready_curl_rc=$?
-    fi
-    if ! kill -0 "$server_pid" 2>/dev/null; then
-      supcheckout_dump_http_server_diagnostics \
-        "${label} / PHP built-in server died before ready" \
-        "$last_ready_curl_rc" \
-        "$server_pid" \
-        "$server_log"
-      return 70
-    fi
-    sleep 1
-  done
-
-  supcheckout_dump_http_server_diagnostics \
-    "${label} / PHP built-in server readiness" \
-    "$last_ready_curl_rc" \
-    "$server_pid" \
-    "$server_log"
-  return 70
-}
-
 # The preceding activation safety test intentionally persists malformed gateway
 # settings. Normalize the disposable HTTP fixture with the raw certification
-# writer before starting a web request. Using normal update_option() here would
-# invoke WooCommerce's settings-change observer against the malformed old value
-# and test WooCommerce internals instead of SUPCheckout request-context safety.
+# writer before starting a web request.
 set_gateway_state KWD yes certification-key
-start_php_server 'bootstrap eligible KWD configuration'
+
+# Production-style concurrent HTTP stack (nginx + PHP-FPM).
+# Reuse a caller-provided stack when SUPCHECKOUT_HTTP_STACK_STARTED=1 so
+# multi-iteration stability runs do not race restart/bind on the same port.
+if [[ "${SUPCHECKOUT_HTTP_STACK_STARTED:-0}" != "1" ]]; then
+  # shellcheck source=/dev/null
+  source "$http_stack" "$wp_root" "$port"
+else
+  echo "Reusing existing nginx+php-fpm stack on 127.0.0.1:${port}"
+fi
 
 assert_probe() {
   local label="$1"
@@ -157,7 +123,7 @@ assert_probe() {
 
   supcheckout_curl_once_or_diagnose \
     "$label" \
-    "$server_pid" \
+    "$HTTP_STACK_PID" \
     "$server_log" \
     -fsS --max-time 20 "$url" -o "$output"
   php -r '
@@ -196,7 +162,7 @@ assert_store_api() {
 
   supcheckout_curl_once_or_diagnose \
     "$label" \
-    "$server_pid" \
+    "$HTTP_STACK_PID" \
     "$server_log" \
     -fsS --max-time 20 \
     -H 'X-SUPCheckout-Cert: 1' \
@@ -229,10 +195,6 @@ run_context_matrix() {
   local state_label="$1"
   local expect_gateway="$2"
 
-  # Fresh PHP built-in server per configuration matrix avoids carrying
-  # request-scoped/Action-Scheduler state into the next matrix on PHP 8.4+.
-  start_php_server "$state_label"
-
   assert_probe "$state_label / Classic checkout" \
     "$base_url/index.php?page_id=${checkout_page_id}&supcheckout_context_probe=1" \
     1 0 0 0 0 1 "$expect_gateway"
@@ -242,10 +204,6 @@ run_context_matrix() {
   assert_probe "$state_label / admin-ajax" \
     "$base_url/wp-admin/admin-ajax.php?action=supcheckout_context_probe" \
     0 1 1 0 0 1 "$expect_gateway"
-  # A generic REST request may or may not cause WooCommerce to hydrate a
-  # session depending on the supported WooCommerce/runtime combination. Session
-  # hydration is not the availability contract; gateway parity is. The explicit
-  # sessionless REST probe below remains the fail-safe proof for no-session use.
   assert_probe "$state_label / generic REST" \
     "$base_url/index.php?rest_route=/supcheckout-cert/v1/context" \
     0 0 0 0 1 '*' "$expect_gateway"
@@ -263,7 +221,6 @@ assert_probe 'eligible KWD configuration / sessionless REST' \
 # context, rather than only in a CLI/source-shape harness.
 set_gateway_state KWD no certification-key
 run_context_matrix 'disabled configuration' 0
-start_php_server 'disabled configuration / sessionless REST'
 assert_probe 'disabled configuration / sessionless REST' \
   "$base_url/index.php?rest_route=/supcheckout-cert/v1/context&sessionless=1" \
   0 0 0 0 1 0 0
