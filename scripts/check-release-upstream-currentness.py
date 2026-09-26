@@ -64,11 +64,17 @@ def wp_versions_from_payload(payload) -> list[str]:
 
 
 def wc_versions_from_payload(payload) -> list[str]:
-    """Extract release tag names from GitHub releases payload."""
+    """Extract stable release tag names from GitHub releases payload.
+
+    Honor GitHub prerelease/draft metadata as authoritative even when the
+    tag name lacks beta/rc/dev markers.
+    """
     out: list[str] = []
     if isinstance(payload, list):
         for r in payload:
             if not isinstance(r, dict):
+                continue
+            if r.get("prerelease") is True or r.get("draft") is True:
                 continue
             tag = str(r.get("tag_name") or r.get("name") or "")
             tag = tag.lstrip("vV")

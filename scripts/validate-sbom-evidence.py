@@ -34,7 +34,11 @@ def main(argv: list[str]) -> int:
         if not inv.get("dependencies"):
             print("FAIL empty license inventory")
             ok = False
-        print(f"VALIDATED license-inventory deps={len(inv['dependencies'])} unknown={inv.get('unknown_count')}")
+        unknown = int(inv.get("unknown_count") or 0)
+        print(f"VALIDATED license-inventory deps={len(inv['dependencies'])} unknown={unknown}")
+        if unknown != 0:
+            print(f"FAIL unknown_count={unknown} must be 0")
+            ok = False
     print("SBOM_VALIDATION: PASS" if ok else "SBOM_VALIDATION: FAIL")
     return 0 if ok else 1
 

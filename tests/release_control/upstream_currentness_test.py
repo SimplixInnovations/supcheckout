@@ -66,6 +66,25 @@ def main() -> int:
     rc, out = run(WP_BASE, wc_new)
     check(rc == 2 and "STALE_UPSTREAM_CERTIFICATION" in out and "11.1.3" in out, "new WC patch → STALE")
 
+    # GitHub prerelease=true with stable-looking tag MUST be ignored.
+    wc_meta_prerelease = [
+        {"tag_name": "11.1.3", "prerelease": True},
+        {"tag_name": "11.1.2"},
+        {"tag_name": "10.8.1"},
+        {"tag_name": "11.0.1"},
+    ]
+    rc, out = run(WP_BASE, wc_meta_prerelease)
+    check(rc == 0 and "CURRENT" in out, "prerelease:true with stable-looking tag ignored → CURRENT")
+
+    wc_meta_draft = [
+        {"tag_name": "11.1.4", "draft": True},
+        {"tag_name": "11.1.2"},
+        {"tag_name": "10.8.1"},
+        {"tag_name": "11.0.1"},
+    ]
+    rc, out = run(WP_BASE, wc_meta_draft)
+    check(rc == 0 and "CURRENT" in out, "draft:true with stable-looking tag ignored → CURRENT")
+
     wc_prerelease_only = [{"tag_name": "11.2.0-beta.1"}, {"tag_name": "11.2.0-rc.1"}]
     # Certified claims 11.2.0 stable but upstream only has prereleases → must not PASS.
     rc, out = run(WP_BASE, wc_prerelease_only, wc_cert="10.8.1,11.0.1,11.2.0")

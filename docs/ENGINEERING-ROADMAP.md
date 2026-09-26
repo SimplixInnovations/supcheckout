@@ -147,11 +147,13 @@ At the PR #68 coordinate-closure milestone, repository/admin state was reconcile
 
 The latest runtime-bearing certified `main` is Approach 3 T2 merge `047cc86060efb97761d7a0cc4a3806f971ab6fe1` from PR #104 (certified head `4cff2dc6e6d11a4b3232a6d3d70d6280a59741c4`). The PR head completed **42/42** checks and fresh merged main completed **41/41**, including T1 dependency/provider-egress **11/0**, T1 active callback **41/0**, T2 direct fallback **25/0**, full compatibility + Compatibility Gate, Release Gate, Provider Sandbox, WordPress.org packaged Plugin Check and CodeQL/security. Current deterministic candidate package: **51 files**, SHA-256 `368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04`. The owner-accepted Approach 2 SHA/package remain a separate frozen regression reference until Approach 3 re-acceptance.
 
-## Current owner/admin/local stage
+## Historical owner/admin/local stage — before Approach 3 owner acceptance
 
 Engineering does not need another invented numbered phase. Repository rename and obsolete persistent-branch cleanup are complete; temporary review branches remain normal during bounded work.
 
-Owner technical acceptance has been **ACCEPTED** for the frozen Approach 2 baseline:
+Historical only. This section does not describe current repository state. Approach 3 later replaced Approach 2 as the owner-accepted baseline.
+
+At that historical checkpoint, owner technical acceptance had been **ACCEPTED** for the frozen Approach 2 baseline:
 
 | Field | Value |
 |---|---|
@@ -160,7 +162,7 @@ Owner technical acceptance has been **ACCEPTED** for the frozen Approach 2 basel
 | Accepted package SHA-256 | `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655` |
 | Accepted package file count | `51` |
 
-The procedure in `docs/project/OWNER-HANDOFF.md` is retained as a reusable regression/re-acceptance contract; it remains available for any future acceptance event whenever fresh evidence invalidates the current accepted baseline. The current remaining program is:
+The procedure in `docs/project/OWNER-HANDOFF.md` is retained as a reusable regression/re-acceptance contract; it remains available for any future acceptance event whenever fresh evidence invalidates the current accepted baseline. At that historical checkpoint, the remaining program was:
 
 1. **Approach 3 T1 — `t01-architecture-guardrails-and-active-callback-characterization` — DONE / VERIFIED** on merged main `beb89ac0c4d8c0e9b7c8b2de1e13c237bbd37b15`; the accepted 51-file package remained byte-identical;
 2. **Approach 3 T2 — `legacy-callback-routing-consolidation` — DONE / VERIFIED** on merged main `047cc86060efb97761d7a0cc4a3806f971ab6fe1`; the priority-10 fallback now delegates to `PaymentLifecycle`, with 41/41 post-merge checks and deterministic 51-file candidate package SHA-256 `368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04`;

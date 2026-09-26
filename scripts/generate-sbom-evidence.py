@@ -26,16 +26,17 @@ def sha256_file(p: Path) -> str:
 
 
 def _stable_timestamp() -> str:
-    # Prefer explicit SOURCE_DATE_EPOCH (set from exact commit time in CI).
+    # Enterprise contract: SOURCE_DATE_EPOCH is REQUIRED. Missing/invalid = FAIL.
+    # No implicit git log fallback (PR merge commits are synthetic and non-deterministic).
     epoch = os.environ.get("SOURCE_DATE_EPOCH")
     if not epoch:
-        # Fallback: exact HEAD commit time — still deterministic for a given SHA.
-        import subprocess
-        epoch = subprocess.check_output(["git", "log", "-1", "--format=%ct"], cwd=str(ROOT)).decode().strip()
-    if not epoch:
-        raise SystemExit("SOURCE_DATE_EPOCH or git commit time required for deterministic SBOM")
-    ts = datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    print("SOURCE_DATE_EPOCH_USED=" + str(epoch) + " timestamp=" + ts)
+        raise SystemExit("FAIL: SOURCE_DATE_EPOCH is required for deterministic SBOM generation")
+    try:
+        epoch_i = int(epoch)
+    except ValueError:
+        raise SystemExit("FAIL: SOURCE_DATE_EPOCH must be an integer unix timestamp")
+    ts = datetime.fromtimestamp(epoch_i, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print("SOURCE_DATE_EPOCH_USED=" + str(epoch_i) + " timestamp=" + ts)
     return ts
 
 

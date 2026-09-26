@@ -13,11 +13,23 @@ jobs:
   currentness:
     name: Query official upstream release metadata
     runs-on: ubuntu-latest
+    env:
+      EVIDENCE_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.EVIDENCE_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+      - name: Require exact-head checkout
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EVIDENCE_SOURCE_SHA"
+          echo "EVIDENCE SOURCE:"
+          git rev-parse HEAD
       - name: Run currentness comparison (fail closed)
         run: |
           set -euo pipefail

@@ -184,6 +184,17 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
         self::assertStringNotContainsString('Immediate R6 boundary', self::read_repository_file('docs/project/NEW-CHAT-HANDOFF.md'));
+        // FINAL-4: stale current-looking Approach-2/T1-T2 claims must be quarantined as historical.
+        $road = self::read_repository_file('docs/ENGINEERING-ROADMAP.md');
+        self::assertStringContainsString('Historical owner/admin/local stage', $road);
+        self::assertStringContainsString('Historical only. This section does not describe current repository state.', $road);
+        self::assertStringContainsString('At that historical checkpoint, the remaining program was', $road);
+        self::assertStringNotContainsString('## Current owner/admin/local stage', $road);
+        self::assertStringNotContainsString('The current remaining program is', $road);
+        $rel = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
+        self::assertStringContainsString('Historical release evidence boundary', $rel);
+        self::assertStringContainsString('At that checkpoint, the latest runtime-bearing certified baseline was', $rel);
+        self::assertStringNotContainsString('## Release evidence boundary', $rel);
         self::assertStringContainsString('r5_decision: B', $contract);
         self::assertStringContainsString('r5_certified_head: 6fc225fc736da107de533ba8e19a12dc5c37227d', $contract);
         self::assertStringContainsString('r5_merged_main: 50170ea7f0d17b792e133a70beee48da7e2b6326', $contract);

@@ -263,13 +263,13 @@ Historical Task 5 established deterministic Git-HEAD-bound packaging. Historical
 
 These records remain historical truth. They are not rewritten to claim that old `simplixpay-upayments` identities were already SUCheckout.
 
-## Release evidence boundary
+## Historical release evidence boundary — pre-Approach 3 acceptance
 
 CI artifacts are verification artifacts, not public releases.
 
-The latest runtime-bearing certified baseline is `82d1fdaee91ee6bde6c26dfcc7ceb974d0d59847` (PR #97). Fresh merged-main evidence is **41/41 check-runs SUCCESS**, including H12 **1936/0 PHP + 150/0 Blocks**, **20/20** compatibility plus Compatibility Gate, Release Artifact **69/0** plus Release Gate, Provider Sandbox, WordPress.org readiness **31/0** plus official packaged Plugin Check and CodeQL. The canonical package is **51 files**, SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
+At that checkpoint, the latest runtime-bearing certified baseline was `82d1fdaee91ee6bde6c26dfcc7ceb974d0d59847` (PR #97). Fresh merged-main evidence is **41/41 check-runs SUCCESS**, including H12 **1936/0 PHP + 150/0 Blocks**, **20/20** compatibility plus Compatibility Gate, Release Artifact **69/0** plus Release Gate, Provider Sandbox, WordPress.org readiness **31/0** plus official packaged Plugin Check and CodeQL. At that checkpoint the canonical package was **51 files**, SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
-The owner-accepted Approach 2 baseline is the **frozen regression reference coordinate for all Approach 3 work**:
+The owner-accepted baseline at that time was Approach 2 (now HISTORICAL / SUPERSEDED). It was the frozen regression reference coordinate for Approach 3 work:
 
 - Accepted baseline SHA: `0c883d609906676966002eb022a82a9656eeacc5`
 - Accepted package: `supcheckout-0.1.0.zip` (51 files, SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`).

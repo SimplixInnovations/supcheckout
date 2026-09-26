@@ -53,3 +53,13 @@ Current FAQ says API idempotency keys are not currently supported. Please confir
 ## References
 
 See `docs/project/evidence/UPAYMENTS-CONTRACT-SNAPSHOT-2026-09-26.md` for first-party source contradictions.
+
+## Sandbox credential family questions (from sandbox observations)
+
+28. Are the current public Test Mode non-whitelabel and whitelabel API keys documented on the Test Mode/HMAC pages currently active for `sandboxapi.upayments.com/api/v1/charge`?
+29. Is the public Test Mode HMAC secret intended to pair with both documented Test Mode Bearer keys, or only a specific credential/account?
+30. `jtest123` remains published in the Postman/Add Card documentation and reaches request-schema validation while the newer Test Mode family currently returns `403 Not a valid API request`. Which sandbox credential family should new integrations use?
+31. Do the current public Test Mode credentials require merchant/account activation, additional headers, whitelabel configuration, source-IP restrictions, or some other prerequisite not stated on the Test Mode page?
+32. Should the `jtest123` credential be considered supported/current, legacy-only, endpoint-specific, or scheduled for removal?
+
+**Status:** READY_TO_SEND — OWNER ACTION REQUIRED (`OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`)
