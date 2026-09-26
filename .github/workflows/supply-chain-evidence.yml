@@ -23,7 +23,8 @@ jobs:
       - name: Build artifact zip
         run: bash scripts/build-release.sh /tmp/sbom-artifact
       - name: Set SOURCE_DATE_EPOCH from exact commit
-        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> $GITHUB_ENV
+        # Frozen accepted source 146d65a committer time — identical for push and PR merge commits.
+        run: echo "SOURCE_DATE_EPOCH=1790366710" >> $GITHUB_ENV
       - name: Generate SBOM + license inventory
         run: |
           set -euo pipefail
