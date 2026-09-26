@@ -97,7 +97,7 @@ T3 preserved a critical compatibility constraint: a direct caller of `WC_Upaymen
 
 The current substantive program is:
 
-**`post-t3-ecosystem-hardening`**
+**`external-certification-release-readiness`**
 
 Canonical plan:
 
@@ -115,7 +115,7 @@ GitHub default CodeQL JavaScript/TypeScript analysis did not reach a terminal ve
 
 R0, R1 and E1 are **DONE / VERIFIED and integrated through PR #108**. Repository-executable generic E2 is **DONE / CERTIFIED**. E3 repository-executable runtime evidence is **DONE / VERIFIED** at this checkpoint. Named paid/licensed themes, paid optimizers, CDN/server-specific cache modes, browser/device visual evidence and named analytics deduplication remain external/manual unless actually exercised.
 
-That candidate does **not** redefine the accepted Approach 2 baseline.
+Approach 3 is the current owner-accepted technical baseline (146d65a). Publication remains NOT AUTHORIZED.
 
 ## 6. Post-T3 execution sequence
 
@@ -158,7 +158,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active task | **none — publication not authorized** |
+| Active task | **external certification & release readiness** |
 | Latest repository-executable E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | Latest candidate package at that checkpoint | 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c` |
 | R0 / R1 / E1 | **DONE / VERIFIED and integrated through PR #108** |

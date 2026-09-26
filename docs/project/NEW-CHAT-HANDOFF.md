@@ -47,7 +47,7 @@ T3 proved that a direct `return_from_upayments()` caller may not carry the GET `
 
 ## Current program
 
-Current program: **`post-t3-ecosystem-hardening`**
+Current program: **`external-certification-release-readiness`**
 Plan: `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`
 R0/R1/E1-E3 integration milestone: **PR #108 — MERGED to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; temporary branch deleted**
 Publication: **NOT AUTHORIZED**
@@ -105,7 +105,7 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 
 Provider blockers remain **UNPROVEN / PROVIDER CLARIFICATION REQUIRED** for auto-deduct capture, remote cycle identity, HMAC and token persistence. Do not promote them.
 
-## Immediate R6 boundary
+## Current next work: external certification (not R6, not publication)
 
 R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`. Publication unauthorized.
 

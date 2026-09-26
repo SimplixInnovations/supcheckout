@@ -8,7 +8,7 @@
 **Accepted Approach 3 source:** **`146d65a1c182630c1acc651cacafe30cff5f6b79`**
 **Accepted Approach 3 package:** `supcheckout-0.1.0.zip` — 62 files / SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
 **Historical Approach 2 baseline (superseded):** `0c883d609906676966002eb022a82a9656eeacc5`
-**Accepted package:** `supcheckout-0.1.0.zip` — 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
+**Historical Approach 2 package:** `supcheckout-0.1.0.zip` — 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
 
 > Live GitHub source, exact-head checks and package evidence override this document if they differ. Historical milestone records stay historical; this file records current engineering truth.
 
@@ -29,7 +29,7 @@
 | Approach 3 T2 | **DONE / VERIFIED / runtime-bearing** |
 | Approach 3 T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active program | `post-t3-ecosystem-hardening` — R2 **DONE / VERIFIED**; R3 **DONE / VERIFIED** |
+| Active program | `external-certification-release-readiness` |
 | E2 repository-executable generic | **DONE / CERTIFIED** |
 | E3 repository-executable runtime evidence | **DONE / VERIFIED** |
 | Latest E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |

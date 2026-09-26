@@ -65,9 +65,13 @@ Do not close recurring cycle identity from this FAQ statement alone.
 
 ## Official plugin vs SUPCheckout Blocks
 
-UPayments official WooCommerce plugin documentation: does not claim Blocks support.
-SUPCheckout independently implements and certifies its own Blocks adapter.
-Never imply UPayments itself certifies SUPCheckout Blocks.
+UPayments current documentation states that its official WooCommerce plugin has native Block Checkout support for standard-product orders.
+
+SUPCheckout does not rely on that implementation and independently implements/certifies its own Blocks adapter.
+
+UPayments documentation is not certification of SUPCheckout behavior.
+
+Provider caveat: subscriptions are recommended on Classic Checkout.
 
 ## Capture / cycle (from earlier audits, still open)
 

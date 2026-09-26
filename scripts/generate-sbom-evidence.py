@@ -14,6 +14,7 @@ import sys
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,6 +25,13 @@ def sha256_file(p: Path) -> str:
     return h.hexdigest()
 
 
+def _stable_timestamp() -> str:
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if epoch:
+        return datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    raise SystemExit("SOURCE_DATE_EPOCH is required for deterministic SBOM generation")
+
+
 def cyclone_dx(name: str, components: list[dict], serial: str) -> dict:
     return {
         "bomFormat": "CycloneDX",
@@ -31,7 +39,8 @@ def cyclone_dx(name: str, components: list[dict], serial: str) -> dict:
         "serialNumber": serial,
         "version": 1,
         "metadata": {
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            # Deterministic: SOURCE_DATE_EPOCH from exact source commit timestamp.
+            "timestamp": _stable_timestamp(),
             "component": {"type": "application", "name": name},
         },
         "components": components,
@@ -171,7 +180,10 @@ def main(argv: list[str]) -> int:
     print(f"dev_components={len(dev['components'])}")
     print(f"license_unknown={len(unknown)}")
     if unknown:
-        print("NOTE: unknown licenses require explicit review before enterprise claim")
+        print("FAIL: unknown_count=%d (enterprise rule: fail closed)" % len(unknown), file=sys.stderr)
+        for u in unknown:
+            print("  unknown license:", u.get("package"), u.get("version"), file=sys.stderr)
+        return 2
     print("SBOM_EVIDENCE: PASS")
     return 0
 

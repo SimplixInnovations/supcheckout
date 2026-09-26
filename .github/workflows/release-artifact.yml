@@ -185,7 +185,7 @@ jobs:
           cmp "$CANONICAL_MANIFEST" windows/Windows.manifest.sha256
 
   packaged-runtime:
-    name: Packaged WP 7.1 / WC 11.1.0 / PHP 8.3 / ${{ matrix.storage }}
+    name: Packaged WP 7.1.2 / WC 11.1.2 / PHP 8.3 / ${{ matrix.storage }}
     needs: artifact-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -318,22 +318,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - wordpress: '7.1'
-            woocommerce: '11.1.0'
+          - wordpress: '7.1.2'
+            woocommerce: '11.1.2'
             previous_sha: '54b1fbcc280b92372bd93baf929d6a746cfd3959'
             previous_slug: 'simplixpay-upayments'
             previous_text_domain: 'upayments'
-          - wordpress: '6.9.7'
+          - wordpress: '6.9.9'
             woocommerce: '10.8.1'
             previous_sha: '54b1fbcc280b92372bd93baf929d6a746cfd3959'
             previous_slug: 'simplixpay-upayments'
             previous_text_domain: 'upayments'
-          - wordpress: '7.1'
-            woocommerce: '11.1.0'
+          - wordpress: '7.1.2'
+            woocommerce: '11.1.2'
             previous_sha: 'e9f953b0c3a881ad2d4b74390d0b5394b766a3fa'
             previous_slug: 'sucheckout-upayments'
             previous_text_domain: 'sucheckout-upayments'
-          - wordpress: '6.9.7'
+          - wordpress: '6.9.9'
             woocommerce: '10.8.1'
             previous_sha: 'e9f953b0c3a881ad2d4b74390d0b5394b766a3fa'
             previous_slug: 'sucheckout-upayments'

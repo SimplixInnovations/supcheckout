@@ -172,6 +172,18 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $gate = self::read_repository_file('docs/project/RELEASE-CANDIDATE-GATE.md');
         self::assertStringContainsString('Mandatory for core one-time payment RC', $gate);
         self::assertStringContainsString('Feature-scoped blockers', $gate);
+        $status_hdr = self::read_repository_file('docs/project/PROJECT-STATUS.md');
+        self::assertStringContainsString('Historical Approach 2 package', $status_hdr);
+        self::assertStringContainsString('external-certification-release-readiness', $status_hdr);
+        self::assertStringNotContainsString('Active program | `post-t3-ecosystem-hardening`', $status_hdr);
+        $rel = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
+        self::assertStringContainsString('Current state (authoritative)', $rel);
+        self::assertStringContainsString('Approach 3: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE', $rel);
+        $road = self::read_repository_file('docs/ENGINEERING-ROADMAP.md');
+        self::assertStringContainsString('Current state (authoritative)', $road);
+        $start = self::read_repository_file('docs/project/START-HERE.md');
+        self::assertStringContainsString('external-certification-release-readiness', $start);
+        self::assertStringNotContainsString('Immediate R6 boundary', self::read_repository_file('docs/project/NEW-CHAT-HANDOFF.md'));
         self::assertStringContainsString('r5_decision: B', $contract);
         self::assertStringContainsString('r5_certified_head: 6fc225fc736da107de533ba8e19a12dc5c37227d', $contract);
         self::assertStringContainsString('r5_merged_main: 50170ea7f0d17b792e133a70beee48da7e2b6326', $contract);
