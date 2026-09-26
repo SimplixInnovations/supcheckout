@@ -74,6 +74,13 @@ request_terminate_timeout = 15s
 catch_workers_output = yes
 php_admin_value[error_log] = $conf_dir/php-error.log
 php_admin_value[max_execution_time] = 12
+php_admin_value[memory_limit] = 256M
+php_admin_value[display_errors] = On
+EOF
+
+# Tiny readiness probe that must execute via PHP-FPM (not static).
+cat >"$wp_root/supcheckout-fpm-probe.php" <<'EOF'
+<?php echo 'FPM_OK ' . PHP_VERSION;
 EOF
 
 # Portable fastcgi params (avoid depending on distro nginx include path).
@@ -155,8 +162,8 @@ sleep 1
 
 ready=0
 for _ in $(seq 1 30); do
-  # Readiness must exercise PHP-FPM, not only static files.
-  if curl -fsS --max-time 5 "http://127.0.0.1:${port}/wp-login.php" >/dev/null 2>&1; then
+  # Readiness must execute PHP-FPM (not only static files).
+  if curl -fsS --max-time 5 "http://127.0.0.1:${port}/supcheckout-fpm-probe.php" 2>/dev/null | grep -q FPM_OK; then
     ready=1
     break
   fi
@@ -170,6 +177,8 @@ if [[ "$ready" != "1" ]]; then
   echo "HTTP stack failed to become ready" >&2
   echo "--- fpm ---" >&2
   cat "$conf_dir/fpm-error.log" >&2 2>/dev/null || true
+  echo "--- php ---" >&2
+  cat "$conf_dir/php-error.log" >&2 2>/dev/null || true
   echo "--- nginx ---" >&2
   cat "$conf_dir/nginx-error.log" >&2 2>/dev/null || true
   kill "$HTTP_STACK_PID" "$PHP_FPM_PID" 2>/dev/null || true
