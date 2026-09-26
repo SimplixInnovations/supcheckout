@@ -9,18 +9,21 @@ fi
 wp_root="$1"
 wp_cli="${WP_CLI_BIN:-/tmp/wp-cli.phar}"
 probe_source="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}/tests/integration/fixtures/request-context-probe.php"
+as_isolation_source="${GITHUB_WORKSPACE}/tests/integration/fixtures/request-context-as-isolation.php"
 state_fixture="${GITHUB_WORKSPACE}/tests/integration/RequestContextState.php"
 diagnostics_helper="${GITHUB_WORKSPACE}/tests/integration/lib/http-server-diagnostics.sh"
 probe_dest="$wp_root/wp-content/mu-plugins/supcheckout-request-context-probe.php"
+as_isolation_dest="$wp_root/wp-content/mu-plugins/supcheckout-request-context-as-isolation.php"
 port="${SUPCHECKOUT_CONTEXT_PORT:-8080}"
 base_url="http://127.0.0.1:${port}"
 server_log="${RUNNER_TEMP:-/tmp}/supcheckout-http-server.log"
 server_pid=''
 
 cleanup() {
-  rm -f "$probe_dest"
+  rm -f "$probe_dest" "$as_isolation_dest"
   if [[ -n "$server_pid" ]]; then
-    kill "$server_pid" 2>/dev/null || true
+    # Kill the whole process group so PHP_CLI_SERVER_WORKERS children die too.
+    kill -- -"$server_pid" 2>/dev/null || kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
   fi
 }
@@ -28,6 +31,7 @@ trap cleanup EXIT
 
 [[ -x "$wp_cli" ]] || { echo "WP-CLI not executable: $wp_cli" >&2; exit 65; }
 [[ -f "$probe_source" ]] || { echo "Request-context probe missing: $probe_source" >&2; exit 66; }
+[[ -f "$as_isolation_source" ]] || { echo "AS isolation fixture missing: $as_isolation_source" >&2; exit 66; }
 [[ -f "$state_fixture" ]] || { echo "Request-context state fixture missing: $state_fixture" >&2; exit 67; }
 [[ -f "$wp_root/wp-load.php" ]] || { echo "WordPress runtime missing: $wp_root" >&2; exit 68; }
 [[ -f "$diagnostics_helper" ]] || { echo "HTTP diagnostics helper missing: $diagnostics_helper" >&2; exit 71; }
@@ -48,6 +52,13 @@ set_gateway_state() {
 
 mkdir -p "$wp_root/wp-content/mu-plugins"
 cp "$probe_source" "$probe_dest"
+# TEST-ONLY isolation: the request-context test certifies Woo request context /
+# gateway availability / REST-session behavior. It does NOT certify Action
+# Scheduler execution. Action Scheduler remains certified separately under its
+# real runtime matrix (ActionSchedulerCompatibilityRuntimeTest + R4/R6 jobs).
+# Disable the AS async loopback runner so unrelated background HTTP cannot
+# destabilize this disposable PHP built-in server (curl 52 / empty reply).
+cp "$as_isolation_source" "$as_isolation_dest"
 
 # Keep all generated WordPress URLs on the disposable loopback HTTP origin so
 # canonical redirects cannot turn a certification request into a DNS/network
@@ -62,13 +73,17 @@ if [[ ! "$checkout_page_id" =~ ^[1-9][0-9]*$ ]]; then
   exit 69
 fi
 
-# PHP's development server is single-process and can die under WooCommerce/AS
-# async-runner pressure (observed as PHP 8.4 segfault + curl 52). Restart it
-# between logically separate configuration matrices so each matrix starts from
-# a live, ready process. Transport failures remain hard failures.
+# PHP's development server is single-process by default and can die under
+# WooCommerce/AS async-runner pressure (PHP 8.2/8.4 curl 52 / empty reply).
+# Mitigations (test-only):
+#   1. AS async loopback disabled via mu-plugin (above).
+#   2. PHP_CLI_SERVER_WORKERS > 1 when supported (PHP 7.4+ Linux).
+#   3. Restart the server between configuration matrices.
+# Transport failures on certification requests remain hard failures — we never
+# retry a failed business assertion until one passes.
 stop_php_server() {
   if [[ -n "$server_pid" ]]; then
-    kill "$server_pid" 2>/dev/null || true
+    kill -- -"$server_pid" 2>/dev/null || kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
     server_pid=''
   fi
@@ -78,10 +93,18 @@ start_php_server() {
   local label="$1"
   local attempt=0
   local last_ready_curl_rc=0
+  local workers="${SUPCHECKOUT_PHP_SERVER_WORKERS:-4}"
 
   stop_php_server
   : >"$server_log"
-  php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
+  # Process-group session when setsid exists so workers are cleaned up together.
+  if command -v setsid >/dev/null 2>&1; then
+    PHP_CLI_SERVER_WORKERS="$workers" \
+      setsid php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
+  else
+    PHP_CLI_SERVER_WORKERS="$workers" \
+      php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
+  fi
   server_pid=$!
 
   for attempt in $(seq 1 30); do
