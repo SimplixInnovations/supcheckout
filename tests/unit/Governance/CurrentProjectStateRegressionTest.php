@@ -162,6 +162,16 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('approach3_status: owner_accepted', $contract);
         self::assertStringContainsString('owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $contract);
         self::assertStringContainsString('owner_accepted_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79', $contract);
+        self::assertStringContainsString('publication_authorized: false', $contract);
+        self::assertSame(1, substr_count($contract, 'owner_accepted_approach3_source:'), 'exactly one owner_accepted_approach3_source');
+        self::assertSame(1, substr_count($contract, 'owner_accepted_approach3_package_sha256:'), 'exactly one package sha key');
+        self::assertStringContainsString('current_repository_maintenance_main: f7a017124d04ced50ea4dae283fe198301dc6eba', $contract);
+        self::assertStringNotContainsString('latest_merged_approach_3_main: 1c95bc94', $contract);
+        $scope = self::read_repository_file('docs/project/RELEASE-SCOPE-DECISION.md');
+        self::assertStringContainsString('BLOCKED / EXCLUDED FROM FIRST PUBLIC PRODUCTION CLAIM', $scope);
+        $gate = self::read_repository_file('docs/project/RELEASE-CANDIDATE-GATE.md');
+        self::assertStringContainsString('Mandatory for core one-time payment RC', $gate);
+        self::assertStringContainsString('Feature-scoped blockers', $gate);
         self::assertStringContainsString('r5_decision: B', $contract);
         self::assertStringContainsString('r5_certified_head: 6fc225fc736da107de533ba8e19a12dc5c37227d', $contract);
         self::assertStringContainsString('r5_merged_main: 50170ea7f0d17b792e133a70beee48da7e2b6326', $contract);

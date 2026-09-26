@@ -1,7 +1,7 @@
 # SUPCheckout for UPayments — Project Status
 
 **Status document:** canonical living engineering state
-**Last reconciled:** 2026-09-11
+**Last reconciled:** 2026-09-26
 **Canonical repository:** `SimplixInnovations/supcheckout`
 **Development version:** `0.1.0`
 **Owner technical acceptance:** **ACCEPTED for Approach 3** (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`)
@@ -21,7 +21,8 @@
 | Technical slug / text domain | `supcheckout` |
 | PHP namespace | `Simplixi\SUPCheckout` |
 | First-stable bootstrap | `supcheckout/UPayments.php` — intentional compatibility exception |
-| Approach 2 | **DONE / VERIFIED / OWNER ACCEPTED** |
+| Approach 2 | **HISTORICAL / SUPERSEDED OWNER-ACCEPTED BASELINE** |
+| Approach 3 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
 | Quality Platform Q1-Q19 | **DONE / VERIFIED — permanently closed at Q19** |
 | Final pre-clone runtime/QA closure | **DONE / VERIFIED — PR #75** |
 | Approach 3 T1 | **DONE / VERIFIED** |

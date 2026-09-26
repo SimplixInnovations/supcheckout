@@ -1,34 +1,44 @@
 # Release Candidate Gate
 
-An RC may be produced only when mandatory blockers are closed.
+An RC may be produced only when **scope-aware** mandatory blockers are closed.
 
-## Mandatory
+## Mandatory for core one-time payment RC
 
-- [ ] current secure upstream WP/WC patches certified
-- [ ] all permanent CI green
+- [x] current secure upstream WP/WC patches certified (live lookup CURRENT)
+- [ ] all permanent CI green on final head
 - [ ] accepted runtime/package provenance understood
-- [ ] provider auth contract resolved for production egress
+- [ ] production auth contract resolved for provider API traffic (**HMAC — BLOCKER**)
 - [ ] live one-time payment acceptance complete
-- [ ] public claim audit complete
-- [ ] no misleading recurring claim
-- [ ] secret scan clean
-- [ ] dependency/security audit clean
-- [ ] independent pentest complete for enterprise-production claim
-- [ ] PCI/legal scope reviewed externally
+- [ ] public-claims audit complete
+- [x] no misleading recurring claim in current copy
+- [x] secret scan clean
+- [x] dependency/security audit clean
+- [ ] independent pentest complete **if claiming enterprise production readiness**
+- [ ] PCI/legal scope reviewed externally **if owner release policy requires**
 - [ ] release scope explicitly locked
 
-## Non-blocking (must stay excluded from claims)
+## Feature-scoped blockers (block only when included/advertised)
 
-- wallets without device/account
-- WPML/WCML without license
-- commercial themes without license
-- real Cloudflare edge
-- production-scale performance
+| Feature | Blockers |
+|---|---|
+| saved-card | token contract + live tokenization (currently **BLOCKED / EXCLUDED**) |
+| recurring | capture/cycle/token + live recurring + owner recurring token |
+| wallets | device/account certification |
+| WPML/WCML | licensed environment |
+| multicurrency | licensed environment + exact amount binding |
+| commercial themes/builders | licensed copies |
+| real Cloudflare | real edge staging |
 
-## Current gate result
+## External-only
+
+real merchant scale, professional pentest (if claimed), PCI/legal, provider contractual response.
+
+## Current result
 
 ```text
 RELEASE CANDIDATE: BLOCKED
 ```
 
-Blocked by: provider auth/capture/cycle/token contracts, live one-time acceptance, independent pentest, PCI/legal, real edge, wallet/i18n licensed environments.
+**Global blockers:** HMAC/auth production contract; live one-time acceptance; (enterprise) pentest + PCI/legal per policy.
+
+**Feature-scoped:** saved-card BLOCKED; recurring EXCLUDED from production-ready claims.

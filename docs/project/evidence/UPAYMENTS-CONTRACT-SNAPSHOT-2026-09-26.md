@@ -55,6 +55,20 @@ Do not delete/migrate protected fields without approved migration design.
 FAQ: signed. Webhook reference: no complete verification contract.
 Defense-in-depth clarification item only. Payment authority remains StatusVerifier.
 
+## Idempotency (FAQ)
+
+Current FAQ states API idempotency keys are not currently supported.
+
+Clarification remains required that this also applies exactly to the auto-deduction endpoint and what safe ambiguous-dispatch reconciliation procedure UPayments recommends.
+
+Do not close recurring cycle identity from this FAQ statement alone.
+
+## Official plugin vs SUPCheckout Blocks
+
+UPayments official WooCommerce plugin documentation: does not claim Blocks support.
+SUPCheckout independently implements and certifies its own Blocks adapter.
+Never imply UPayments itself certifies SUPCheckout Blocks.
+
 ## Capture / cycle (from earlier audits, still open)
 
 ```text

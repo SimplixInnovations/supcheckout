@@ -26,7 +26,7 @@ None in packaged copy that promise working automatic recurring production paymen
 
 ## RC metadata changes required
 
-Optional one-line recurring fail-closed notice (see Recurring Claims Audit):
+Mandatory one-line recurring fail-closed notice (merchants can enable subscriptions today while VERIFIED_SUCCESS is unreachable) (see Recurring Claims Audit):
 
 ```text
 RC_METADATA_CHANGE_REQUIRED

@@ -38,6 +38,10 @@ NEW_RUNTIME_TRANCHE_REQUIRED=TOKEN_ENCRYPTION
 
 Prepare design options only. Do not implement here.
 
+## Idempotency FAQ note
+
+FAQ: API idempotency keys not currently supported. This alone does not close cycle identity.
+
 ## Capture/cycle outcome
 
 Only if provider establishes authoritative captured state, safe status verification, and unambiguous billing-cycle identity may automatic recurring `VERIFIED_SUCCESS` become a candidate for a separate runtime tranche. Otherwise remain unreachable.

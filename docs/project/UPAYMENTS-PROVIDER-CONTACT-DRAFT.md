@@ -38,6 +38,10 @@
 21. Which identifier should be queried?
 22. Can an auto-deduct transition after the initial response?
 
+## Idempotency (current FAQ)
+
+Current FAQ says API idempotency keys are not currently supported. Please confirm this applies to auto-deduction and recommend safe ambiguous-dispatch reconciliation.
+
 ## Recurring cycle identity/idempotency
 
 23. Does auto-deduct accept an idempotency key today?
