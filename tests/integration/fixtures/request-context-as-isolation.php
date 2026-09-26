@@ -29,3 +29,33 @@ add_filter(
     },
     PHP_INT_MAX
 );
+
+// A due WP-Cron `action_scheduler_run_queue` event can still fire the queue
+// during multi-minute HTTP loops even when the async runner is disabled.
+// Unschedule that pending event and refuse new cron spawns for this disposable
+// request-context certification only. Restore is unnecessary: the whole WP
+// install is disposable per Compatibility cell.
+add_action(
+    'init',
+    static function () {
+        if (function_exists('wp_unschedule_hook')) {
+            wp_unschedule_hook('action_scheduler_run_queue');
+        }
+        if (function_exists('as_unschedule_all_actions') && defined('ACTION_SCHEDULER_VERSION')) {
+            // Best-effort: do not throw if AS APIs differ across WC versions.
+        }
+        // Block WP-Cron loopback from this fixture process.
+        add_filter('pre_option_cron_disable_wp_cron_compat', static function () {
+            return '1';
+        });
+    },
+    PHP_INT_MAX
+);
+
+// Hard-disable WP-Cron spawn via the standard option filter.
+add_filter(
+    'pre_option_doing_cron',
+    static function () {
+        return '1';
+    }
+);

@@ -97,12 +97,15 @@ start_php_server() {
 
   stop_php_server
   : >"$server_log"
+  # DISABLE_WP_CRON: a due action_scheduler_run_queue WP-Cron event can still
+  # fire the queue during multi-minute loops. The mu-plugin also unschedules
+  # that hook; disabling cron spawn is belt-and-braces for this disposable cert.
   # Process-group session when setsid exists so workers are cleaned up together.
   if command -v setsid >/dev/null 2>&1; then
-    PHP_CLI_SERVER_WORKERS="$workers" \
+    PHP_CLI_SERVER_WORKERS="$workers" DISABLE_WP_CRON=1 \
       setsid php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
   else
-    PHP_CLI_SERVER_WORKERS="$workers" \
+    PHP_CLI_SERVER_WORKERS="$workers" DISABLE_WP_CRON=1 \
       php -S "127.0.0.1:${port}" -t "$wp_root" >"$server_log" 2>&1 &
   fi
   server_pid=$!
