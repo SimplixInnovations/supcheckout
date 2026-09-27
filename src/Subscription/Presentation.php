@@ -341,7 +341,7 @@ final class Presentation {
         ?>
         <details class="upay-unsubscribe-confirmation">
             <summary class="button upay-unsubscribe-button"><?php esc_html_e('Unsubscribe', 'supcheckout'); ?></summary>
-            <div class="upay-unsubscribe-confirmation__body" role="group" aria-label="<?php echo esc_attr__('Confirm unsubscribe', 'supcheckout'); ?>">
+            <div class="upay-unsubscribe-confirmation__body" role="group" aria-label="<?php echo esc_attr(__('Confirm unsubscribe', 'supcheckout')); ?>">
                 <p><?php esc_html_e('Are you sure you want to unsubscribe? This stops future scheduled renewals for this subscription.', 'supcheckout'); ?></p>
                 <form method="post" class="upay-subscription-actions" action="<?php echo esc_url($form_action); ?>">
                     <input type="hidden" name="upay_action" value="unsubscribe" />
