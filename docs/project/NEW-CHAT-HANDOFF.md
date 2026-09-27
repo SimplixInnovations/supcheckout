@@ -48,7 +48,7 @@ T3 proved that a direct `return_from_upayments()` caller may not carry the GET `
 ## Current program
 
 Current program: **`external-certification-release-readiness`**
-Plan: `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`
+Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`
 R0/R1/E1-E3 integration milestone: **PR #108 — MERGED to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; temporary branch deleted**
 Publication: **NOT AUTHORIZED**
 
@@ -78,7 +78,7 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **external certification & release readiness**. Approach 3 owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
+Current executable gate: **external certification & release readiness**. Next executable dependency: **UPayments provider-contract clarification**. Approach 3 owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
 
 R5 is **DONE / VERIFIED** (PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`, package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
@@ -89,7 +89,7 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 1. **R3:** DONE / VERIFIED — first-card elimination, economic/identity binding, immutable cycle snapshot, parent discovery, pause/resume/cancel, held-cycle reconciliation without blind replay.
 3. **R4:** DONE / VERIFIED — bounded HistoricalEnrollment (BATCH_SIZE=50), Action Scheduler group `supcheckout`, args `{parent_order_id, cycle_due_gmt, retry_attempt}`, CycleClaim remains provider-mutation authority, retries 0..3 (+1h/+6h/+24h), HELD/dispatching/ambiguous never auto-next-charge.
 4. **R5:** DONE / VERIFIED — Option B / ADR-003 explicit-mode seam; legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only; legacy private verifier retired; provider egress unchanged.
-5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.
+5. **R6:** DONE / VERIFIED — immutable exact-head qualification and fresh owner technical re-acceptance completed; remaining work is external/provider release evidence and a separate explicit version/publication decision.
 
 ## R5 architecture truth (recorded)
 
@@ -105,7 +105,7 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 
 Provider blockers remain **UNPROVEN / PROVIDER CLARIFICATION REQUIRED** for auto-deduct capture, remote cycle identity, HMAC and token persistence. Do not promote them.
 
-## Current next work: external certification (not R6, not publication)
+## Current next work: UPayments provider-contract clarification (not R6, not publication)
 
 R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`. Publication unauthorized.
 

@@ -171,11 +171,11 @@ tranches:
     pull_request: 107
     runtime_change: false
     compatibility_constraint: direct return_from_upayments callers may lack the GET page marker used by PaymentLifecycle browser-mode inference; naive direct delegation is not authorized
-  next_runtime_candidate:
-    name: post-t3-ecosystem-hardening
-    plan: docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md
-    preapproved_for_implementation: true
-    scope: R0-R4 bounded evidence-first work only; R5/T4 remains separately gated
+  external_readiness:
+    name: external-certification-release-readiness
+    plan: docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md
+    runtime_change_authorized: false
+    scope: provider/external certification and release-readiness evidence; runtime changes require a separately approved tranche
     integrated_r0_e3_main: d69377d3e26831270a00151025d24cc64be9d36b
     latest_e3_runtime_checkpoint: 540b733c29656758f2392817649fc3d4a4db585d
     latest_e3_package_sha256: 01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c
@@ -187,6 +187,7 @@ tranches:
     e3_repository_status: done_verified
     e3_codeql_historical_status: nonterminal_hosted_default_setup
     current_gate: external_certification_release_readiness
+    next_external_gate: provider_contract_clarification
     r6_status: done_verified
     approach3_status: owner_accepted
     r5_decision: B
