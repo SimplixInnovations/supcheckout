@@ -88,7 +88,7 @@ The following current first-party sources do not present the same contract:
 6. The unreleased official WooCommerce `develop` branch adds an `X-Signature` setting/header and `Uplugin-Request: 1`, but does not calculate the documented timestamped HMAC and does not send `X-Timestamp`.
 7. That same unreleased WooCommerce `develop` branch still performs its Get Payment Status verification using Bearer-only headers.
 8. Its subscription scheduler still calls auto-deduct using Bearer-only headers.
-9. The official OpenCart repository `main`, pushed 2026-09-23, still sends Bearer-only API requests and uses the documented sandbox/live hosts.
+9. The official OpenCart `main` is older (`4a35acd777f7e8f1b5fc8e4b228e13f4bd22c3ea`, 2023-12-28) and Bearer-only. The newer `V4.0` branch (`02a859a5c06ec762cfd2ccc9a75f2de2f4a12b77`, 2026-09-23; commit message `Applied HMAC on charge, create-customer-unique-token and check-payment-button-status apis`) instead sends Bearer + `Uplugin-Request: 1` + a static `X-Signature` value and still has no `X-Timestamp` or local implementation of the documented timestamped HMAC.
 10. The official CS-Cart repository `main`, pushed 2026-09-21, likewise uses Bearer-only requests. However, its unreleased `hmac-signature` branch (`c6ecc24839aea08ac84e84efad3bad1efbc78375`, 2026-09-21) adds the same configured/static `X-Signature` + `Uplugin-Request: 1` pattern as the WooCommerce HMAC work, again with no `X-Timestamp` and no per-request HMAC calculation.
 11. The older Magento repository also uses Bearer-only API requests.
 
@@ -254,12 +254,14 @@ Current Test Mode/HMAC pages publish a newer Bearer-key family and an HMAC test 
 
 Current Postman, Add Card, Create Customer Unique Token and several endpoint examples still use the older `jtest123`-era family.
 
-SUPCheckout's recorded non-destructive sandbox evidence now includes two layers:
+SUPCheckout's recorded non-destructive sandbox evidence includes two layers:
 
 - exploratory probes: newer documented Bearer/HMAC variants at Charge returned HTTP 403; an intentionally non-final `jtest123` probe reached HTTP 422 schema validation;
-- permanent certification on post-merge `main` (2026-09-27): the bounded valid Charge initialization used Bearer `jtest123` only at `sandboxapi.upayments.com/api/v1/charge` and received HTTP 201, strict `status=true`, structured response data, and a valid HTTPS UPayments sandbox payment link. No payment was completed.
+- permanent repository certification: PR #49 exact head `36b63fcdead47ebd6c8fcd3f1b2a993fc2852939` ran Provider Sandbox Certification successfully on 2026-09-06. Its bounded valid Charge initialization used Bearer `jtest123` only at `sandboxapi.upayments.com/api/v1/charge` and proved exact HTTP 201, strict `status=true`, structured response data, and a valid HTTPS UPayments sandbox payment link. No payment was completed. The same bounded certification harness and public token remain present on current `main`.
 
-Therefore **PUBLICLY/OPERATIONALLY RESOLVED:** `jtest123` is active for the tested public-sandbox Charge path as of 2026-09-27, and that path accepts Bearer-only authentication.
+Current first-party Postman documentation still publishes `jtest123` for the non-whitelabel sandbox environment.
+
+Therefore **RESOLVED_FIRST_PARTY for the tested sandbox Charge path:** `jtest123` is still a currently documented sandbox credential and has independently passed the bounded Bearer-only Charge initialization certification. This does **not** prove that it is the preferred long-term credential family, that other endpoints accept it, or that production accounts share the same HMAC policy.
 
 This does not establish whether `jtest123` is the recommended long-term family, whether other endpoints accept it, or whether production accounts have the same HMAC policy.
 
@@ -278,40 +280,58 @@ Still unresolved publicly:
 
 ## Question-by-question disposition of the original 32-provider questionnaire
 
-| # | Question area | Public disposition | Provider still needed? |
-|---:|---|---|---|
-| 1 | HMAC mandatory for production Charge | CONFLICTING | **YES** |
-| 2 | HMAC mandatory for Get Payment Status | CONFLICTING; unreleased official plugin still Bearer-only for status verification | **YES** |
-| 3 | universal vs merchant/endpoint rollout | FAQ proves rollout exists; scope absent | **YES** |
-| 4 | enforcement date | no public date found | **YES** |
-| 5 | Bearer-only production validity | current SDK/released surfaces support Bearer, but account scope unknown | **YES** |
-| 6 | HMAC query parameters included in API path | undocumented | **YES** |
-| 7 | exact status canonical strings | path-form strongly inferable; query forms not | **YES**, query forms |
-| 8 | exact ±60s skew | “1-minute window” only | **YES** |
-| 9 | stable HMAC error codes | not published | **YES** |
-| 10 | webhook headers/algorithm | not published | **YES** |
-| 11 | webhook secret same as API Secret | not published | **YES** |
-| 12 | webhook replay/timestamp policy | not published | **YES** |
-| 13 | may persist customer token locally | first-party conflict | **YES** |
-| 14 | may persist card token locally | first-party conflict | **YES** |
-| 15 | meaning of “never stored locally” | first-party conflict | **YES** |
-| 16 | token storage controls | not published | **YES** |
-| 17 | token-storage PCI scope/control | not published | **YES / PCI authority** |
-| 18 | auto-deduct field proving captured | not published | **YES** |
-| 19 | HTTP/API success vs capture | generic contract resolved: success envelope alone is insufficient; auto-deduct-specific mapping absent | **YES**, auto-deduct-specific |
-| 20 | auto-deduct verifiable via status API | strong inference only | **YES** |
-| 21 | identifier for auto-deduct verification | `track_id` is strongest public candidate | **YES** |
-| 22 | auto-deduct can transition after response | generic statuses can transition; auto-deduct-specific behavior absent | **YES** |
-| 23 | idempotency key support | FAQ: none documented | **NO** for generic API; **YES** only if auto-deduct has an exception |
-| 24 | merchant values as idempotency equivalent | undocumented | **YES** |
-| 25 | unique renewal-cycle identifier | transaction-attempt IDs are not documented as cycle keys | **YES** |
-| 26 | timeout-after-dispatch reconciliation | no safe complete procedure published | **YES** |
-| 27 | safe ambiguous retry | no procedure published | **YES** |
-| 28 | newer sandbox keys operationally active | published but existing probe returned 403 | **YES** |
-| 29 | one HMAC secret pairs with both test Bearer keys | page presentation suggests it but does not define binding | **YES** |
-| 30 | `jtest123` operational status | **RESOLVED for sandbox Charge on 2026-09-27: Bearer-only HTTP 201/status=true**; recommended/legacy lifecycle still unclear | **YES**, only for intended long-term scope |
-| 31 | hidden sandbox prerequisites / correct sandbox-vs-dev host | public docs and unreleased official plugin disagree | **YES** |
-| 32 | intended scope of both credential families | not published | **YES** |
+Required classification vocabulary:
+
+- `RESOLVED_FIRST_PARTY`
+- `PARTIALLY_RESOLVED`
+- `CONTRADICTED_BY_FIRST_PARTY_SOURCES`
+- `UNRESOLVED_REQUIRES_PROVIDER`
+- `REQUIRES_LIVE_TEST`
+- `REQUIRES_LEGAL/PCI`
+- `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE`
+
+The classification is the **current primary disposition**. Notes preserve deferred/future obligations where a question is outside the first-release scope.
+
+| # | Question area | Classification | Evidence / exact contract | Confidence | SUPCheckout / first-release action |
+|---:|---|---|---|---|---|
+| 1 | HMAC mandatory for production Charge | `CONTRADICTED_BY_FIRST_PARTY_SOURCES` | HMAC guide says every authenticated request uses dynamic HMAC; Charge/FAQ/SDK surfaces still show Bearer and FAQ says rollout is in progress | HIGH | **Core blocker.** Current Charge egress is Bearer-only; do not change runtime until production applicability is confirmed |
+| 2 | HMAC mandatory for Get Payment Status | `CONTRADICTED_BY_FIRST_PARTY_SOURCES` | HMAC guide includes GET; current Status page shows Bearer; unreleased official WooCommerce status verification remains Bearer-only | HIGH | **Core blocker.** Current `StatusVerifier` is Bearer-only |
+| 3 | universal vs merchant/account/endpoint/channel rollout | `PARTIALLY_RESOLVED` | FAQ proves rollout exists; public sources do not define rollout scope | HIGH that rollout exists / LOW on scope | Fold into the core production-auth clarification |
+| 4 | HMAC enforcement date/policy | `UNRESOLVED_REQUIRES_PROVIDER` | no authoritative public enforcement date or account-policy rule found | HIGH | Ask only for the policy applicable now to a third-party production merchant; a historical rollout date is not independently release-critical |
+| 5 | Bearer-only production validity | `CONTRADICTED_BY_FIRST_PARTY_SOURCES` | current SDK/Charge/Status/FAQ surfaces still support or describe Bearer while HMAC guide says signatures are required | HIGH | **Core blocker.** Resolve together with #1–#4 |
+| 6 | HMAC query parameters included in signed API path | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | public docs do not define query canonicalization; SUPCheckout rejects status URLs containing a query and uses only `get-payment-status/{track_id}` | HIGH | No first-release contact/runtime work; revisit only if query-form status lookup is added |
+| 7 | exact status canonical path/string for active SUPCheckout route | `RESOLVED_FIRST_PARTY` | current Status docs define `GET get-payment-status/{track_id}`; HMAC guide says sign the path immediately after `/api/v1/`; GET body is empty | HIGH | Existing route shape conforms; only HMAC applicability remains unresolved |
+| 8 | exact ±60-second HMAC skew semantics | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | guide documents a one-minute validity window but not symmetric tolerance | HIGH | Outbound requests can use current UTC seconds; exact server tolerance need not be known to fail closed |
+| 9 | stable HMAC failure/error codes | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | guide names missing/expired/invalid signature classes but no stable machine codes | HIGH | First release can treat authentication failure as failure without code-specific recovery |
+| 10 | webhook signature headers/algorithm | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | FAQ says webhooks are signed; Webhook page does not publish verification mechanics | HIGH | Webhook is not financial truth; current flow reconciles via authenticated Status API |
+| 11 | webhook secret same as outbound API Secret | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | not publicly specified | HIGH | Future defense-in-depth tranche only |
+| 12 | webhook replay/timestamp policy | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | not publicly specified | HIGH | Future defense-in-depth tranche only |
+| 13 | may persist customer token locally | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | first-party docs/code conflict | HIGH | Saved-card production claim is excluded; keep safer current design and defer contract decision |
+| 14 | may persist card token locally | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | first-party docs/code conflict | HIGH | Saved-card production claim is excluded |
+| 15 | meaning of “never stored locally” | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | provider subscription prose conflicts with provider implementation | HIGH | Defer until saved-card/subscription scope |
+| 16 | token storage controls | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | encryption/retention/rotation/access rules not publicly specified | HIGH | Future saved-card work only |
+| 17 | token-storage PCI scope/control | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | UPayments states its own PCI Level 1 posture but does not define merchant opaque-token persistence scope | HIGH | Future saved-card gate must separately obtain `REQUIRES_LEGAL/PCI` determination before production enablement |
+| 18 | auto-deduct field proving captured | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | no normative public auto-deduct capture field contract found | HIGH | Recurring is excluded and `VERIFIED_SUCCESS` remains unreachable |
+| 19 | generic HTTP/API success vs financial capture | `RESOLVED_FIRST_PARTY` | gateway-response docs define `CAPTURED` as funds secured; a generic success envelope is not equivalent to captured truth | HIGH | SUPCheckout already conforms by requiring authenticated provider transaction truth |
+| 20 | auto-deduct verifiable via Status API | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | strong inference from returned `trackId`, no explicit auto-deduct contract | MEDIUM | Defer recurring |
+| 21 | identifier for auto-deduct verification | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | `track_id` is documented per transaction attempt, not specifically as recurring authority | MEDIUM | Defer recurring |
+| 22 | auto-deduct state can transition after initial response | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | generic states can transition; auto-deduct-specific behavior is unpublished | MEDIUM | Defer recurring |
+| 23 | generic API idempotency-key support | `RESOLVED_FIRST_PARTY` | FAQ explicitly says idempotency keys are not supported at this time | HIGH | Existing no-blind-retry invariant is compatible; no runtime relaxation |
+| 24 | merchant fields as idempotency equivalent | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | no deduplication semantics documented for `order.id`, `reference.id`, or `requested_order_id` | HIGH | Defer recurring; never infer idempotency |
+| 25 | unique renewal-cycle identifier | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | provider transaction-attempt IDs are not documented as merchant billing-cycle IDs | HIGH | Defer recurring |
+| 26 | timeout-after-auto-deduct reconciliation | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | no complete public safe procedure found | HIGH | Defer recurring; current HELD/no-blind-retry posture remains |
+| 27 | safe ambiguous auto-deduct retry | `NOT_NEEDED_FOR_FIRST_RELEASE_SCOPE` | no public procedure found | HIGH | Defer recurring |
+| 28 | newer published sandbox keys operationally active | `REQUIRES_LIVE_TEST` | keys are currently published; earlier bounded probes observed HTTP 403 | MEDIUM | Not a core-release blocker while the current documented `jtest123` Charge path is certified; test only if needed for a future credential migration |
+| 29 | one HMAC test secret pairs with both published Bearer variants | `PARTIALLY_RESOLVED` | HMAC/Test Mode pages present one secret alongside two alternative Bearer keys, but binding/activation prerequisites are not defined | MEDIUM | No first-release dependency until dynamic HMAC applicability is confirmed |
+| 30 | `jtest123` operational/documented status | `RESOLVED_FIRST_PARTY` | current Postman environment still publishes it; PR #49 independently certified Bearer-only sandbox Charge on 2026-09-06 | HIGH | Keep evidence bounded to sandbox Charge; do not extrapolate to production or other endpoints |
+| 31 | hidden sandbox prerequisites / sandbox-vs-dev host | `CONTRADICTED_BY_FIRST_PARTY_SOURCES` | public Test Mode says `sandboxapi.upayments.com`; unreleased WooCommerce 3.1.2 routes general test API traffic to `dev-apiv2api.upayments.com` while other helpers still use sandbox | HIGH | Not a core blocker for the already-certified public sandbox Charge path; resolve before migrating test infrastructure |
+| 32 | intended scope/lifecycle of both public sandbox credential families | `UNRESOLVED_REQUIRES_PROVIDER` | public pages expose both families but do not define migration/deprecation scope | HIGH | Defer unless the newer family becomes required for the production-auth tranche or acceptance test |
+
+### Immediate provider-contact reduction
+
+For the **first public core one-time-payment release**, only #1–#5 remain provider-dependent release blockers. They collapse into a small set of production-authentication questions because #3–#5 are dimensions of the same HMAC/Bearer applicability decision.
+
+Questions #6 and #8–#18, #20–#22, and #24–#27 remain documented future/security/feature questions but do not justify blocking the narrower first release. Questions #7, #19, #23 and #30 are resolved to the bounded extent stated above. Questions #28–#29 and #31–#32 are sandbox/migration follow-ups, not proof that the current production core contract is safe.
 
 ---
 
@@ -342,7 +362,7 @@ The following decisions no longer need to be treated as wholly unknown:
 5. **HMAC algorithm mechanics:** if/where the documented dynamic-HMAC contract applies, the algorithm/body/timestamp/header mechanics are publicly specified.
 6. **The remaining HMAC problem is applicability/canonicalization**, not the cryptographic primitive.
 7. **The token-storage conflict is real first-party inconsistency**, not merely a SUPCheckout assumption.
-8. **`jtest123` is operational for the tested sandbox Charge path**, while the newer published family still conflicts with observed behavior/documentation; the remaining sandbox question is canonical scope/host/prerequisites, not whether `jtest123` works at all.
+8. **`jtest123` is currently documented for the non-whitelabel sandbox and independently passed the bounded sandbox Charge certification on 2026-09-06.** The newer published family still conflicts with observed behavior/documentation; its migration scope/host/prerequisites remain unresolved.
 9. **Official provider code must not be copied as authoritative financial logic:** the current official subscription scheduler promotes `status:true` to local `CAPTURED` without a separately documented capture proof.
 
 ## Binding release decision after this research
@@ -350,12 +370,14 @@ The following decisions no longer need to be treated as wholly unknown:
 No runtime tranche is authorized from public research alone.
 
 ```text
-HMAC production applicability: PROVIDER CLARIFICATION REQUIRED
-webhook signature contract: PROVIDER CLARIFICATION REQUIRED
-third-party token persistence/control contract: PROVIDER / PCI CLARIFICATION REQUIRED
-auto-deduct captured truth: PROVIDER CLARIFICATION REQUIRED
-auto-deduct safe ambiguous retry/cycle identity: PROVIDER CLARIFICATION REQUIRED
-sandbox canonical credential family: PROVIDER CLARIFICATION REQUIRED
+FIRST-RELEASE CORE BLOCKER:
+production Charge + track-id Status authentication/HMAC applicability: PROVIDER CLARIFICATION REQUIRED
+
+DEFERRED / NOT FIRST-RELEASE BLOCKERS:
+webhook signature mechanics: FUTURE DEFENSE-IN-DEPTH
+third-party token persistence/control: FUTURE SAVED-CARD + PROVIDER / PCI GATE
+auto-deduct captured truth/retry/cycle identity: FUTURE RECURRING GATE
+new sandbox credential-family migration: FUTURE TEST-INFRASTRUCTURE GATE
 
 automatic recurring VERIFIED_SUCCESS: FAIL-CLOSED / UNREACHABLE
 publication: NOT AUTHORIZED
