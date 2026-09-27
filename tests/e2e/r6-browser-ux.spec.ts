@@ -12,6 +12,36 @@ const CLASSIC = process.env.R6_CLASSIC_CHECKOUT_URL || `${BASE}/?page_id=0`;
 const BLOCKS = process.env.R6_BLOCKS_CHECKOUT_URL || `${BASE}/?page_id=0`;
 const CALLBACK = process.env.R6_CALLBACK_URL || `${BASE}/wc-api/wc_upayments/`;
 const PRODUCT = process.env.R6_PRODUCT_URL || '';
+const CERT_ADMIN_USER = process.env.R6_CERT_ADMIN_USER || 'cert-admin';
+const CERT_ADMIN_PASSWORD = process.env.R6_CERT_ADMIN_PASSWORD || 'cert-password-not-production';
+
+function trackPluginNetworkFailures(
+  page: import('@playwright/test').Page,
+  failures: string[]
+) {
+  const isPluginAsset = (url: string) => /\/wp-content\/plugins\/supcheckout\//i.test(url);
+
+  page.on('requestfailed', (request) => {
+    if (isPluginAsset(request.url())) {
+      failures.push(`requestfailed ${request.failure()?.errorText || 'unknown'} ${request.url()}`);
+    }
+  });
+  page.on('response', (response) => {
+    if (isPluginAsset(response.url()) && response.status() >= 400) {
+      failures.push(`http-${response.status()} ${response.url()}`);
+    }
+  });
+}
+
+async function loginCertificationAdmin(page: import('@playwright/test').Page) {
+  await page.goto(`${BASE}/wp-login.php`, { waitUntil: 'domcontentloaded' });
+  await page.locator('#user_login').fill(CERT_ADMIN_USER);
+  await page.locator('#user_pass').fill(CERT_ADMIN_PASSWORD);
+  await Promise.all([
+    page.waitForLoadState('domcontentloaded'),
+    page.locator('#wp-submit').click(),
+  ]);
+}
 
 async function ensureCart(page: import('@playwright/test').Page) {
   if (!PRODUCT) return;
@@ -39,6 +69,8 @@ for (const vp of viewports) {
 
     test('Classic guest checkout: gateway UI, console, assets, focus, axe', async ({ page }) => {
       const errors: string[] = [];
+      const pluginNetworkFailures: string[] = [];
+      trackPluginNetworkFailures(page, pluginNetworkFailures);
       page.on('console', (m) => {
         if (m.type() === 'error') errors.push(m.text());
       });
@@ -95,8 +127,9 @@ for (const vp of viewports) {
       expect(body).not.toMatch(/sk_live_[A-Za-z0-9]{8,}/);
       expect(body).not.toMatch(/upayments_token_identity_secret/);
 
-      // First-party console errors.
+      // First-party console errors and plugin-owned network assets.
       expect(errors.filter(classifyConsoleError)).toEqual([]);
+      expect(pluginNetworkFailures).toEqual([]);
 
       // Axe: fail on plugin-owned critical/serious.
       const results = await new AxeBuilder({ page })
@@ -111,6 +144,8 @@ for (const vp of viewports) {
 
     test('Blocks checkout renders with payment methods', async ({ page }) => {
       const errors: string[] = [];
+      const pluginNetworkFailures: string[] = [];
+      trackPluginNetworkFailures(page, pluginNetworkFailures);
       page.on('console', (m) => {
         if (m.type() === 'error') errors.push(m.text());
       });
@@ -124,6 +159,7 @@ for (const vp of viewports) {
         .catch(() => false);
       expect(hasCheckoutBlock).toBeTruthy();
       expect(errors.filter(classifyConsoleError)).toEqual([]);
+      expect(pluginNetworkFailures).toEqual([]);
     });
 
     test('canonical WC-API callback does not leak success URL', async ({ page }) => {
@@ -139,6 +175,8 @@ for (const vp of viewports) {
 
 test.describe('R6 Arabic RTL (WordPress locale)', () => {
   test('document is RTL and checkout remains usable', async ({ page }) => {
+    const pluginNetworkFailures: string[] = [];
+    trackPluginNetworkFailures(page, pluginNetworkFailures);
     await page.goto(CLASSIC, { waitUntil: 'networkidle' });
     const dir = await page.evaluate(
       () => document.documentElement.getAttribute('dir') || getComputedStyle(document.documentElement).direction
@@ -157,5 +195,37 @@ test.describe('R6 Arabic RTL (WordPress locale)', () => {
         v.nodes.some((n) => /upayments|supcheckout/i.test(n.html))
     );
     expect(pluginOwned, JSON.stringify(pluginOwned, null, 2)).toEqual([]);
+    expect(pluginNetworkFailures).toEqual([]);
+  });
+});
+
+test.describe('R6 authenticated WordPress admin smoke', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test('migration surface is capability-gated, nonce-protected, and reflects invalid input safely', async ({ page }) => {
+    const migrationUrl = `${BASE}/wp-admin/admin.php?page=simplixpay-upayments-migration`;
+
+    await page.goto(migrationUrl, { waitUntil: 'domcontentloaded' });
+    expect(page.url()).toContain('wp-login.php');
+
+    await loginCertificationAdmin(page);
+    const response = await page.goto(migrationUrl, { waitUntil: 'networkidle' });
+    expect(response && response.status() < 500).toBeTruthy();
+
+    await expect(page.locator('#supcheckout-user-ids')).toBeVisible();
+    await expect(page.locator('input[name="simplixpay_upayments_nonce"]')).toHaveCount(1);
+
+    const payload = '"><script>window.__supcheckoutR6AdminXss=1</script>';
+    await page.locator('#supcheckout-user-ids').fill(payload);
+    await page.locator('input[name="migration_action"][value="preflight"]').check();
+    await Promise.all([
+      page.waitForLoadState('domcontentloaded'),
+      page.locator('input[type="submit"], button[type="submit"]').last().click(),
+    ]);
+
+    await expect(page.locator('.notice-error')).toBeVisible();
+    expect(await page.evaluate(() => Boolean((window as any).__supcheckoutR6AdminXss))).toBeFalsy();
+    const html = await page.content();
+    expect(html).not.toContain('<script>window.__supcheckoutR6AdminXss=1</script>');
   });
 });
