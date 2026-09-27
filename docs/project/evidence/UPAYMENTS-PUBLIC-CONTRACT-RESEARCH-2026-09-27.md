@@ -31,6 +31,7 @@
 - KFAST Save Card: https://developers.upayments.com/reference/kfast-save-card
 - WooCommerce Auto Deduction (Subscriptions): https://developers.upayments.com/reference/woocommerce-auto-deduction-subscriptions
 - PCI-DSS Level 1 Compliance: https://developers.upayments.com/reference/pcidss-level-1-compliance
+- Contact UPayments: https://developers.upayments.com/page/contact-upayments
 
 ### Current first-party SDK
 
@@ -387,4 +388,15 @@ If provider clarification cannot be obtained, the safe release posture is to kee
 
 ## Contact strategy if written email is unreliable
 
-A verbal support response is useful for discovery but not sufficient as durable certification evidence. If owner authorization is granted, use any official support/meeting channel needed to obtain clarification, then request the final answers in writing (email/ticket/transcript) and retain them as evidence before changing runtime or production claims.
+UPayments' current first-party Contact page publishes multiple official escalation paths for UInterfaceV2/API questions: dedicated API technical-support email, phone/WhatsApp, and a Calendly technical-meeting route.
+
+No channel may be used until `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES` is explicitly granted.
+
+If authorization is granted and email is slow or unanswered:
+
+1. use the official API-support email first so the three-question production-auth request has a durable timestamped record;
+2. escalate through the published official WhatsApp/phone or Calendly technical meeting rather than relying on unofficial contacts;
+3. use any verbal/meeting answer for discovery only;
+4. request the final endpoint-by-endpoint authentication answer in writing (email/ticket/transcript) and retain it as provider-contract evidence before changing runtime or production claims.
+
+A verbal answer alone is not sufficient to authorize a payment-runtime tranche.
