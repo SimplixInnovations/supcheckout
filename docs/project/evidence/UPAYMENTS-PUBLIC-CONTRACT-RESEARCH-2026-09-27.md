@@ -30,6 +30,7 @@
 - Retrieve Cards: https://developers.upayments.com/reference/retrievecustomercards
 - KFAST Save Card: https://developers.upayments.com/reference/kfast-save-card
 - WooCommerce Auto Deduction (Subscriptions): https://developers.upayments.com/reference/woocommerce-auto-deduction-subscriptions
+- PCI-DSS Level 1 Compliance: https://developers.upayments.com/reference/pcidss-level-1-compliance
 
 ### Current first-party SDK
 
@@ -182,7 +183,9 @@ What public evidence does **not** establish:
 - key rotation/access-control requirements;
 - PCI scope consequences.
 
-Those remain **PROVIDER / PCI CONFIRMATION REQUIRED**.
+UPayments' current PCI page publicly states that UPayments itself is PCI-DSS Level 1 and that merchant scope is generally reduced to SAQ-A or SAQ-A-EP depending on checkout model. It does **not** specify how merchant persistence of UPayments customer/card tokens affects that scope.
+
+Those token-persistence specifics remain **PROVIDER / PCI CONFIRMATION REQUIRED**.
 
 No protected SUPCheckout token field should be deleted or migrated from this evidence alone.
 
