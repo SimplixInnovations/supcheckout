@@ -254,12 +254,14 @@ Current Test Mode/HMAC pages publish a newer Bearer-key family and an HMAC test 
 
 Current Postman, Add Card, Create Customer Unique Token and several endpoint examples still use the older `jtest123`-era family.
 
-SUPCheckout's already-recorded non-destructive sandbox observations found:
+SUPCheckout's recorded non-destructive sandbox evidence now includes two layers:
 
-- newer documented Bearer/HMAC variants at Charge returned HTTP 403;
-- `jtest123` reached HTTP 422 schema validation.
+- exploratory probes: newer documented Bearer/HMAC variants at Charge returned HTTP 403; an intentionally non-final `jtest123` probe reached HTTP 422 schema validation;
+- permanent certification on post-merge `main` (2026-09-27): the bounded valid Charge initialization used Bearer `jtest123` only at `sandboxapi.upayments.com/api/v1/charge` and received HTTP 201, strict `status=true`, structured response data, and a valid HTTPS UPayments sandbox payment link. No payment was completed.
 
-Those observations prove behavioral difference, not which family is contractually canonical.
+Therefore **PUBLICLY/OPERATIONALLY RESOLVED:** `jtest123` is active for the tested public-sandbox Charge path as of 2026-09-27, and that path accepts Bearer-only authentication.
+
+This does not establish whether `jtest123` is the recommended long-term family, whether other endpoints accept it, or whether production accounts have the same HMAC policy.
 
 **Classification: PUBLIC EVIDENCE — CONFLICTING.**
 
@@ -307,7 +309,7 @@ Still unresolved publicly:
 | 27 | safe ambiguous retry | no procedure published | **YES** |
 | 28 | newer sandbox keys operationally active | published but existing probe returned 403 | **YES** |
 | 29 | one HMAC secret pairs with both test Bearer keys | page presentation suggests it but does not define binding | **YES** |
-| 30 | `jtest123` current vs legacy | still published, but conflicts with new family | **YES** |
+| 30 | `jtest123` operational status | **RESOLVED for sandbox Charge on 2026-09-27: Bearer-only HTTP 201/status=true**; recommended/legacy lifecycle still unclear | **YES**, only for intended long-term scope |
 | 31 | hidden sandbox prerequisites / correct sandbox-vs-dev host | public docs and unreleased official plugin disagree | **YES** |
 | 32 | intended scope of both credential families | not published | **YES** |
 
@@ -340,7 +342,7 @@ The following decisions no longer need to be treated as wholly unknown:
 5. **HMAC algorithm mechanics:** if/where the documented dynamic-HMAC contract applies, the algorithm/body/timestamp/header mechanics are publicly specified.
 6. **The remaining HMAC problem is applicability/canonicalization**, not the cryptographic primitive.
 7. **The token-storage conflict is real first-party inconsistency**, not merely a SUPCheckout assumption.
-8. **The sandbox-family conflict is real first-party inconsistency**, not merely a failed test.
+8. **`jtest123` is operational for the tested sandbox Charge path**, while the newer published family still conflicts with observed behavior/documentation; the remaining sandbox question is canonical scope/host/prerequisites, not whether `jtest123` works at all.
 9. **Official provider code must not be copied as authoritative financial logic:** the current official subscription scheduler promotes `status:true` to local `CAPTURED` without a separately documented capture proof.
 
 ## Binding release decision after this research
