@@ -187,7 +187,12 @@ tranches:
     e3_repository_status: done_verified
     e3_codeql_historical_status: nonterminal_hosted_default_setup
     current_gate: external_certification_release_readiness
-    next_external_gate: provider_contract_clarification
+    next_external_gate: production_auth_contract_clarification
+    core_provider_blocker: PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED
+    saved_card_token_persistence: FUTURE FEATURE GATE
+    auto_deduct_capture_cycle_identity: FUTURE RECURRING GATE
+    webhook_signature_mechanics: FUTURE DEFENSE-IN-DEPTH
+    sandbox_credential_family_migration: FUTURE TEST-INFRASTRUCTURE GATE
     r6_status: done_verified
     approach3_status: owner_accepted
     r5_decision: B
@@ -207,7 +212,7 @@ tranches:
     r4_certified_head: 1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a
     r4_merged_main: 10a33b4d10e7ec4e45ba5d7a01139ce0777bf382
     r4_package_sha256: 2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b
-    goal: Approach 3 is owner accepted at 146d65a1c182630c1acc651cacafe30cff5f6b79. Provider blockers remain external. Automatic recurring VERIFIED_SUCCESS stays fail-closed. Do not publish.
+    goal: Approach 3 is owner accepted at 146d65a1c182630c1acc651cacafe30cff5f6b79. First-release core provider dependency is PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED; saved-card/token and recurring contracts remain deferred gates. Automatic recurring VERIFIED_SUCCESS stays fail-closed. Do not publish.
 
 r2_contract:
   url_generation:
