@@ -101,7 +101,7 @@ The current substantive program is:
 
 Canonical plan:
 
-`docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`
+`docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`
 
 The completed R0/R1/E1-E3 integration milestone was squash-merged through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`. No feature branch is retained for that milestone.
 
@@ -140,9 +140,11 @@ R4  scalability / idempotency / observability
  ↓
 R5  callback lifecycle consolidation (Option B / ADR-003) — DONE / VERIFIED
  ↓
-R6  exact-head qualification + fresh owner re-acceptance
+R6  exact-head qualification + fresh owner re-acceptance — DONE / VERIFIED
  ↓
-explicit version/publication decision
+external certification: provider-contract clarification
+ ↓
+explicit version/publication decision only after remaining release gates
 ```
 
 R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used its own architecture decision (Option B / ADR-003) and is complete. **R6 is DONE / VERIFIED. The current gate is external certification & release readiness.**
@@ -151,7 +153,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 
 | Field | Current value |
 |---|---|
-| Program phase | **Approach 3 post-T3 ecosystem hardening** |
+| Program phase | **external certification & release readiness** |
 | Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED** |
 | Frozen accepted baseline | `146d65a1c182630c1acc651cacafe30cff5f6b79` (Approach 3) |
 | T1 | **DONE / VERIFIED** |
@@ -168,7 +170,8 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R3 | **DONE / VERIFIED** — certified PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a`, squash-merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
 | R4 | **DONE / VERIFIED** — certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, squash-merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
-| Current operational gate | **external certification & release readiness** |
+| R6 | **DONE / VERIFIED** — exact-head qualification and owner technical re-acceptance complete |
+| Current operational gate | **UPayments provider-contract clarification** within external certification & release readiness |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
