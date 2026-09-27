@@ -52,7 +52,7 @@ The general gateway-status documentation defines `CAPTURED` as funds secured, bu
 
 Current Test Mode/HMAC pages publish a newer Bearer-key family and HMAC test secret, while current Postman/card/token pages still publish the `jtest123`-era family. Existing non-destructive integration probes also observed materially different responses between the two families.
 
-17. Which test host and credential family should new third-party UInterfaceV2 integrations use today: `sandboxapi.upayments.com` as documented publicly, or `dev-apiv2api.upayments.com` as used by the current unreleased official WooCommerce 3.1.2 branch? Is `jtest123` current, legacy, or endpoint-specific?
+17. We independently confirmed on 2026-09-27 that Bearer `jtest123` still produces a successful HTTP 201 Charge initialization on `sandboxapi.upayments.com` with a valid payload. For new third-party UInterfaceV2 integrations, which test host and credential family do you recommend going forward: `sandboxapi.upayments.com` / `jtest123`, the newer published Test Mode keys, or `dev-apiv2api.upayments.com` as used by the current unreleased official WooCommerce 3.1.2 branch? If `jtest123` remains accepted but is legacy/transitional, please state its intended support lifecycle.
 18. Does the published HMAC test secret pair with both currently published Test Mode Bearer variants? Do those newer credentials require merchant activation/binding, whitelabel configuration, source-IP allowlisting, `Uplugin-Request`, a specific host, or any other prerequisite not stated on the Test Mode page?
 
 ## Evidence request
