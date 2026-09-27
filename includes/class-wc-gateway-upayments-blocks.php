@@ -233,9 +233,44 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
             'upay_subscription_interval' => '0',        // Default value
             'plugin_url'                => plugin_dir_url( dirname( __FILE__ ) ),
             'translation'               => [
+                'purchase_type_label'   => __('Purchase Type', 'supcheckout'),
+                'billing_interval_label'=> __('Billing Interval', 'supcheckout'),
+                'one_time'              => __('One-time', 'supcheckout'),
+                'plan_labels'           => [
+                    'daily'     => __('Daily Subscription', 'supcheckout'),
+                    'weekly'    => __('Weekly Subscription', 'supcheckout'),
+                    'monthly'   => __('Monthly Subscription', 'supcheckout'),
+                    'quarterly' => __('Quarterly Subscription', 'supcheckout'),
+                    'yearly'    => __('Yearly Subscription', 'supcheckout'),
+                ],
+                'select_interval'        => __('Select interval', 'supcheckout'),
+                'interval_labels'        => [
+                    'daily' => [
+                        '1' => __('Every Day', 'supcheckout'),
+                    ],
+                    'weekly' => [
+                        '1' => __('Every Week', 'supcheckout'),
+                        '2' => __('Every 2 Weeks', 'supcheckout'),
+                        '3' => __('Every 3 Weeks', 'supcheckout'),
+                    ],
+                    'monthly' => [
+                        '1' => __('Every Month', 'supcheckout'),
+                        '2' => __('Every 2 Months', 'supcheckout'),
+                    ],
+                    'quarterly' => [
+                        '1' => __('Every Quarter', 'supcheckout'),
+                        '2' => __('Every 2 Quarters', 'supcheckout'),
+                        '3' => __('Every 3 Quarters', 'supcheckout'),
+                    ],
+                    'yearly' => [
+                        '1' => __('Every Year', 'supcheckout'),
+                    ],
+                ],
+                'saved_card_selected'   => __('Saved card selected', 'supcheckout'),
                 'save_card_label'       => __('For faster and more secure checkout. Save your card details.', 'supcheckout'),
                 'saved_cards_label'     => __('Saved Cards', 'supcheckout'),
                 'saved_card_fallback'   => __('Saved card', 'supcheckout'),
+                'choose_payment_method' => __('Choose Payment Method', 'supcheckout'),
                 'other_options_label'   => __('Other Options', 'supcheckout'),
             ],
             'supports'    => [ 'products' ],
