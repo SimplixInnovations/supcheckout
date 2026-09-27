@@ -13,8 +13,8 @@ final class MigrationAdmin {
     public static function register() {
         add_submenu_page(
             'woocommerce',
-            'SUPCheckout for UPayments Migration',
-            'SUPCheckout Migration',
+            __('SUPCheckout for UPayments Migration', 'supcheckout'),
+            __('SUPCheckout Migration', 'supcheckout'),
             self::CAPABILITY,
             self::PAGE_SLUG,
             array(__CLASS__, 'render')
@@ -109,7 +109,9 @@ final class MigrationAdmin {
         echo '<p><strong>' . esc_html__('Credentials are read from the existing UPayments gateway settings and are never displayed or submitted by this form.', 'supcheckout') . '</strong></p>';
 
         if ($error !== null) {
-            echo '<div class="notice notice-error"><p>' . esc_html('Migration request rejected: ' . $error) . '</p></div>';
+            // translators: %s: internal fail-closed migration rejection reason code.
+            $error_message = sprintf(__('Migration request rejected: %s', 'supcheckout'), $error);
+            echo '<div class="notice notice-error"><p>' . esc_html($error_message) . '</p></div>';
         }
         if (is_array($result)) {
             $encoded = function_exists('wp_json_encode') ? wp_json_encode($result, JSON_PRETTY_PRINT) : json_encode($result, JSON_PRETTY_PRINT);
@@ -119,11 +121,11 @@ final class MigrationAdmin {
             }
         }
 
-        echo '<form method="post">';
+        echo '<form method="post" novalidate>';
         wp_nonce_field(self::NONCE_ACTION, self::NONCE_FIELD);
         echo '<table class="form-table" role="presentation"><tbody>';
         echo '<tr><th scope="row"><label for="supcheckout-user-ids">' . esc_html__('User IDs', 'supcheckout') . '</label></th><td>';
-        echo '<textarea id="supcheckout-user-ids" name="user_ids" rows="5" cols="60" class="large-text code" required>' . esc_textarea($form['user_ids']) . '</textarea>';
+        echo '<textarea id="supcheckout-user-ids" name="user_ids" rows="5" cols="60" class="large-text code" style="resize:none;" required>' . esc_textarea($form['user_ids']) . '</textarea>';
         echo '<p class="description">' . esc_html__('Comma or whitespace separated positive customer IDs. Maximum 500 IDs per submitted list.', 'supcheckout') . '</p></td></tr>';
         echo '<tr><th scope="row"><label for="supcheckout-offset">' . esc_html__('Explicit offset', 'supcheckout') . '</label></th><td>';
         echo '<input id="supcheckout-offset" name="offset" type="number" min="0" step="1" value="' . esc_attr($form['offset']) . '">';
