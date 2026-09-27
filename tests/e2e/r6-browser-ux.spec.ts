@@ -160,6 +160,26 @@ for (const vp of viewports) {
       expect(hasCheckoutBlock).toBeTruthy();
       expect(errors.filter(classifyConsoleError)).toEqual([]);
       expect(pluginNetworkFailures).toEqual([]);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa'])
+        .analyze();
+      const severe = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
+      const pluginOwned = severe.filter((v) =>
+        v.nodes.some((n) => /upayments|supcheckout|upay-payment-container/i.test(n.html))
+      );
+      expect(pluginOwned, JSON.stringify(pluginOwned, null, 2)).toEqual([]);
+
+      const pluginButton = page.locator('.upay-payment-container button:visible').first();
+      if (await pluginButton.isVisible().catch(() => false)) {
+        await pluginButton.focus();
+        const focusVisible = await pluginButton.evaluate((el) => {
+          const cs = getComputedStyle(el as HTMLElement);
+          return (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth || '0') > 0)
+            || (cs.boxShadow !== 'none' && cs.boxShadow !== '');
+        });
+        expect(focusVisible).toBeTruthy();
+      }
     });
 
     test('canonical WC-API callback does not leak success URL', async ({ page }) => {
