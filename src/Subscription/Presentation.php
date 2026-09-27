@@ -71,7 +71,7 @@ final class Presentation {
                 woocommerce_wp_text_input(array(
                     'id' => '_custom_field_id',
                     'label' => __('Custom Field', 'supcheckout'),
-                    'placeholder' => 'Enter value here',
+                    'placeholder' => __('Enter value here', 'supcheckout'),
                     'desc_tip' => 'true',
                     'description' => __('This is a description of the field.', 'supcheckout'),
                 ));
@@ -227,7 +227,11 @@ final class Presentation {
         $plan_label = isset($plan_labels[$plan]) ? $plan_labels[$plan] : ucfirst($plan);
         $interval_label = isset($interval_labels[$plan][$interval])
             ? $interval_labels[$plan][$interval]
-            : sprintf(__('Every %d billing period(s)', 'supcheckout'), $interval);
+            : sprintf(
+                // translators: %d: subscription billing interval multiplier.
+                __('Every %d billing period(s)', 'supcheckout'),
+                $interval
+            );
 
         echo '<div class="upay-subscription-summary">';
         echo '<h4>' . esc_html__('Subscription Details', 'supcheckout') . '</h4>';
