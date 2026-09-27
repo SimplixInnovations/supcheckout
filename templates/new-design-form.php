@@ -158,17 +158,17 @@ defined( 'ABSPATH' ) || exit;
                         <?php
                             if ($key_string == 'apple-pay-knet') {
                                 ?>
-                                <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png'); ?>" alt="<?php echo esc_attr($value_string); ?>"  title="<?php echo esc_attr($value_string); ?>"/>
-                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/knet.png'); ?>" alt="<?php echo esc_attr($value_string); ?>"  title="<?php echo esc_attr($value_string); ?>"/>
+                                <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png'); ?>" alt=""/>
+                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/knet.png'); ?>" alt=""/>
                                 <?php
                             } elseif ($key_string == 'apple-pay') {
                                 ?>
-                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png'); ?>" alt="<?php echo esc_attr($value_string); ?>"  title="<?php echo esc_attr($value_string); ?>"/>
-                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/cc.png'); ?>" alt="<?php echo esc_attr($value_string); ?>"  title="<?php echo esc_attr($value_string); ?>"/>
+                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png'); ?>" alt=""/>
+                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/cc.png'); ?>" alt=""/>
                                 <?php
                             } else {
                                 ?>
-                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt="<?php echo esc_attr($value_string); ?>"  title="<?php echo esc_attr($value_string); ?>"/>
+                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt=""/>
                                 <?php
                             }
                         ?>
@@ -179,7 +179,7 @@ defined( 'ABSPATH' ) || exit;
                 </button>
             
             <?php if ($key_string == 'cc' && $save_card_enabled && $is_logged_in) { ?>
-                <label class="switch-border" for="chkSaveCard">For faster and more secure checkout. Save your card details.
+                <label class="switch-border" for="chkSaveCard"><?php esc_html_e('For faster and more secure checkout. Save your card details.', 'supcheckout'); ?>
                     <span class="switch">
                         <?php
                             $checked = false;
@@ -213,7 +213,7 @@ defined( 'ABSPATH' ) || exit;
                     $key_attr = esc_attr($key_string);
                     $value_attr = esc_attr($value_string);
     ?>
-                <span class="payment-method-icon" style="margin-right: 5px;" id="upay-button-<?php echo esc_attr($key_string); ?>"><img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt="<?php echo esc_attr($value_string); ?>"  title="<?php echo esc_attr($value_string); ?>"/></span>
+                <span class="payment-method-icon" style="margin-right: 5px;" id="upay-button-<?php echo esc_attr($key_string); ?>"><img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt=""/></span>
     <?php
                 }
             }
