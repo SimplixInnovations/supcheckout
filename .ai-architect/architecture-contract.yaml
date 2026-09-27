@@ -21,7 +21,7 @@ baselines:
   historical_approach2_package_sha256: 58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655
   historical_approach2_package_files: 51
   publication_authorized: false
-  current_repository_maintenance_main: f7a017124d04ced50ea4dae283fe198301dc6eba
+  current_repository_maintenance_main: 705862bd2138126b53ea428551b326a0fd8961bc
   historical_r2_merged_main: 1c95bc9434784c705e98245f3f9d65f95f4de7ef
   historical_r4_merged_main: 10a33b4d10e7ec4e45ba5d7a01139ce0777bf382
 

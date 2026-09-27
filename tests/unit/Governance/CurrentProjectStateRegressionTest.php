@@ -165,7 +165,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('publication_authorized: false', $contract);
         self::assertSame(1, substr_count($contract, 'owner_accepted_approach3_source:'), 'exactly one owner_accepted_approach3_source');
         self::assertSame(1, substr_count($contract, 'owner_accepted_approach3_package_sha256:'), 'exactly one package sha key');
-        self::assertStringContainsString('current_repository_maintenance_main: f7a017124d04ced50ea4dae283fe198301dc6eba', $contract);
+        self::assertStringContainsString('current_repository_maintenance_main: 705862bd2138126b53ea428551b326a0fd8961bc', $contract);
         self::assertStringNotContainsString('latest_merged_approach_3_main: 1c95bc94', $contract);
         $scope = self::read_repository_file('docs/project/RELEASE-SCOPE-DECISION.md');
         self::assertStringContainsString('BLOCKED / EXCLUDED FROM FIRST PUBLIC PRODUCTION CLAIM', $scope);
