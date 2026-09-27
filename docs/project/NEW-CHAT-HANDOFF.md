@@ -103,9 +103,9 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 - legacy private verifier: retired
 - provider egress: unchanged (3 sites)
 
-Provider blockers remain **UNPROVEN / PROVIDER CLARIFICATION REQUIRED** for auto-deduct capture, remote cycle identity, HMAC and token persistence. Do not promote them.
+For the narrower first public core one-time-payment scope, the only provider-dependent blocker is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`. saved-card/token persistence: FUTURE FEATURE GATE. auto-deduct capture/cycle identity: FUTURE RECURRING GATE. Webhook signature mechanics remain future defense-in-depth and sandbox credential-family migration remains a future test-infrastructure gate. Do not promote deferred surfaces into first-release production claims.
 
-## Current next work: UPayments provider-contract clarification (not R6, not publication)
+## Current next work: UPayments production-auth clarification (not R6, not publication)
 
 R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`. Publication unauthorized.
 
