@@ -2,7 +2,7 @@
 
 **Purpose:** exhaust public, first-party evidence before asking UPayments for private/account-specific clarification.
 
-**Decision rule:** public evidence may narrow or close a question only when first-party sources are mutually consistent and specific enough to support a production contract. A public implementation is evidence of provider behavior/intent, but an unreleased branch is not a normative production API contract.
+**Decision rule:** current explicit first-party API documentation has the highest authority for endpoint method/path and published request semantics. Public evidence may otherwise narrow or close a question only when first-party sources are mutually consistent and specific enough to support a production contract. A public implementation is evidence of provider behavior/intent, but an unreleased branch is not a normative production API contract; when unreleased provider code diverges from current explicit API documentation, record the divergence and do not silently replace the documented contract.
 
 **Runtime effect:** NONE. This document does not authorize a SUPCheckout runtime change.
 
@@ -48,8 +48,9 @@ Repository: https://github.com/upaymentskwt/woocommerce
 
 Observed on 2026-09-27:
 
-- latest public GitHub Release: **3.1.1**, published 2026-07-20:
+- latest **stable** public GitHub Release: **3.1.1**, published 2026-07-20:
   https://github.com/upaymentskwt/woocommerce/releases/tag/3.1.1
+- later public prerelease: **beta.3.1.1**, published 2026-08-12; this does not supersede 3.1.1 as the latest stable release
 - default `main`: `b9488a6e0bc7a4ba3bbed7549709b2b1fb822282`
 - unreleased `develop`: `ec8a496fbded79c829dc6ca339d160b291727653`
 - unreleased `hmac-signature`: `dc4ad344dce612fc9ed73b827cdd827da0fee26d`
@@ -87,7 +88,7 @@ The following current first-party sources do not present the same contract:
 4. Test Mode instructs Postman users to send the Bearer token, despite also publishing an HMAC test secret.
 5. The official web SDK and React SDK, published in September 2026, advertise automated Bearer authentication and tell production users to provide a live Bearer API token.
 6. The unreleased official WooCommerce `develop` branch adds an `X-Signature` setting/header and `Uplugin-Request: 1`, but does not calculate the documented timestamped HMAC and does not send `X-Timestamp`.
-7. That same unreleased WooCommerce `develop` branch still performs its Get Payment Status verification using Bearer-only headers.
+7. That same unreleased WooCommerce `develop` branch still performs its internal payment-status verification with Bearer-only headers **and** uses `POST` with a JSON `{track_id, payment_id}` body to bare `get-payment-status`, diverging from the current explicit API reference's `GET get-payment-status/{track_id}` contract.
 8. Its subscription scheduler still calls auto-deduct using Bearer-only headers.
 9. The official OpenCart `main` is older (`4a35acd777f7e8f1b5fc8e4b228e13f4bd22c3ea`, 2023-12-28) and Bearer-only. The newer `V4.0` branch (`02a859a5c06ec762cfd2ccc9a75f2de2f4a12b77`, 2026-09-23; commit message `Applied HMAC on charge, create-customer-unique-token and check-payment-button-status apis`) instead sends Bearer + `Uplugin-Request: 1` + a static `X-Signature` value and still has no `X-Timestamp` or local implementation of the documented timestamped HMAC.
 10. The official CS-Cart repository `main`, pushed 2026-09-21, likewise uses Bearer-only requests. However, its unreleased `hmac-signature` branch (`c6ecc24839aea08ac84e84efad3bad1efbc78375`, 2026-09-21) adds the same configured/static `X-Signature` + `Uplugin-Request: 1` pattern as the WooCommerce HMAC work, again with no `X-Timestamp` and no per-request HMAC calculation.
@@ -169,8 +170,7 @@ The WooCommerce Auto Deduction page says generated customer/card tokens are atta
 First-party implementation evidence conflicts with that sentence:
 
 - released/current official WooCommerce code stores `_upay_credit_card_token` and customer-token-related order metadata for subscription operation;
-- the September 2026 unreleased 3.1.2 branch explicitly writes:
-  `customer_unique_token` into WordPress user meta and uses the resulting token for saved-card retrieval.
+- the `customer-unique-token-issue` / later 3.1.2 lineage derives an eight-digit customer token from WordPress user ID + normalized mobile context via `Utils::generateDynamicToken()` (CRC32-mapped), persists that value in WordPress user meta as `customer_unique_token`, and also persists customer/card token values in WooCommerce order metadata. This is implementation evidence only; the CRC32-based derivation is **not** adopted as a SUPCheckout security recommendation or normative provider contract.
 
 The 3.1.2 implementation is not released production authority, but it is sufficient to disprove treating the subscription-page sentence as an unambiguous universal architecture rule.
 
