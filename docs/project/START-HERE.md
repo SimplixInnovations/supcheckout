@@ -66,9 +66,11 @@ Read in this order after this file:
 4. [`NAMING-IDENTITY-STANDARD.md`](NAMING-IDENTITY-STANDARD.md) — canonical identity and protected compatibility IDs;
 5. [`../COMPATIBILITY.md`](../COMPATIBILITY.md) — public compatibility/certification boundary;
 6. [`NEW-CHAT-HANDOFF.md`](NEW-CHAT-HANDOFF.md) — compact continuation context;
-7. [`RELEASE-ENGINEERING.md`](RELEASE-ENGINEERING.md) — deterministic package, migration and release contract;
-8. [`ENTERPRISE-CERTIFICATION.md`](ENTERPRISE-CERTIFICATION.md) — retained certification evidence;
-9. relevant historical phase/quality/spec/plan records when touching their contracts.
+7. [`../../DESIGN.md`](../../DESIGN.md) — durable visual intent and runtime styling ownership;
+8. [`../../UX-CONTRACT.md`](../../UX-CONTRACT.md) — canonical interaction, localization, accessibility and verification behavior;
+9. [`RELEASE-ENGINEERING.md`](RELEASE-ENGINEERING.md) — deterministic package, migration and release contract;
+10. [`ENTERPRISE-CERTIFICATION.md`](ENTERPRISE-CERTIFICATION.md) — retained certification evidence;
+11. relevant historical phase/quality/spec/plan records when touching their contracts.
 
 Historical documents may contain former product names, old repository coordinates and old SHAs because those facts were true at the time. Do not bulk-rewrite historical evidence into current branding.
 
@@ -80,6 +82,8 @@ The owner-accepted technical baseline is now **Approach 3** (`OWNER_TECHNICAL_AC
 - package: `supcheckout-0.1.0.zip`;
 - files: 62;
 - SHA-256: `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
+
+Any later candidate that changes distributable runtime or UI bytes **postdates this acceptance** and must receive fresh exact-head/package verification and a fresh explicit owner acceptance before it can replace the accepted baseline or be published.
 
 Historical Approach 2 (superseded, retained for audit): source `0c883d609906676966002eb022a82a9656eeacc5`, 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
