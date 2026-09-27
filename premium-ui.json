@@ -1,0 +1,27 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": [
+    "assets"
+  ],
+  "locale": "wordpress-active",
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": [
+    "Select/Listbox",
+    "Form",
+    "Toast"
+  ],
+  "ownership": {
+    "Select/Listbox": "native",
+    "Form": "wordpress-woocommerce",
+    "Toast": "authored"
+  },
+  "requiredCommands": [
+    "quality"
+  ],
+  "commands": {
+    "quality": "composer quality"
+  },
+  "evidence": {
+    "failurePaths": "tests/e2e/r6-browser-ux.spec.ts"
+  }
+}
