@@ -220,7 +220,7 @@ test.describe('R6 authenticated WordPress admin smoke', () => {
     await page.locator('input[name="migration_action"][value="preflight"]').check();
     await Promise.all([
       page.waitForLoadState('domcontentloaded'),
-      page.locator('input[type="submit"], button[type="submit"]').last().click(),
+      page.locator('form[method="post"] input[type="submit"], form[method="post"] button[type="submit"]').click(),
     ]);
 
     await expect(page.locator('.notice-error')).toBeVisible();
