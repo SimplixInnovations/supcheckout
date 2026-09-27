@@ -193,6 +193,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('external-certification-release-readiness', $start);
         self::assertStringContainsString('**Last reconciled:** 2026-09-27', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
+        self::assertStringContainsString('Next executable dependency: **UPayments provider-contract clarification**.', $handoff);
         self::assertStringNotContainsString('5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.', $handoff);
         self::assertStringNotContainsString('Immediate R6 boundary', self::read_repository_file('docs/project/NEW-CHAT-HANDOFF.md'));
         // FINAL-4: stale current-looking Approach-2/T1-T2 claims must be quarantined as historical.
@@ -249,7 +250,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('  external_readiness:', $content);
         self::assertStringContainsString('    name: external-certification-release-readiness', $content);
         self::assertStringContainsString('    plan: docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('    current_gate: provider_contract_clarification', $content);
+        self::assertStringContainsString('    current_gate: external_certification_release_readiness', $content);
+        self::assertStringContainsString('    next_external_gate: provider_contract_clarification', $content);
         self::assertStringNotContainsString('  next_runtime_candidate:', $content);
         self::assertStringNotContainsString('post-t02-evidence-review', $content);
     }
