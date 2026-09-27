@@ -165,7 +165,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('publication_authorized: false', $contract);
         self::assertSame(1, substr_count($contract, 'owner_accepted_approach3_source:'), 'exactly one owner_accepted_approach3_source');
         self::assertSame(1, substr_count($contract, 'owner_accepted_approach3_package_sha256:'), 'exactly one package sha key');
-        self::assertStringContainsString('current_repository_maintenance_main: 705862bd2138126b53ea428551b326a0fd8961bc', $contract);
+        self::assertStringContainsString('external_readiness_integrated_main: 705862bd2138126b53ea428551b326a0fd8961bc', $contract);
+        self::assertStringNotContainsString('current_repository_maintenance_main:', $contract);
         self::assertStringNotContainsString('latest_merged_approach_3_main: 1c95bc94', $contract);
         $scope = self::read_repository_file('docs/project/RELEASE-SCOPE-DECISION.md');
         self::assertStringContainsString('BLOCKED / EXCLUDED FROM FIRST PUBLIC PRODUCTION CLAIM', $scope);
@@ -195,6 +196,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Historical release evidence boundary', $rel);
         self::assertStringContainsString('At that checkpoint, the latest runtime-bearing certified baseline was', $rel);
         self::assertStringNotContainsString('## Release evidence boundary', $rel);
+        self::assertStringNotContainsString('Current repository maintenance base', $road);
+        self::assertStringNotContainsString('Current repository maintenance base', $rel);
+        self::assertStringContainsString('External-readiness integrated baseline: 705862bd2138126b53ea428551b326a0fd8961bc', $road);
+        self::assertStringContainsString('External-readiness integrated baseline: 705862bd2138126b53ea428551b326a0fd8961bc', $rel);
         self::assertStringContainsString('r5_decision: B', $contract);
         self::assertStringContainsString('r5_certified_head: 6fc225fc736da107de533ba8e19a12dc5c37227d', $contract);
         self::assertStringContainsString('r5_merged_main: 50170ea7f0d17b792e133a70beee48da7e2b6326', $contract);
