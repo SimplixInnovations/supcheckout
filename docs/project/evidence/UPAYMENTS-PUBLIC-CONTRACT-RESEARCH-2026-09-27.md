@@ -36,6 +36,9 @@
 - Official web SDK: https://www.npmjs.com/package/@upayments-kw/web-sdk
 - Official React SDK: https://www.npmjs.com/package/@upayments-kw/react
 - Official examples repository: https://github.com/upaymentskwt/web-sdk-examples
+- Official OpenCart integration: https://github.com/upaymentskwt/opencart
+- Official CS-Cart integration: https://github.com/upaymentskwt/cs-cart
+- Official Magento integration: https://github.com/upaymentskwt/magento
 
 ### Official WooCommerce repository
 
@@ -84,6 +87,8 @@ The following current first-party sources do not present the same contract:
 6. The unreleased official WooCommerce `develop` branch adds an `X-Signature` setting/header and `Uplugin-Request: 1`, but does not calculate the documented timestamped HMAC and does not send `X-Timestamp`.
 7. That same unreleased WooCommerce `develop` branch still performs its Get Payment Status verification using Bearer-only headers.
 8. Its subscription scheduler still calls auto-deduct using Bearer-only headers.
+9. The official OpenCart repository `main`, pushed 2026-09-23, still sends Bearer-only API requests and uses the documented sandbox/live hosts.
+10. The official CS-Cart repository `main`, pushed 2026-09-21, likewise uses Bearer-only requests. The older Magento repository also uses Bearer-only API requests.
 
 **Classification: PUBLIC EVIDENCE — CONFLICTING.**
 
