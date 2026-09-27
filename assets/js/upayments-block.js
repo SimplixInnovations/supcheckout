@@ -179,10 +179,11 @@ const handleSubscriptionChange = (plan, interval) => {
             is_subscription_enabled && hasCustomTypeProduct && is_whitelabled && payment_icons && payment_icons.cc && createElement(
                 'div',
                 { className: 'upay-subscription-wrapper', style: { marginBottom: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee' } },
-                createElement('label', { style: { display: 'block', fontWeight: 'bold', marginBottom: '5px' } },
+                createElement('label', { htmlFor: 'supcheckout-blocks-plan', style: { display: 'block', fontWeight: 'bold', marginBottom: '5px' } },
                     text('purchase_type_label') + ' ', createElement('span', { style: { color: 'red' }, 'aria-hidden': 'true' }, '*')
                 ),
                 createElement('select', {
+                    id: 'supcheckout-blocks-plan',
                     value: upayData.upay_subscription_plan || 'one_time',
                     className: 'wc-block-components-select__input',
                     style: { width: '100%', padding: '10px', marginBottom: '15px' },
@@ -196,8 +197,10 @@ const handleSubscriptionChange = (plan, interval) => {
                     createElement('option', { value: 'yearly' }, typeof planLabels.yearly === 'string' ? planLabels.yearly : '')
                 ),
                 upayData.upay_subscription_plan && upayData.upay_subscription_plan !== 'one_time' && createElement('div', {},
-                    createElement('label', { style: { display: 'block', fontWeight: 'bold', marginBottom: '5px' } }, text('billing_interval_label') + ' ', createElement('span', { style: { color: 'red' }, 'aria-hidden': 'true' }, '*')),
+                    createElement('label', { htmlFor: 'supcheckout-blocks-interval', style: { display: 'block', fontWeight: 'bold', marginBottom: '5px' } }, text('billing_interval_label') + ' ', createElement('span', { style: { color: 'red' }, 'aria-hidden': 'true' }, '*')),
                     createElement('select', {
+                        id: 'supcheckout-blocks-interval',
+                        'aria-required': 'true',
                         value: upayData.upay_subscription_interval || '',
                         className: 'wc-block-components-select__input',
                         style: { width: '100%', padding: '10px' },
@@ -246,6 +249,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                         key: selection || index,
                                         type: 'button',
                                         className: `upay-payment-method ${upayData.card_token === selection ? 'active' : ''}`,
+                                        'aria-pressed': upayData.card_token === selection,
                                         onClick: () => handleMethodClick('cc', selection),
                                             style: {
                                                 display: 'flex',
@@ -306,6 +310,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                     key: key,
                                     type: 'button',
                                     className: `upay-payment-method ${upayData.upayment_payment_type === key && !upayData.card_token ? 'active' : ''}`,
+                                    'aria-pressed': upayData.upayment_payment_type === key && !upayData.card_token,
                                     onClick: () => handleMethodClick(key),
                                     style: {
                                         display: 'flex',
@@ -421,9 +426,9 @@ const handleSubscriptionChange = (plan, interval) => {
                     )
                 ) : (
                     createElement('div', { className: 'payment-buttons' },
-                        createElement('button', {
-                            type: 'button', className: 'upay-payment-method',
-                            style: { display: 'flex', width: '100%', padding: '15px', alignItems: 'center', border: '1px solid #ccc', borderRadius: '4px', background: '#fff' }
+                        createElement('div', {
+                            className: 'upay-payment-method upay-payment-method--static',
+                            style: { display: 'flex', width: '100%', padding: '15px', alignItems: 'center', border: '1px solid #ccc', borderRadius: '4px', background: '#fff', cursor: 'default', boxSizing: 'border-box' }
                         },
                             Object.keys(payment_icons).map(key => (
                                 key !== 'apple-pay-knet' && createElement('span', { key, style: { marginRight: '8px' } },
