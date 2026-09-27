@@ -6,7 +6,7 @@
 Approach 3: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE (146d65a1c182630c1acc651cacafe30cff5f6b79)
 Approach 2: HISTORICAL / SUPERSEDED
 Active program: external-certification-release-readiness
-Current repository maintenance base: f7a017124d04ced50ea4dae283fe198301dc6eba
+External-readiness integrated baseline: 705862bd2138126b53ea428551b326a0fd8961bc. Live `main` is dynamic — obtain it from GitHub/session bootstrap; it is not frozen into this document.
 Accepted package: supcheckout-0.1.0.zip / 62 files / 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
 Publication: NOT AUTHORIZED
 ```
