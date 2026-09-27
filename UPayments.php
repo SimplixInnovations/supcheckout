@@ -262,7 +262,7 @@ function woocommerceUpaymentsInit() {
                 $account_url = wc_get_page_permalink('myaccount');
 
                 echo '<div class="checkout-my-account-link">';
-                echo '<a href="' . esc_url($account_url) . '" target="_blank">';
+                echo '<a href="' . esc_url($account_url) . '" target="_blank" rel="noopener noreferrer">';
                 esc_html_e('Go to My Account', 'supcheckout');
                 echo '</a>';
                 echo '</div>';
