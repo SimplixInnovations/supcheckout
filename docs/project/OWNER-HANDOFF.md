@@ -28,6 +28,19 @@ At that E3 checkpoint, Quality/H12, the 20-cell Compatibility matrix and gate, P
 
 Current executable gate: **external certification & release readiness**. Approach 3 owner acceptance recorded at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
 
+Current provider disposition after exhaustive first-party research:
+
+- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — the **only provider-dependent blocker for the narrower first public core one-time-payment scope**.
+- saved-card/token persistence: FUTURE FEATURE GATE.
+- auto-deduct capture/cycle identity: FUTURE RECURRING GATE.
+- webhook signature mechanics: FUTURE DEFENSE-IN-DEPTH.
+- sandbox credential-family migration: FUTURE TEST-INFRASTRUCTURE GATE.
+- automatic recurring `VERIFIED_SUCCESS`: FAIL-CLOSED / UNREACHABLE.
+- publication: NOT AUTHORIZED.
+
+See `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md` and `docs/project/UPAYMENTS-PROVIDER-CONTACT-DRAFT.md`.
+
+
 Approach 3 is the current owner-accepted technical baseline. Publication remains NOT AUTHORIZED. Unresolved provider contracts remain uncertified.
 
 ## 2. Golden identity
