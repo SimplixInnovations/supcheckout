@@ -252,9 +252,11 @@ Those observations prove behavioral difference, not which family is contractuall
 
 **Classification: PUBLIC EVIDENCE — CONFLICTING.**
 
+Additional official-code evidence increases the ambiguity: the unreleased 3.1.2 WooCommerce branch changes its test-mode API host from `sandboxapi.upayments.com` to `dev-apiv2api.upayments.com`, while the current public Test Mode documentation still instructs integrations to use `sandboxapi.upayments.com`.
+
 Still unresolved publicly:
 
-- which credential family new server-to-server integrations should use;
+- which host and credential family new server-to-server integrations should use;
 - whether the new HMAC secret pairs with both published Bearer variants;
 - whether activation, merchant binding, whitelabel selection, IP allowlisting or a special plugin/request header is required;
 - whether `jtest123` is current, legacy or endpoint-specific.
@@ -295,8 +297,24 @@ Still unresolved publicly:
 | 28 | newer sandbox keys operationally active | published but existing probe returned 403 | **YES** |
 | 29 | one HMAC secret pairs with both test Bearer keys | page presentation suggests it but does not define binding | **YES** |
 | 30 | `jtest123` current vs legacy | still published, but conflicts with new family | **YES** |
-| 31 | hidden sandbox prerequisites | not published | **YES** |
+| 31 | hidden sandbox prerequisites / correct sandbox-vs-dev host | public docs and unreleased official plugin disagree | **YES** |
 | 32 | intended scope of both credential families | not published | **YES** |
+
+---
+
+## Additional current-documentation inconsistencies reviewed
+
+### Get Payment Status rate limit
+
+The dedicated Get Payment Status page currently states **30 requests per minute**. The current FAQ separately states **800 requests per minute** for Refund and Status-Query endpoints.
+
+SUPCheckout's existing `StatusRateGate` is deliberately capped at **30/minute per credential/mode scope**, matching the stricter dedicated endpoint documentation. Because 30 is safe under either published limit, this contradiction does **not** justify a runtime change. Keep the conservative 30/minute gate unless UPayments publishes a single authoritative replacement contract.
+
+### WooCommerce Blocks support wording
+
+The dedicated “Core Block Checkout Support” page describes native standard-product Block Checkout support, while the current FAQ still says the UPayments plugin is not natively supported by the new Checkout Block and recommends Classic Checkout.
+
+This contradiction concerns the official provider plugin, not SUPCheckout's independently implemented/certified Blocks adapter. It does not change SUPCheckout's bounded Blocks evidence or release claim.
 
 ---
 
