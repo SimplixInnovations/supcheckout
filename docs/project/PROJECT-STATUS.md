@@ -126,6 +126,16 @@ R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a
 4. **R5 / T4 — callback consolidation:** DONE / VERIFIED under Option B / ADR-003. Legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only.
 5. **R6 — final release qualification:** immutable exact-head gates, manual/external qualification, fresh owner re-acceptance and explicit version/publication decision.
 
+## Current provider-contract disposition
+
+- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — FIRST-RELEASE CORE BLOCKER.
+- saved-card/token persistence: FUTURE FEATURE GATE.
+- auto-deduct capture/cycle identity: FUTURE RECURRING GATE.
+- webhook signature mechanics: FUTURE DEFENSE-IN-DEPTH.
+- sandbox credential-family migration: FUTURE TEST-INFRASTRUCTURE GATE.
+- No public-source inference authorizes a runtime HMAC/token/recurring change.
+- Publication remains **NOT AUTHORIZED**.
+
 ## Permanent payment/security invariants
 
 1. Routing input is never financial truth.
