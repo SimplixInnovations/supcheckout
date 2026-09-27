@@ -1,5 +1,19 @@
 # SUPCheckout for UPayments — Release Engineering
 
+## Current state (authoritative)
+
+```text
+Approach 3: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE (146d65a1c182630c1acc651cacafe30cff5f6b79)
+Approach 2: HISTORICAL / SUPERSEDED
+Active program: external-certification-release-readiness
+Current repository maintenance base: f7a017124d04ced50ea4dae283fe198301dc6eba
+Accepted package: supcheckout-0.1.0.zip / 62 files / 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
+Publication: NOT AUTHORIZED
+```
+
+Sections below labeled Historical are retained audit evidence and are not current state.
+
+
 **Current status:** owner technical acceptance COMPLETED for Approach 3 (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`) at `146d65a1c182630c1acc651cacafe30cff5f6b79`; package 62 files / SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`; explicit release administration (tag/GitHub Release/WordPress.org publication) remains NOT AUTHORIZED; automatic recurring `VERIFIED_SUCCESS` remains FAIL-CLOSED pending provider contracts
 **Canonical GitHub repository:** `SimplixInnovations/supcheckout`
 **Canonical plugin/package slug:** `supcheckout`
@@ -63,7 +77,7 @@ Fresh merged-main evidence:
 - deterministic T2 candidate ZIP — **51 files**, SHA-256 `368aaa5cb1a75e6df41ff17bb2e2126431b49da5e6b8dfe508c718433009fc04`;
 - canonical/Linux/Windows package evidence — **byte-identical**.
 
-This is the **current runtime-bearing release candidate**, not yet the owner-accepted release baseline. The frozen owner-accepted Approach 2 reference remains `0c883d609906676966002eb022a82a9656eeacc5` with package SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655` until Approach 3 closeout re-acceptance.
+(HISTORICAL) This paragraph described the T2-era candidate state before Approach 3 owner acceptance.
 
 The package contract excludes repository-only `README.md`, `CHANGELOG.md` and `SECURITY.md`; it retains WordPress `readme.txt` and `LICENSE`.
 
@@ -249,13 +263,13 @@ Historical Task 5 established deterministic Git-HEAD-bound packaging. Historical
 
 These records remain historical truth. They are not rewritten to claim that old `simplixpay-upayments` identities were already SUCheckout.
 
-## Release evidence boundary
+## Historical release evidence boundary — pre-Approach 3 acceptance
 
 CI artifacts are verification artifacts, not public releases.
 
-The latest runtime-bearing certified baseline is `82d1fdaee91ee6bde6c26dfcc7ceb974d0d59847` (PR #97). Fresh merged-main evidence is **41/41 check-runs SUCCESS**, including H12 **1936/0 PHP + 150/0 Blocks**, **20/20** compatibility plus Compatibility Gate, Release Artifact **69/0** plus Release Gate, Provider Sandbox, WordPress.org readiness **31/0** plus official packaged Plugin Check and CodeQL. The canonical package is **51 files**, SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
+At that checkpoint, the latest runtime-bearing certified baseline was `82d1fdaee91ee6bde6c26dfcc7ceb974d0d59847` (PR #97). Fresh merged-main evidence is **41/41 check-runs SUCCESS**, including H12 **1936/0 PHP + 150/0 Blocks**, **20/20** compatibility plus Compatibility Gate, Release Artifact **69/0** plus Release Gate, Provider Sandbox, WordPress.org readiness **31/0** plus official packaged Plugin Check and CodeQL. At that checkpoint the canonical package was **51 files**, SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
-The owner-accepted Approach 2 baseline is the **frozen regression reference coordinate for all Approach 3 work**:
+The owner-accepted baseline at that time was Approach 2 (now HISTORICAL / SUPERSEDED). It was the frozen regression reference coordinate for Approach 3 work:
 
 - Accepted baseline SHA: `0c883d609906676966002eb022a82a9656eeacc5`
 - Accepted package: `supcheckout-0.1.0.zip` (51 files, SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`).

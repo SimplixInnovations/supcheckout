@@ -36,7 +36,7 @@ HTTP_STACK_PID=''
 PHP_FPM_PID=''
 
 cleanup() {
-  rm -f "$probe_dest" "$as_isolation_dest"
+  rm -f "$probe_dest" "$as_isolation_dest" "$wp_root/supcheckout-fpm-probe.php"
   # Only tear down a stack we started. Reused stacks are owned by the caller.
   if [[ "${SUPCHECKOUT_HTTP_STACK_STARTED:-0}" != "1" ]]; then
     if [[ -n "$HTTP_STACK_PID" ]]; then

@@ -1,0 +1,62 @@
+name: Supply Chain Evidence
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: Runtime + development SBOM
+    runs-on: ubuntu-latest
+    env:
+      EVIDENCE_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.EVIDENCE_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Require exact-head checkout
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EVIDENCE_SOURCE_SHA"
+          echo "EVIDENCE SOURCE: $(git rev-parse HEAD)"
+      - name: Build artifact zip
+        run: bash scripts/build-release.sh /tmp/sbom-artifact
+      - name: Set SOURCE_DATE_EPOCH from exact-head commit
+        run: |
+          set -euo pipefail
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$EVIDENCE_SOURCE_SHA")"
+          echo "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" >> "$GITHUB_ENV"
+          echo "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH (from $EVIDENCE_SOURCE_SHA)"
+      - name: Generate SBOM + license inventory
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/sbom
+          python3 scripts/generate-sbom-evidence.py evidence/sbom /tmp/sbom-artifact/supcheckout-0.1.0.zip | tee evidence/sbom/summary.txt
+          python3 scripts/validate-sbom-evidence.py evidence/sbom
+      - name: SBOM determinism regression (two generations in one job)
+        env:
+          R6_ARTIFACT_ZIP: /tmp/sbom-artifact/supcheckout-0.1.0.zip
+        run: |
+          set -euo pipefail
+          python3 tests/release_control/sbom_determinism_test.py
+      - name: Unknown-license negative regression
+        run: |
+          set -euo pipefail
+          python3 tests/release_control/license_unknown_negative_test.py
+      - name: Upload evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: supply-chain-evidence
+          path: evidence/sbom/
