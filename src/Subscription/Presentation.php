@@ -215,39 +215,35 @@ final class Presentation {
         }
         $raw_status = $order->get_meta('_upay_subscription_status');
         $raw_status = is_string($raw_status) ? $raw_status : '';
-        if ($raw_status === 'active') {
-            $status = '<span class="upay-status-active">' . ucfirst($raw_status) . '</span>';
-        } elseif ($raw_status === 'paused') {
-            $status = '<span class="upay-status-paused">' . ucfirst($raw_status) . '</span>';
-        } elseif ($raw_status === 'cancelled') {
-            $status = '<span class="upay-status-cancelled">' . ucfirst($raw_status) . '</span>';
+        $status_label = self::subscription_status_label($raw_status);
+        if ($raw_status === 'active' || $raw_status === 'paused' || $raw_status === 'cancelled') {
+            $status = '<span class="upay-status-' . esc_attr($raw_status) . '">' . esc_html($status_label) . '</span>';
         } else {
-            $status = ucfirst($raw_status);
+            $status = esc_html($status_label);
         }
-        if ($plan === 'yearly') {
-            $period = 'Year';
-        } elseif ($plan === 'monthly') {
-            $period = 'Month';
-        } elseif ($plan === 'weekly') {
-            $period = 'Week';
-        } else {
-            $period = 'Day';
-        }
+
+        $plan_labels = self::subscription_plan_labels();
+        $interval_labels = self::subscription_interval_labels();
+        $plan_label = isset($plan_labels[$plan]) ? $plan_labels[$plan] : ucfirst($plan);
+        $interval_label = isset($interval_labels[$plan][$interval])
+            ? $interval_labels[$plan][$interval]
+            : sprintf(__('Every %d billing period(s)', 'supcheckout'), $interval);
+
         echo '<div class="upay-subscription-summary">';
         echo '<h4>' . esc_html__('Subscription Details', 'supcheckout') . '</h4>';
         if ($auto_deduction === 'no') {
-            echo '<p><strong>Subscription Status:</strong> ' . wp_kses_post($status) . '</p>';
+            echo '<p><strong>' . esc_html__('Subscription Status', 'supcheckout') . ':</strong> ' . wp_kses_post($status) . '</p>';
         }
-        echo '<p><strong>Plan:</strong> ' . esc_html(ucfirst($plan)) . '</p>';
-        echo '<p><strong>Interval:</strong> Every ' . esc_html($interval) . ' ' . esc_html($period) . '(s)</p>';
+        echo '<p><strong>' . esc_html__('Plan', 'supcheckout') . ':</strong> ' . esc_html($plan_label) . '</p>';
+        echo '<p><strong>' . esc_html__('Interval', 'supcheckout') . ':</strong> ' . esc_html($interval_label) . '</p>';
         if ($auto_deduction === 'yes' && empty($last_billed_dt)) {
-            echo '<p><strong>Auto Deduction Order:</strong> Yes</p>';
+            echo '<p><strong>' . esc_html__('Auto Deduction Order', 'supcheckout') . ':</strong> ' . esc_html__('Yes', 'supcheckout') . '</p>';
         } else {
             if ($raw_status !== 'cancelled') {
-                echo '<p><strong>Next Billing Date:</strong> ' . esc_html($next_billing_dt->format('Y-m-d H:i:s')) . '</p>';
+                echo '<p><strong>' . esc_html__('Next Billing Date', 'supcheckout') . ':</strong> ' . esc_html($next_billing_dt->format('Y-m-d H:i:s')) . '</p>';
             }
             if (!empty($last_billed_dt)) {
-                echo '<p><strong>Last Billed at:</strong> ' . esc_html($last_billed_dt->format('Y-m-d H:i:s')) . '</p>';
+                echo '<p><strong>' . esc_html__('Last Billed at', 'supcheckout') . ':</strong> ' . esc_html($last_billed_dt->format('Y-m-d H:i:s')) . '</p>';
             }
         }
         echo '</div>';
@@ -282,7 +278,7 @@ final class Presentation {
         if (!$product instanceof \WC_Product || $product->get_type() !== 'custom_type') {
             return;
         }
-        echo '<span class="upay-subscription-badge"><strong>🔁 Subscription</strong></span>';
+        echo '<span class="upay-subscription-badge"><strong>🔁 ' . esc_html__('Subscription', 'supcheckout') . '</strong></span>';
     }
 
     /** @return void */
@@ -315,17 +311,8 @@ final class Presentation {
         if (!$next_billing_dt) {
             return;
         }
-        $plan_labels = array(
-            'daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly',
-            'quarterly' => 'Quarterly', 'yearly' => 'Yearly',
-        );
-        $interval_labels = array(
-            'daily' => array(1 => 'Every Day'),
-            'weekly' => array(1 => 'Every Week', 2 => 'Every 2 Weeks', 3 => 'Every 3 Weeks'),
-            'monthly' => array(1 => 'Every Month', 2 => 'Every 2 Months'),
-            'quarterly' => array(1 => 'Every Quarter', 2 => 'Every 2 Quarters', 3 => 'Every 3 Quarters'),
-            'yearly' => array(1 => 'Every Year'),
-        );
+        $plan_labels = self::subscription_plan_labels();
+        $interval_labels = self::subscription_interval_labels();
         ?>
         <section class="woocommerce-subscription-details">
             <h2><?php esc_html_e('Subscription Details', 'supcheckout'); ?></h2>
@@ -347,15 +334,23 @@ final class Presentation {
         }
         $status = $order->get_meta('_upay_subscription_status') ?: 'active';
         $action = $status === 'paused' ? 'resume' : 'pause';
-        $label = $status === 'paused' ? 'Resume Subscription' : 'Pause Subscription';
+        $label = $status === 'paused'
+            ? __('Resume Subscription', 'supcheckout')
+            : __('Pause Subscription', 'supcheckout');
         $form_action = wc_get_account_endpoint_url('view-order') . $order->get_id();
         ?>
-        <form method="post" class="upay-subscription-actions" action="<?php echo esc_url($form_action); ?>">
-            <input type="hidden" name="upay_action" value="unsubscribe" />
-            <input type="hidden" name="order_id" value="<?php echo esc_attr($order->get_id()); ?>" />
-            <?php wp_nonce_field('upay_unsubscribe_' . $order->get_id(), '_wpnonce', false); ?>
-            <button type="submit" class="button upay-unsubscribe-button" onclick="return confirm('<?php echo esc_js(__('Are you sure you want to unsubscribe?', 'supcheckout')); ?>');"><?php esc_html_e('Unsubscribe', 'supcheckout'); ?></button>
-        </form>
+        <details class="upay-unsubscribe-confirmation">
+            <summary class="button upay-unsubscribe-button"><?php esc_html_e('Unsubscribe', 'supcheckout'); ?></summary>
+            <div class="upay-unsubscribe-confirmation__body" role="group" aria-label="<?php echo esc_attr__('Confirm unsubscribe', 'supcheckout'); ?>">
+                <p><?php esc_html_e('Are you sure you want to unsubscribe? This stops future scheduled renewals for this subscription.', 'supcheckout'); ?></p>
+                <form method="post" class="upay-subscription-actions" action="<?php echo esc_url($form_action); ?>">
+                    <input type="hidden" name="upay_action" value="unsubscribe" />
+                    <input type="hidden" name="order_id" value="<?php echo esc_attr($order->get_id()); ?>" />
+                    <?php wp_nonce_field('upay_unsubscribe_' . $order->get_id(), '_wpnonce', false); ?>
+                    <button type="submit" class="button upay-unsubscribe-confirm-button"><?php esc_html_e('Confirm unsubscribe', 'supcheckout'); ?></button>
+                </form>
+            </div>
+        </details>
         <form method="post" class="upay-subscription-actions" action="<?php echo esc_url($form_action); ?>">
             <input type="hidden" name="upay_action" value="<?php echo esc_attr($action); ?>" />
             <input type="hidden" name="order_id" value="<?php echo esc_attr($order->get_id()); ?>" />
@@ -377,12 +372,12 @@ final class Presentation {
                 <input type="hidden" name="page_id" value="<?php echo esc_attr($page_id); ?>">
             <?php } ?>
             <input type="hidden" name="orders" value="">
-            <label for="subscription_filter">Select Order Type:</label>
+            <label for="subscription_filter"><?php echo esc_html__('Select Order Type:', 'supcheckout'); ?></label>
             <select id="subscription_filter" name="subscription_filter" onchange="this.form.submit()">
-                <option value="">All orders</option>
-                <option value="active" <?php selected($current, 'active'); ?>>Active subscriptions</option>
-                <option value="paused" <?php selected($current, 'paused'); ?>>Paused subscriptions</option>
-                <option value="cancelled" <?php selected($current, 'cancelled'); ?>>Cancelled subscriptions</option>
+                <option value=""><?php echo esc_html__('All orders', 'supcheckout'); ?></option>
+                <option value="active" <?php selected($current, 'active'); ?>><?php echo esc_html__('Active subscriptions', 'supcheckout'); ?></option>
+                <option value="paused" <?php selected($current, 'paused'); ?>><?php echo esc_html__('Paused subscriptions', 'supcheckout'); ?></option>
+                <option value="cancelled" <?php selected($current, 'cancelled'); ?>><?php echo esc_html__('Cancelled subscriptions', 'supcheckout'); ?></option>
             </select>
         </form>
         <?php
@@ -435,7 +430,50 @@ final class Presentation {
             echo '—';
             return;
         }
-        echo '<span class="upay-status upay-status-' . esc_attr($status) . '">' . esc_html(ucfirst($status)) . '</span>';
+        echo '<span class="upay-status upay-status-' . esc_attr($status) . '">' . esc_html(self::subscription_status_label($status)) . '</span>';
+    }
+
+    /** @return array<string, string> */
+    private static function subscription_plan_labels() {
+        return array(
+            'daily' => __('Daily', 'supcheckout'),
+            'weekly' => __('Weekly', 'supcheckout'),
+            'monthly' => __('Monthly', 'supcheckout'),
+            'quarterly' => __('Quarterly', 'supcheckout'),
+            'yearly' => __('Yearly', 'supcheckout'),
+        );
+    }
+
+    /** @return array<string, array<int, string>> */
+    private static function subscription_interval_labels() {
+        return array(
+            'daily' => array(1 => __('Every Day', 'supcheckout')),
+            'weekly' => array(
+                1 => __('Every Week', 'supcheckout'),
+                2 => __('Every 2 Weeks', 'supcheckout'),
+                3 => __('Every 3 Weeks', 'supcheckout'),
+            ),
+            'monthly' => array(
+                1 => __('Every Month', 'supcheckout'),
+                2 => __('Every 2 Months', 'supcheckout'),
+            ),
+            'quarterly' => array(
+                1 => __('Every Quarter', 'supcheckout'),
+                2 => __('Every 2 Quarters', 'supcheckout'),
+                3 => __('Every 3 Quarters', 'supcheckout'),
+            ),
+            'yearly' => array(1 => __('Every Year', 'supcheckout')),
+        );
+    }
+
+    /** @param string $status @return string */
+    private static function subscription_status_label($status) {
+        $labels = array(
+            'active' => __('Active', 'supcheckout'),
+            'paused' => __('Paused', 'supcheckout'),
+            'cancelled' => __('Cancelled', 'supcheckout'),
+        );
+        return isset($labels[$status]) ? $labels[$status] : ucfirst($status);
     }
 
     /** @param mixed $value @param \DateTimeZone|null $timezone @return \DateTime|null */
