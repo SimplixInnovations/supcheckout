@@ -139,6 +139,20 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
         }
     }
 
+    public function test_premium_design_and_ux_governance_is_durable(): void {
+        $design = self::read_repository_file('DESIGN.md');
+        $ux = self::read_repository_file('UX-CONTRACT.md');
+        $manifest = self::read_repository_file('premium-ui.json');
+
+        self::assertStringContainsString('SUPCheckout for UPayments Design System', $design);
+        self::assertStringContainsString('WooCommerce-native payment instrument panel', $design);
+        self::assertStringContainsString('## Canonical UI Map', $ux);
+        self::assertStringContainsString('| Select/Listbox | Native HTML/WooCommerce select |', $ux);
+        self::assertStringContainsString('native JS dialogs are prohibited', $ux);
+        self::assertStringContainsString('"profile": "product-admin"', $manifest);
+        self::assertStringContainsString('"canonicalMap": "UX-CONTRACT.md"', $manifest);
+    }
+
     private static function read_repository_file(string $path): string {
         $root = dirname(__DIR__, 3);
         $full_path = $root . '/' . $path;
