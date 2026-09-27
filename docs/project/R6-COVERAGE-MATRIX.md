@@ -28,15 +28,15 @@ Base for this pass: `776e0d3b98a54b78c502a792cc01fca7d757d6fe`.
 | Classic/Blocks checkout browser | `tests/e2e/r6-browser-ux.spec.ts` (Playwright) + default theme | screenshots + axe | VERIFIED — R6 Final Evidence / Browser / RTL / Axe |
 | Mobile/desktop viewport | same | two viewports | VERIFIED — R6 Final Evidence / Browser / RTL / Axe |
 | Console / labels / focus / axe | same | assertions in spec | VERIFIED — R6 Final Evidence / Browser / RTL / Axe |
-| Broken plugin network assets | same | requestfailed/resource assertions not in final spec | PENDING — add requestfailed assertions before VERIFIED |
+| Broken plugin network assets | `tests/e2e/r6-browser-ux.spec.ts` | Classic/Blocks/RTL track plugin-owned `requestfailed` and HTTP >=400 asset responses | VERIFIED — hard-fail browser assertions |
 | Arabic/RTL default theme | `tests/e2e/r6-browser-ux.spec.ts` RTL project + locale ar | WordPress ar locale + dir=rtl | VERIFIED — R6 Final Evidence WordPress ar locale + dir=rtl |
 | Local reverse proxy | `tests/integration/lib/reverse-proxy-smoke.sh` | callback URL, no-cache, spoofed headers fail-closed | VERIFIED — R6 Final Evidence / Proxy / DAST |
 | Real Cloudflare/CDN | — | edge product | EXTERNAL REQUIRED |
-| Automated DAST | `tests/security/r6-dast-smoke.php` | unauthenticated public probes only | VERIFIED — bounded unauthenticated HTTP smoke + gitleaks; authenticated DAST PENDING; professional pentest EXTERNAL |
+| Automated DAST | `tests/security/r6-dast-smoke.php` + authenticated Playwright admin smoke | public callback/status/XSS/SQLi/traversal/header probes plus authenticated migration capability/nonce/invalid-input reflection checks | VERIFIED — bounded repository automation; professional pentest remains EXTERNAL REQUIRED |
 | Professional pentest | — | independent | EXTERNAL REQUIRED |
 | Secrets current tree | `tests/security/r6-secret-scan.sh` + CI | no real secrets | VERIFIED — R6 Final Evidence / Secret / Supply-chain Audit |
 | Secrets git history / tree | gitleaks + r6-secret-scan | history + tree | VERIFIED — gitleaks history/tree + custom scan |
-| Secrets final ZIP | Release Artifact package + r6-secret-scan ZIP path | package scan only when ZIP present | PENDING — dedicated package-scan step in Secret job before VERIFIED |
+| Secrets final ZIP | Release Artifact + `tests/security/r6-secret-scan.sh` explicit ZIP input | exact canonical distributable is secret-scanned before artifact upload | VERIFIED — Release Artifact hard-fail package scan |
 | Actions pinned by SHA | `tests/security/r6-actions-pin-audit.sh` | all `uses:` pinned | VERIFIED (local + hosted pin audit) |
 | CodeQL / dependency audit | permanent workflows | green | VERIFIED |
 | Production Charge + track-ID Status auth/HMAC applicability | `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md` | contradictory current first-party docs/SDK/plugin evidence; exact applicability remains account/channel-specific | `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — FIRST-RELEASE CORE BLOCKER |
