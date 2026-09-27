@@ -1,5 +1,25 @@
 # UPayments Contract Decision Tree
 
+## Public research boundary — 2026-09-27
+
+Deep first-party research is recorded in `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`.
+
+It does **not** select an HMAC/token/recurring runtime outcome because current UPayments first-party surfaces materially conflict:
+
+- dynamic HMAC guide vs Bearer-only/current-rollout surfaces and the official unreleased plugin's different signature model;
+- subscription “never stored locally” wording vs token APIs and official plugin token persistence;
+- generic `CAPTURED` financial semantics vs official auto-deduct code promoting a successful response envelope without a separately documented capture contract.
+
+Therefore:
+
+```text
+NEW_RUNTIME_TRANCHE_REQUIRED=NONE
+PENDING=PROVIDER_CONTRACT_CLARIFICATION
+```
+
+No public-source inference may be promoted into production payment authority merely to close the release gate.
+
+
 ## HMAC outcome A — mandatory
 
 If UPayments confirms mandatory HMAC for production Charge/Status:
