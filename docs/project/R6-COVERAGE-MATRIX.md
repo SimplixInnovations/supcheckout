@@ -39,10 +39,10 @@ Base for this pass: `776e0d3b98a54b78c502a792cc01fca7d757d6fe`.
 | Secrets final ZIP | Release Artifact package + r6-secret-scan ZIP path | package scan only when ZIP present | PENDING — dedicated package-scan step in Secret job before VERIFIED |
 | Actions pinned by SHA | `tests/security/r6-actions-pin-audit.sh` | all `uses:` pinned | VERIFIED (local + hosted pin audit) |
 | CodeQL / dependency audit | permanent workflows | green | VERIFIED |
-| HMAC mandatory? | `docs/project/PROVIDER-CLARIFICATION-PACKAGE.md` | contradictory first-party docs | PROVIDER CLARIFICATION REQUIRED |
-| Token local persistence allowed? | same | provider says not stored locally | PROVIDER CLARIFICATION REQUIRED |
-| Auto-deduct CAPTURED | same | unproven | UNPROVEN |
-| Remote cycle identity | same | unproven | UNPROVEN |
+| Production Charge + track-ID Status auth/HMAC applicability | `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md` | contradictory current first-party docs/SDK/plugin evidence; exact applicability remains account/channel-specific | `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — FIRST-RELEASE CORE BLOCKER |
+| Saved-card/token persistence contract | same | first-party docs and official implementations conflict | saved-card/token persistence: FUTURE FEATURE GATE |
+| Auto-deduct captured truth / cycle identity | same | public evidence does not establish normative recurring capture/retry/cycle authority | auto-deduct capture/cycle identity: FUTURE RECURRING GATE |
+| Remote recurring cycle identity | same | transaction-attempt identity is documented; billing-cycle idempotency is not | FUTURE RECURRING GATE |
 | Live recurring / cards / wallets | — | needs real instruments | EXTERNAL REQUIRED |
 | WPML/WCML/multicurrency | — | needs licenses | EXTERNAL REQUIRED |
 | Commercial themes/builders | — | needs licenses | EXTERNAL REQUIRED |
