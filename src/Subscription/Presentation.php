@@ -244,10 +244,10 @@ final class Presentation {
             echo '<p><strong>' . esc_html__('Auto Deduction Order', 'supcheckout') . ':</strong> ' . esc_html__('Yes', 'supcheckout') . '</p>';
         } else {
             if ($raw_status !== 'cancelled') {
-                echo '<p><strong>' . esc_html__('Next Billing Date', 'supcheckout') . ':</strong> ' . esc_html($next_billing_dt->format('Y-m-d H:i:s')) . '</p>';
+                echo '<p><strong>' . esc_html__('Next Billing Date', 'supcheckout') . ':</strong> ' . esc_html(self::format_date_time($next_billing_dt)) . '</p>';
             }
             if (!empty($last_billed_dt)) {
-                echo '<p><strong>' . esc_html__('Last Billed at', 'supcheckout') . ':</strong> ' . esc_html($last_billed_dt->format('Y-m-d H:i:s')) . '</p>';
+                echo '<p><strong>' . esc_html__('Last Billed at', 'supcheckout') . ':</strong> ' . esc_html(self::format_date_time($last_billed_dt)) . '</p>';
             }
         }
         echo '</div>';
@@ -282,7 +282,7 @@ final class Presentation {
         if (!$product instanceof \WC_Product || $product->get_type() !== 'custom_type') {
             return;
         }
-        echo '<span class="upay-subscription-badge"><strong>🔁 ' . esc_html__('Subscription', 'supcheckout') . '</strong></span>';
+        echo '<span class="upay-subscription-badge"><strong><span aria-hidden="true">🔁</span> ' . esc_html__('Subscription', 'supcheckout') . '</strong></span>';
     }
 
     /** @return void */
@@ -324,9 +324,9 @@ final class Presentation {
                 <tbody>
                     <tr><th style="border: 1px solid;"><?php esc_html_e('Plan', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html(isset($plan_labels[$plan]) ? $plan_labels[$plan] : ucfirst($plan)); ?></td></tr>
                     <tr><th style="border: 1px solid;"><?php esc_html_e('Interval', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html(isset($interval_labels[$plan][$interval]) ? $interval_labels[$plan][$interval] : $interval); ?></td></tr>
-                    <tr><th style="border: 1px solid;"><?php esc_html_e('Started On', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($started_at->format('Y-m-d H:i:s')); ?></td></tr>
+                    <tr><th style="border: 1px solid;"><?php esc_html_e('Started On', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html(self::format_date_time($started_at)); ?></td></tr>
                     <?php if ($order->get_meta('UPayments_AutoDeduction') !== 'yes') { ?>
-                        <tr><th style="border: 1px solid;"><?php esc_html_e('Last Billed On', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($last_billed_dt ? $last_billed_dt->format('Y-m-d H:i:s') : '-'); ?></td></tr>
+                        <tr><th style="border: 1px solid;"><?php esc_html_e('Last Billed On', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($last_billed_dt ? self::format_date_time($last_billed_dt) : '-'); ?></td></tr>
                         <tr><th style="border: 1px solid;"><?php esc_html_e('Next Billing Date', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($next_billing_dt->format('Y-m-d H:i:s')); ?></td></tr>
                     <?php } ?>
                 </tbody>
@@ -478,6 +478,29 @@ final class Presentation {
             'cancelled' => __('Cancelled', 'supcheckout'),
         );
         return isset($labels[$status]) ? $labels[$status] : ucfirst($status);
+    }
+
+    /** @param \DateTimeInterface $date_time @return string */
+    private static function format_date_time($date_time) {
+        if (!$date_time instanceof \DateTimeInterface) {
+            return '';
+        }
+
+        $fallback_format = 'Y-m-d H:i:s';
+        if (!function_exists('get_option') || !function_exists('wp_date')) {
+            return $date_time->format($fallback_format);
+        }
+
+        $date_format = get_option('date_format');
+        $time_format = get_option('time_format');
+        $date_format = is_string($date_format) && $date_format !== '' ? $date_format : 'Y-m-d';
+        $time_format = is_string($time_format) && $time_format !== '' ? $time_format : 'H:i:s';
+
+        return wp_date(
+            $date_format . ' ' . $time_format,
+            $date_time->getTimestamp(),
+            $date_time->getTimezone()
+        );
     }
 
     /** @param mixed $value @param \DateTimeZone|null $timezone @return \DateTime|null */
