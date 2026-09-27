@@ -19,22 +19,32 @@ PENDING=PROVIDER_CONTRACT_CLARIFICATION
 
 No public-source inference may be promoted into production payment authority merely to close the release gate.
 
+### First-release blocker boundary after exhaustive public research
+
+For the narrower first public **core one-time-payment** scope, the provider-dependent release blocker is now limited to:
+
+```text
+PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED
+```
+
+Webhook-signature mechanics are defense-in-depth because webhook/redirect input is not financial truth; current financial authority remains authenticated `StatusVerifier`. Saved-card/token-storage and auto-deduct/cycle questions remain future feature gates because those capabilities are excluded from the first public production claim. Sandbox credential-family migration is also not a first-release blocker while the bounded public-sandbox Charge path remains independently certified.
+
 
 ## HMAC outcome A — mandatory
 
-If UPayments confirms mandatory HMAC for production Charge/Status:
+If UPayments confirms mandatory dynamic HMAC for production Charge and/or Status:
 
 ```text
 NEW_RUNTIME_TRANCHE_REQUIRED=HMAC
 ```
 
-Do NOT implement in this release-readiness branch. Future tranche must cover all three egresses:
+Do NOT implement in this research branch. The separate runtime tranche must cover every provider egress to which the authoritative contract applies:
 
-- `WC_Upayments::execute_upayments_request`
-- `StatusVerifier::verify`
-- Scheduler renewal dispatch
+- `WC_Upayments::execute_upayments_request` — core Charge;
+- `StatusVerifier::verify` — core track-ID Status;
+- Scheduler renewal dispatch — only according to the authoritative endpoint contract; recurring remains excluded/fail-closed until its separate certification.
 
-Required: API Secret config/storage, redaction, timestamp, exact body preservation, canonical path (incl. query policy), GET empty-body rule, Base64 HMAC-SHA256, skew/errors, test vectors, migration, rollback, R0–R6 gates, fresh owner acceptance. No fourth egress.
+Required: API Secret config/storage, redaction, timestamp, exact body preservation, the active track-ID canonical path, GET empty-body rule, Base64 HMAC-SHA256, conservative auth-failure handling, deterministic test vectors, migration/rollback, release-sensitive recertification and fresh owner acceptance. Query-string canonicalization is not required by the current SUPCheckout Status route because that route rejects query strings. No fourth egress.
 
 ## HMAC outcome B — optional/rollout
 
