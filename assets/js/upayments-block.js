@@ -60,13 +60,21 @@ const { registerPaymentMethod } = wc.wcBlocksRegistry;
             setTimeout(() => setToast({ message: '', show: false }), 3500);
         };
 
-        const optionsData = {
-            daily: { "1": "Every Day" },
-            weekly: { "1": "Every Week", "2": "Every 2 Weeks", "3": "Every 3 Weeks" },
-            monthly: { "1": "Every Month", "2": "Every 2 Months" },
-            quarterly: { "1": "Every Quarter", "2": "Every 2 Quarters", "3": "Every 3 Quarters" },
-            yearly: { "1": "Every Year" }
-        };
+        const text = (key) => (
+            translation
+            && typeof translation === 'object'
+            && typeof translation[key] === 'string'
+        ) ? translation[key] : '';
+        const planLabels = (
+            translation
+            && translation.plan_labels
+            && typeof translation.plan_labels === 'object'
+        ) ? translation.plan_labels : {};
+        const optionsData = (
+            translation
+            && translation.interval_labels
+            && typeof translation.interval_labels === 'object'
+        ) ? translation.interval_labels : {};
 
         const updateCheckout = (newData) => {
             const allExtensionData = wp.data.select('wc/store/checkout').getExtensionData() || {};
@@ -108,7 +116,9 @@ const handleSubscriptionChange = (plan, interval) => {
                     card_token: cardSelection,
                     save_card: '0'
                 });
-                showToast("Saved card selected");
+                if (translation && typeof translation.saved_card_selected === 'string' && translation.saved_card_selected !== '') {
+                    showToast(translation.saved_card_selected);
+                }
             } else if (type === 'cc') {
                 // Section AJ: New CC transition — check current store state.
                 const current = getCurrentUpayData();
@@ -170,7 +180,7 @@ const handleSubscriptionChange = (plan, interval) => {
                 'div',
                 { className: 'upay-subscription-wrapper', style: { marginBottom: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee' } },
                 createElement('label', { style: { display: 'block', fontWeight: 'bold', marginBottom: '5px' } },
-                    'Purchase Type ', createElement('span', { style: { color: 'red' } }, '*')
+                    text('purchase_type_label') + ' ', createElement('span', { style: { color: 'red' }, 'aria-hidden': 'true' }, '*')
                 ),
                 createElement('select', {
                     value: upayData.upay_subscription_plan || 'one_time',
@@ -178,22 +188,22 @@ const handleSubscriptionChange = (plan, interval) => {
                     style: { width: '100%', padding: '10px', marginBottom: '15px' },
                     onChange: (e) => handleSubscriptionChange(e.target.value, upayData.upay_subscription_interval)
                 },
-                    createElement('option', { value: 'one_time' }, 'One-time'),
-                    createElement('option', { value: 'daily' }, 'Daily Subscription'),
-                    createElement('option', { value: 'weekly' }, 'Weekly Subscription'),
-                    createElement('option', { value: 'monthly' }, 'Monthly Subscription'),
-                    createElement('option', { value: 'quarterly' }, 'Quarterly Subscription'),
-                    createElement('option', { value: 'yearly' }, 'Yearly Subscription')
+                    createElement('option', { value: 'one_time' }, text('one_time')),
+                    createElement('option', { value: 'daily' }, typeof planLabels.daily === 'string' ? planLabels.daily : ''),
+                    createElement('option', { value: 'weekly' }, typeof planLabels.weekly === 'string' ? planLabels.weekly : ''),
+                    createElement('option', { value: 'monthly' }, typeof planLabels.monthly === 'string' ? planLabels.monthly : ''),
+                    createElement('option', { value: 'quarterly' }, typeof planLabels.quarterly === 'string' ? planLabels.quarterly : ''),
+                    createElement('option', { value: 'yearly' }, typeof planLabels.yearly === 'string' ? planLabels.yearly : '')
                 ),
                 upayData.upay_subscription_plan && upayData.upay_subscription_plan !== 'one_time' && createElement('div', {},
-                    createElement('label', { style: { display: 'block', fontWeight: 'bold', marginBottom: '5px' } }, 'Billing Interval ', createElement('span', { style: { color: 'red' } }, '*')),
+                    createElement('label', { style: { display: 'block', fontWeight: 'bold', marginBottom: '5px' } }, text('billing_interval_label') + ' ', createElement('span', { style: { color: 'red' }, 'aria-hidden': 'true' }, '*')),
                     createElement('select', {
                         value: upayData.upay_subscription_interval || '',
                         className: 'wc-block-components-select__input',
                         style: { width: '100%', padding: '10px' },
                         onChange: (e) => handleSubscriptionChange(upayData.upay_subscription_plan, e.target.value)
                     },
-                        createElement('option', { value: '' }, 'Select interval'),
+                        createElement('option', { value: '' }, text('select_interval')),
                         optionsData[upayData.upay_subscription_plan] && Object.entries(optionsData[upayData.upay_subscription_plan]).map(([val, text]) => (
                             createElement('option', { key: val, value: val }, text)
                         ))
@@ -212,7 +222,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                     fontWeight: 'bold',
                                     margin: '20px 0 10px'
                                 }
-                            }, 'Pay Using Saved Cards'
+                            }, text('saved_cards_label')
                         ),
                         createElement('div', {
                             key: 'list-saved',
@@ -286,7 +296,7 @@ const handleSubscriptionChange = (plan, interval) => {
                             fontWeight: 'bold',
                             margin: '25px 0 10px'
                         }
-                    }, 'Choose Payment Method'),
+                    }, text('choose_payment_method')),
                     createElement('div', {
                         className: 'normal-methods-group'
                     },
@@ -395,7 +405,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                 style: {
                                     fontSize: '0.9em'
                                 }
-                            }, translation.save_card_label || 'Save card for future use?'),
+                            }, text('save_card_label')),
                             createElement('span', {
                                     className: 'switch'
                                 },
