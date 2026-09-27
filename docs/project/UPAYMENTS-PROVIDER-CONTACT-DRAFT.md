@@ -1,7 +1,7 @@
 # UPayments Provider Contact Draft
 
-**Status:** REDUCED AFTER PUBLIC RESEARCH — READY_TO_SEND — OWNER ACTION REQUIRED  
-**Do NOT send without:** `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`  
+**Status:** REDUCED AFTER PUBLIC RESEARCH — READY_TO_SEND — OWNER ACTION REQUIRED
+**Do NOT send without:** `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`
 **No secrets in this document.**
 
 Public first-party research has already resolved or narrowed the original 32 questions. See:
