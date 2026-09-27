@@ -12,7 +12,7 @@ colors:
   muted-surface: "#F9F9F9"
   admin-border: "#C3C4C7"
 typography:
-  platform:
+  sans:
     fontFamily: "inherit"
   mono:
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
