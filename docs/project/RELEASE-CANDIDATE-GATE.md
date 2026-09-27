@@ -5,17 +5,17 @@ An RC may be produced only when **scope-aware** mandatory blockers are closed.
 ## Mandatory for core one-time payment RC
 
 - [x] current secure upstream WP/WC patches certified (live lookup CURRENT)
-- [ ] all permanent CI green on final head
-- [ ] accepted runtime/package provenance understood
+- [x] all permanent CI green on certified repository head
+- [x] accepted runtime/package provenance understood
 - [ ] production auth contract resolved for provider API traffic (**HMAC — BLOCKER**)
 - [ ] live one-time payment acceptance complete
-- [ ] public-claims audit complete
+- [x] public-claims audit complete
 - [x] no misleading recurring claim in current copy
 - [x] secret scan clean
 - [x] dependency/security audit clean
 - [ ] independent pentest complete **if claiming enterprise production readiness**
 - [ ] PCI/legal scope reviewed externally **if owner release policy requires**
-- [ ] release scope explicitly locked
+- [x] release scope explicitly locked
 
 ## Feature-scoped blockers (block only when included/advertised)
 

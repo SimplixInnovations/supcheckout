@@ -41,13 +41,14 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         }
     }
 
-    public function test_start_here_records_post_t3_as_the_current_successor(): void {
+    public function test_start_here_records_external_readiness_as_the_current_successor(): void {
         $content = self::read_repository_file('docs/project/START-HERE.md');
 
-        self::assertStringContainsString('post-t3-ecosystem-hardening', $content);
-        self::assertStringContainsString('T3', $content);
-        self::assertStringNotContainsString('Continue Approach 3 from verified T2', $content);
-        self::assertStringNotContainsString('Approach 3 post-T2 evidence review / direct legacy-method characterization', $content);
+        self::assertStringContainsString('docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
+        self::assertStringContainsString('Program phase | **external certification & release readiness**', $content);
+        self::assertStringContainsString('R6 | **DONE / VERIFIED**', $content);
+        self::assertStringNotContainsString('Plan: `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`', $content);
+        self::assertStringNotContainsString('Program phase | **Approach 3 post-T3 ecosystem hardening**', $content);
     }
 
     public function test_living_control_plane_records_post_t3_milestone_merge_and_no_deleted_branch_as_active(): void {
@@ -173,6 +174,12 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $gate = self::read_repository_file('docs/project/RELEASE-CANDIDATE-GATE.md');
         self::assertStringContainsString('Mandatory for core one-time payment RC', $gate);
         self::assertStringContainsString('Feature-scoped blockers', $gate);
+        self::assertStringContainsString('- [x] all permanent CI green on certified repository head', $gate);
+        self::assertStringContainsString('- [x] accepted runtime/package provenance understood', $gate);
+        self::assertStringContainsString('- [x] public-claims audit complete', $gate);
+        self::assertStringContainsString('- [x] release scope explicitly locked', $gate);
+        self::assertStringContainsString('- [ ] production auth contract resolved for provider API traffic', $gate);
+        self::assertStringContainsString('- [ ] live one-time payment acceptance complete', $gate);
         $status_hdr = self::read_repository_file('docs/project/PROJECT-STATUS.md');
         self::assertStringContainsString('Historical Approach 2 package', $status_hdr);
         self::assertStringContainsString('external-certification-release-readiness', $status_hdr);
@@ -184,6 +191,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
+        self::assertStringContainsString('**Last reconciled:** 2026-09-27', $status_hdr);
+        self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
+        self::assertStringContainsString('Next executable dependency: **UPayments provider-contract clarification**.', $handoff);
+        self::assertStringNotContainsString('5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.', $handoff);
         self::assertStringNotContainsString('Immediate R6 boundary', self::read_repository_file('docs/project/NEW-CHAT-HANDOFF.md'));
         // FINAL-4: stale current-looking Approach-2/T1-T2 claims must be quarantined as historical.
         $road = self::read_repository_file('docs/ENGINEERING-ROADMAP.md');
@@ -230,13 +241,18 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('A fresh owner acceptance is required at Approach 3 closeout.', $agents);
     }
 
-    public function test_architecture_contract_records_t3_and_rejects_the_obsolete_t2_next_candidate(): void {
+    public function test_architecture_contract_records_external_readiness_as_current_program(): void {
         $content = self::read_repository_file('.ai-architect/architecture-contract.yaml');
 
         self::assertStringContainsString("  t03:\n", $content);
         self::assertStringContainsString('    status: done_verified', $content);
         self::assertStringContainsString('    merged_main_sha: ' . self::T3_MERGED_MAIN_SHA, $content);
-        self::assertStringContainsString('    name: post-t3-ecosystem-hardening', $content);
+        self::assertStringContainsString('  external_readiness:', $content);
+        self::assertStringContainsString('    name: external-certification-release-readiness', $content);
+        self::assertStringContainsString('    plan: docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
+        self::assertStringContainsString('    current_gate: external_certification_release_readiness', $content);
+        self::assertStringContainsString('    next_external_gate: provider_contract_clarification', $content);
+        self::assertStringNotContainsString('  next_runtime_candidate:', $content);
         self::assertStringNotContainsString('post-t02-evidence-review', $content);
     }
 
