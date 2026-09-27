@@ -117,6 +117,17 @@ R0, R1 and E1 are **DONE / VERIFIED and integrated through PR #108**. Repository
 
 Approach 3 is the current owner-accepted technical baseline (146d65a). Publication remains NOT AUTHORIZED.
 
+### Current provider-contract disposition
+
+Deep first-party research narrowed the **first public core one-time-payment** provider blocker to one contract decision:
+
+`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`
+
+The remaining provider-related areas are deliberately outside the first-release core claim: saved-card/token persistence is a **FUTURE FEATURE GATE**, auto-deduct capture/cycle identity is a **FUTURE RECURRING GATE**, webhook-signature mechanics are future defense-in-depth, and sandbox credential-family migration is a future test-infrastructure gate. None of those deferred areas may be silently promoted into supported production scope. Automatic recurring `VERIFIED_SUCCESS` remains fail-closed/unreachable. Publication remains **NOT AUTHORIZED**.
+
+Authoritative public-evidence analysis: `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`.
+
+
 ## 6. Post-T3 execution sequence
 
 The approved bounded sequence is:
@@ -142,7 +153,7 @@ R5  callback lifecycle consolidation (Option B / ADR-003) — DONE / VERIFIED
  ↓
 R6  exact-head qualification + fresh owner re-acceptance — DONE / VERIFIED
  ↓
-external certification: provider-contract clarification
+external certification: core production-auth clarification (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`)
  ↓
 explicit version/publication decision only after remaining release gates
 ```
@@ -172,7 +183,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | R6 | **DONE / VERIFIED** — exact-head qualification and owner technical re-acceptance complete |
 | Current operational gate | **external certification & release readiness** |
-| Immediate next external gate | **UPayments provider-contract clarification** |
+| Immediate next external gate | **UPayments production-auth clarification — `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`** |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
