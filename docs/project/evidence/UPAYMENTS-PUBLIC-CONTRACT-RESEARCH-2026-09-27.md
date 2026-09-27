@@ -97,7 +97,7 @@ The following current first-party sources do not present the same contract:
 
 There is strong evidence that HMAC rollout is channel/account/endpoint-sensitive or in transition, but no safe public basis for choosing the exact production contract for SUPCheckout.
 
-The repeated WooCommerce + CS-Cart implementation pattern also supports a stronger distinction: UPayments appears to have an **official-plugin static signature / merchant-validation scheme** (`X-Signature` + `Uplugin-Request`) that is technically different from the documented **dynamic request HMAC scheme** (`X-Timestamp` + Base64 HMAC-SHA256). Public sources do not define the relationship between these two schemes. They must not be treated as interchangeable.
+The repeated WooCommerce + CS-Cart + OpenCart V4 implementation pattern supports a stronger distinction: UPayments appears to have an **official-plugin static signature / merchant-validation scheme** (`X-Signature` + `Uplugin-Request`) that is technically different from the documented **dynamic request HMAC scheme** (`X-Timestamp` + Base64 HMAC-SHA256). Public sources do not define the relationship between these two schemes. They must not be treated as interchangeable.
 
 ### Query-string canonicalization
 
@@ -264,9 +264,7 @@ Current first-party Postman documentation still publishes `jtest123` for the non
 
 Therefore **RESOLVED_FIRST_PARTY for the tested sandbox Charge path:** `jtest123` is still a currently documented sandbox credential and has independently passed the bounded Bearer-only Charge initialization certification. This does **not** prove that it is the preferred long-term credential family, that other endpoints accept it, or that production accounts share the same HMAC policy.
 
-This does not establish whether `jtest123` is the recommended long-term family, whether other endpoints accept it, or whether production accounts have the same HMAC policy.
-
-**Classification: PUBLIC EVIDENCE — CONFLICTING.**
+**Overall credential-family classification: PUBLIC EVIDENCE — CONFLICTING.** The bounded `jtest123` Charge result is resolved; the intended migration/lifecycle relationship between the older and newer sandbox families is not.
 
 Additional official-code evidence increases the ambiguity: the unreleased 3.1.2 WooCommerce branch changes its test-mode API host from `sandboxapi.upayments.com` to `dev-apiv2api.upayments.com`, while the current public Test Mode documentation still instructs integrations to use `sandboxapi.upayments.com`.
 
@@ -361,7 +359,7 @@ The following decisions no longer need to be treated as wholly unknown:
 3. **Status identifiers:** `track_id` is a unique transaction-attempt identifier; status can also be queried by session/invoice identifiers.
 4. **Stable customer identity:** saved-card retrieval requires stable `customerUniqueToken` reuse.
 5. **HMAC algorithm mechanics:** if/where the documented dynamic-HMAC contract applies, the algorithm/body/timestamp/header mechanics are publicly specified.
-6. **The remaining HMAC problem is applicability/canonicalization**, not the cryptographic primitive.
+6. **The remaining first-release HMAC problem is production applicability**, not the cryptographic primitive or the active track-ID route shape. Query-form canonicalization is deferred because SUPCheckout does not use query-form status lookup.
 7. **The token-storage conflict is real first-party inconsistency**, not merely a SUPCheckout assumption.
 8. **`jtest123` is currently documented for the non-whitelabel sandbox and independently passed the bounded sandbox Charge certification on 2026-09-06.** The newer published family still conflicts with observed behavior/documentation; its migration scope/host/prerequisites remain unresolved.
 9. **Official provider code must not be copied as authoritative financial logic:** the current official subscription scheduler promotes `status:true` to local `CAPTURED` without a separately documented capture proof.
