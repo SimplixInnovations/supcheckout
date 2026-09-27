@@ -186,7 +186,8 @@ tranches:
     generic_e2_status: done_certified
     e3_repository_status: done_verified
     e3_codeql_historical_status: nonterminal_hosted_default_setup
-    current_gate: provider_contract_clarification
+    current_gate: external_certification_release_readiness
+    next_external_gate: provider_contract_clarification
     r6_status: done_verified
     approach3_status: owner_accepted
     r5_decision: B
