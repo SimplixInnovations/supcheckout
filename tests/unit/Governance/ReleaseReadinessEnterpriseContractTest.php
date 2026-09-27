@@ -78,6 +78,29 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
         self::assertStringNotContainsString('showToast("Saved card selected")', $js);
     }
 
+
+    public function test_classic_payment_icons_are_decorative_when_visible_labels_exist(): void {
+        $new_template = self::read_repository_file('templates/new-design-form.php');
+        $old_template = self::read_repository_file('templates/old-design-form.php');
+
+        self::assertStringNotContainsString('alt="<?php echo esc_attr($value_string); ?>"', $new_template);
+        self::assertStringNotContainsString('title="<?php echo esc_attr($value_string); ?>"', $new_template);
+        self::assertStringNotContainsString('alt="' . '$value_attr' . '"', $old_template);
+        self::assertStringNotContainsString('title="' . '$value_attr' . '"', $old_template);
+    }
+
+    public function test_remaining_runtime_ui_copy_uses_the_plugin_text_domain(): void {
+        $gateway = self::read_repository_file('UPayments.php');
+        $migration = self::read_repository_file('src/Migration/MigrationAdmin.php');
+
+        self::assertStringNotContainsString('<span>Pay securely with <img', $gateway);
+        self::assertStringContainsString("esc_html__('Pay securely with', 'supcheckout')", $gateway);
+        self::assertStringContainsString(
+            "__('Migration request rejected: %s', 'supcheckout')",
+            $migration
+        );
+    }
+
     public function test_living_release_docs_narrow_the_core_provider_blocker(): void {
         $paths = array(
             'docs/project/START-HERE.md',
