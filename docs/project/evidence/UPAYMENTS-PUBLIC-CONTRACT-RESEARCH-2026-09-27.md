@@ -37,7 +37,7 @@
 - Official React SDK: https://www.npmjs.com/package/@upayments-kw/react
 - Official examples repository: https://github.com/upaymentskwt/web-sdk-examples
 - Official OpenCart integration: https://github.com/upaymentskwt/opencart
-- Official CS-Cart integration: https://github.com/upaymentskwt/cs-cart
+- Official CS-Cart integration: https://github.com/upaymentskwt/cs-cart (including unreleased `hmac-signature` branch `c6ecc24839aea08ac84e84efad3bad1efbc78375`)
 - Official Magento integration: https://github.com/upaymentskwt/magento
 
 ### Official WooCommerce repository
@@ -88,11 +88,14 @@ The following current first-party sources do not present the same contract:
 7. That same unreleased WooCommerce `develop` branch still performs its Get Payment Status verification using Bearer-only headers.
 8. Its subscription scheduler still calls auto-deduct using Bearer-only headers.
 9. The official OpenCart repository `main`, pushed 2026-09-23, still sends Bearer-only API requests and uses the documented sandbox/live hosts.
-10. The official CS-Cart repository `main`, pushed 2026-09-21, likewise uses Bearer-only requests. The older Magento repository also uses Bearer-only API requests.
+10. The official CS-Cart repository `main`, pushed 2026-09-21, likewise uses Bearer-only requests. However, its unreleased `hmac-signature` branch (`c6ecc24839aea08ac84e84efad3bad1efbc78375`, 2026-09-21) adds the same configured/static `X-Signature` + `Uplugin-Request: 1` pattern as the WooCommerce HMAC work, again with no `X-Timestamp` and no per-request HMAC calculation.
+11. The older Magento repository also uses Bearer-only API requests.
 
 **Classification: PUBLIC EVIDENCE — CONFLICTING.**
 
 There is strong evidence that HMAC rollout is channel/account/endpoint-sensitive or in transition, but no safe public basis for choosing the exact production contract for SUPCheckout.
+
+The repeated WooCommerce + CS-Cart implementation pattern also supports a stronger distinction: UPayments appears to have an **official-plugin static signature / merchant-validation scheme** (`X-Signature` + `Uplugin-Request`) that is technically different from the documented **dynamic request HMAC scheme** (`X-Timestamp` + Base64 HMAC-SHA256). Public sources do not define the relationship between these two schemes. They must not be treated as interchangeable.
 
 ### Query-string canonicalization
 
