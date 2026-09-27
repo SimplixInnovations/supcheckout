@@ -234,7 +234,7 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
             'plugin_url'                => plugin_dir_url( dirname( __FILE__ ) ),
             'translation'               => [
                 'purchase_type_label'   => __('Purchase Type', 'supcheckout'),
-                'billing_interval_label'=> __('Billing Interval', 'supcheckout'),
+                'billing_interval_label' => __('Billing Interval', 'supcheckout'),
                 'one_time'              => __('One-time', 'supcheckout'),
                 'plan_labels'           => [
                     'daily'     => __('Daily Subscription', 'supcheckout'),
