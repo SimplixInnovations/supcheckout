@@ -20,7 +20,7 @@ Current first-party evidence conflicts:
 - current Charge and Get Payment Status references still document Bearer authentication;
 - the FAQ says HMAC is currently rolling out;
 - current UPayments web/React SDK surfaces continue to describe Bearer-token integration;
-- recent official plugin work uses a different plugin-specific/static `X-Signature` + `Uplugin-Request: 1` pattern, without the documented `X-Timestamp` request HMAC.
+- recent official plugin work uses a different plugin-specific/static `X-Signature` + `Uplugin-Request: 1` pattern, without the documented `X-Timestamp` request HMAC; those plugin branches are themselves inconsistent about the `X-Signature` value (separate configured signature key in WooCommerce/CS-Cart versus the API key itself in inspected OpenCart V4 paths).
 
 For a **third-party WooCommerce server integration using UInterfaceV2**, please confirm only the following:
 
@@ -28,7 +28,7 @@ For a **third-party WooCommerce server integration using UInterfaceV2**, please 
 
 2. **Production Get Payment Status:** Today, for `GET /api/v1/get-payment-status/{track_id}`, must the same documented dynamic HMAC contract be used, or can some production merchant accounts still use Bearer-only requests?
 
-3. **Rollout / plugin-signature distinction:** If the answer to either endpoint is merchant/account/channel-specific, how can the merchant determine which contract applies to its production account? Also, are `Uplugin-Request: 1` and the static/configured `X-Signature` pattern used by recent official plugin branches reserved for UPayments-maintained plugins, or are third-party integrations expected to use that scheme instead of the public dynamic-HMAC guide?
+3. **Rollout / plugin-signature distinction:** If the answer to either endpoint is merchant/account/channel-specific, how can the merchant determine which contract applies to its production account? Recent official plugin branches use `Uplugin-Request: 1` plus a static/configured `X-Signature`, but they do not even agree on what populates that header (separate configured signature key in WooCommerce/CS-Cart versus the API key itself in inspected OpenCart V4 paths). Is this plugin-only merchant-validation family reserved for UPayments-maintained plugins, and should a third-party UInterfaceV2 integration instead follow the public dynamic-HMAC contract whenever HMAC is enabled?
 
 If dynamic HMAC is required for our third-party production integration, we will follow the published API-Secret, timestamp, method/path, exact raw-body, empty-GET-body and Base64 HMAC-SHA256 rules. We only need confirmation of **where that contract applies** and whether the official-plugin signature scheme is a separate/private channel contract.
 
