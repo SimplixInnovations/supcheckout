@@ -480,7 +480,7 @@ final class Presentation {
         return isset($labels[$status]) ? $labels[$status] : ucfirst($status);
     }
 
-    /** @param \DateTimeInterface $date_time @return string */
+    /** @param \DateTimeInterface|null $date_time @return string */
     private static function format_date_time($date_time) {
         if (!$date_time instanceof \DateTimeInterface) {
             return '';
