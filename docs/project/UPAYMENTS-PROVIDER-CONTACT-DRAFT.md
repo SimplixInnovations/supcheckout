@@ -48,3 +48,37 @@ The following remain documented in the evidence matrix but are intentionally def
 - migration to the newer sandbox credential family / `dev-apiv2api` — future test-infrastructure decision; the current public `jtest123` sandbox Charge path has bounded certification.
 
 **Status:** READY_TO_SEND ONLY AFTER OWNER AUTHORIZATION (`OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`)
+
+## Ready-to-send message
+
+Send only after `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`. Send from the merchant account owner's address to UPayments technical support. Do not attach logs, keys, API secrets or merchant identifiers beyond the merchant/account reference UPayments itself needs to answer.
+
+**Subject:** Production authentication contract for Charge and Get Payment Status (third-party WooCommerce integration, UInterfaceV2)
+
+**Body:**
+
+> Hello,
+>
+> We maintain an independent WooCommerce payment integration for UPayments built on UInterfaceV2, and we are preparing its first production release. Before we release, we need to confirm one contract question.
+>
+> Your public documentation currently gives us conflicting answers about production authentication. The HMAC Authentication guide states that every authenticated request carries Bearer plus a fresh `X-Timestamp` and a Base64 HMAC-SHA256 `X-Signature`. The Charge and Get Payment Status references still document Bearer authentication. The FAQ describes HMAC as rolling out. Your own recent plugin releases use a third pattern: `Uplugin-Request: 1` with a static or configured `X-Signature`, and those releases do not agree with each other on what populates that header.
+>
+> For a third-party merchant integration calling your API from a merchant's own server, please confirm:
+>
+> 1. For `POST /api/v1/charge` today, must we send the dynamic HMAC headers (`X-Timestamp` and Base64 HMAC-SHA256 `X-Signature`) in addition to Bearer, or do production merchant accounts still accept Bearer-only requests?
+> 2. For `GET /api/v1/get-payment-status/{track_id}` today, is the answer the same as for Charge?
+> 3. If the answer depends on the merchant, account or channel, how does a merchant determine which contract applies to its own production account? Is the `Uplugin-Request` signature scheme reserved for UPayments-maintained plugins, so that a third-party UInterfaceV2 integration should follow the published dynamic-HMAC contract wherever HMAC is enabled?
+>
+> If dynamic HMAC is required for us, we will implement the published API-Secret, timestamp, method and path, exact raw body, empty-GET-body and Base64 HMAC-SHA256 rules. We only need to know where that contract applies.
+>
+> A written answer is what we need, because we record provider-confirmed behaviour as durable evidence before we change payment code. A call first is fine if that is easier, as long as the final answer comes back in writing.
+>
+> Thank you,
+> Simplix Innovations
+
+### After a reply arrives
+
+1. Store the reply verbatim under `docs/project/evidence/` with the date in the filename; do not paraphrase it into a living document first.
+2. Answer the decision tree in `UPAYMENTS-CONTRACT-DECISION-TREE.md` from that evidence.
+3. Only then decide whether a runtime tranche is required, and open it as its own bounded branch and PR.
+4. A verbal-only answer does not clear `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`.
