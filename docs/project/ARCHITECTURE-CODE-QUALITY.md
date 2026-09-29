@@ -152,6 +152,10 @@ This mixed ownership is the principal architecture debt. The gate must reduce it
 
 File size alone is not authority to refactor; it is only a hotspot signal.
 
+### External-readiness UI closure ratchet (appended)
+
+The external-readiness enterprise/UI closure (PR #128) advances the exact `UPayments.php` ratchet from **63,064 bytes to 63,366 bytes** (+302). The growth is limited to two evidence-backed defects inside existing gateway callbacks and to delegation: the `target="_blank"` My Account link gains `rel="noopener noreferrer"` (reverse-tabnabbing hardening); the gateway icon label becomes translatable and escaped, with the decorative provider image given empty `alt` because the adjacent visible label already names the method; and the Classic checkout localization payloads are delegated in one line each to `CheckoutAssets::new_design_i18n()` and `CheckoutAssets::subscription_i18n()`. The translated payloads themselves live in `src/Gateway/CheckoutAssets.php`, which now owns them for both the canonical gateway enqueue and the embedded-template enqueue, so the two paths cannot drift. Extracting the icon filter or the account link solely to avoid the increase would broaden the change beyond the proven defects. Payment transport, provider payloads, callback routing, persisted identities and the boolean-only `isLoggedIn` browser context are unchanged.
+
 ### Monolith ratchet contract
 
 The permanent architecture harness records the **exact accepted `UPayments.php` byte size for the current architecture milestone**, not merely the original entry ceiling. Any tranche that changes `UPayments.php` must update that accepted size to the exact reviewed post-change size, so every shrink becomes the next ratchet point instead of allowing later regrowth back to 257,832 bytes.

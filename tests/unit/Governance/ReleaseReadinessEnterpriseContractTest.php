@@ -55,13 +55,21 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
         $new_design = self::read_repository_file('assets/js/new-upay.js');
         $subscription = self::read_repository_file('assets/js/subscription-checkout.js');
 
+        // CheckoutAssets is the single owner of the Classic localization
+        // payloads; the canonical gateway enqueue delegates to it so the
+        // canonical and embedded paths cannot drift.
+        self::assertStringContainsString("'loginRequired'", $assets);
+        self::assertStringContainsString("'oneTime'", $assets);
+        self::assertStringContainsString("'selectInterval'", $assets);
+        self::assertStringContainsString("'intervalLabels'", $assets);
         foreach (array($gateway, $assets) as $source) {
             self::assertStringContainsString("'supCheckoutI18n'", $source);
-            self::assertStringContainsString("'loginRequired'", $source);
             self::assertStringContainsString("'i18n'", $source);
-            self::assertStringContainsString("'oneTime'", $source);
-            self::assertStringContainsString("'selectInterval'", $source);
         }
+        self::assertStringContainsString("'supCheckoutI18n', CheckoutAssets::new_design_i18n()", $gateway);
+        self::assertStringContainsString("'i18n' => CheckoutAssets::subscription_i18n()", $gateway);
+        self::assertStringNotContainsString("'loginRequired'", $gateway);
+        self::assertStringNotContainsString("'intervalLabels'", $gateway);
 
         self::assertStringContainsString('supCheckoutI18n.loginRequired', $new_design);
         self::assertStringContainsString('wcUser.i18n', $subscription);
