@@ -80,7 +80,8 @@ q15_assert(q15_contains($source, "self::request_text(\$_GET, 'page_id')"), 'acco
 q15_assert(!q15_contains($source, "self::request_text(\$_GET, 'page_id', '12')"), 'account filter never invents historical page ID 12');
 q15_assert(q15_contains($source, "if (\$page_id !== '')"), 'account page identity is rendered only when explicitly supplied');
 q15_assert(q15_contains($source, "esc_html__('Auto Deduction', 'supcheckout')"), 'account type label is escaped');
-q15_assert(q15_contains($source, "esc_attr(\$status)") && q15_contains($source, "esc_html(ucfirst(\$status))"), 'account status is escaped in attribute and HTML contexts');
+q15_assert(q15_contains($source, "esc_attr(\$status)") && q15_contains($source, "esc_html(self::subscription_status_label(\$status))"), 'account status is escaped in attribute and HTML contexts');
+q15_assert(q15_contains($source, "return isset(\$labels[\$status]) ? \$labels[\$status] : ucfirst(\$status);"), 'unknown account status keeps the historical ucfirst fallback');
 
 foreach (array(
     'product_type_selector_mapping_and_admin_schema_remain_exact',

@@ -37,7 +37,10 @@ for p in "${patterns[@]}"; do
 done
 
 note '--- package zip ---'
-ZIP="$(ls -1t /tmp/r6-final-artifact/supcheckout-0.1.0.zip /tmp/r6-final-candidate/supcheckout-0.1.0.zip 2>/dev/null | head -1 || true)"
+ZIP="${1:-}"
+if [[ -z "$ZIP" ]]; then
+  ZIP="$(ls -1t /tmp/r6-final-artifact/supcheckout-*.zip /tmp/r6-final-candidate/supcheckout-*.zip 2>/dev/null | head -1 || true)"
+fi
 if [[ -n "${ZIP:-}" && -f "$ZIP" ]]; then
   for p in "${patterns[@]}"; do
     if unzip -p "$ZIP" | grep -a -E "$p" >/dev/null 2>&1; then
@@ -45,7 +48,7 @@ if [[ -n "${ZIP:-}" && -f "$ZIP" ]]; then
     fi
   done
 else
-  note '(zip not present locally; CI package scan covers hosted artifact)'
+  note '(zip not present; tree/history scan only — release workflow supplies the canonical ZIP explicitly)'
 fi
 
 # Allowlisted synthetic fixtures

@@ -38,7 +38,7 @@
 | R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | Current executable gate | **external certification & release readiness** |
-| Next executable dependency | **UPayments provider-contract clarification** |
+| Next executable dependency | **UPayments provider-contract clarification** — production auth for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`) |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -112,19 +112,29 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **external certification & release readiness**. Publication remains NOT AUTHORIZED. Provider contracts remain unresolved; automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
+Current executable gate: **external certification & release readiness**. The first-release core provider blocker is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
 
 R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003; PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
-R4 subscription scalability/observability is **DONE / VERIFIED** (PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`). External provider blockers remain open: auto-deduct capture **UNPROVEN**, remote cycle identity **UNPROVEN**, HMAC **PROVIDER CLARIFICATION REQUIRED**, token-storage **PROVIDER CLARIFICATION REQUIRED**. Automatic paid-renewal finalization remains **FAIL-CLOSED / HELD** until provider evidence exists.
+R4 subscription scalability/observability is **DONE / VERIFIED** (PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`). At that historical checkpoint, auto-deduct capture, remote cycle identity, HMAC and token-storage questions were all unresolved. The **current** first-release disposition below supersedes that historical blocker set. Automatic paid-renewal finalization remains **FAIL-CLOSED / HELD**.
 
-R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`). External provider blockers remain open: auto-deduct capture semantics **UNPROVEN**, remote exact cycle identity **UNPROVEN**, HMAC **PROVIDER CLARIFICATION REQUIRED**, token-storage contract **PROVIDER CLARIFICATION REQUIRED**. Automatic paid-renewal finalization remains **FAIL-CLOSED / HELD** until provider evidence exists.
+R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`). At that historical checkpoint, recurring capture/cycle, HMAC and token-storage questions were unresolved. The current provider-contract disposition below is authoritative for first-release scope. Automatic paid-renewal finalization remains **FAIL-CLOSED / HELD**.
 
 1. **R2 — DONE / VERIFIED:** Woo API URL abstraction via injected platform resolver; `home_url` vs `site_url`; subdirectory, permalink/index and trusted proxy/public-origin behavior; explicit no-cache callback/public-status semantics.
 2. **R3 — subscription safety:** exact auto-deduct amount/currency/parent/cycle/provider binding; no first-card fallback; parent discovery beyond `completed`; customer cancel/pause/resume policy; token-retention contract; held-cycle reconciliation.
 3. **R4 — scalability/operations:** due-work scheduling/Action Scheduler, bounded batches, durable cycle-journal authority, observability, load/concurrency/failure injection and queue health.
 4. **R5 / T4 — callback consolidation:** DONE / VERIFIED under Option B / ADR-003. Legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only.
 5. **R6 — final release qualification:** immutable exact-head gates, manual/external qualification, fresh owner re-acceptance and explicit version/publication decision.
+
+## Current provider-contract disposition
+
+- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — FIRST-RELEASE CORE BLOCKER.
+- saved-card/token persistence: FUTURE FEATURE GATE.
+- auto-deduct capture/cycle identity: FUTURE RECURRING GATE.
+- webhook signature mechanics: FUTURE DEFENSE-IN-DEPTH.
+- sandbox credential-family migration: FUTURE TEST-INFRASTRUCTURE GATE.
+- No public-source inference authorizes a runtime HMAC/token/recurring change.
+- Publication remains **NOT AUTHORIZED**.
 
 ## Permanent payment/security invariants
 

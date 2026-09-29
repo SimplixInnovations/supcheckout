@@ -1,65 +1,84 @@
 # UPayments Provider Contact Draft
 
-**Status:** READY_TO_SEND — OWNER ACTION REQUIRED
+**Status:** REDUCED TO FIRST-RELEASE CORE QUESTIONS — OWNER ACTION REQUIRED
 **Do NOT send without:** `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`
 **No secrets in this document.**
 
-## Authentication
+Deep first-party research is recorded in:
 
-1. Are `X-Timestamp` and `X-Signature` currently mandatory for every production Charge request?
-2. Are they currently mandatory for Get Payment Status?
-3. Is HMAC mandatory for all merchants, or being rolled out per account/endpoint?
-4. What is the effective enforcement date?
-5. May Bearer-only integrations remain valid for some merchant accounts?
-6. Does the HMAC API path include query parameters?
-7. What is the exact canonical string for Get Payment Status with `session_id`, `track_id`, or `invoice_id`?
-8. Is the accepted clock-skew window exactly ±60 seconds?
-9. Is there a stable error code for missing/expired/invalid signatures?
+`docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`
 
-## Webhooks
+The original 32 questions are now individually classified there. Saved-card, recurring/auto-deduct, webhook-signature-mechanics and sandbox-credential-migration questions are deliberately **not** included in this first-release contact because they do not need to block the narrower core one-time-payment release under the current SUPCheckout scope.
 
-10. The FAQ says webhooks are signed. What exact headers and signature algorithm verify webhook authenticity?
-11. Is the webhook signing secret the same API Secret used for outbound API HMAC?
-12. What replay/timestamp protection applies to webhooks?
+The remaining release blocker is the contradictory public contract for **production authentication**.
 
-## Token persistence
+## Production Charge and Get Payment Status authentication
 
-13. May merchant WooCommerce software persist `customerUniqueToken` locally?
-14. May it persist card tokens locally?
-15. The current subscription guide says tokens are NEVER stored locally. Is that normative or only describing UPayments’ official plugin architecture?
-16. If local persistence is allowed, what encryption-at-rest, retention, access control, deletion and rotation requirements apply?
-17. Must token storage satisfy a specific PCI scope/control?
+Current first-party evidence conflicts:
 
-## Auto-deduction financial truth
+- the HMAC Authentication guide says every authenticated request uses Bearer + fresh `X-Timestamp` + Base64 HMAC-SHA256 `X-Signature`;
+- current Charge and Get Payment Status references still document Bearer authentication;
+- the FAQ says HMAC is currently rolling out;
+- current UPayments web/React SDK surfaces continue to describe Bearer-token integration;
+- recent official plugin work uses a different plugin-specific/static `X-Signature` + `Uplugin-Request: 1` pattern, without the documented `X-Timestamp` request HMAC; those plugin branches are themselves inconsistent about the `X-Signature` value (separate configured signature key in WooCommerce/CS-Cart versus the API key itself in inspected OpenCart V4 paths).
 
-18. Which exact auto-deduct response/result proves the renewal funds are actually CAPTURED?
-19. Does HTTP success mean only request acceptance, or financial capture?
-20. Can a successful auto-deduct be verified using Get Payment Status?
-21. Which identifier should be queried?
-22. Can an auto-deduct transition after the initial response?
+For a **third-party WooCommerce server integration using UInterfaceV2**, please confirm only the following:
 
-## Idempotency (current FAQ)
+1. **Production Charge:** Today, for `POST /api/v1/charge`, must a third-party merchant integration send the documented dynamic HMAC headers (`X-Timestamp` + Base64 HMAC-SHA256 `X-Signature`) in addition to Bearer authentication, or can some production merchant accounts still use Bearer-only requests?
 
-Current FAQ says API idempotency keys are not currently supported. Please confirm this applies to auto-deduction and recommend safe ambiguous-dispatch reconciliation.
+2. **Production Get Payment Status:** Today, for `GET /api/v1/get-payment-status/{track_id}`, must the same documented dynamic HMAC contract be used, or can some production merchant accounts still use Bearer-only requests?
 
-## Recurring cycle identity/idempotency
+3. **Rollout / plugin-signature distinction:** If the answer to either endpoint is merchant/account/channel-specific, how can the merchant determine which contract applies to its production account? Recent official plugin branches use `Uplugin-Request: 1` plus a static/configured `X-Signature`, but they do not even agree on what populates that header (separate configured signature key in WooCommerce/CS-Cart versus the API key itself in inspected OpenCart V4 paths). Is this plugin-only merchant-validation family reserved for UPayments-maintained plugins, and should a third-party UInterfaceV2 integration instead follow the public dynamic-HMAC contract whenever HMAC is enabled?
 
-23. Does auto-deduct accept an idempotency key today?
-24. Can `order.id`, `requested_order_id`, `reference`, or another merchant-supplied value act as an idempotency key?
-25. Which provider-returned field uniquely identifies a single renewal billing cycle?
-26. How should a merchant reconcile timeout-after-dispatch without risking duplicate charge?
-27. What is UPayments’ recommended safe retry procedure for an ambiguous auto-deduct?
+If dynamic HMAC is required for our third-party production integration, we will follow the published API-Secret, timestamp, method/path, exact raw-body, empty-GET-body and Base64 HMAC-SHA256 rules. We only need confirmation of **where that contract applies** and whether the official-plugin signature scheme is a separate/private channel contract.
 
-## References
+## Evidence request
 
-See `docs/project/evidence/UPAYMENTS-CONTRACT-SNAPSHOT-2026-09-26.md` for first-party source contradictions.
+Written confirmation is preferred because production authentication behavior must be backed by durable provider evidence before SUPCheckout changes runtime or removes its release blocker.
 
-## Sandbox credential family questions (from sandbox observations)
+If a call or WhatsApp discussion is easier, that is fine for discovery, but please confirm the final production-authentication answers in writing afterward.
 
-28. Are the current public Test Mode non-whitelabel and whitelabel API keys documented on the Test Mode/HMAC pages currently active for `sandboxapi.upayments.com/api/v1/charge`?
-29. Is the public Test Mode HMAC secret intended to pair with both documented Test Mode Bearer keys, or only a specific credential/account?
-30. `jtest123` remains published in the Postman/Add Card documentation and reaches request-schema validation while the newer Test Mode family currently returns `403 Not a valid API request`. Which sandbox credential family should new integrations use?
-31. Do the current public Test Mode credentials require merchant/account activation, additional headers, whitelabel configuration, source-IP restrictions, or some other prerequisite not stated on the Test Mode page?
-32. Should the `jtest123` credential be considered supported/current, legacy-only, endpoint-specific, or scheduled for removal?
+## Explicitly deferred questions
 
-**Status:** READY_TO_SEND — OWNER ACTION REQUIRED (`OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`)
+The following remain documented in the evidence matrix but are intentionally deferred because their related features are excluded from the first public production scope or are not required for financial authority:
+
+- webhook signature header/secret/replay mechanics — future defense-in-depth; current webhook input is not financial truth;
+- customer/card token persistence and PCI controls — future saved-card gate;
+- auto-deduct capture, reconciliation, idempotency and billing-cycle identity — future recurring gate; automatic recurring `VERIFIED_SUCCESS` remains fail-closed/unreachable;
+- migration to the newer sandbox credential family / `dev-apiv2api` — future test-infrastructure decision; the current public `jtest123` sandbox Charge path has bounded certification.
+
+**Status:** READY_TO_SEND ONLY AFTER OWNER AUTHORIZATION (`OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`)
+
+## Ready-to-send message
+
+Send only after `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`. Send from the merchant account owner's address to UPayments technical support. Do not attach logs, keys, API secrets or merchant identifiers beyond the merchant/account reference UPayments itself needs to answer.
+
+**Subject:** Production authentication contract for Charge and Get Payment Status (third-party WooCommerce integration, UInterfaceV2)
+
+**Body:**
+
+> Hello,
+>
+> We maintain an independent WooCommerce payment integration for UPayments built on UInterfaceV2, and we are preparing its first production release. Before we release, we need to confirm one contract question.
+>
+> Your public documentation currently gives us conflicting answers about production authentication. The HMAC Authentication guide states that every authenticated request carries Bearer plus a fresh `X-Timestamp` and a Base64 HMAC-SHA256 `X-Signature`. The Charge and Get Payment Status references still document Bearer authentication. The FAQ describes HMAC as rolling out. Your own recent plugin releases use a third pattern: `Uplugin-Request: 1` with a static or configured `X-Signature`, and those releases do not agree with each other on what populates that header.
+>
+> For a third-party merchant integration calling your API from a merchant's own server, please confirm:
+>
+> 1. For `POST /api/v1/charge` today, must we send the dynamic HMAC headers (`X-Timestamp` and Base64 HMAC-SHA256 `X-Signature`) in addition to Bearer, or do production merchant accounts still accept Bearer-only requests?
+> 2. For `GET /api/v1/get-payment-status/{track_id}` today, is the answer the same as for Charge?
+> 3. If the answer depends on the merchant, account or channel, how does a merchant determine which contract applies to its own production account? Is the `Uplugin-Request` signature scheme reserved for UPayments-maintained plugins, so that a third-party UInterfaceV2 integration should follow the published dynamic-HMAC contract wherever HMAC is enabled?
+>
+> If dynamic HMAC is required for us, we will implement the published API-Secret, timestamp, method and path, exact raw body, empty-GET-body and Base64 HMAC-SHA256 rules. We only need to know where that contract applies.
+>
+> A written answer is what we need, because we record provider-confirmed behaviour as durable evidence before we change payment code. A call first is fine if that is easier, as long as the final answer comes back in writing.
+>
+> Thank you,
+> Simplix Innovations
+
+### After a reply arrives
+
+1. Store the reply verbatim under `docs/project/evidence/` with the date in the filename; do not paraphrase it into a living document first.
+2. Answer the decision tree in `UPAYMENTS-CONTRACT-DECISION-TREE.md` from that evidence.
+3. Only then decide whether a runtime tranche is required, and open it as its own bounded branch and PR.
+4. A verbal-only answer does not clear `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`.
