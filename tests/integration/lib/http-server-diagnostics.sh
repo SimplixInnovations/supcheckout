@@ -25,6 +25,22 @@ supcheckout_dump_http_server_diagnostics() {
       echo "(missing: $server_log)"
     fi
     echo '--- end PHP server log ---'
+
+    # nginx + PHP-FPM (the authoritative request-context stack) records its
+    # evidence in the stack directory; a 502 is otherwise undiagnosable.
+    local stack_dir="${SUPCHECKOUT_HTTP_STACK_DIR:-${RUNNER_TEMP:-/tmp}/supcheckout-http-stack}"
+    local stack_log
+    if [[ -d "$stack_dir" ]]; then
+      for stack_log in fpm-error.log php-error.log nginx-error.log fpm-stdout.log; do
+        echo "--- HTTP stack ${stack_log} (last 200 lines) ---"
+        if [[ -f "$stack_dir/$stack_log" ]]; then
+          tail -n 200 "$stack_dir/$stack_log"
+        else
+          echo "(missing: $stack_dir/$stack_log)"
+        fi
+      done
+      echo '--- end HTTP stack logs ---'
+    fi
   } >&2
 }
 

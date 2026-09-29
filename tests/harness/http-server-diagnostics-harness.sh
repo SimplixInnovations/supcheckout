@@ -45,6 +45,15 @@ export PATH="$fakebin:$PATH"
 export SUPCHECKOUT_FAKE_CURL_COUNT="$count_file"
 export SUPCHECKOUT_FAKE_CURL_RC=52
 
+# The authoritative gate runs nginx + PHP-FPM, whose evidence lives in the
+# stack directory rather than a php -S server log. A failure must surface it.
+stack_dir="$tmp/http-stack"
+mkdir -p "$stack_dir"
+printf '%s\n' 'FPM-ERROR-SENTINEL' > "$stack_dir/fpm-error.log"
+printf '%s\n' 'PHP-ERROR-SENTINEL' > "$stack_dir/php-error.log"
+printf '%s\n' 'NGINX-ERROR-SENTINEL' > "$stack_dir/nginx-error.log"
+export SUPCHECKOUT_HTTP_STACK_DIR="$stack_dir"
+
 diag="$tmp/diag.txt"
 set +e
 supcheckout_curl_once_or_diagnose \
@@ -62,6 +71,9 @@ grep -Fq 'curl exit: 52' "$diag" || { echo 'FAIL: missing curl exit code' >&2; e
 grep -Fq "PHP server PID: $live_pid" "$diag" || { echo 'FAIL: missing server PID' >&2; exit 1; }
 grep -Fq 'PHP server state: alive' "$diag" || { echo 'FAIL: missing alive server state' >&2; exit 1; }
 grep -Fq 'PHP-SERVER-LOG-SENTINEL' "$diag" || { echo 'FAIL: missing server log contents' >&2; exit 1; }
+grep -Fq 'FPM-ERROR-SENTINEL' "$diag" || { echo 'FAIL: missing PHP-FPM error log contents' >&2; exit 1; }
+grep -Fq 'PHP-ERROR-SENTINEL' "$diag" || { echo 'FAIL: missing PHP error log contents' >&2; exit 1; }
+grep -Fq 'NGINX-ERROR-SENTINEL' "$diag" || { echo 'FAIL: missing nginx error log contents' >&2; exit 1; }
 
 printf '0\n' > "$count_file"
 export SUPCHECKOUT_FAKE_CURL_RC=0
