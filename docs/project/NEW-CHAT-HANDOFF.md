@@ -78,7 +78,7 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **external certification & release readiness**. Next executable dependency: **UPayments production-auth clarification — `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`**. Approach 3 owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`; the current distributable candidate postdates that accepted package and therefore requires fresh final acceptance. Publication remains NOT AUTHORIZED.
+Current executable gate: **external certification & release readiness**. Next executable dependency: **UPayments provider-contract clarification**. Its first-release scope is the production auth contract for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`). Approach 3 owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`; the current distributable candidate postdates that accepted package and therefore requires fresh final acceptance. Publication remains NOT AUTHORIZED.
 
 R5 is **DONE / VERIFIED** (PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`, package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
@@ -105,7 +105,7 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 
 For the narrower first public core one-time-payment scope, the only provider-dependent blocker is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`. saved-card/token persistence: FUTURE FEATURE GATE. auto-deduct capture/cycle identity: FUTURE RECURRING GATE. Webhook signature mechanics remain future defense-in-depth and sandbox credential-family migration remains a future test-infrastructure gate. Do not promote deferred surfaces into first-release production claims.
 
-## Current next work: UPayments production-auth clarification (not R6, not publication)
+## Current next work: UPayments provider-contract clarification — production auth (not R6, not publication)
 
 R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`. Publication unauthorized.
 

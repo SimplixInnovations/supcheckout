@@ -40,7 +40,7 @@ components:
 
 ### Creative North Star
 
-SUPCheckout should feel like a **native WooCommerce payment instrument panel**, not a standalone SaaS application pasted into checkout. Merchant theme and WordPress/WooCommerce chrome own the surrounding visual language; SUPCheckout adds only the minimum provider-specific structure needed to make payment choices, financial state, saved-card consent, subscription controls, and migration operations legible and safe.
+SUPCheckout should feel like a **WooCommerce-native payment instrument panel**, not a standalone SaaS application pasted into checkout. Merchant theme and WordPress/WooCommerce chrome own the surrounding visual language; SUPCheckout adds only the minimum provider-specific structure needed to make payment choices, financial state, saved-card consent, subscription controls, and migration operations legible and safe.
 
 ### Product context and register
 

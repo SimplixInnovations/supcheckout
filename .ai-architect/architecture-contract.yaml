@@ -187,7 +187,8 @@ tranches:
     e3_repository_status: done_verified
     e3_codeql_historical_status: nonterminal_hosted_default_setup
     current_gate: external_certification_release_readiness
-    next_external_gate: production_auth_contract_clarification
+    next_external_gate: provider_contract_clarification
+    next_external_gate_scope: production auth contract for core Charge + track-ID Status
     core_provider_blocker: PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED
     saved_card_token_persistence: FUTURE FEATURE GATE
     auto_deduct_capture_cycle_identity: FUTURE RECURRING GATE
