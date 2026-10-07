@@ -3,11 +3,12 @@
 ## Current state (authoritative)
 
 ```text
-Approach 3: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE (146d65a1c182630c1acc651cacafe30cff5f6b79)
+Release Candidate 1: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE (8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243), OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1
+Approach 3: HISTORICAL / SUPERSEDED (146d65a1c182630c1acc651cacafe30cff5f6b79)
 Approach 2: HISTORICAL / SUPERSEDED
 Active program: external-certification-release-readiness
 External-readiness integrated baseline: 705862bd2138126b53ea428551b326a0fd8961bc. Live `main` is dynamic — obtain it from GitHub/session bootstrap; it is not frozen into this document.
-Accepted package: supcheckout-0.1.0.zip / 62 files / 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
+Accepted package: supcheckout-0.1.0.zip / 62 files / 8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156
 Publication: NOT AUTHORIZED
 ```
 

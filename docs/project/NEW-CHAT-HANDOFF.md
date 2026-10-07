@@ -20,12 +20,14 @@ SUPCheckout remains UPayments-only. Do not introduce generic provider routing.
 
 ## Frozen owner-accepted regression baseline
 
-Owner technical acceptance: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`.
+Owner technical acceptance: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` (recorded 2026-10-07).
 
-- source SHA: `146d65a1c182630c1acc651cacafe30cff5f6b79`;
+- source SHA: `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (PR #128 squash-merged main);
 - package: `supcheckout-0.1.0.zip`;
 - files: 62;
-- SHA-256: `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
+- SHA-256: `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`.
+
+Historical Approach 3 (superseded by Release Candidate 1, `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`): `146d65a1c182630c1acc651cacafe30cff5f6b79` / 62 files / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
 
 Historical Approach 2 (superseded): `0c883d609906676966002eb022a82a9656eeacc5` / 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 

@@ -10,6 +10,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const POST_T3_MILESTONE_MAIN_SHA = 'd69377d3e26831270a00151025d24cc64be9d36b';
     private const POST_T3_E3_RUNTIME_CHECKPOINT_SHA = '540b733c29656758f2392817649fc3d4a4db585d';
     private const POST_T3_E3_PACKAGE_SHA256 = '01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c';
+    private const RC1_ACCEPTANCE_TOKEN = 'RELEASE_CANDIDATE_1';
+    private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
+    private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
 
     /**
      * Canonical living records that a fresh chat/agent may use to establish the
@@ -161,11 +164,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('r6_status: done_verified', $contract);
         self::assertStringContainsString('current_gate: external_certification_release_readiness', $contract);
         self::assertStringContainsString('approach3_status: owner_accepted', $contract);
-        self::assertStringContainsString('owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $contract);
-        self::assertStringContainsString('owner_accepted_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79', $contract);
+        self::assertStringContainsString('owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=' . self::RC1_ACCEPTANCE_TOKEN, $contract);
+        self::assertStringContainsString('historical_approach3_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $contract);
+        self::assertStringContainsString('historical_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79', $contract);
         self::assertStringContainsString('publication_authorized: false', $contract);
-        self::assertSame(1, substr_count($contract, 'owner_accepted_approach3_source:'), 'exactly one owner_accepted_approach3_source');
-        self::assertSame(1, substr_count($contract, 'owner_accepted_approach3_package_sha256:'), 'exactly one package sha key');
+        self::assertSame(1, substr_count($contract, 'owner_accepted_rc1_source:'), 'exactly one owner_accepted_rc1_source');
+        self::assertSame(1, substr_count($contract, 'owner_accepted_rc1_package_sha256:'), 'exactly one package sha key');
+        self::assertStringNotContainsString('owner_accepted_approach3_source:', $contract);
         self::assertStringContainsString('external_readiness_integrated_main: 705862bd2138126b53ea428551b326a0fd8961bc', $contract);
         self::assertStringNotContainsString('current_repository_maintenance_main:', $contract);
         self::assertStringNotContainsString('latest_merged_approach_3_main: 1c95bc94', $contract);
@@ -186,12 +191,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('Active program | `post-t3-ecosystem-hardening`', $status_hdr);
         $rel = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
         self::assertStringContainsString('Current state (authoritative)', $rel);
-        self::assertStringContainsString('Approach 3: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE', $rel);
+        self::assertStringContainsString('Release Candidate 1: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE', $rel);
+        self::assertStringNotContainsString('Approach 3: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE', $rel);
         $road = self::read_repository_file('docs/ENGINEERING-ROADMAP.md');
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
-        self::assertStringContainsString('**Last reconciled:** 2026-09-27', $status_hdr);
+        self::assertStringContainsString('**Last reconciled:** 2026-10-07', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
         self::assertStringContainsString('Next executable dependency: **UPayments provider-contract clarification**.', $handoff);
         self::assertStringNotContainsString('5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.', $handoff);
@@ -233,12 +239,49 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('Current executable gate: **R6 independent review**.', $handoff);
         self::assertStringNotContainsString('current_gate: e3-theme-cache-analytics', $contract);
 
-        // Approach 3 is the current owner-accepted baseline; reject stale Approach-2-as-current claims.
+        // Approach 3 stays recorded as the superseded historical acceptance; reject stale Approach-2-as-current claims.
         self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $agents);
         self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $status);
         self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $handoff);
         self::assertStringNotContainsString('ACCEPTED only for the frozen Approach 2', $status);
         self::assertStringNotContainsString('A fresh owner acceptance is required at Approach 3 closeout.', $agents);
+    }
+
+    public function test_release_candidate_1_is_the_current_owner_acceptance_everywhere(): void {
+        $living = array(
+            'AGENTS.md',
+            'docs/COMPATIBILITY.md',
+            'docs/ENGINEERING-ROADMAP.md',
+            'docs/project/START-HERE.md',
+            'docs/project/PROJECT-STATUS.md',
+            'docs/project/OWNER-HANDOFF.md',
+            'docs/project/NEW-CHAT-HANDOFF.md',
+            'docs/project/RELEASE-ENGINEERING.md',
+        );
+        foreach ($living as $path) {
+            $content = self::read_repository_file($path);
+            self::assertStringContainsString('OWNER_TECHNICAL_ACCEPTANCE=' . self::RC1_ACCEPTANCE_TOKEN, $content, $path);
+            self::assertStringContainsString(self::RC1_SOURCE_SHA, $content, $path);
+            self::assertStringContainsString(self::RC1_PACKAGE_SHA256, $content, $path);
+        }
+
+        $contract = self::read_repository_file('.ai-architect/architecture-contract.yaml');
+        self::assertStringContainsString('owner_accepted_rc1_source: ' . self::RC1_SOURCE_SHA, $contract);
+        self::assertStringContainsString('owner_accepted_rc1_package_sha256: ' . self::RC1_PACKAGE_SHA256, $contract);
+        self::assertStringContainsString('owner_accepted_rc1_package_files: 62', $contract);
+        self::assertStringContainsString('historical_approach3_package_sha256: 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd', $contract);
+
+        $status = self::read_repository_file('docs/project/PROJECT-STATUS.md');
+        self::assertStringContainsString('| Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |', $status);
+        self::assertStringContainsString('| Approach 3 | **HISTORICAL / SUPERSEDED OWNER-ACCEPTED BASELINE** |', $status);
+        self::assertStringNotContainsString('| Approach 3 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |', $status);
+
+        // Acceptance is technical only: it must not unlock publication or clear provider/live gates.
+        $gate = self::read_repository_file('docs/project/RELEASE-CANDIDATE-GATE.md');
+        self::assertStringContainsString('RELEASE CANDIDATE: BLOCKED', $gate);
+        self::assertStringContainsString('- [ ] production auth contract resolved for provider API traffic', $gate);
+        self::assertStringContainsString('- [ ] live one-time payment acceptance complete', $gate);
+        self::assertStringContainsString('publication_authorized: false', $contract);
     }
 
     public function test_architecture_contract_records_external_readiness_as_current_program(): void {

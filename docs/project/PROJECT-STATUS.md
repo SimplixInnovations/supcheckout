@@ -1,12 +1,13 @@
 # SUPCheckout for UPayments — Project Status
 
 **Status document:** canonical living engineering state
-**Last reconciled:** 2026-09-27
+**Last reconciled:** 2026-10-07
 **Canonical repository:** `SimplixInnovations/supcheckout`
 **Development version:** `0.1.0`
-**Owner technical acceptance:** **ACCEPTED for Approach 3** (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`)
-**Accepted Approach 3 source:** **`146d65a1c182630c1acc651cacafe30cff5f6b79`**
-**Accepted Approach 3 package:** `supcheckout-0.1.0.zip` — 62 files / SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
+**Owner technical acceptance:** **ACCEPTED for Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, recorded 2026-10-07)
+**Accepted Release Candidate 1 source:** **`8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243`** (PR #128 squash-merged main)
+**Accepted Release Candidate 1 package:** `supcheckout-0.1.0.zip` — 62 files / SHA-256 `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`
+**Historical Approach 3 acceptance (superseded):** `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3` at `146d65a1c182630c1acc651cacafe30cff5f6b79` / 62 files / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
 **Historical Approach 2 baseline (superseded):** `0c883d609906676966002eb022a82a9656eeacc5`
 **Historical Approach 2 package:** `supcheckout-0.1.0.zip` — 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
 
@@ -22,7 +23,8 @@
 | PHP namespace | `Simplixi\SUPCheckout` |
 | First-stable bootstrap | `supcheckout/UPayments.php` — intentional compatibility exception |
 | Approach 2 | **HISTORICAL / SUPERSEDED OWNER-ACCEPTED BASELINE** |
-| Approach 3 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
+| Approach 3 | **HISTORICAL / SUPERSEDED OWNER-ACCEPTED BASELINE** |
+| Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
 | Quality Platform Q1-Q19 | **DONE / VERIFIED — permanently closed at Q19** |
 | Final pre-clone runtime/QA closure | **DONE / VERIFIED — PR #75** |
 | Approach 3 T1 | **DONE / VERIFIED** |
@@ -48,13 +50,14 @@ No Q20 is justified. New work uses named bounded engineering tranches.
 
 | Field | Value |
 |---|---|
-| Owner-accepted Approach 3 source | `146d65a1c182630c1acc651cacafe30cff5f6b79` |
+| Owner-accepted Release Candidate 1 source | `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` |
 | Accepted package | `supcheckout-0.1.0.zip` |
 | Accepted package files | `62` |
-| Accepted package SHA-256 | `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` |
+| Accepted package SHA-256 | `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156` |
+| Historical Approach 3 (superseded) | `146d65a1c182630c1acc651cacafe30cff5f6b79` / 62 files / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` |
 | Historical Approach 2 package (superseded) | 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655` |
 
-Approach 3 is the current owner-accepted technical baseline. A fresh explicit owner acceptance event is required to replace it. Publication remains **NOT AUTHORIZED**. Unresolved provider contracts remain uncertified.
+Release Candidate 1 is the current owner-accepted technical baseline; it supersedes Approach 3. A fresh explicit owner acceptance event is required to replace it. Technical acceptance does not authorize publication, provider outreach or a live transaction. Publication remains **NOT AUTHORIZED**. Unresolved provider contracts remain uncertified.
 
 ## Approach 3 merged coordinate
 
