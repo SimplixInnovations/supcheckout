@@ -46,6 +46,7 @@ require_once __DIR__ . '/src/Migration/MigrationBootstrap.php';
 use Simplixi\SUPCheckout\Release\Identity;
 use Simplixi\SUPCheckout\Admin\GatewaySettings;
 use Simplixi\SUPCheckout\Gateway\Availability;
+use Simplixi\SUPCheckout\Gateway\CheckoutAssets;
 use Simplixi\SUPCheckout\Gateway\OrderPresentation;
 use Simplixi\SUPCheckout\Provider\EndpointResolver;
 use Simplixi\SUPCheckout\Provider\PaymentMethodAvailability;
@@ -262,7 +263,7 @@ function woocommerceUpaymentsInit() {
                 $account_url = wc_get_page_permalink('myaccount');
 
                 echo '<div class="checkout-my-account-link">';
-                echo '<a href="' . esc_url($account_url) . '" target="_blank">';
+                echo '<a href="' . esc_url($account_url) . '" target="_blank" rel="noopener noreferrer">';
                 esc_html_e('Go to My Account', 'supcheckout');
                 echo '</a>';
                 echo '</div>';
@@ -618,6 +619,7 @@ function woocommerceUpaymentsInit() {
                 if ($this->get_option('use_new_design') == 'yes') {
                     wp_enqueue_style('supcheckout-checkout-new-style', $plugin_url . 'assets/css/new-design.css', array(), SUPCHECKOUT_VERSION );
                     wp_enqueue_script('supcheckout-checkout-new-script', $plugin_url . 'assets/js/new-upay.js', array('jquery'), SUPCHECKOUT_VERSION, true );
+                    wp_localize_script('supcheckout-checkout-new-script', 'supCheckoutI18n', CheckoutAssets::new_design_i18n());
                 }
 
                 if ($this->autoDeduction === 'yes'
@@ -626,6 +628,7 @@ function woocommerceUpaymentsInit() {
                     wp_enqueue_script('supcheckout-subscription-checkout', $plugin_url . 'assets/js/subscription-checkout.js', array('jquery'), SUPCHECKOUT_VERSION, true);
                     wp_localize_script('supcheckout-subscription-checkout', 'wcUser', array(
                         'isLoggedIn' => is_user_logged_in(),
+                        'i18n' => CheckoutAssets::subscription_i18n(),
                     ));
                 }
             }            
@@ -700,7 +703,7 @@ function woocommerceUpaymentsInit() {
                 }
             }
             if ($gateway_id == "upayments"){
-                $icon = '<span>Pay securely with <img src="'.UP_PLUGIN_URL.'assets/images/upayment.png" alt="UPayments"  title="UPayments" style="height: 24px !important; padding-left:4px;"/></span>';
+                $icon = '<span>' . esc_html__('Pay securely with', 'supcheckout') . ' <img src="' . esc_url(UP_PLUGIN_URL . 'assets/images/upayment.png') . '" alt="" style="height: 24px !important; padding-left:4px;"/></span>';
             }
             return $icon;
         }

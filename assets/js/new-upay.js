@@ -62,7 +62,13 @@
             }
             saveCardInput.val('0');
             if (loggedUser === false) {
-                api.showToast('Please log in to save or use a saved card.', 3000);
+                if (
+                    window.supCheckoutI18n
+                    && typeof window.supCheckoutI18n.loginRequired === 'string'
+                    && window.supCheckoutI18n.loginRequired !== ''
+                ) {
+                    api.showToast(window.supCheckoutI18n.loginRequired, 3000);
+                }
             }
             return;
         }

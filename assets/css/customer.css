@@ -14,13 +14,14 @@
     text-decoration: none;
     font-size: medium;
     cursor: pointer;
+    border: 1px solid transparent;
+    box-sizing: border-box;
 }
 
 .upay-unsubscribe-button:hover {
     background: #fff;
     color: #0b0b0b;
-    border: 0.9px solid #000000;
-    padding: 0.85rem 1.87rem;
+    border-color: #000000;
 }
 
 .upay-pause-resume-button{
@@ -33,13 +34,46 @@
     text-decoration: none;
     font-size: medium;
     cursor: pointer;
+    border: 1px solid transparent;
+    box-sizing: border-box;
 }
 
 .upay-pause-resume-button:hover {
     background: #fff;
     color: #0b0b0b;
-    border: 0.9px solid #000000;
-    padding: 0.85rem 1.87rem;
+    border-color: #000000;
+}
+
+.upay-unsubscribe-button:focus-visible,
+.upay-unsubscribe-confirm-button:focus-visible,
+.upay-pause-resume-button:focus-visible,
+.upay-orders-filter select:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.upay-unsubscribe-confirmation {
+    margin-top: 15px;
+}
+
+.upay-unsubscribe-confirmation > summary {
+    list-style: none;
+}
+
+.upay-unsubscribe-confirmation > summary::-webkit-details-marker {
+    display: none;
+}
+
+.upay-unsubscribe-confirmation__body {
+    max-width: 36rem;
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+}
+
+.upay-unsubscribe-confirmation__body p {
+    margin-top: 0;
 }
 
 /* Custom CSS of Subscription Order Filter in My account */

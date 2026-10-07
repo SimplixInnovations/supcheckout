@@ -92,6 +92,11 @@ final class CheckoutAssets {
                 Identity::VERSION,
                 true
             );
+            wp_localize_script(
+                'supcheckout-checkout-new-script',
+                'supCheckoutI18n',
+                self::new_design_i18n()
+            );
         }
 
         // Preserve the canonical Classic subscription predicate while failing
@@ -117,9 +122,57 @@ final class CheckoutAssets {
                 'wcUser',
                 array(
                     'isLoggedIn' => is_user_logged_in(),
+                    'i18n' => self::subscription_i18n(),
                 )
             );
         }
+    }
+
+    /**
+     * Server-localized copy for the Classic new-design checkout script.
+     *
+     * Single owner for both the canonical gateway enqueue and the embedded
+     * template enqueue, so the two paths cannot drift.
+     *
+     * @return array<string, string>
+     */
+    public static function new_design_i18n() {
+        return array(
+            'loginRequired' => __('Please log in to save or use a saved card.', 'supcheckout'),
+        );
+    }
+
+    /**
+     * Server-localized copy for the Classic subscription checkout script.
+     *
+     * Single owner for both the canonical gateway enqueue and the embedded
+     * template enqueue, so the two paths cannot drift.
+     *
+     * @return array<string, mixed>
+     */
+    public static function subscription_i18n() {
+        return array(
+            'oneTime' => __('One-time', 'supcheckout'),
+            'selectInterval' => __('Select Interval', 'supcheckout'),
+            'intervalLabels' => array(
+                'daily' => array('1' => __('Every Day', 'supcheckout')),
+                'weekly' => array(
+                    '1' => __('Every Week', 'supcheckout'),
+                    '2' => __('Every 2 Weeks', 'supcheckout'),
+                    '3' => __('Every 3 Weeks', 'supcheckout'),
+                ),
+                'monthly' => array(
+                    '1' => __('Every Month', 'supcheckout'),
+                    '2' => __('Every 2 Months', 'supcheckout'),
+                ),
+                'quarterly' => array(
+                    '1' => __('Every Quarter', 'supcheckout'),
+                    '2' => __('Every 2 Quarters', 'supcheckout'),
+                    '3' => __('Every 3 Quarters', 'supcheckout'),
+                ),
+                'yearly' => array('1' => __('Every Year', 'supcheckout')),
+            ),
+        );
     }
 
     private function __construct() {}

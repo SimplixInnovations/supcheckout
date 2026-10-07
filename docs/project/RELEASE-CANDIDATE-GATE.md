@@ -7,7 +7,7 @@ An RC may be produced only when **scope-aware** mandatory blockers are closed.
 - [x] current secure upstream WP/WC patches certified (live lookup CURRENT)
 - [x] all permanent CI green on certified repository head
 - [x] accepted runtime/package provenance understood
-- [ ] production auth contract resolved for provider API traffic (**HMAC — BLOCKER**)
+- [ ] production auth contract resolved for provider API traffic — core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`)
 - [ ] live one-time payment acceptance complete
 - [x] public-claims audit complete
 - [x] no misleading recurring claim in current copy
@@ -39,6 +39,15 @@ real merchant scale, professional pentest (if claimed), PCI/legal, provider cont
 RELEASE CANDIDATE: BLOCKED
 ```
 
-**Global blockers:** HMAC/auth production contract; live one-time acceptance; (enterprise) pentest + PCI/legal per policy.
+**Global blockers:** `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`; live one-time acceptance; independent pentest + PCI/legal only where the final release is claimed/approved as enterprise production-ready.
 
 **Feature-scoped:** saved-card BLOCKED; recurring EXCLUDED from production-ready claims.
+
+
+## Local final verification boundary
+
+Repository/CI completion and local owner verification are separate evidence layers. A candidate that changes distributable runtime/UI bytes after the last owner-accepted package must complete the local final-verification runbook and receive a fresh explicit owner acceptance before it can replace the accepted baseline.
+
+See `LOCAL-FINAL-VERIFICATION.md`.
+
+Local verification does **not** authorize a live transaction and cannot resolve the provider production-auth blocker.

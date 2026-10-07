@@ -78,13 +78,13 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **external certification & release readiness**. Next executable dependency: **UPayments provider-contract clarification**. Approach 3 owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
+Current executable gate: **external certification & release readiness**. Next executable dependency: **UPayments provider-contract clarification**. Its first-release scope is the production auth contract for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`). Approach 3 owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`; the current distributable candidate postdates that accepted package and therefore requires fresh final acceptance. Publication remains NOT AUTHORIZED.
 
 R5 is **DONE / VERIFIED** (PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`, package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
 R2 is **DONE / VERIFIED** (PR #110 certified head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`, package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3`).
 
-R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, squash-merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`, candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` — NOT owner accepted). External blockers remain: auto-deduct capture **UNPROVEN**, remote cycle identity **UNPROVEN**, HMAC **PROVIDER CLARIFICATION REQUIRED**, token storage **PROVIDER CLARIFICATION REQUIRED**. Automatic paid-renewal finalization stays **FAIL-CLOSED / HELD**.
+R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, squash-merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`, candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` — NOT owner accepted). Its then-open recurring/HMAC/token questions are retained as historical context; the current first-release blocker/deferred-feature split below is authoritative. Automatic paid-renewal finalization stays **FAIL-CLOSED / HELD**.
 
 1. **R3:** DONE / VERIFIED — first-card elimination, economic/identity binding, immutable cycle snapshot, parent discovery, pause/resume/cancel, held-cycle reconciliation without blind replay.
 3. **R4:** DONE / VERIFIED — bounded HistoricalEnrollment (BATCH_SIZE=50), Action Scheduler group `supcheckout`, args `{parent_order_id, cycle_due_gmt, retry_attempt}`, CycleClaim remains provider-mutation authority, retries 0..3 (+1h/+6h/+24h), HELD/dispatching/ambiguous never auto-next-charge.
@@ -103,9 +103,9 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 - legacy private verifier: retired
 - provider egress: unchanged (3 sites)
 
-Provider blockers remain **UNPROVEN / PROVIDER CLARIFICATION REQUIRED** for auto-deduct capture, remote cycle identity, HMAC and token persistence. Do not promote them.
+For the narrower first public core one-time-payment scope, the only provider-dependent blocker is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`. saved-card/token persistence: FUTURE FEATURE GATE. auto-deduct capture/cycle identity: FUTURE RECURRING GATE. Webhook signature mechanics remain future defense-in-depth and sandbox credential-family migration remains a future test-infrastructure gate. Do not promote deferred surfaces into first-release production claims.
 
-## Current next work: UPayments provider-contract clarification (not R6, not publication)
+## Current next work: UPayments provider-contract clarification — production auth (not R6, not publication)
 
 R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`. Publication unauthorized.
 

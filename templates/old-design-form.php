@@ -53,13 +53,13 @@ defined( 'ABSPATH' ) || exit;
                     $value_attr = esc_attr($value_string);
                     $value_text = esc_html($value_string);
                     if ($key_string == 'apple-pay') {
-                        $icon = '<img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png') . '" alt="' . $value_attr . '" title="' . $value_attr . '" />
-                        <img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/cc.png') . '" alt="' . $value_attr . '" title="' . $value_attr . '" />';
+                        $icon = '<img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png') . '" alt="" />
+                        <img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/cc.png') . '" alt="" />';
                     } elseif ($key_string == 'apple-pay-knet') {
-                        $icon = '<img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png') . '" alt="' . $value_attr . '" title="' . $value_attr . '" />
-                        <img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/knet.png') . '" alt="' . $value_attr . '" title="' . $value_attr . '" />';
+                        $icon = '<img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png') . '" alt="" />
+                        <img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/knet.png') . '" alt="" />';
                     } else {
-                        $icon = '<img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/' . $key_string . '.png') . '" alt="' . $value_attr . '" title="' . $value_attr . '" />';
+                        $icon = '<img style="height: 13px;" src="' . esc_url(UP_PLUGIN_URL . 'assets/images/' . $key_string . '.png') . '" alt="" />';
                     }
                         
             ?>

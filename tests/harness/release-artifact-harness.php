@@ -114,6 +114,17 @@ foreach (array('/.github/', '/tests/', '/vendor/', '/composer.json', '/composer.
     release_assert(strpos($distignore, $excluded) !== false, 'distribution excludes control/development path: ' . $excluded);
 }
 
+// Root-level governance/design control documents are repository evidence, never
+// distributable plugin bytes. Both the exclusion contract and the verifier must
+// reject them so a new control document cannot silently enter the package.
+foreach (array('/DESIGN.md', '/UX-CONTRACT.md', '/premium-ui.json') as $excluded) {
+    release_assert(strpos($distignore, $excluded) !== false, 'distribution excludes governance/design control document: ' . $excluded);
+}
+
+foreach (array('"DESIGN.md"', '"UX-CONTRACT.md"', '"premium-ui.json"') as $forbidden) {
+    release_assert(strpos($verify, $forbidden) !== false, 'verifier forbids governance/design control document: ' . $forbidden);
+}
+
 release_assert(substr_count($build, 'supcheckout') >= 2, 'builder owns canonical SUPCheckout ZIP/root slug');
 release_assert(strpos($build, 'slug = "simplixpay-upayments"') === false, 'builder contains no retired package-root slug');
 release_assert(substr_count($verify, 'supcheckout') >= 2, 'verifier owns canonical SUPCheckout ZIP/root slug');

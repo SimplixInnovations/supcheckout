@@ -1,13 +1,16 @@
 jQuery(function ($) {
     'use strict';
 
-    const optionsData = {
-        daily: { '1': 'Every Day' },
-        weekly: { '1': 'Every Week', '2': 'Every 2 Weeks', '3': 'Every 3 Weeks' },
-        monthly: { '1': 'Every Month', '2': 'Every 2 Months' },
-        quarterly: { '1': 'Every Quarter', '2': 'Every 2 Quarters', '3': 'Every 3 Quarters' },
-        yearly: { '1': 'Every Year' }
-    };
+    const i18n = (
+        typeof wcUser === 'object'
+        && wcUser !== null
+        && wcUser.i18n
+        && typeof wcUser.i18n === 'object'
+    ) ? wcUser.i18n : {};
+    const optionsData = (
+        i18n.intervalLabels
+        && typeof i18n.intervalLabels === 'object'
+    ) ? i18n.intervalLabels : {};
 
     function toggleIntervalField(preserveSelection) {
         const $planSelect = $('select[name="upay_subscription_plan"]');
@@ -29,14 +32,14 @@ jQuery(function ($) {
         $intervalSelect.empty();
 
         if (selectedPlan === 'one_time' || !optionsData[selectedPlan]) {
-            $intervalSelect.append($('<option></option>').val('0').text('One-time'));
+            $intervalSelect.append($('<option></option>').val('0').text(typeof i18n.oneTime === 'string' ? i18n.oneTime : ''));
             $intervalSelect.val('0');
             intervalRow.hide();
             return;
         }
 
         intervalRow.show();
-        $intervalSelect.append($('<option></option>').val('').text('Select Interval'));
+        $intervalSelect.append($('<option></option>').val('').text(typeof i18n.selectInterval === 'string' ? i18n.selectInterval : ''));
         $.each(optionsData[selectedPlan], function (value, label) {
             $intervalSelect.append($('<option></option>').val(value).text(label));
         });

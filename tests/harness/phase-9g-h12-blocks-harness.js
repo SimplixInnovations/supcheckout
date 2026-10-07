@@ -399,10 +399,33 @@ function makeSettings(overrides) {
         plan_options: ['one_time', 'daily', 'weekly', 'monthly', 'bimonthly', 'yearly', 'custom'],
         product_type: [],
         plugin_url: 'https://example.test/wp-content/plugins/upayments/',
+        // Mirrors the server-localized `translation` payload built by
+        // WCGatewayUPaymentsBlocks::get_payment_method_data(). The Blocks
+        // script owns no customer-facing English of its own.
         translation: {
+            purchase_type_label: 'Purchase Type',
+            billing_interval_label: 'Billing Interval',
+            one_time: 'One-time',
+            plan_labels: {
+                daily: 'Daily Subscription',
+                weekly: 'Weekly Subscription',
+                monthly: 'Monthly Subscription',
+                quarterly: 'Quarterly Subscription',
+                yearly: 'Yearly Subscription',
+            },
+            select_interval: 'Select interval',
+            interval_labels: {
+                daily: { '1': 'Every Day' },
+                weekly: { '1': 'Every Week', '2': 'Every 2 Weeks', '3': 'Every 3 Weeks' },
+                monthly: { '1': 'Every Month', '2': 'Every 2 Months' },
+                quarterly: { '1': 'Every Quarter', '2': 'Every 2 Quarters', '3': 'Every 3 Quarters' },
+                yearly: { '1': 'Every Year' },
+            },
+            saved_card_selected: 'Saved card selected',
             save_card_label: 'Save card',
             saved_cards_label: 'Saved Cards',
             saved_card_fallback: 'Saved card',
+            choose_payment_method: 'Choose Payment Method',
             other_options_label: 'Other Options',
         },
     }, overrides);
@@ -1820,6 +1843,30 @@ record(true, 'H-ST-1 harness initializes', 'harness');
     record(/save_card:\s*['"]1['"]/.test(src), 'BS-13 source has save_card: "1" branch', 'static');
     record(/wp\.element/.test(src), 'BS-14 source references wp.element', 'static');
     record(/upayment_payment_type/.test(src), 'BS-15 source uses upayment_payment_type', 'static');
+}
+
+// BT: the Blocks script reads every customer-facing string from the
+// server-localized `translation` payload, so every key it reads must be
+// produced by the PHP Blocks adapter, and the harness fixture must not drift
+// from that payload.
+{
+    const blocksPhp = fs.readFileSync(path.join(ROOT, 'includes', 'class-wc-gateway-upayments-blocks.php'), 'utf8');
+    const blocksJs = fs.readFileSync(path.join(ROOT, 'assets', 'js', 'upayments-block.js'), 'utf8');
+    const readKeys = new Set();
+    (blocksJs.match(/text\('([a-z_]+)'\)/g) || []).forEach(function (m) {
+        readKeys.add(m.slice(6, -2));
+    });
+    ['plan_labels', 'interval_labels', 'saved_card_selected'].forEach(function (k) { readKeys.add(k); });
+    record(readKeys.size >= 10, 'BT-1 Blocks script reads its customer-facing strings from translation keys', 'static');
+    readKeys.forEach(function (key) {
+        record(blocksPhp.indexOf("'" + key + "'") !== -1,
+            'BT-2 PHP Blocks adapter localizes translation key: ' + key, 'static');
+    });
+    const fixture = makeSettings({}).translation;
+    readKeys.forEach(function (key) {
+        record(Object.prototype.hasOwnProperty.call(fixture, key),
+            'BT-3 harness fixture mirrors translation key: ' + key, 'static');
+    });
 }
 
 console.log('\n--- Final Report ---');

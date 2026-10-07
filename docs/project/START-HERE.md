@@ -66,9 +66,11 @@ Read in this order after this file:
 4. [`NAMING-IDENTITY-STANDARD.md`](NAMING-IDENTITY-STANDARD.md) — canonical identity and protected compatibility IDs;
 5. [`../COMPATIBILITY.md`](../COMPATIBILITY.md) — public compatibility/certification boundary;
 6. [`NEW-CHAT-HANDOFF.md`](NEW-CHAT-HANDOFF.md) — compact continuation context;
-7. [`RELEASE-ENGINEERING.md`](RELEASE-ENGINEERING.md) — deterministic package, migration and release contract;
-8. [`ENTERPRISE-CERTIFICATION.md`](ENTERPRISE-CERTIFICATION.md) — retained certification evidence;
-9. relevant historical phase/quality/spec/plan records when touching their contracts.
+7. [`../../DESIGN.md`](../../DESIGN.md) — durable visual intent and runtime styling ownership;
+8. [`../../UX-CONTRACT.md`](../../UX-CONTRACT.md) — canonical interaction, localization, accessibility and verification behavior;
+9. [`RELEASE-ENGINEERING.md`](RELEASE-ENGINEERING.md) — deterministic package, migration and release contract;
+10. [`ENTERPRISE-CERTIFICATION.md`](ENTERPRISE-CERTIFICATION.md) — retained certification evidence;
+11. relevant historical phase/quality/spec/plan records when touching their contracts.
 
 Historical documents may contain former product names, old repository coordinates and old SHAs because those facts were true at the time. Do not bulk-rewrite historical evidence into current branding.
 
@@ -80,6 +82,8 @@ The owner-accepted technical baseline is now **Approach 3** (`OWNER_TECHNICAL_AC
 - package: `supcheckout-0.1.0.zip`;
 - files: 62;
 - SHA-256: `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
+
+Any later candidate that changes distributable runtime or UI bytes **postdates this acceptance** and must receive fresh exact-head/package verification and a fresh explicit owner acceptance before it can replace the accepted baseline or be published.
 
 Historical Approach 2 (superseded, retained for audit): source `0c883d609906676966002eb022a82a9656eeacc5`, 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
@@ -117,6 +121,17 @@ R0, R1 and E1 are **DONE / VERIFIED and integrated through PR #108**. Repository
 
 Approach 3 is the current owner-accepted technical baseline (146d65a). Publication remains NOT AUTHORIZED.
 
+### Current provider-contract disposition
+
+Deep first-party research narrowed the **first public core one-time-payment** provider blocker to one contract decision:
+
+`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`
+
+The remaining provider-related areas are deliberately outside the first-release core claim: saved-card/token persistence is a **FUTURE FEATURE GATE**, auto-deduct capture/cycle identity is a **FUTURE RECURRING GATE**, webhook-signature mechanics are future defense-in-depth, and sandbox credential-family migration is a future test-infrastructure gate. None of those deferred areas may be silently promoted into supported production scope. Automatic recurring `VERIFIED_SUCCESS` remains fail-closed/unreachable. Publication remains **NOT AUTHORIZED**.
+
+Authoritative public-evidence analysis: `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`.
+
+
 ## 6. Post-T3 execution sequence
 
 The approved bounded sequence is:
@@ -142,7 +157,7 @@ R5  callback lifecycle consolidation (Option B / ADR-003) — DONE / VERIFIED
  ↓
 R6  exact-head qualification + fresh owner re-acceptance — DONE / VERIFIED
  ↓
-external certification: provider-contract clarification
+external certification: core production-auth clarification (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`)
  ↓
 explicit version/publication decision only after remaining release gates
 ```
@@ -172,7 +187,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | R6 | **DONE / VERIFIED** — exact-head qualification and owner technical re-acceptance complete |
 | Current operational gate | **external certification & release readiness** |
-| Immediate next external gate | **UPayments provider-contract clarification** |
+| Immediate next external gate | **UPayments production-auth clarification — `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`** |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 

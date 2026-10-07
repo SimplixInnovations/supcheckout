@@ -52,7 +52,7 @@ foreach (array(
 ) as $contract) {
     q14_assert(q14_contains($source, $contract), "admin constant remains exact: {$contract}");
 }
-q14_assert(q14_contains($source, "add_submenu_page(\n            'woocommerce',\n            'SUPCheckout for UPayments Migration',\n            'SUPCheckout Migration',\n            self::CAPABILITY,\n            self::PAGE_SLUG,\n            array(__CLASS__, 'render')"), 'WooCommerce submenu contract remains exact');
+q14_assert(q14_contains($source, "add_submenu_page(\n            'woocommerce',\n            __('SUPCheckout for UPayments Migration', 'supcheckout'),\n            __('SUPCheckout Migration', 'supcheckout'),\n            self::CAPABILITY,\n            self::PAGE_SLUG,\n            array(__CLASS__, 'render')"), 'WooCommerce submenu contract remains exact');
 
 $capability_position = strpos($source, 'current_user_can(self::CAPABILITY)');
 $request_position = strpos($source, "\$_SERVER['REQUEST_METHOD']");
@@ -80,7 +80,8 @@ q14_assert(q14_contains($source, "\$error = \$resume_info['reason'];"), 'resume 
 q14_assert(!q14_contains($source, "'settings_unavailable'"), 'analyzer-proven unreachable settings fallback is removed');
 q14_assert(!q14_contains($source, "'resume_unavailable'"), 'analyzer-proven unreachable resume fallback is removed');
 q14_assert(!q14_contains($source, "name=\"api_key\""), 'admin form exposes no API-key input');
-q14_assert(q14_contains($source, "esc_html('Migration request rejected: ' . \$error)"), 'request failures are escaped');
+q14_assert(q14_contains($source, "\$error_message = sprintf(__('Migration request rejected: %s', 'supcheckout'), \$error);"), 'request failure message is translatable around the exact reason code');
+q14_assert(q14_contains($source, "esc_html(\$error_message)"), 'request failures are escaped');
 q14_assert(q14_contains($source, 'esc_html($encoded)'), 'structured result output is escaped');
 q14_assert(q14_contains($source, "esc_textarea(\$form['user_ids'])"), 'submitted user IDs are escaped for textarea context');
 q14_assert(q14_contains($source, "esc_attr(\$form['offset'])"), 'submitted offset is escaped for attribute context');

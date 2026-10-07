@@ -25,7 +25,23 @@ function baseEvent(eventName) {
     return String(eventName).split('.')[0];
 }
 
-function createScene(loggedIn) {
+// Mirrors the server-localized wcUser payload produced by
+// Simplixi\SUPCheckout\Gateway\CheckoutAssets. The Classic subscription script
+// owns no customer-facing English of its own, so the harness must supply the
+// same translated strings WordPress would.
+const LOCALIZED_I18N = {
+    oneTime: 'One-time',
+    selectInterval: 'Select Interval',
+    intervalLabels: {
+        daily: { '1': 'Every Day' },
+        weekly: { '1': 'Every Week', '2': 'Every 2 Weeks', '3': 'Every 3 Weeks' },
+        monthly: { '1': 'Every Month', '2': 'Every 2 Months' },
+        quarterly: { '1': 'Every Quarter', '2': 'Every 2 Quarters', '3': 'Every 3 Quarters' },
+        yearly: { '1': 'Every Year' },
+    },
+};
+
+function createScene(loggedIn, i18n) {
     const state = {
         plan: 'monthly',
         interval: '',
@@ -126,7 +142,9 @@ function createScene(loggedIn) {
     const sandbox = {
         console,
         document: { body: {} },
-        wcUser: { isLoggedIn: !!loggedIn },
+        wcUser: (arguments.length > 1 && i18n === null)
+            ? { isLoggedIn: !!loggedIn }
+            : { isLoggedIn: !!loggedIn, i18n: (i18n || LOCALIZED_I18N) },
     };
 
     function jquery(value) {
@@ -274,6 +292,30 @@ console.log('Running e1-classic-subscription-state-harness.js');
     record(
         scene.countExactHandlers('updated_checkout.thirdParty') === 1,
         'subscription handler refresh preserves unrelated namespaced updated_checkout listeners'
+    );
+}
+
+{
+    const scene = createScene(true);
+    scene.trigger('updated_checkout');
+    const labels = scene.state.options.map(function (option) {
+        return option.label;
+    });
+    record(
+        labels[0] === 'Select Interval'
+            && labels.indexOf('Every Month') !== -1
+            && labels.indexOf('Every 2 Months') !== -1,
+        'interval options render the server-localized labels rather than script-owned English'
+    );
+}
+
+{
+    const scene = createScene(true, null);
+    scene.state.interval = '2';
+    scene.trigger('updated_checkout');
+    record(
+        scene.state.interval === '0' && scene.state.intervalVisible === false,
+        'missing server-localized interval labels fail closed to one-time'
     );
 }
 

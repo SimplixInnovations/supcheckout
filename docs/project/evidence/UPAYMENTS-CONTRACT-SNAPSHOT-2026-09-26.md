@@ -1,5 +1,7 @@
 # UPayments Contract Snapshot — 2026-09-26
 
+> Historical snapshot. Expanded current public-source research is recorded in `UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`. Preserve this file as the 2026-09-26 evidence state.
+
 **Purpose:** first-party documentation evidence for release-readiness classification.
 **Rule:** do not copy entire provider pages. Short excerpts only.
 **Not production auth authority.** Sandbox behavior is `SANDBOX_AUTH_OBSERVATION` only.

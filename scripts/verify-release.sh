@@ -83,7 +83,8 @@ with zipfile.ZipFile(zip_path, "r") as archive:
         "AGENTS.md", "composer.json", "composer.lock", "phpcs.xml.dist",
         "phpstan.neon.dist", "phpunit.xml.dist", "CONTRIBUTING.md",
         "MAINTAINERS.md", "SUPPORT.md", "UPSTREAM.md", "README.md",
-        "CHANGELOG.md", "SECURITY.md",
+        "CHANGELOG.md", "SECURITY.md", "DESIGN.md", "UX-CONTRACT.md",
+        "premium-ui.json",
     }
     forbidden_prefixes = (".github/", ".cache/", ".phpunit.cache/", "tests/", "vendor/", "docs/", "scripts/")
     rel_names = [n[len(prefix):] for n in names]
