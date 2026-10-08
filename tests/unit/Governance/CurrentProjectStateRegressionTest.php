@@ -265,6 +265,21 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringContainsString(self::RC1_PACKAGE_SHA256, $content, $path);
         }
 
+        // No living section may still present Approach 3 as the current acceptance anchor.
+        $stale_current_claims = array(
+            'Approach 3 is the current owner-accepted technical baseline',
+            '| Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED** |',
+            '| Frozen accepted baseline | `146d65a1c182630c1acc651cacafe30cff5f6b79` (Approach 3) |',
+            'Current executable gate: **external certification & release readiness**. Approach 3 owner acceptance recorded at',
+            'the current distributable candidate postdates that accepted package and therefore requires fresh final acceptance',
+        );
+        foreach ($living as $path) {
+            $content = self::read_repository_file($path);
+            foreach ($stale_current_claims as $claim) {
+                self::assertStringNotContainsString($claim, $content, $path);
+            }
+        }
+
         $contract = self::read_repository_file('.ai-architect/architecture-contract.yaml');
         self::assertStringContainsString('owner_accepted_rc1_source: ' . self::RC1_SOURCE_SHA, $contract);
         self::assertStringContainsString('owner_accepted_rc1_package_sha256: ' . self::RC1_PACKAGE_SHA256, $contract);

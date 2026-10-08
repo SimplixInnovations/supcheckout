@@ -80,7 +80,7 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **external certification & release readiness**. Next executable dependency: **UPayments provider-contract clarification**. Its first-release scope is the production auth contract for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`). Approach 3 owner accepted at `146d65a1c182630c1acc651cacafe30cff5f6b79`; the current distributable candidate postdates that accepted package and therefore requires fresh final acceptance. Publication remains NOT AUTHORIZED.
+Current executable gate: **external certification & release readiness**. Next executable dependency: **UPayments provider-contract clarification**. Its first-release scope is the production auth contract for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`). Release Candidate 1 is owner accepted (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`)), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 R5 is **DONE / VERIFIED** (PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`, package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
@@ -109,7 +109,7 @@ For the narrower first public core one-time-payment scope, the only provider-dep
 
 ## Current next work: UPayments provider-contract clarification — production auth (not R6, not publication)
 
-R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`. Publication unauthorized.
+R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded at that time: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3` (since superseded by `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`). Publication unauthorized.
 
 ## Permanent invariants
 

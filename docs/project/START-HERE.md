@@ -123,7 +123,7 @@ GitHub default CodeQL JavaScript/TypeScript analysis did not reach a terminal ve
 
 R0, R1 and E1 are **DONE / VERIFIED and integrated through PR #108**. Repository-executable generic E2 is **DONE / CERTIFIED**. E3 repository-executable runtime evidence is **DONE / VERIFIED** at this checkpoint. Named paid/licensed themes, paid optimizers, CDN/server-specific cache modes, browser/device visual evidence and named analytics deduplication remain external/manual unless actually exercised.
 
-Approach 3 is the current owner-accepted technical baseline (146d65a). Publication remains NOT AUTHORIZED.
+Release Candidate 1 is the current owner-accepted technical baseline (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`)), superseding Approach 3 (`146d65a`). Publication remains NOT AUTHORIZED.
 
 ### Current provider-contract disposition
 
@@ -173,8 +173,9 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | Field | Current value |
 |---|---|
 | Program phase | **external certification & release readiness** |
-| Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED** |
-| Frozen accepted baseline | `146d65a1c182630c1acc651cacafe30cff5f6b79` (Approach 3) |
+| Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED — HISTORICAL, superseded by Release Candidate 1** |
+| Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
+| Frozen accepted baseline | `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (Release Candidate 1; supersedes Approach 3 `146d65a1c182630c1acc651cacafe30cff5f6b79`) |
 | T1 | **DONE / VERIFIED** |
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |

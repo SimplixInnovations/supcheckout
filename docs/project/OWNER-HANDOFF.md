@@ -28,7 +28,7 @@ Latest repository-executable E3 runtime checkpoint is `540b733c29656758f23928176
 
 At that E3 checkpoint, Quality/H12, the 20-cell Compatibility matrix and gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact, the full repository-owned Ecosystem Certification matrix, delayed/combined/repeated Classic JS characterization and analytics-return characterization all passed. The historical default CodeQL JavaScript/TypeScript job did not reach a terminal verdict; do not rewrite that as success.
 
-Current executable gate: **external certification & release readiness**. Approach 3 owner acceptance recorded at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
+Current executable gate: **external certification & release readiness**. Release Candidate 1 owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 Current provider disposition after exhaustive first-party research:
 
@@ -43,7 +43,7 @@ Current provider disposition after exhaustive first-party research:
 See `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md` and `docs/project/UPAYMENTS-PROVIDER-CONTACT-DRAFT.md`.
 
 
-Approach 3 is the current owner-accepted technical baseline. Publication remains NOT AUTHORIZED. Unresolved provider contracts remain uncertified.
+Release Candidate 1 is the current owner-accepted technical baseline; Approach 3 is historical. Publication remains NOT AUTHORIZED. Unresolved provider contracts remain uncertified.
 
 ## 2. Golden identity
 
@@ -209,7 +209,7 @@ A successful check from an ancestor SHA is never substituted for final exact-hea
 
 ## 9. Remaining Approach 3 program
 
-Current executable gate: **external certification & release readiness**. Approach 3 owner acceptance recorded at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
+Current executable gate: **external certification & release readiness**. Release Candidate 1 owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 Then:
 
