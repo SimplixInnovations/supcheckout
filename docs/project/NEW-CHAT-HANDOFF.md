@@ -111,6 +111,8 @@ For the narrower first public core one-time-payment scope, the only provider-dep
 
 R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded at that time: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3` (since superseded by `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`). Publication unauthorized.
 
+The production-auth blocker can be cleared without waiting for a provider reply (owner decision, 2026-10-08): run the owner-only account probe in `PRODUCTION-AUTH-ACCOUNT-PROBE.md`. The full ordered owner action queue, the PHP 8.4 CI watch item and the contributor commit-email requirement are in `START-HERE.md` §13 "Owner action queue".
+
 ## Permanent invariants
 
 - Browser/provider routing data is not payment truth.
