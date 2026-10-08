@@ -31,7 +31,7 @@ supcheckout_dump_http_server_diagnostics() {
     local stack_dir="${SUPCHECKOUT_HTTP_STACK_DIR:-${RUNNER_TEMP:-/tmp}/supcheckout-http-stack}"
     local stack_log
     if [[ -d "$stack_dir" ]]; then
-      for stack_log in fpm-error.log php-error.log nginx-error.log fpm-stdout.log; do
+      for stack_log in fpm-error.log fpm-slow.log php-error.log nginx-error.log fpm-stdout.log; do
         echo "--- HTTP stack ${stack_log} (last 200 lines) ---"
         if [[ -f "$stack_dir/$stack_log" ]]; then
           tail -n 200 "$stack_dir/$stack_log"

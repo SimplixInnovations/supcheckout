@@ -71,6 +71,10 @@ pm.start_servers = 4
 pm.min_spare_servers = 2
 pm.max_spare_servers = 8
 request_terminate_timeout = 15s
+; A request still running after 5s gets its PHP backtrace written here, so an
+; intermittent max_execution_time 502 shows its caller, not just its last line.
+request_slowlog_timeout = 5s
+slowlog = $conf_dir/fpm-slow.log
 catch_workers_output = yes
 php_admin_value[error_log] = $conf_dir/php-error.log
 php_admin_value[max_execution_time] = 12

@@ -52,6 +52,7 @@ mkdir -p "$stack_dir"
 printf '%s\n' 'FPM-ERROR-SENTINEL' > "$stack_dir/fpm-error.log"
 printf '%s\n' 'PHP-ERROR-SENTINEL' > "$stack_dir/php-error.log"
 printf '%s\n' 'NGINX-ERROR-SENTINEL' > "$stack_dir/nginx-error.log"
+printf '%s\n' 'FPM-SLOWLOG-SENTINEL' > "$stack_dir/fpm-slow.log"
 export SUPCHECKOUT_HTTP_STACK_DIR="$stack_dir"
 
 diag="$tmp/diag.txt"
@@ -74,6 +75,17 @@ grep -Fq 'PHP-SERVER-LOG-SENTINEL' "$diag" || { echo 'FAIL: missing server log c
 grep -Fq 'FPM-ERROR-SENTINEL' "$diag" || { echo 'FAIL: missing PHP-FPM error log contents' >&2; exit 1; }
 grep -Fq 'PHP-ERROR-SENTINEL' "$diag" || { echo 'FAIL: missing PHP error log contents' >&2; exit 1; }
 grep -Fq 'NGINX-ERROR-SENTINEL' "$diag" || { echo 'FAIL: missing nginx error log contents' >&2; exit 1; }
+# A request killed by max_execution_time only names the line it died on; the
+# PHP-FPM slow log carries the full PHP backtrace that explains the hang.
+grep -Fq 'FPM-SLOWLOG-SENTINEL' "$diag" || { echo 'FAIL: missing PHP-FPM slow log contents' >&2; exit 1; }
+
+# The stack must record slow-request backtraces before the hard limits fire.
+stack_conf="$ROOT/tests/integration/lib/start-ci-http-stack.sh"
+grep -Eq '^request_slowlog_timeout = [0-9]+s$' "$stack_conf" || { echo 'FAIL: PHP-FPM slow-request log is not enabled' >&2; exit 1; }
+grep -Fq 'slowlog = $conf_dir/fpm-slow.log' "$stack_conf" || { echo 'FAIL: PHP-FPM slow log is not written to the stack directory' >&2; exit 1; }
+slow_s="$(grep -Eo '^request_slowlog_timeout = [0-9]+' "$stack_conf" | grep -Eo '[0-9]+$')"
+exec_s="$(grep -Eo 'max_execution_time\] = [0-9]+' "$stack_conf" | grep -Eo '[0-9]+$')"
+(( slow_s < exec_s )) || { echo 'FAIL: slow log must fire before max_execution_time' >&2; exit 1; }
 
 printf '0\n' > "$count_file"
 export SUPCHECKOUT_FAKE_CURL_RC=0
