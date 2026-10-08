@@ -107,7 +107,12 @@ echo "--- probe 2: POST charge (initialization only) ---"
 if [[ "${CONFIRM_PRODUCTION_CHARGE_INIT:-}" != "YES" ]]; then
   echo "verdict=SKIPPED_NOT_CONFIRMED (set CONFIRM_PRODUCTION_CHARGE_INIT=YES)"
 else
-  ID="supcheckout-authprobe-$(date -u +%s)-${RANDOM}"
+  # Used as order id and reference.id; CheckoutOrchestrator rejects references over 35 chars.
+  ID="scprobe-$(date -u +%s)-${RANDOM}"
+  if (( ${#ID} > 35 )); then
+    echo "RESULT=REFUSED_REFERENCE_TOO_LONG"
+    exit 3
+  fi
   BODY="$(printf '{"products":[{"name":"SUPCheckout auth probe","description":"Initialization only - do not pay","price":1.0,"quantity":1}],"order":{"id":"%s","reference":"%s","description":"SUPCheckout production auth probe - do not pay","currency":"KWD","amount":1.0},"language":"en","tokens":{},"reference":{"id":"%s"},"returnUrl":"https://example.com/supcheckout-return","cancelUrl":"https://example.com/supcheckout-cancel","notificationUrl":"https://example.com/supcheckout-webhook","plugin":{"src":"woocommerce"},"paymentLinkExpiryInMinutes":1}' "$ID" "$ID" "$ID")"
   http="$(curl -sS -o "$WORK/charge.json" -w '%{http_code}' --max-redirs 0 --proto '=https' \
     --connect-timeout 5 --max-time 15 -X POST \

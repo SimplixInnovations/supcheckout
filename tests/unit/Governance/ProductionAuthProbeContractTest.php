@@ -47,6 +47,16 @@ final class ProductionAuthProbeContractTest extends TestCase {
         self::assertStringNotContainsString('--location', $probe);
     }
 
+    public function test_charge_reference_respects_the_plugin_35_character_limit(): void {
+        $probe = self::read_repository_file(self::PROBE);
+        $orchestrator = self::read_repository_file('src/Payment/CheckoutOrchestrator.php');
+
+        self::assertStringContainsString('strlen($reference_id) > 35', $orchestrator);
+        self::assertMatchesRegularExpression('/ID="scprobe-\$\(date -u \+%s\)-\$\{RANDOM\}"/', $probe);
+        // Worst case: "scprobe-" (8) + 10-digit epoch + "-" + 5-digit RANDOM = 24.
+        self::assertStringContainsString('if (( ${#ID} > 35 )); then', $probe, 'probe must refuse an over-long reference');
+    }
+
     public function test_probe_never_prints_credentials_or_payment_identifiers(): void {
         $probe = self::read_repository_file(self::PROBE);
 
