@@ -9,12 +9,14 @@ This is a living operational procedure. Historical tranche detail belongs in the
 
 ## 1. Acceptance authority and current program coordinate
 
-Owner technical acceptance is **ACCEPTED for Approach 3** (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`):
+Owner technical acceptance is **ACCEPTED for Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, recorded 2026-10-07):
 
-- source SHA: `146d65a1c182630c1acc651cacafe30cff5f6b79`;
+- source SHA: `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (PR #128 squash-merged main);
 - package: `supcheckout-0.1.0.zip`;
 - files: 62;
-- SHA-256: `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
+- SHA-256: `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`.
+
+Historical Approach 3 (superseded by Release Candidate 1, `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`): source `146d65a1c182630c1acc651cacafe30cff5f6b79`, 62 files / SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
 
 Historical Approach 2 (superseded): source `0c883d609906676966002eb022a82a9656eeacc5`, 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
@@ -26,7 +28,7 @@ Latest repository-executable E3 runtime checkpoint is `540b733c29656758f23928176
 
 At that E3 checkpoint, Quality/H12, the 20-cell Compatibility matrix and gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact, the full repository-owned Ecosystem Certification matrix, delayed/combined/repeated Classic JS characterization and analytics-return characterization all passed. The historical default CodeQL JavaScript/TypeScript job did not reach a terminal verdict; do not rewrite that as success.
 
-Current executable gate: **external certification & release readiness**. Approach 3 owner acceptance recorded at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
+Current executable gate: **external certification & release readiness**. Release Candidate 1 owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 Current provider disposition after exhaustive first-party research:
 
@@ -41,7 +43,7 @@ Current provider disposition after exhaustive first-party research:
 See `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md` and `docs/project/UPAYMENTS-PROVIDER-CONTACT-DRAFT.md`.
 
 
-Approach 3 is the current owner-accepted technical baseline. Publication remains NOT AUTHORIZED. Unresolved provider contracts remain uncertified.
+Release Candidate 1 is the current owner-accepted technical baseline; Approach 3 is historical. Publication remains NOT AUTHORIZED. Unresolved provider contracts remain uncertified.
 
 ## 2. Golden identity
 
@@ -207,7 +209,7 @@ A successful check from an ancestor SHA is never substituted for final exact-hea
 
 ## 9. Remaining Approach 3 program
 
-Current executable gate: **external certification & release readiness**. Approach 3 owner acceptance recorded at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Publication remains NOT AUTHORIZED.
+Current executable gate: **external certification & release readiness**. Release Candidate 1 owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 Then:
 

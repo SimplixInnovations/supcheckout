@@ -3,23 +3,25 @@
 ## Current state (authoritative)
 
 ```text
-Approach 3: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE (146d65a1c182630c1acc651cacafe30cff5f6b79)
+Release Candidate 1: CURRENT OWNER-ACCEPTED TECHNICAL BASELINE (8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243)
+Approach 3: HISTORICAL / SUPERSEDED (146d65a1c182630c1acc651cacafe30cff5f6b79)
 Approach 2: HISTORICAL / SUPERSEDED
 Active program: external-certification-release-readiness
 External-readiness integrated baseline: 705862bd2138126b53ea428551b326a0fd8961bc. Live `main` is dynamic — obtain it from GitHub/session bootstrap; it is not frozen into this document.
-Accepted package: supcheckout-0.1.0.zip / 62 files / 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
+Accepted package: supcheckout-0.1.0.zip / 62 files / 8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156
 Publication: NOT AUTHORIZED
 ```
 
 Sections below labeled Historical are retained audit evidence and are not current state.
 
 
-**Current status:** owner technical acceptance COMPLETED for Approach 3 (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`) at `146d65a1c182630c1acc651cacafe30cff5f6b79`; package 62 files / SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`; explicit release administration (tag/GitHub Release/WordPress.org publication) remains NOT AUTHORIZED; automatic recurring `VERIFIED_SUCCESS` remains FAIL-CLOSED pending provider contracts
+**Current status:** owner technical acceptance COMPLETED for Release Candidate 1 (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, 2026-10-07) at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243`; package 62 files / SHA-256 `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`; superseded Approach 3 acceptance (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`) at `146d65a1c182630c1acc651cacafe30cff5f6b79` / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` is historical; explicit release administration (tag/GitHub Release/WordPress.org publication) remains NOT AUTHORIZED; automatic recurring `VERIFIED_SUCCESS` remains FAIL-CLOSED pending provider contracts
 **Canonical GitHub repository:** `SimplixInnovations/supcheckout`
 **Canonical plugin/package slug:** `supcheckout`
 **Development version:** `0.1.0`
-**Accepted Approach 3 baseline:** `146d65a1c182630c1acc651cacafe30cff5f6b79`
-**Accepted package:** `supcheckout-0.1.0.zip` — **62 files**, SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
+**Accepted Release Candidate 1 baseline:** `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243`
+**Accepted package:** `supcheckout-0.1.0.zip` — **62 files**, SHA-256 `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`
+**Historical Approach 3 (superseded):** `146d65a1c182630c1acc651cacafe30cff5f6b79` / 62 files / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
 **Historical Approach 2 (superseded):** `0c883d609906676966002eb022a82a9656eeacc5` / 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
 
 ## Certification anchors

@@ -24,7 +24,7 @@ Exact checkpoint evidence:
 
 The GitHub default CodeQL JavaScript/TypeScript job did not reach a terminal verdict for this historical checkpoint. This matrix therefore does not claim CodeQL success for `540b733c29656758f2392817649fc3d4a4db585d`. Exact descendant merge/release qualification still requires CodeQL/security green.
 
-Owner technical acceptance is **ACCEPTED for Approach 3** (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`) at `146d65a1c182630c1acc651cacafe30cff5f6b79` and package SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`. Historical Approach 2 is superseded. Publication remains unauthorized. Provider contracts remain uncertified.
+Owner technical acceptance is **ACCEPTED for Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`) at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` and package SHA-256 `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`. Historical Approach 3 (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`, `146d65a1c182630c1acc651cacafe30cff5f6b79` / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`) and Approach 2 are superseded. Publication remains unauthorized. Provider contracts remain uncertified.
 
 ## Platform matrix
 

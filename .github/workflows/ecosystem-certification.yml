@@ -73,7 +73,7 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1.2"
+          "7.1.3"
           "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
@@ -152,7 +152,7 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1.2"
+          "7.1.3"
           "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
@@ -243,7 +243,7 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1.2"
+          "7.1.3"
           "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
@@ -368,7 +368,7 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1.2"
+          "7.1.3"
           "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
@@ -464,7 +464,7 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1.2"
+          "7.1.3"
           "11.1.2"
           "$RUNNER_TEMP/wordpress"
 
@@ -527,7 +527,7 @@ jobs:
           WP_CLI_BIN: /tmp/wp-cli.phar
         run: >-
           bash scripts/install-wp-test-environment.sh
-          "7.1.2"
+          "7.1.3"
           "11.1.2"
           "$RUNNER_TEMP/wordpress"
 

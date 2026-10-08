@@ -76,12 +76,16 @@ Historical documents may contain former product names, old repository coordinate
 
 ## 4. Frozen acceptance reference and current Approach 3 coordinate
 
-The owner-accepted technical baseline is now **Approach 3** (`OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`):
+The owner-accepted technical baseline is now **Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, recorded 2026-10-07):
 
-- source: `146d65a1c182630c1acc651cacafe30cff5f6b79`;
+- source: `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (PR #128 squash-merged main; tree identical to certified head `3f004c3d3affc95ddbc564bd0594dd9dd0529695`, 77/77 checks SUCCESS);
 - package: `supcheckout-0.1.0.zip`;
 - files: 62;
-- SHA-256: `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
+- SHA-256: `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`.
+
+Technical acceptance does not authorize publication, provider outreach or a live transaction, and does not close any release-candidate blocker.
+
+Historical Approach 3 (superseded by Release Candidate 1, `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3`): source `146d65a1c182630c1acc651cacafe30cff5f6b79`, 62 files / SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`.
 
 Any later candidate that changes distributable runtime or UI bytes **postdates this acceptance** and must receive fresh exact-head/package verification and a fresh explicit owner acceptance before it can replace the accepted baseline or be published.
 
@@ -119,7 +123,7 @@ GitHub default CodeQL JavaScript/TypeScript analysis did not reach a terminal ve
 
 R0, R1 and E1 are **DONE / VERIFIED and integrated through PR #108**. Repository-executable generic E2 is **DONE / CERTIFIED**. E3 repository-executable runtime evidence is **DONE / VERIFIED** at this checkpoint. Named paid/licensed themes, paid optimizers, CDN/server-specific cache modes, browser/device visual evidence and named analytics deduplication remain external/manual unless actually exercised.
 
-Approach 3 is the current owner-accepted technical baseline (146d65a). Publication remains NOT AUTHORIZED.
+Release Candidate 1 is the current owner-accepted technical baseline (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`)), superseding Approach 3 (`146d65a`). Publication remains NOT AUTHORIZED.
 
 ### Current provider-contract disposition
 
@@ -169,8 +173,9 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | Field | Current value |
 |---|---|
 | Program phase | **external certification & release readiness** |
-| Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED** |
-| Frozen accepted baseline | `146d65a1c182630c1acc651cacafe30cff5f6b79` (Approach 3) |
+| Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED — HISTORICAL, superseded by Release Candidate 1** |
+| Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
+| Frozen accepted baseline | `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (Release Candidate 1; supersedes Approach 3 `146d65a1c182630c1acc651cacafe30cff5f6b79`) |
 | T1 | **DONE / VERIFIED** |
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
@@ -290,4 +295,4 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 ## 13. Immediate next step
 
-R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3` at `146d65a1c182630c1acc651cacafe30cff5f6b79`. Approach 3 replaces Approach 2 as the accepted technical baseline. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
+R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.

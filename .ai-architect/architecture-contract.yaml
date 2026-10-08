@@ -13,10 +13,15 @@ decision:
 
 baselines:
   live_main_at_decision: 0b153c661314669924c81e89fd71bfd2c734310b
-  owner_accepted_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79
-  owner_accepted_approach3_package_sha256: 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
-  owner_accepted_approach3_package_files: 62
-  owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3
+  # Release Candidate 1: owner technical acceptance recorded 2026-10-07 (PR #128 squash-merged main).
+  owner_accepted_rc1_source: 8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243
+  owner_accepted_rc1_package_sha256: 8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156
+  owner_accepted_rc1_package_files: 62
+  owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1
+  historical_approach3_source: 146d65a1c182630c1acc651cacafe30cff5f6b79
+  historical_approach3_package_sha256: 0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd
+  historical_approach3_package_files: 62
+  historical_approach3_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3
   historical_approach2_source: 0c883d609906676966002eb022a82a9656eeacc5
   historical_approach2_package_sha256: 58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655
   historical_approach2_package_files: 51
