@@ -4,6 +4,8 @@
 **Do NOT send without:** `OWNER_PROVIDER_CONTACT_AUTHORIZATION=YES`
 **No secrets in this document.**
 
+**Optional since 2026-10-08:** the owner adopted an account-scoped resolution path that does not wait for a reply (`PRODUCTION-AUTH-ACCOUNT-PROBE.md`). Sending this message is still useful and becomes necessary if the probe reports `REJECTED_AUTH`.
+
 Deep first-party research is recorded in:
 
 `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`

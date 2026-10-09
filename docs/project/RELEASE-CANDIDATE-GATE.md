@@ -7,7 +7,7 @@ An RC may be produced only when **scope-aware** mandatory blockers are closed.
 - [x] current secure upstream WP/WC patches certified (live lookup CURRENT)
 - [x] all permanent CI green on certified repository head
 - [x] accepted runtime/package provenance understood
-- [ ] production auth contract resolved for provider API traffic — core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`)
+- [ ] production auth contract resolved for provider API traffic — core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`); resolvable by a written UPayments answer **or** by the owner-run account probe in `PRODUCTION-AUTH-ACCOUNT-PROBE.md` (owner decision 2026-10-08)
 - [ ] live one-time payment acceptance complete
 - [x] public-claims audit complete
 - [x] no misleading recurring claim in current copy

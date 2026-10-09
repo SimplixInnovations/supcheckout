@@ -296,3 +296,16 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 ## 13. Immediate next step
 
 R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
+
+### Owner action queue (reconciled 2026-10-08)
+
+Repository-side work for the current gate is complete. The remaining work is owner/external only, in this order:
+
+1. **Production auth probe.** Run `tests/provider/production-auth-account-probe.sh` with `OWNER_PRODUCTION_AUTH_PROBE_AUTHORIZATION=YES`, following `PRODUCTION-AUTH-ACCOUNT-PROBE.md`. Commit the evidence file. If both probes report `BEARER_ONLY_ACCEPTED`, mark `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` in `RELEASE-CANDIDATE-GATE.md`. If either reports `REJECTED_AUTH`, send the provider message and open an HMAC runtime tranche.
+2. **Live one-time payment acceptance.** Needs `OWNER_LIVE_PAYMENT_TEST_AUTHORIZATION=YES` and step 1 resolved; follow `LIVE-PAYMENT-ACCEPTANCE-PLAN.md`.
+3. **Pentest and PCI/legal review,** only if the release will be claimed as enterprise production-ready.
+4. **Publication decision:** version, tag, GitHub Release and WordPress.org submission. Needs explicit publication authorization.
+
+Known CI watch item: the PHP 8.4 request-context stability cell has returned an intermittent Store API 502 (`45b564d`, `ee302c1`, PR #129). The CI stack now records PHP-FPM slow-request backtraces (`fpm-slow.log`). On the next recurrence, read that backtrace and fix the cause; do not treat it as a flake.
+
+Contributor setup on any new machine: commit as `Simplix Innovations <admin@simplixi.com>`. Commits under an email that is not linked to the GitHub account are unattributed, and the `main` ruleset (`require_extra_approval_for_unattributed_changes`) then blocks the merge.

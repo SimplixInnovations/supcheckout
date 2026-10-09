@@ -30,6 +30,19 @@ PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED
 Webhook-signature mechanics are defense-in-depth because webhook/redirect input is not financial truth; current financial authority remains authenticated `StatusVerifier`. Saved-card/token-storage and auto-deduct/cycle questions remain future feature gates because those capabilities are excluded from the first public production claim. Sandbox credential-family migration is also not a first-release blocker while the bounded public-sandbox Charge path remains independently certified.
 
 
+## Account-scoped resolution path — owner decision 2026-10-08
+
+The owner adopted a second resolution path that does not depend on a provider reply: an owner-run probe sends the exact Bearer-only Status and Charge-initialization requests SUPCheckout sends today to the release merchant's production account. The procedure, safety boundary and resolution rule are in `PRODUCTION-AUTH-ACCOUNT-PROBE.md`.
+
+```text
+both probes BEARER_ONLY_ACCEPTED + conditions in PRODUCTION-AUTH-ACCOUNT-PROBE.md
+  -> PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY
+any probe REJECTED_AUTH
+  -> stays UNRESOLVED; NEW_RUNTIME_TRANCHE_REQUIRED=HMAC; provider answer needed for the scheme
+```
+
+A written provider answer, if one arrives, supersedes the probe result.
+
 ## HMAC outcome A — mandatory
 
 If UPayments confirms mandatory dynamic HMAC for production Charge and/or Status:
