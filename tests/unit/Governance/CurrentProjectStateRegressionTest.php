@@ -197,9 +197,16 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
-        self::assertStringContainsString('**Last reconciled:** 2026-10-07', $status_hdr);
+        self::assertStringContainsString('**Last reconciled:** 2026-10-10', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
-        self::assertStringContainsString('Next executable dependency: **UPayments provider-contract clarification**.', $handoff);
+        self::assertStringContainsString('Next executable dependency: **UPayments production-auth resolution**', $handoff);
+        // Owner decision 2026-10-08: the account probe is an accepted resolution path, so every
+        // living handoff surface must name it instead of implying a provider answer is the only route.
+        foreach (array('docs/project/PROJECT-STATUS.md', 'docs/project/OWNER-HANDOFF.md', 'docs/project/NEW-CHAT-HANDOFF.md') as $living) {
+            $text = self::read_repository_file($living);
+            self::assertStringContainsString('PRODUCTION-AUTH-ACCOUNT-PROBE.md', $text, $living);
+            self::assertStringNotContainsString('**UPayments provider-contract clarification**', $text, $living);
+        }
         self::assertStringNotContainsString('5. **R6:** immutable exact-head qualification, remaining manual/external evidence, fresh owner re-acceptance and explicit version/publication decision.', $handoff);
         self::assertStringNotContainsString('Immediate R6 boundary', self::read_repository_file('docs/project/NEW-CHAT-HANDOFF.md'));
         // FINAL-4: stale current-looking Approach-2/T1-T2 claims must be quarantined as historical.

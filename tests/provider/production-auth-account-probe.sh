@@ -2,7 +2,7 @@
 # Owner-run production authentication probe for ONE merchant account.
 # Classification: PRODUCTION_ACCOUNT_AUTH_OBSERVATION (account-scoped, point-in-time).
 #
-# Answers one question: does THIS production merchant account accept the exact
+# Answers one question: does THIS production merchant account accept the
 # Bearer-only requests SUPCheckout sends today, for
 #   1. GET  get-payment-status/{track_id}  (StatusVerifier path form), and
 #   2. POST charge                          (initialization only, optional)?
@@ -14,6 +14,13 @@
 #   - Charge needs a second confirmation, never follows the returned link,
 #     and requests a 1-minute link expiry. Initialization is not capture:
 #     no money moves unless someone opens and pays the link;
+#   - the Charge body carries the same top-level keys, token placeholders and
+#     live User-Agent as CheckoutOrchestrator; the only added field is the
+#     1-minute paymentLinkExpiryInMinutes safety bound;
+#   - the key reaches curl from a 0600 file and the track ID through stdin,
+#     so neither appears in the process list;
+#   - status acceptance requires a transaction bound to the probed track ID,
+#     the same binding StatusVerifier enforces;
 #   - never prints the API key, track ID, payment link or raw provider body.
 #
 # Env:
@@ -60,8 +67,14 @@ summarize() {
     echo "http_status=", $http, PHP_EOL;
     echo "provider_status_true=", $ok ? "yes" : "no", PHP_EOL;
     if ($kind === "status") {
-      $tx = is_array($d) && isset($d["data"]["transaction"]) && is_array($d["data"]["transaction"]);
-      echo "transaction_object_present=", $tx ? "yes" : "no", PHP_EOL;
+      // StatusVerifier binds the transaction to the queried track ID; a 201 for an
+      // unknown or foreign track ID is not acceptance of the SUPCheckout request.
+      $expected_track = (string) getenv("PROBE_TRACK_ID");
+      $tx = is_array($d) && isset($d["data"]["transaction"]["track_id"])
+        && is_scalar($d["data"]["transaction"]["track_id"])
+        && $expected_track !== ""
+        && (string) $d["data"]["transaction"]["track_id"] === $expected_track;
+      echo "transaction_bound_to_probed_track=", $tx ? "yes" : "no", PHP_EOL;
       $accepted = $http === 201 && $ok && $tx;
     } else {
       // Same two link locations CheckoutOrchestrator / sandbox-charge-smoke accept.
@@ -83,6 +96,18 @@ summarize() {
   ' "$kind" "$http" "$body_file"
 }
 
+# Runs curl with the fixed transport flags. Sets HTTP (000 on transport failure)
+# and prints curl_exit so a failure is diagnosable without exposing the request.
+probe_curl() {
+  local rc=0
+  HTTP="$(curl -sS -w '%{http_code}' --max-redirs 0 --proto '=https' \
+    --connect-timeout 5 --max-time 15 "$@" 2>/dev/null)" || rc=$?
+  if (( rc != 0 )); then
+    HTTP="000"
+  fi
+  echo "curl_exit=${rc}"
+}
+
 echo "PRODUCTION_ACCOUNT_AUTH_OBSERVATION"
 echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "host=apiv2api.upayments.com"
@@ -96,11 +121,12 @@ else
     echo "RESULT=REFUSED_INVALID_TRACK_ID_FORMAT"
     exit 3
   fi
-  http="$(curl -sS -o "$WORK/status.json" -w '%{http_code}' --max-redirs 0 --proto '=https' \
-    --connect-timeout 5 --max-time 15 \
-    -H 'Accept: application/json' -H @"$WORK/auth.hdr" \
-    "${BASE}/get-payment-status/${TRACK_ID}" 2>/dev/null || echo 000)"
-  summarize status "$http" "$WORK/status.json"
+  # The track ID reaches curl through stdin (--config -), never argv. Its format is
+  # validated above, so it cannot break out of the quoted config value.
+  printf 'url = "%s"\n' "${BASE}/get-payment-status/${TRACK_ID}" > "$WORK/status.cfg"
+  probe_curl --config - -o "$WORK/status.json" \
+    -H 'Accept: application/json' -H @"$WORK/auth.hdr" < "$WORK/status.cfg"
+  PROBE_TRACK_ID="$TRACK_ID" summarize status "$HTTP" "$WORK/status.json"
 fi
 
 echo "--- probe 2: POST charge (initialization only) ---"
@@ -113,12 +139,15 @@ else
     echo "RESULT=REFUSED_REFERENCE_TOO_LONG"
     exit 3
   fi
-  BODY="$(printf '{"products":[{"name":"SUPCheckout auth probe","description":"Initialization only - do not pay","price":1.0,"quantity":1}],"order":{"id":"%s","reference":"%s","description":"SUPCheckout production auth probe - do not pay","currency":"KWD","amount":1.0},"language":"en","tokens":{},"reference":{"id":"%s"},"returnUrl":"https://example.com/supcheckout-return","cancelUrl":"https://example.com/supcheckout-cancel","notificationUrl":"https://example.com/supcheckout-webhook","plugin":{"src":"woocommerce"},"paymentLinkExpiryInMinutes":1}' "$ID" "$ID" "$ID")"
-  http="$(curl -sS -o "$WORK/charge.json" -w '%{http_code}' --max-redirs 0 --proto '=https' \
-    --connect-timeout 5 --max-time 15 -X POST \
+  # Same top-level keys, token placeholders and decimal amount form as
+  # CheckoutOrchestrator (guest, one-time, not white-labelled, no saved card, no
+  # multi-merchant split). paymentLinkExpiryInMinutes is the one added field: a
+  # safety bound so the never-printed link expires after one minute.
+  BODY="$(printf '{"returnUrl":"https://example.com/supcheckout-return","cancelUrl":"https://example.com/supcheckout-cancel","notificationUrl":"https://example.com/supcheckout-webhook","products":[{"name":"SUPCheckout auth probe","description":"Initialization only - do not pay","price":1.000,"quantity":1}],"order":{"id":"%s","description":"SUPCheckout production auth probe - do not pay","currency":"KWD","amount":1.000},"reference":{"id":"%s"},"customer":{"name":"SUPCheckout auth probe"},"plugin":{"src":"woocommerce"},"is_whitelabled":false,"language":"en","isSaveCard":false,"tokens":{"creditCard":null,"customerUniqueToken":null},"device":{"browser":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 OPR/93.0.0.0","browserDetails":{"screenWidth":"1920","screenHeight":"1080","colorDepth":"24","javaEnabled":"false","language":"en","timeZone":"-180","3DSecureChallengeWindowSize":"500_X_600"}},"extraMerchantData":null,"paymentLinkExpiryInMinutes":1}' "$ID" "$ID")"
+  probe_curl -X POST -o "$WORK/charge.json" -A 'UpaymentsWoocommercePlugin/2.2.1' \
     -H 'Accept: application/json' -H 'Content-Type: application/json' -H @"$WORK/auth.hdr" \
-    --data-binary "$BODY" "${BASE}/charge" 2>/dev/null || echo 000)"
-  summarize charge "$http" "$WORK/charge.json"
+    --data-binary "$BODY" "${BASE}/charge"
+  summarize charge "$HTTP" "$WORK/charge.json"
   echo "probe_order_reference=${ID} (find it in the merchant dashboard; it expires unpaid)"
 fi
 
