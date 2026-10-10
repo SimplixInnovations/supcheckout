@@ -15,7 +15,7 @@ The project is still in pre-release engineering hardening. Entries below are eng
 - A verified CAPTURED that WooCommerce fails to record is now retried through bounded reconciliation and announced once in an order note.
 - Callback-triggered status lookups are capped at 3 per order per minute and may use at most 24 of the 30 global status slots. Six stay reserved for reconciliation, so one visitor replaying callbacks can no longer starve payment confirmation for the whole store.
 - Authenticated results now reach the historical public status poll (`UPayments_WHS`: completed, failed, cancelled); it previously always answered `wait`.
-- The package changes: 62 files, SHA-256 `6632cc8bf79d816de137e94480d61f0bdfa4478d841b8bcc6a1faab96fe88d28` at the candidate head. A fresh owner acceptance is required before it can replace Release Candidate 1.
+- The package changes: 62 files, SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730` at the candidate head. A fresh owner acceptance is required before it can replace Release Candidate 1.
 
 ### Final enterprise repository audit and presentation closeout
 

@@ -89,7 +89,7 @@ Historical Approach 3 (superseded by Release Candidate 1, `OWNER_TECHNICAL_ACCEP
 
 Any later candidate that changes distributable runtime or UI bytes **postdates this acceptance** and must receive fresh exact-head/package verification and a fresh explicit owner acceptance before it can replace the accepted baseline or be published.
 
-**Pending post-acceptance runtime candidate:** branch `fix/payment-lifecycle-hardening` (payment lifecycle hardening from the 2026-10-10 review) changes runtime bytes: 62 files / SHA-256 `6632cc8bf79d816de137e94480d61f0bdfa4478d841b8bcc6a1faab96fe88d28`. It is **NOT owner accepted**. Release Candidate 1 stays the accepted baseline until a fresh explicit acceptance of that candidate's exact head and package.
+**Pending post-acceptance runtime candidate:** branch `fix/payment-lifecycle-hardening` (payment lifecycle hardening from the 2026-10-10 review) changes runtime bytes: 62 files / SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`. It is **NOT owner accepted**. Release Candidate 1 stays the accepted baseline until a fresh explicit acceptance of that candidate's exact head and package.
 
 Historical Approach 2 (superseded, retained for audit): source `0c883d609906676966002eb022a82a9656eeacc5`, 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
