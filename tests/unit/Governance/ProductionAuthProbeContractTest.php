@@ -65,6 +65,61 @@ final class ProductionAuthProbeContractTest extends TestCase {
         self::assertStringContainsString('classification=PRODUCTION_ACCOUNT_AUTH_OBSERVATION', $probe);
     }
 
+    public function test_probe_keeps_secrets_and_identifiers_out_of_argv_and_disk(): void {
+        $probe = self::read_repository_file(self::PROBE);
+
+        self::assertStringContainsString('-H @"$WORK/auth.hdr"', $probe, 'Bearer key must reach curl from a file');
+        self::assertDoesNotMatchRegularExpression('/curl[^\n]*Bearer/', $probe, 'Bearer key must never be a curl argument');
+        self::assertDoesNotMatchRegularExpression('/curl[^\n]*\$\{?TRACK_ID/', $probe, 'track ID must never be a curl argument');
+        self::assertStringContainsString('--config -', $probe, 'status URL must reach curl through stdin');
+        self::assertStringContainsString("trap 'rm -rf \"\$WORK\"' EXIT", $probe);
+        self::assertStringContainsString('umask 077', $probe);
+        self::assertDoesNotMatchRegularExpression('/\bcat\b[^\n]*\$WORK/', $probe, 'raw bodies and the key file must never be printed');
+        self::assertSame(1, preg_match_all('/^BASE=/m', $probe), 'BASE must be assigned exactly once');
+        self::assertStringContainsString("--max-redirs 0 --proto '=https'", $probe);
+        self::assertDoesNotMatchRegularExpression('/curl -[A-Za-z]*L/', $probe, 'redirects must never be followed');
+    }
+
+    public function test_status_acceptance_requires_a_transaction_bound_to_the_probed_track_id(): void {
+        $probe = self::read_repository_file(self::PROBE);
+        $verifier = self::read_repository_file('src/Payment/StatusVerifier.php');
+
+        // StatusVerifier refuses a transaction whose track_id differs from the queried one;
+        // the probe must not count a 201 for an unknown or foreign track ID as acceptance.
+        self::assertStringContainsString("if ((string) \$transaction['track_id'] !== \$track_id) {", $verifier);
+        self::assertStringContainsString('PROBE_TRACK_ID="$TRACK_ID"', $probe, 'track ID reaches php through the environment');
+        self::assertStringContainsString('(string) $d["data"]["transaction"]["track_id"] === $expected_track', $probe);
+        self::assertStringContainsString('$accepted = $http === 201 && $ok && $tx;', $probe);
+    }
+
+    public function test_verdict_mapping_matches_the_runbook_table(): void {
+        $probe = self::read_repository_file(self::PROBE);
+        $runbook = self::read_repository_file('docs/project/PRODUCTION-AUTH-ACCOUNT-PROBE.md');
+
+        self::assertStringContainsString('} elseif ($http === 401 || $http === 403) {', $probe);
+        self::assertStringContainsString('$verdict = "INCONCLUSIVE";', $probe);
+        self::assertStringContainsString('curl_exit=', $probe, 'transport failures must report their curl exit code');
+        foreach (array('BEARER_ONLY_ACCEPTED', 'REJECTED_AUTH', 'INCONCLUSIVE') as $verdict) {
+            self::assertStringContainsString('verdict=' . $verdict, $runbook);
+        }
+    }
+
+    public function test_charge_probe_mirrors_the_plugin_request_shape(): void {
+        $probe = self::read_repository_file(self::PROBE);
+        $orchestrator = self::read_repository_file('src/Payment/CheckoutOrchestrator.php');
+        $gateway = self::read_repository_file('UPayments.php');
+
+        foreach (array('returnUrl', 'cancelUrl', 'notificationUrl', 'products', 'order', 'reference', 'customer', 'plugin', 'is_whitelabled', 'language', 'isSaveCard', 'tokens', 'device', 'extraMerchantData') as $key) {
+            self::assertStringContainsString("'" . $key . "'", $orchestrator, 'plugin payload key moved: ' . $key);
+            self::assertStringContainsString('"' . $key . '":', $probe, 'probe body lacks plugin key: ' . $key);
+        }
+        self::assertStringContainsString('"tokens":{"creditCard":null,"customerUniqueToken":null}', $probe);
+        self::assertStringNotContainsString('"reference":"', $probe, 'order.reference is not sent by the plugin');
+        // The live-mode User-Agent the plugin sends with Charge.
+        self::assertStringContainsString("\$userAgent = 'UpaymentsWoocommercePlugin/2.2.1';", $gateway);
+        self::assertStringContainsString("-A 'UpaymentsWoocommercePlugin/2.2.1'", $probe);
+    }
+
     public function test_probe_route_resolves_the_gate_only_through_its_written_rule(): void {
         $runbook = self::read_repository_file('docs/project/PRODUCTION-AUTH-ACCOUNT-PROBE.md');
         $gate = self::read_repository_file('docs/project/RELEASE-CANDIDATE-GATE.md');

@@ -1,7 +1,7 @@
 # SUPCheckout for UPayments — Project Status
 
 **Status document:** canonical living engineering state
-**Last reconciled:** 2026-10-07
+**Last reconciled:** 2026-10-10
 **Canonical repository:** `SimplixInnovations/supcheckout`
 **Development version:** `0.1.0`
 **Owner technical acceptance:** **ACCEPTED for Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, recorded 2026-10-07)
@@ -40,7 +40,7 @@
 | R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | Current executable gate | **external certification & release readiness** |
-| Next executable dependency | **UPayments provider-contract clarification** — production auth for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`) |
+| Next executable dependency | **UPayments production-auth resolution** for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`) — owner-run account probe ([`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) or a written UPayments answer |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -131,7 +131,7 @@ R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a
 
 ## Current provider-contract disposition
 
-- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — FIRST-RELEASE CORE BLOCKER.
+- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — FIRST-RELEASE CORE BLOCKER. Owner decision (2026-10-08): resolvable by the owner-run account probe in [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md) (`RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` under that document's resolution rule) or by a written UPayments answer, which supersedes the probe. The probe has not been run.
 - saved-card/token persistence: FUTURE FEATURE GATE.
 - auto-deduct capture/cycle identity: FUTURE RECURRING GATE.
 - webhook signature mechanics: FUTURE DEFENSE-IN-DEPTH.
