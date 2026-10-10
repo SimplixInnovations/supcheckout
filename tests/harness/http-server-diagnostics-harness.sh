@@ -87,6 +87,32 @@ slow_s="$(grep -Eo '^request_slowlog_timeout = [0-9]+' "$stack_conf" | grep -Eo 
 exec_s="$(grep -Eo 'max_execution_time\] = [0-9]+' "$stack_conf" | grep -Eo '[0-9]+$')"
 (( slow_s < exec_s )) || { echo 'FAIL: slow log must fire before max_execution_time' >&2; exit 1; }
 
+# A worker segfault (nginx 502 + "exited on signal 11") leaves no PHP backtrace.
+# The stack must keep the core, and a failure must print its gdb backtrace.
+grep -Fq 'rlimit_core = unlimited' "$stack_conf" || { echo 'FAIL: PHP-FPM core size is not unlimited' >&2; exit 1; }
+grep -Fq 'process.dumpable = yes' "$stack_conf" || { echo 'FAIL: PHP-FPM workers are not dumpable' >&2; exit 1; }
+grep -Fq 'kernel.core_pattern=$conf_dir/core.%e.%p' "$stack_conf" || { echo 'FAIL: worker cores are not written to the stack directory' >&2; exit 1; }
+grep -Fq '"$conf_dir/fpm-bin"' "$stack_conf" || { echo 'FAIL: PHP-FPM binary path is not recorded for gdb' >&2; exit 1; }
+
+cat > "$fakebin/gdb" <<'GDB'
+#!/usr/bin/env bash
+echo "GDB-BACKTRACE-SENTINEL args: $*"
+GDB
+chmod +x "$fakebin/gdb"
+printf '%s\n' '/usr/sbin/php-fpm8.2' > "$stack_dir/fpm-bin"
+printf 'core' > "$stack_dir/core.php-fpm8.2.4242"
+printf '0\n' > "$count_file"
+export SUPCHECKOUT_FAKE_CURL_RC=52
+: > "$diag"
+set +e
+supcheckout_curl_once_or_diagnose 'crashed worker' "$live_pid" "$server_log" \
+  -fsS http://127.0.0.1:8080/ >"$tmp/stdout.txt" 2>"$diag"
+set -e
+grep -Fq -- '--- PHP-FPM crash backtrace: core.php-fpm8.2.4242 ---' "$diag" || { echo 'FAIL: missing crash backtrace section' >&2; exit 1; }
+grep -Fq 'GDB-BACKTRACE-SENTINEL' "$diag" || { echo 'FAIL: gdb backtrace not printed' >&2; exit 1; }
+grep -Fq '/usr/sbin/php-fpm8.2' "$diag" || { echo 'FAIL: gdb not pointed at the recorded PHP-FPM binary' >&2; exit 1; }
+rm -f "$stack_dir/core.php-fpm8.2.4242"
+
 printf '0\n' > "$count_file"
 export SUPCHECKOUT_FAKE_CURL_RC=0
 : > "$diag"
