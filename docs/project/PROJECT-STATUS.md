@@ -40,6 +40,7 @@
 | R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | Current executable gate | **external certification & release readiness** |
+| Pending runtime candidate | `fix/payment-lifecycle-hardening` — payment lifecycle hardening (2026-10-10 review); package 62 files SHA-256 `6632cc8bf79d816de137e94480d61f0bdfa4478d841b8bcc6a1faab96fe88d28`; **NOT owner accepted** |
 | Next executable dependency | **UPayments provider-contract clarification** — production auth for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`) |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |

@@ -27,6 +27,15 @@ final class PaymentLifecycle {
     private const RECONCILE_REASON_META = '_simplixpay_upayments_reconcile_reason_v1';
     private const RECONCILE_EXHAUSTED_META = '_simplixpay_upayments_reconcile_exhausted_v1';
     private const MAX_RECONCILE_ATTEMPTS = 4;
+    // Provider order identities of earlier Charge attempts on the same Woo order.
+    // Written by CheckoutOrchestrator before it rotates UPayments_order_id.
+    private const PRIOR_REQUESTED_META = '_simplixpay_upayments_prior_requested_v1';
+    private const CALLBACK_LOOKUP_META = '_simplixpay_upayments_callback_lookups_v1';
+    private const CALLBACK_LOOKUPS_PER_MINUTE = 3;
+    private const CAPTURE_APPLY_FAILED_META = '_simplixpay_upayments_capture_apply_failed_v1';
+    private const UNAPPLIED_CAPTURES_META = '_simplixpay_upayments_unapplied_captures_v1';
+    // Historical public status-poll value read by PublicOrderStatus.
+    private const PUBLIC_STATUS_META = 'UPayments_WHS';
 
     /** @var bool */
     private static $bootstrapped = false;
@@ -137,7 +146,16 @@ final class PaymentLifecycle {
 
         $order = wc_get_order($order_id);
         $gateway = self::gateway();
+        $source = $is_browser ? 'browser' : 'webhook';
         if (!self::order_gateway_preflight($order, $gateway, $requested_order_id)) {
+            // A late callback for an earlier Charge attempt on this order still
+            // carries real money; route it to the capture-only secondary path.
+            if ((self::basic_order_preflight($order, $gateway) && self::is_prior_attempt($order, $requested_order_id))
+                || (self::is_gateway_switched_order($order, $gateway) && self::is_known_attempt($order, $requested_order_id))
+            ) {
+                $outcome = self::process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source);
+                self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order);
+            }
             self::log('callback_local_preflight_failed', 'warning');
             self::finish_callback($is_browser, false, $gateway, $order);
         }
@@ -147,13 +165,20 @@ final class PaymentLifecycle {
         // of the first authenticated status lookup. A provider-bound cursor, once
         // established, cannot be replaced by unverified callback input.
         if (!self::remember_unverified_cursor($order, $track_id, $requested_order_id)) {
+            // A different track for an attempt that already has a trusted cursor
+            // (or an already-paid order) may still be a capture: a retry inside
+            // the same hosted session, or a duplicate payment. Only CAPTURED is
+            // ever applied on this path.
+            if (self::trusted_cursor_present($order) || self::is_verified_capture($order)) {
+                $outcome = self::process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source);
+                self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order);
+            }
             self::log('callback_cursor_conflict', 'warning');
             self::finish_callback($is_browser, false, $gateway, $order);
         }
 
-        $outcome = self::process_order_status($gateway, $order, $track_id, $is_browser ? 'browser' : 'webhook');
-        $captured = isset($outcome['state']) && $outcome['state'] === 'captured';
-        self::finish_callback($is_browser, $captured, $gateway, $order);
+        $outcome = self::process_order_status($gateway, $order, $track_id, $source);
+        self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order);
     }
 
     /**
@@ -227,7 +252,11 @@ final class PaymentLifecycle {
             return self::outcome('unchanged', 'invalid_track_id');
         }
 
-        $verification = StatusVerifier::verify($gateway, $order, $track_id);
+        if ($source !== 'reconcile' && !self::callback_lookup_allowed($order)) {
+            $verification = self::verification_refused('callback_rate_limited');
+        } else {
+            $verification = StatusVerifier::verify($gateway, $order, $track_id, $source);
+        }
         if (empty($verification['bound']) || !is_array($verification['transaction'])) {
             $reason = isset($verification['reason']) ? (string) $verification['reason'] : 'verification_failed';
 
@@ -257,6 +286,7 @@ final class PaymentLifecycle {
             return self::outcome('unchanged', 'order_lock_contention');
         }
 
+        $capture_attempted = false;
         try {
             // Re-read under the mutation lock to prevent a TOCTOU change between
             // provider verification and local state mutation.
@@ -322,12 +352,14 @@ final class PaymentLifecycle {
             );
 
             if ($classification === ProviderResult::CAPTURED) {
+                $capture_attempted = true;
                 $captured = self::apply_captured($gateway, $fresh_order, $transaction);
                 if ($captured) {
                     self::clear_reconciliation($fresh_order);
                     self::log('captured');
                     return self::outcome('captured', 'captured');
                 }
+                self::handle_capture_apply_failure($fresh_order, $track_id);
                 return self::outcome('unchanged', 'payment_complete_failed');
             }
 
@@ -349,6 +381,10 @@ final class PaymentLifecycle {
             return self::outcome('pending', strtolower($classification));
         } catch (\Throwable $e) {
             self::log('lifecycle_exception', 'warning');
+            if ($capture_attempted) {
+                $current = wc_get_order($order_id);
+                self::handle_capture_apply_failure(is_object($current) ? $current : $order, $track_id);
+            }
             return self::outcome('unchanged', 'lifecycle_exception');
         } finally {
             OrderLock::release($order_id, $lock_token);
@@ -483,6 +519,243 @@ final class PaymentLifecycle {
             && hash_equals($readback_requested, $current_requested);
     }
 
+    /**
+     * Capture-only path for a track that the primary cursor flow cannot own:
+     * an earlier Charge attempt on this order, a second track inside an attempt
+     * that already has a trusted cursor, or any track on an already-paid order.
+     *
+     * Only an authenticated, bound CAPTURED result has an effect. It completes a
+     * still-unpaid UPayments order, or is recorded for manual refund when the
+     * order is already paid or was switched to another gateway. Non-captured
+     * results never change the order.
+     */
+    public static function process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source = 'webhook') {
+        if (!self::basic_order_preflight($order, $gateway) && !self::is_gateway_switched_order($order, $gateway)) {
+            return self::outcome('unchanged', 'local_preflight_failed');
+        }
+        if (self::is_refunded($order)) {
+            return self::outcome('unchanged', 'refunded');
+        }
+        $track_id = self::parse_track_id($track_id);
+        $requested_order_id = self::parse_generic_identifier($requested_order_id, 255);
+        if ($track_id === null || $requested_order_id === null) {
+            return self::outcome('unchanged', 'invalid_request');
+        }
+        if (!self::is_known_attempt($order, $requested_order_id)) {
+            self::log('secondary_unknown_attempt', 'warning');
+            return self::outcome('unchanged', 'unknown_attempt');
+        }
+        if ($source !== 'reconcile' && !self::callback_lookup_allowed($order)) {
+            return self::outcome('unchanged', 'callback_rate_limited');
+        }
+
+        $verification = StatusVerifier::verify($gateway, $order, $track_id, $source, $requested_order_id);
+        if (empty($verification['bound']) || !is_array($verification['transaction'])) {
+            $reason = isset($verification['reason']) ? (string) $verification['reason'] : 'verification_failed';
+            self::log('secondary_status_' . self::safe_code($reason), 'warning');
+            return self::outcome('unchanged', $reason);
+        }
+        if ((string) $verification['classification'] !== ProviderResult::CAPTURED) {
+            self::log('secondary_not_captured');
+            return self::outcome('unchanged', 'secondary_not_captured');
+        }
+
+        $order_id = (int) $order->get_id();
+        $lock_token = OrderLock::acquire($order_id);
+        if ($lock_token === null) {
+            return self::outcome('unchanged', 'order_lock_contention');
+        }
+
+        try {
+            $fresh_order = wc_get_order($order_id);
+            $gateway_switched = self::is_gateway_switched_order($fresh_order, $gateway);
+            if ((!$gateway_switched && !self::basic_order_preflight($fresh_order, $gateway))
+                || self::is_refunded($fresh_order)
+                || !self::is_known_attempt($fresh_order, $requested_order_id)
+            ) {
+                return self::outcome('unchanged', 'fresh_order_preflight_failed');
+            }
+            $rebound = StatusVerifier::bind_transaction(
+                $gateway,
+                $fresh_order,
+                $track_id,
+                $verification['transaction'],
+                $requested_order_id
+            );
+            if (empty($rebound['bound']) || (string) $rebound['classification'] !== ProviderResult::CAPTURED) {
+                return self::outcome('unchanged', 'binding_changed_under_lock');
+            }
+            $transaction = $rebound['transaction'];
+            $payment_id = (string) $transaction['payment_id'];
+            $existing_payment_id = (string) $fresh_order->get_transaction_id();
+
+            if ($gateway_switched) {
+                self::record_unapplied_capture($fresh_order, $payment_id, 'gateway_changed');
+                return self::outcome('unapplied_capture', 'gateway_changed');
+            }
+
+            if (self::is_verified_capture($fresh_order)) {
+                if ($existing_payment_id !== '' && hash_equals($existing_payment_id, $payment_id)) {
+                    return self::outcome('captured', 'already_verified');
+                }
+                self::record_unapplied_capture($fresh_order, $payment_id, 'duplicate_capture');
+                return self::outcome('duplicate_capture', 'duplicate_capture');
+            }
+
+            if ($existing_payment_id !== '' && !hash_equals($existing_payment_id, $payment_id)) {
+                self::record_unapplied_capture($fresh_order, $payment_id, 'duplicate_capture');
+                return self::outcome('duplicate_capture', 'duplicate_capture');
+            }
+
+            if (!self::apply_captured($gateway, $fresh_order, $transaction)) {
+                self::handle_capture_apply_failure($fresh_order, '');
+                return self::outcome('unchanged', 'payment_complete_failed');
+            }
+            // The capturing track now owns the order's trusted cursor.
+            $fresh_order->update_meta_data(self::TRUSTED_TRACK_META, $track_id);
+            $fresh_order->update_meta_data(self::TRUSTED_REQUESTED_META, $requested_order_id);
+            $fresh_order->update_meta_data(self::PROVIDER_RESULT_META, 'CAPTURED');
+            self::clear_reconciliation($fresh_order);
+            self::log('secondary_captured');
+            return self::outcome('captured', 'secondary_captured');
+        } catch (\Throwable $e) {
+            self::log('secondary_lifecycle_exception', 'warning');
+            return self::outcome('unchanged', 'lifecycle_exception');
+        } finally {
+            OrderLock::release($order_id, $lock_token);
+        }
+    }
+
+    private static function outcome_captured($outcome) {
+        return is_array($outcome) && isset($outcome['state']) && $outcome['state'] === 'captured';
+    }
+
+    private static function verification_refused($reason) {
+        return array(
+            'authenticated' => false,
+            'bound' => false,
+            'transaction' => null,
+            'reason' => (string) $reason,
+        );
+    }
+
+    private static function prior_attempts($order) {
+        $prior = $order->get_meta(self::PRIOR_REQUESTED_META);
+        return is_array($prior) ? array_values(array_filter($prior, 'is_string')) : array();
+    }
+
+    private static function is_prior_attempt($order, $requested_order_id) {
+        if (!is_string($requested_order_id) || $requested_order_id === '') {
+            return false;
+        }
+        foreach (self::prior_attempts($order) as $prior) {
+            if ($prior !== '' && hash_equals($prior, $requested_order_id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function is_known_attempt($order, $requested_order_id) {
+        $current = $order->get_meta('UPayments_order_id');
+        if (is_string($current) && $current !== '' && is_string($requested_order_id)
+            && hash_equals($current, $requested_order_id)
+        ) {
+            return true;
+        }
+        return self::is_prior_attempt($order, $requested_order_id);
+    }
+
+    /**
+     * Per-order throttle for callback-triggered provider lookups. Approximate
+     * under concurrency by design: the global StatusRateGate stays authoritative.
+     */
+    private static function callback_lookup_allowed($order) {
+        if (!is_object($order) || !method_exists($order, 'update_meta_data') || !method_exists($order, 'save')) {
+            return false;
+        }
+        $bucket = gmdate('YmdHi');
+        $count = 0;
+        $raw = $order->get_meta(self::CALLBACK_LOOKUP_META);
+        if (is_string($raw) && preg_match('/^([0-9]{12}):([0-9]{1,4})$/', $raw, $m) && $m[1] === $bucket) {
+            $count = (int) $m[2];
+        }
+        if ($count >= self::CALLBACK_LOOKUPS_PER_MINUTE) {
+            self::log('callback_lookup_throttled', 'warning');
+            return false;
+        }
+        $order->update_meta_data(self::CALLBACK_LOOKUP_META, $bucket . ':' . ($count + 1));
+        $order->save();
+        return true;
+    }
+
+    /**
+     * An authenticated CAPTURED could not be recorded by WooCommerce. Retry
+     * through bounded reconciliation and tell the merchant once.
+     */
+    private static function handle_capture_apply_failure($order, $track_id) {
+        if (!is_object($order) || !method_exists($order, 'get_meta') || !method_exists($order, 'update_meta_data')) {
+            return;
+        }
+        if ($track_id !== '') {
+            self::schedule_reconciliation($order, 'capture_apply_failed', $track_id);
+        }
+        if ((string) $order->get_meta(self::CAPTURE_APPLY_FAILED_META) === '1') {
+            return;
+        }
+        $order->update_meta_data(self::CAPTURE_APPLY_FAILED_META, 1);
+        if (method_exists($order, 'add_order_note')) {
+            $order->add_order_note(
+                __('UPayments confirmed a captured payment for this order, but WooCommerce could not record it. SUPCheckout for UPayments will retry; if the order stays unpaid, review it manually.', 'supcheckout')
+            );
+        }
+        $order->save();
+    }
+
+    /**
+     * The order is no longer a UPayments order, but it still carries the provider
+     * identity of a Charge attempt that can be paid until its link expires.
+     */
+    private static function is_gateway_switched_order($order, $gateway) {
+        if (!is_object($order)
+            || !method_exists($order, 'get_id')
+            || !method_exists($order, 'get_payment_method')
+            || !method_exists($order, 'get_meta')
+            || !is_object($gateway)
+            || (string) $order->get_payment_method() === 'upayments'
+        ) {
+            return false;
+        }
+        $requested = $order->get_meta('UPayments_order_id');
+        return is_string($requested) && $requested !== '';
+    }
+
+    /**
+     * Record an authenticated capture that SUPCheckout must not apply, once per
+     * payment ID, and tell the merchant how to resolve it.
+     */
+    private static function record_unapplied_capture($order, $payment_id, $reason) {
+        $recorded = $order->get_meta(self::UNAPPLIED_CAPTURES_META);
+        $recorded = is_array($recorded) ? array_values(array_filter($recorded, 'is_string')) : array();
+        if (in_array($payment_id, $recorded, true)) {
+            return;
+        }
+        $recorded[] = $payment_id;
+        $order->update_meta_data(self::UNAPPLIED_CAPTURES_META, $recorded);
+        if (method_exists($order, 'add_order_note')) {
+            if ($reason === 'gateway_changed') {
+                /* translators: %s: UPayments payment ID. */
+                $message = __('UPayments captured a payment (payment ID %s) for this order after its payment method was changed. SUPCheckout did not mark the order paid. Check whether the customer also paid another way, and refund in the UPayments merchant dashboard if so.', 'supcheckout');
+            } else {
+                /* translators: %s: UPayments payment ID of the extra capture. */
+                $message = __('UPayments captured an additional payment (payment ID %s) for this already-paid order. The customer may have been charged twice. Refund it in the UPayments merchant dashboard; SUPCheckout does not refund automatically.', 'supcheckout');
+            }
+            $order->add_order_note(sprintf($message, $payment_id));
+        }
+        $order->save();
+        self::log('unapplied_capture_' . self::safe_code($reason), 'warning');
+    }
+
     private static function apply_captured($gateway, $order, array $transaction) {
         if (!is_object($order)
             || !method_exists($order, 'get_id')
@@ -606,6 +879,8 @@ final class PaymentLifecycle {
         }
         $order->update_meta_data('_upay_verified_capture', 1);
         $order->update_meta_data('UPayments_webhook_triggered', 1);
+        $order->update_meta_data(self::PUBLIC_STATUS_META, 'completed');
+        $order->delete_meta_data(self::CAPTURE_APPLY_FAILED_META);
         $order->save();
         return true;
     }
@@ -623,6 +898,7 @@ final class PaymentLifecycle {
         }
 
         $order->update_meta_data('UPayments_Result', (string) $provider_result);
+        $order->update_meta_data(self::PUBLIC_STATUS_META, $target_status);
         if ((string) $order->get_status() !== $target_status) {
             $note = $target_status === 'failed'
                 ? __('UPayments authenticated payment result is terminal failure.', 'supcheckout')
@@ -786,6 +1062,7 @@ final class PaymentLifecycle {
         if (in_array($reason, array(
             'network_error',
             'status_rate_limited',
+            'callback_rate_limited',
             'empty_response',
             'invalid_status_response',
         ), true)) {

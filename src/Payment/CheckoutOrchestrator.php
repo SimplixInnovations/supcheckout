@@ -12,6 +12,10 @@ use UPayments\Token\CustomerTokenIdentity;
  * request-body seams; all checkout workflow ordering lives here.
  */
 class CheckoutOrchestrator {
+    // Earlier provider order identities stay payable until their links expire;
+    // PaymentLifecycle uses this bounded history to accept their late captures.
+    private const MAX_PRIOR_PROVIDER_ATTEMPTS = 5;
+
     private $gateway;
     private $requestBodyReader;
     private $requestExecutor;
@@ -1447,6 +1451,18 @@ class CheckoutOrchestrator {
                         $order->save_meta_data();
                     }
 
+                    $previous_order_id = $order->get_meta("UPayments_order_id");
+                    if (is_string($previous_order_id) && $previous_order_id !== '') {
+                        $prior = $order->get_meta('_simplixpay_upayments_prior_requested_v1');
+                        $prior = is_array($prior) ? array_values(array_filter($prior, 'is_string')) : array();
+                        if (!in_array($previous_order_id, $prior, true)) {
+                            $prior[] = $previous_order_id;
+                        }
+                        $order->update_meta_data(
+                            '_simplixpay_upayments_prior_requested_v1',
+                            array_slice($prior, -self::MAX_PRIOR_PROVIDER_ATTEMPTS)
+                        );
+                    }
                     $order->delete_meta_data("UPayments_order_id");
                     $order->add_meta_data("UPayments_order_id", $unique_order_id);
                     $order->save_meta_data();

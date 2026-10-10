@@ -6,6 +6,15 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Payment lifecycle hardening (post Release Candidate 1, not owner accepted)
+
+- A capture on an earlier Charge attempt of the same order is no longer dropped. Checkout keeps a bounded history (5) of superseded provider order identities. An authenticated, bound CAPTURED result for one of them completes a still-unpaid order. If the order is already paid, or was switched to another gateway, SUPCheckout records the payment once with an order note for manual refund. Non-captured results for those attempts never change the order.
+- A later CAPTURED track inside the same attempt now overrides an earlier bound non-captured track instead of being refused.
+- A verified CAPTURED that WooCommerce fails to record is now retried through bounded reconciliation and announced once in an order note.
+- Callback-triggered status lookups are capped at 3 per order per minute and may use at most 24 of the 30 global status slots. Six stay reserved for reconciliation, so one visitor replaying callbacks can no longer starve payment confirmation for the whole store.
+- Authenticated results now reach the historical public status poll (`UPayments_WHS`: completed, failed, cancelled); it previously always answered `wait`.
+- The package changes: 62 files, SHA-256 `6632cc8bf79d816de137e94480d61f0bdfa4478d841b8bcc6a1faab96fe88d28` at the candidate head. A fresh owner acceptance is required before it can replace Release Candidate 1.
+
 ### Final enterprise repository audit and presentation closeout
 
 - Rebuilt the public repository landing page around product capabilities, compatibility, security, development and support instead of migration-era notices and internal-program narrative.
