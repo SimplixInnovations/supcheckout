@@ -34,6 +34,12 @@ final class PaymentLifecycle {
     private const CALLBACK_LOOKUPS_PER_MINUTE = 3;
     private const CAPTURE_APPLY_FAILED_META = '_simplixpay_upayments_capture_apply_failed_v1';
     private const UNAPPLIED_CAPTURES_META = '_simplixpay_upayments_unapplied_captures_v1';
+    private const SECONDARY_RECONCILE_HOOK = 'simplixpay_upayments_reconcile_secondary';
+    private const SECONDARY_PENDING_META = '_simplixpay_upayments_secondary_pending_v1';
+    private const SECONDARY_ATTEMPT_META = '_simplixpay_upayments_secondary_attempt_v1';
+    private const SECONDARY_NOTED_META = '_simplixpay_upayments_secondary_noted_v1';
+    private const MAX_SECONDARY_PENDING = 3;
+    private const MAX_SECONDARY_NOTED = 10;
     // Historical public status-poll value read by PublicOrderStatus.
     private const PUBLIC_STATUS_META = 'UPayments_WHS';
 
@@ -48,6 +54,7 @@ final class PaymentLifecycle {
 
         add_action(self::CALLBACK_HOOK, array(__CLASS__, 'handle_callback'), 5);
         add_action(self::RECONCILE_HOOK, array(__CLASS__, 'reconcile_order'), 10, 1);
+        add_action(self::SECONDARY_RECONCILE_HOOK, array(__CLASS__, 'reconcile_secondary'), 10, 1);
     }
 
     /**
@@ -147,17 +154,38 @@ final class PaymentLifecycle {
         $order = wc_get_order($order_id);
         $gateway = self::gateway();
         $source = $is_browser ? 'browser' : 'webhook';
+        $outcome = self::route_callback($gateway, $order, $track_id, $requested_order_id, $source);
+        self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order);
+    }
+
+    /**
+     * Routes one locally parsed callback to the path that owns it. Never
+     * terminates the request; the caller decides the response.
+     */
+    public static function route_callback($gateway, $order, $track_id, $requested_order_id, $source) {
         if (!self::order_gateway_preflight($order, $gateway, $requested_order_id)) {
             // A late callback for an earlier Charge attempt on this order still
             // carries real money; route it to the capture-only secondary path.
             if ((self::basic_order_preflight($order, $gateway) && self::is_prior_attempt($order, $requested_order_id))
                 || (self::is_gateway_switched_order($order, $gateway) && self::is_known_attempt($order, $requested_order_id))
             ) {
-                $outcome = self::process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source);
-                self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order);
+                return self::process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source);
             }
             self::log('callback_local_preflight_failed', 'warning');
-            self::finish_callback($is_browser, false, $gateway, $order);
+            return self::outcome('unchanged', 'local_preflight_failed');
+        }
+
+        // A paid order answers its own paid track locally. Any other track may be
+        // a second real payment, so it is checked on the capture-only path and
+        // never touches the paid order's cursors.
+        if (self::is_verified_capture($order)) {
+            foreach (array('UPayments_TrackID', self::TRUSTED_TRACK_META) as $paid_track_key) {
+                $paid_track = $order->get_meta($paid_track_key);
+                if (is_string($paid_track) && $paid_track !== '' && hash_equals($paid_track, (string) $track_id)) {
+                    return self::outcome('captured', 'already_verified');
+                }
+            }
+            return self::process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source);
         }
 
         // The callback cursor is routing evidence, never payment truth. Persisting
@@ -166,19 +194,16 @@ final class PaymentLifecycle {
         // established, cannot be replaced by unverified callback input.
         if (!self::remember_unverified_cursor($order, $track_id, $requested_order_id)) {
             // A different track for an attempt that already has a trusted cursor
-            // (or an already-paid order) may still be a capture: a retry inside
-            // the same hosted session, or a duplicate payment. Only CAPTURED is
-            // ever applied on this path.
-            if (self::trusted_cursor_present($order) || self::is_verified_capture($order)) {
-                $outcome = self::process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source);
-                self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order);
+            // may still be a capture: a retry inside the same hosted session.
+            // Only CAPTURED is ever applied on that path.
+            if (self::trusted_cursor_present($order)) {
+                return self::process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source);
             }
             self::log('callback_cursor_conflict', 'warning');
-            self::finish_callback($is_browser, false, $gateway, $order);
+            return self::outcome('unchanged', 'callback_cursor_conflict');
         }
 
-        $outcome = self::process_order_status($gateway, $order, $track_id, $source);
-        self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order);
+        return self::process_order_status($gateway, $order, $track_id, $source);
     }
 
     /**
@@ -382,8 +407,12 @@ final class PaymentLifecycle {
         } catch (\Throwable $e) {
             self::log('lifecycle_exception', 'warning');
             if ($capture_attempted) {
-                $current = wc_get_order($order_id);
-                self::handle_capture_apply_failure(is_object($current) ? $current : $order, $track_id);
+                try {
+                    $current = wc_get_order($order_id);
+                    self::handle_capture_apply_failure(is_object($current) ? $current : $order, $track_id);
+                } catch (\Throwable $nested) {
+                    self::log('capture_failure_handling_exception', 'warning');
+                }
             }
             return self::outcome('unchanged', 'lifecycle_exception');
         } finally {
@@ -530,6 +559,71 @@ final class PaymentLifecycle {
      * results never change the order.
      */
     public static function process_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source = 'webhook') {
+        $outcome = self::attempt_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source);
+        // Webhooks are always acknowledged with HTTP 200, so the provider will
+        // not resend. A deferred or transiently failed lookup is retried here.
+        if ($source !== 'reconcile' && self::is_secondary_retryable($outcome)) {
+            self::enqueue_secondary($order, $track_id, $requested_order_id);
+        }
+        return $outcome;
+    }
+
+    /**
+     * Bounded WP-Cron retry for deferred secondary captures. Cron args contain
+     * only the order ID; the queued cursors grant no payment authority.
+     */
+    public static function reconcile_secondary($order_id) {
+        $order_id = self::parse_order_id($order_id);
+        if ($order_id === null) {
+            return;
+        }
+        $order = wc_get_order($order_id);
+        $gateway = self::gateway();
+        if (!is_object($order) || !method_exists($order, 'get_meta') || !method_exists($order, 'update_meta_data')) {
+            return;
+        }
+        $pending = self::secondary_pending($order);
+        if (empty($pending)) {
+            return;
+        }
+
+        $attempt = (int) $order->get_meta(self::SECONDARY_ATTEMPT_META) + 1;
+        $remaining = array();
+        foreach ($pending as $entry) {
+            $current = wc_get_order($order_id);
+            $outcome = self::attempt_secondary_capture($gateway, is_object($current) ? $current : $order, $entry['track'], $entry['requested'], 'reconcile');
+            if (self::is_secondary_retryable($outcome)) {
+                $remaining[] = $entry;
+            }
+        }
+
+        $order = wc_get_order($order_id);
+        if (!is_object($order)) {
+            return;
+        }
+        if (empty($remaining) || $attempt >= self::MAX_RECONCILE_ATTEMPTS) {
+            if (!empty($remaining) && method_exists($order, 'add_order_note')) {
+                $tracks = implode(', ', array_map(function ($entry) { return $entry['track']; }, $remaining));
+                $order->add_order_note(
+                    sprintf(
+                        /* translators: %s: comma-separated UPayments track IDs. */
+                        __('SUPCheckout for UPayments could not verify a callback for another payment attempt on this order (track %s). Check the UPayments merchant dashboard for a captured payment.', 'supcheckout'),
+                        $tracks
+                    )
+                );
+            }
+            $order->delete_meta_data(self::SECONDARY_PENDING_META);
+            $order->delete_meta_data(self::SECONDARY_ATTEMPT_META);
+            $order->save();
+            return;
+        }
+        $order->update_meta_data(self::SECONDARY_PENDING_META, $remaining);
+        $order->update_meta_data(self::SECONDARY_ATTEMPT_META, $attempt);
+        $order->save();
+        self::schedule_secondary($order_id, $attempt);
+    }
+
+    private static function attempt_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source) {
         if (!self::basic_order_preflight($order, $gateway) && !self::is_gateway_switched_order($order, $gateway)) {
             return self::outcome('unchanged', 'local_preflight_failed');
         }
@@ -553,6 +647,11 @@ final class PaymentLifecycle {
         if (empty($verification['bound']) || !is_array($verification['transaction'])) {
             $reason = isset($verification['reason']) ? (string) $verification['reason'] : 'verification_failed';
             self::log('secondary_status_' . self::safe_code($reason), 'warning');
+            // Track, provider order identity and Woo reference are checked before
+            // economics, so a currency/amount mismatch is this order's transaction.
+            if (!empty($verification['authenticated']) && ($reason === 'binding_amount' || $reason === 'binding_currency')) {
+                self::note_unbound_secondary($order, $track_id);
+            }
             return self::outcome('unchanged', $reason);
         }
         if ((string) $verification['classification'] !== ProviderResult::CAPTURED) {
@@ -624,6 +723,82 @@ final class PaymentLifecycle {
         } finally {
             OrderLock::release($order_id, $lock_token);
         }
+    }
+
+    private static function is_secondary_retryable($outcome) {
+        $reason = is_array($outcome) && isset($outcome['reason']) ? (string) $outcome['reason'] : '';
+        return $reason === 'order_lock_contention' || self::is_retryable_verification_reason($reason);
+    }
+
+    private static function secondary_pending($order) {
+        $raw = $order->get_meta(self::SECONDARY_PENDING_META);
+        $pending = array();
+        if (!is_array($raw)) {
+            return $pending;
+        }
+        foreach ($raw as $entry) {
+            if (is_array($entry) && isset($entry['track'], $entry['requested'])
+                && self::parse_track_id($entry['track']) !== null
+                && self::parse_generic_identifier($entry['requested'], 255) !== null
+            ) {
+                $pending[] = array('track' => (string) $entry['track'], 'requested' => (string) $entry['requested']);
+            }
+        }
+        return $pending;
+    }
+
+    private static function enqueue_secondary($order, $track_id, $requested_order_id) {
+        $track_id = self::parse_track_id($track_id);
+        $requested_order_id = self::parse_generic_identifier($requested_order_id, 255);
+        if ($track_id === null || $requested_order_id === null
+            || !is_object($order) || !method_exists($order, 'get_id') || !method_exists($order, 'update_meta_data')
+            || !self::is_known_attempt($order, $requested_order_id)
+        ) {
+            return;
+        }
+        $pending = self::secondary_pending($order);
+        foreach ($pending as $entry) {
+            if (hash_equals($entry['track'], $track_id) && hash_equals($entry['requested'], $requested_order_id)) {
+                return;
+            }
+        }
+        $pending[] = array('track' => $track_id, 'requested' => $requested_order_id);
+        $order->update_meta_data(self::SECONDARY_PENDING_META, array_slice($pending, -self::MAX_SECONDARY_PENDING));
+        $order->save();
+        self::schedule_secondary((int) $order->get_id(), (int) $order->get_meta(self::SECONDARY_ATTEMPT_META));
+    }
+
+    private static function schedule_secondary($order_id, $attempt) {
+        $args = array((int) $order_id);
+        if ((int) $order_id <= 0 || wp_next_scheduled(self::SECONDARY_RECONCILE_HOOK, $args) !== false) {
+            return;
+        }
+        $delays = array(60, 120, 240, 480);
+        $delay = $delays[max(0, min((int) $attempt, count($delays) - 1))];
+        if (wp_schedule_single_event(time() + $delay, self::SECONDARY_RECONCILE_HOOK, $args) === false) {
+            self::log('secondary_schedule_failed', 'warning');
+        }
+    }
+
+    private static function note_unbound_secondary($order, $track_id) {
+        if (!is_object($order) || !method_exists($order, 'update_meta_data') || !method_exists($order, 'add_order_note')) {
+            return;
+        }
+        $noted = $order->get_meta(self::SECONDARY_NOTED_META);
+        $noted = is_array($noted) ? array_values(array_filter($noted, 'is_string')) : array();
+        if (in_array((string) $track_id, $noted, true)) {
+            return;
+        }
+        $noted[] = (string) $track_id;
+        $order->update_meta_data(self::SECONDARY_NOTED_META, array_slice($noted, -self::MAX_SECONDARY_NOTED));
+        $order->add_order_note(
+            sprintf(
+                /* translators: %s: UPayments track ID. */
+                __('UPayments reported a transaction for another payment attempt on this order (track %s) whose amount or currency no longer matches the order. SUPCheckout did not apply it. Review it in the UPayments merchant dashboard.', 'supcheckout'),
+                (string) $track_id
+            )
+        );
+        $order->save();
     }
 
     private static function outcome_captured($outcome) {

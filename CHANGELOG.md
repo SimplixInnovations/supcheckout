@@ -9,6 +9,8 @@ The project is still in pre-release engineering hardening. Entries below are eng
 ### Payment lifecycle hardening (post Release Candidate 1, not owner accepted)
 
 - A capture on an earlier Charge attempt of the same order is no longer dropped. Checkout keeps a bounded history (5) of superseded provider order identities. An authenticated, bound CAPTURED result for one of them completes a still-unpaid order. If the order is already paid, or was switched to another gateway, SUPCheckout records the payment once with an order note for manual refund. Non-captured results for those attempts never change the order.
+- A paid order answers callbacks for its own paid track locally. Any other track on a paid order is checked on the capture-only path, so a second real payment is recorded whichever attempt paid first, and the paid order's cursors are never touched.
+- Late or alternate-track lookups that are deferred or fail transiently are queued (at most 3 per order) and retried by a bounded reconciliation (4 attempts). On exhaustion, one note names the unverified tracks. An authenticated transaction for another attempt whose amount or currency no longer matches the order is never applied, and is noted once.
 - A later CAPTURED track inside the same attempt now overrides an earlier bound non-captured track instead of being refused.
 - A verified CAPTURED that WooCommerce fails to record is now retried through bounded reconciliation and announced once in an order note.
 - Callback-triggered status lookups are capped at 3 per order per minute and may use at most 24 of the 30 global status slots. Six stay reserved for reconciliation, so one visitor replaying callbacks can no longer starve payment confirmation for the whole store.
