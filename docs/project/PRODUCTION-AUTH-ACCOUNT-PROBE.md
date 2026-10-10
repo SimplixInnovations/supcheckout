@@ -6,12 +6,21 @@
 
 ## Why this path exists
 
-Public UPayments sources contradict each other on production authentication (see `evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`), and a provider reply may never arrive. The first-release question is narrower than the public contract: **does the release merchant's own production account accept the exact requests SUPCheckout sends today?** SUPCheckout sends `Authorization: Bearer` only, with no `X-Timestamp` or `X-Signature`, to:
+Public UPayments sources contradict each other on production authentication (see `evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`), and a provider reply may never arrive. The first-release question is narrower than the public contract: **does the release merchant's own production account accept the authentication SUPCheckout sends today, on the same endpoints and request shapes?** SUPCheckout sends `Authorization: Bearer` only, with no `X-Timestamp` or `X-Signature`, to:
 
 1. `GET get-payment-status/{track_id}` — `StatusVerifier`, the only source of paid state;
 2. `POST charge` — `CheckoutOrchestrator`, payment initialization.
 
-The probe sends those same requests from the owner's machine and records what the account answers.
+The probe sends those requests from the owner's machine and records what the account answers.
+
+### How close the probe requests are to the plugin's
+
+| Request | Same as the plugin | Differs |
+|---|---|---|
+| Status | method `GET`, path `get-payment-status/{track_id}`, `Accept: application/json`, `Authorization: Bearer`, no redirects | User-Agent: the plugin sends the WordPress HTTP API default; the probe sends curl's default |
+| Charge | method `POST`, path `charge`, `Accept`/`Content-Type: application/json`, `Authorization: Bearer`, live User-Agent `UpaymentsWoocommercePlugin/2.2.1`, the same top-level body keys and token placeholders as a guest, one-time, non-white-labelled order with no saved card and no multi-merchant split | adds `paymentLinkExpiryInMinutes: 1` as a safety bound; probe values in place of a real order's |
+
+Status acceptance also requires the returned transaction to carry the probed track ID, the same binding `StatusVerifier` enforces, so a `201` for an unknown or foreign track ID is `INCONCLUSIVE`, not acceptance.
 
 ## Safety boundary
 
@@ -19,7 +28,7 @@ The probe sends those same requests from the owner's machine and records what th
 - The production host is fixed to `EndpointResolver::LIVE_BASE` and cannot be overridden.
 - Probe 1 reads the status of a **past** order. It changes nothing.
 - Probe 2 (optional, second confirmation) creates one unpaid Charge session for 1.000 KWD with a 1-minute link expiry. The link is never printed or followed. Initialization is not capture: no money moves unless someone opens and pays the link. The session may appear in the merchant dashboard as an unpaid or expired transaction.
-- Output never contains the key, the track ID, the payment link or the raw provider body.
+- Output never contains the key, the track ID, the payment link or the raw provider body. The key reaches curl from a `0600` file and the track ID through stdin, so neither appears in the process list. On a transport failure the output records the curl exit code.
 
 ## Run
 
@@ -42,7 +51,7 @@ Also record, from the merchant dashboard, whether the account exposes an **API S
 
 | Probe output | Meaning |
 |---|---|
-| `verdict=BEARER_ONLY_ACCEPTED` | The account accepted the exact SUPCheckout request. |
+| `verdict=BEARER_ONLY_ACCEPTED` | The account accepted the SUPCheckout authentication on that request (see the comparison table above). |
 | `verdict=REJECTED_AUTH` | HTTP 401/403: the account enforces something SUPCheckout does not send. |
 | `verdict=INCONCLUSIVE` | Any other outcome, including network errors and an unknown track ID. Fix the input and re-run; never count it as acceptance. |
 
