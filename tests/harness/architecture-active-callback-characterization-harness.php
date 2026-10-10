@@ -409,14 +409,13 @@ namespace {
 
     if (is_string($lifecycle_source)) {
         t1_assert(
-            strpos(
-                $lifecycle_source,
-                "self::process_order_status(\$gateway, \$order, \$track_id, \$is_browser ? 'browser' : 'webhook')"
-            ) !== false,
+            strpos($lifecycle_source, "\$source = \$is_browser ? 'browser' : 'webhook';") !== false
+                && strpos($lifecycle_source, 'self::process_order_status($gateway, $order, $track_id, $source)') !== false,
             'active callback routes valid browser/webhook input through process_order_status'
         );
         t1_assert(
-            strpos($lifecycle_source, 'StatusVerifier::verify($gateway, $order, $track_id)') !== false,
+            strpos($lifecycle_source, 'StatusVerifier::verify($gateway, $order, $track_id, $source)') !== false
+                && strpos($lifecycle_source, 'StatusVerifier::verify($gateway, $order, $track_id, $source, $requested_order_id)') !== false,
             'active payment lifecycle delegates provider financial verification to StatusVerifier'
         );
         t1_assert(

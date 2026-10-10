@@ -567,6 +567,213 @@ namespace {
     ok(count($order->notes) === 1, 'reconciliation exhaustion note emitted once');
     ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_order', array(560)) === false, 'no event remains after exhaustion');
 
+    // ---- Lifecycle hardening (2026-10-10 review) ----
+    $prior_meta = '_simplixpay_upayments_prior_requested_v1';
+    $rotate = function (FakeOrder $order, $new_requested) use ($prior_meta) {
+        $order->meta[$prior_meta] = array($order->get_meta('UPayments_order_id'));
+        $order->meta['UPayments_order_id'] = $new_requested;
+    };
+    $prior_tx = function (FakeOrder $order, $requested, $result, $track, $payment_id) {
+        $tx = transaction_for($order, $result, $track, $payment_id);
+        $tx['merchant_requested_order_id'] = $requested;
+        return $tx;
+    };
+
+    // H1: a capture on a superseded Charge attempt pays the still-unpaid order.
+    list($gateway, $order) = reset_fixture(580);
+    $rotate($order, 'merchant-order-580-b');
+    set_provider_transaction($prior_tx($order, 'merchant-order-580', 'CAPTURED', 'track-a', 'pay-a'));
+    $out = PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-a', 'merchant-order-580', 'webhook');
+    same($out['state'], 'captured', 'H1 superseded-attempt capture completes unpaid order');
+    same($order->get_status(), 'processing', 'H1 order reaches Woo paid state');
+    same($order->get_transaction_id(), 'pay-a', 'H1 superseded payment ID becomes Woo transaction ID');
+    same((string) $order->get_meta('_upay_verified_capture'), '1', 'H1 verified capture barrier set');
+    same($order->get_meta('UPayments_WHS'), 'completed', 'H1 public status poll reports completed');
+    same($order->get_meta('UPayments_order_id'), 'merchant-order-580-b', 'H1 current provider identity is not rewritten');
+
+    // H1: an identity that never belonged to this order is refused before any provider call.
+    list($gateway, $order) = reset_fixture(581);
+    $rotate($order, 'merchant-order-581-b');
+    set_provider_transaction($prior_tx($order, 'foreign-order', 'CAPTURED', 'track-x', 'pay-x'));
+    $out = PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-x', 'foreign-order', 'webhook');
+    same($out['reason'], 'unknown_attempt', 'H1 foreign provider identity refused');
+    same(\Simplixi\SUPCheckout\Payment\state()['remote_get_calls'], 0, 'H1 foreign identity makes zero provider calls');
+
+    // H1: a non-captured result for a superseded attempt never changes the order.
+    list($gateway, $order) = reset_fixture(582);
+    $rotate($order, 'merchant-order-582-b');
+    set_provider_transaction($prior_tx($order, 'merchant-order-582', 'NOT CAPTURED', 'track-f', null));
+    $out = PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-f', 'merchant-order-582', 'webhook');
+    same($out['reason'], 'secondary_not_captured', 'H1 superseded failure is ignored');
+    same($order->get_status(), 'pending', 'H1 superseded failure leaves order pending');
+    same($order->update_status_calls, 0, 'H1 superseded failure makes no status change');
+
+    // H1: a second capture on an already-paid order is flagged for manual refund, once.
+    list($gateway, $order) = reset_fixture(583);
+    $rotate($order, 'merchant-order-583-b');
+    set_provider_transaction($prior_tx($order, 'merchant-order-583-b', 'CAPTURED', 'track-b', 'pay-b'));
+    PaymentLifecycle::process_order_status($gateway, $order, 'track-b', 'webhook');
+    same($order->get_transaction_id(), 'pay-b', 'H1 current attempt paid the order first');
+    set_provider_transaction($prior_tx($order, 'merchant-order-583', 'CAPTURED', 'track-a', 'pay-a'));
+    $notes_before = count($order->notes);
+    $out = PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-a', 'merchant-order-583', 'webhook');
+    same($out['state'], 'duplicate_capture', 'H1 duplicate capture detected');
+    same($order->get_transaction_id(), 'pay-b', 'H1 duplicate never replaces the canonical transaction');
+    same($order->payment_complete_calls, 1, 'H1 duplicate never re-completes the order');
+    same(count($order->notes), $notes_before + 1, 'H1 duplicate adds one admin note');
+    ok(strpos(end($order->notes), 'pay-a') !== false, 'H1 duplicate note names the extra payment ID');
+    PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-a', 'merchant-order-583', 'webhook');
+    same(count($order->notes), $notes_before + 1, 'H1 repeated duplicate callback adds no further note');
+
+    // H4: within one attempt, a later CAPTURED track overrides an earlier bound non-captured track.
+    list($gateway, $order) = reset_fixture(584);
+    set_provider_transaction(transaction_for($order, 'NOT CAPTURED', 'track-1', null));
+    PaymentLifecycle::process_order_status($gateway, $order, 'track-1', 'webhook');
+    same($order->get_status(), 'failed', 'H4 first track failed the order');
+    set_provider_transaction(transaction_for($order, 'CAPTURED', 'track-2', 'pay-2'));
+    $out = PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-2', 'merchant-order-584', 'webhook');
+    same($out['state'], 'captured', 'H4 later captured track in the same attempt is applied');
+    same($order->get_transaction_id(), 'pay-2', 'H4 captured track payment ID recorded');
+    same($order->get_meta('_simplixpay_upayments_status_track_v1'), 'track-2', 'H4 trusted cursor moves to the captured track');
+    // A later non-captured track cannot downgrade a verified capture.
+    set_provider_transaction(transaction_for($order, 'NOT CAPTURED', 'track-3', null));
+    PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-3', 'merchant-order-584', 'webhook');
+    same($order->get_status(), 'processing', 'H4 later failed track cannot downgrade paid order');
+
+    // H2: callback lookups are throttled per order and cannot drain the reconcile reserve.
+    list($gateway, $order) = reset_fixture(585);
+    \Simplixi\SUPCheckout\Payment\state()['remote_response'] = array('code' => 500, 'body' => '');
+    $reasons = array();
+    for ($i = 0; $i < 5; $i++) {
+        $reasons[] = PaymentLifecycle::process_order_status($gateway, $order, 'track-h2', 'webhook')['reason'];
+    }
+    same(\Simplixi\SUPCheckout\Payment\state()['remote_get_calls'], 3, 'H2 one order gets at most 3 callback lookups per minute');
+    same(end($reasons), 'callback_rate_limited', 'H2 excess callback lookup is refused locally');
+    list($gateway, $order) = reset_fixture(586);
+    $callback_slots = 0;
+    for ($i = 0; $i < 40; $i++) { if (StatusRateGate::acquire($gateway, 'webhook')) { $callback_slots++; } }
+    same($callback_slots, 24, 'H2 callback sources may use at most 24 of 30 global slots');
+    $reconcile_slots = 0;
+    for ($i = 0; $i < 40; $i++) { if (StatusRateGate::acquire($gateway, 'reconcile')) { $reconcile_slots++; } }
+    same($reconcile_slots, 6, 'H2 six global slots stay reserved for reconciliation');
+
+    // H3: a verified CAPTURED that WooCommerce fails to record is retried and surfaced.
+    list($gateway, $order) = reset_fixture(587);
+    $throwing = new class(587, 'merchant-order-587') extends FakeOrder {
+        public $throw = true;
+        public function payment_complete($transaction_id = '') {
+            if ($this->throw) { throw new \RuntimeException('simulated completion failure'); }
+            parent::payment_complete($transaction_id);
+        }
+    };
+    \Simplixi\SUPCheckout\Payment\state()['orders'][587] = $throwing;
+    set_provider_transaction(transaction_for($throwing, 'CAPTURED', 'track-h3', 'pay-h3'));
+    $out = PaymentLifecycle::process_order_status($gateway, $throwing, 'track-h3', 'webhook');
+    same($out['state'], 'unchanged', 'H3 failed completion stays unpaid');
+    ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_order', array(587)) !== false, 'H3 failed completion schedules reconciliation');
+    same(count($throwing->notes), 1, 'H3 failed completion adds one admin note');
+    \Simplixi\SUPCheckout\Payment\clear_scheduled_for_order(587);
+    $throwing->throw = false;
+    PaymentLifecycle::reconcile_order(587);
+    same($throwing->get_status(), 'processing', 'H3 reconciliation recovers the capture');
+    same($throwing->get_transaction_id(), 'pay-h3', 'H3 recovered capture stores payment ID');
+
+    list($gateway, $order) = reset_fixture(588);
+    $no_paid = new class(588, 'merchant-order-588') extends FakeOrder {
+        public function payment_complete($transaction_id = '') { $this->payment_complete_calls++; }
+    };
+    \Simplixi\SUPCheckout\Payment\state()['orders'][588] = $no_paid;
+    set_provider_transaction(transaction_for($no_paid, 'CAPTURED', 'track-h3b', 'pay-h3b'));
+    $out = PaymentLifecycle::process_order_status($gateway, $no_paid, 'track-h3b', 'webhook');
+    same($out['reason'], 'payment_complete_failed', 'H3 completion postcondition failure reported');
+    ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_order', array(588)) !== false, 'H3 postcondition failure schedules reconciliation');
+    same(count($no_paid->notes), 1, 'H3 postcondition failure adds one admin note');
+
+    // H1: a capture that arrives after the customer switched the order to another
+    // gateway is surfaced for manual review and never marks the order paid.
+    list($gateway, $order) = reset_fixture(589);
+    $order->payment_method = 'cod';
+    set_provider_transaction(transaction_for($order, 'CAPTURED', 'track-sw', 'pay-sw'));
+    $out = PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-sw', 'merchant-order-589', 'webhook');
+    same($out['state'], 'unapplied_capture', 'H1 capture after gateway switch is not applied');
+    same($order->get_status(), 'pending', 'H1 gateway-switched order stays unpaid');
+    same($order->payment_complete_calls, 0, 'H1 gateway-switched order is never completed');
+    ok(count($order->notes) === 1 && strpos($order->notes[0], 'pay-sw') !== false, 'H1 gateway-switched capture adds one note naming the payment');
+    list($gateway, $order) = reset_fixture(592);
+    $order->payment_method = 'cod';
+    unset($order->meta['UPayments_order_id']);
+    $out = PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-sw', 'merchant-order-592', 'webhook');
+    same($out['reason'], 'local_preflight_failed', 'H1 non-UPayments order without provider identity is refused');
+    same(\Simplixi\SUPCheckout\Payment\state()['remote_get_calls'], 0, 'H1 refused order makes zero provider calls');
+
+    // R1: once an earlier attempt paid the order, a capture on the current attempt is still recorded.
+    list($gateway, $order) = reset_fixture(593);
+    $rotate($order, 'merchant-order-593-b');
+    set_provider_transaction($prior_tx($order, 'merchant-order-593', 'CAPTURED', 'track-a', 'pay-a'));
+    PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-593', 'webhook');
+    same($order->get_transaction_id(), 'pay-a', 'R1 earlier attempt paid the order');
+    set_provider_transaction($prior_tx($order, 'merchant-order-593-b', 'CAPTURED', 'track-2', 'pay-2'));
+    $out = PaymentLifecycle::route_callback($gateway, $order, 'track-2', 'merchant-order-593-b', 'webhook');
+    same($out['state'], 'duplicate_capture', 'R1 current-attempt capture on paid order is recorded');
+    ok(strpos(end($order->notes), 'pay-2') !== false, 'R1 duplicate note names the current-attempt payment');
+    same($order->get_transaction_id(), 'pay-a', 'R1 canonical transaction unchanged');
+    same($order->get_meta('_simplixpay_upayments_status_track_v1'), 'track-a', 'R1 paid order keeps its trusted cursor');
+    same($order->get_meta('_simplixpay_upayments_unverified_track_v1'), '', 'R1 paid order gains no unverified cursor');
+    // The paid track itself is answered locally.
+    list($gateway, $order) = reset_fixture(597);
+    set_provider_transaction(transaction_for($order, 'CAPTURED', 'track-p', 'pay-p'));
+    PaymentLifecycle::route_callback($gateway, $order, 'track-p', 'merchant-order-597', 'webhook');
+    $calls = \Simplixi\SUPCheckout\Payment\state()['remote_get_calls'];
+    $out = PaymentLifecycle::route_callback($gateway, $order, 'track-p', 'merchant-order-597', 'browser');
+    same($out['state'], 'captured', 'R1 replay of the paid track reports captured');
+    same(\Simplixi\SUPCheckout\Payment\state()['remote_get_calls'], $calls, 'R1 replay of the paid track makes zero provider calls');
+
+    // R2: a secondary capture whose lookup is deferred is retried by bounded reconciliation.
+    list($gateway, $order) = reset_fixture(594);
+    $rotate($order, 'merchant-order-594-b');
+    $order->meta['_simplixpay_upayments_callback_lookups_v1'] = gmdate('YmdHi') . ':3';
+    $out = PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-594', 'webhook');
+    same($out['reason'], 'callback_rate_limited', 'R2 throttled secondary lookup deferred');
+    ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_secondary', array(594)) !== false, 'R2 deferred secondary lookup scheduled');
+    set_provider_transaction($prior_tx($order, 'merchant-order-594', 'CAPTURED', 'track-a', 'pay-a'));
+    \Simplixi\SUPCheckout\Payment\state()['scheduled'] = array();
+    PaymentLifecycle::reconcile_secondary(594);
+    same($order->get_status(), 'processing', 'R2 secondary reconciliation completes the order');
+    same($order->get_meta('_simplixpay_upayments_secondary_pending_v1'), '', 'R2 resolved secondary cursor cleared');
+    ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_secondary', array(594)) === false, 'R2 nothing left scheduled');
+
+    list($gateway, $order) = reset_fixture(595);
+    $rotate($order, 'merchant-order-595-b');
+    \Simplixi\SUPCheckout\Payment\state()['remote_response'] = array('code' => 500, 'body' => '');
+    PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-595', 'webhook');
+    for ($attempt = 0; $attempt < 6; $attempt++) {
+        \Simplixi\SUPCheckout\Payment\state()['scheduled'] = array();
+        PaymentLifecycle::reconcile_secondary(595);
+    }
+    same(\Simplixi\SUPCheckout\Payment\state()['remote_get_calls'], 5, 'R2 secondary retries are capped at four after the callback');
+    same(count($order->notes), 1, 'R2 secondary exhaustion adds one note');
+    ok(strpos($order->notes[0], 'track-a') !== false, 'R2 exhaustion note names the unverified track');
+    same($order->get_status(), 'pending', 'R2 exhausted secondary leaves order unpaid');
+
+    // R3: an authenticated capture that cannot bind to the current order economics is surfaced once.
+    list($gateway, $order) = reset_fixture(596);
+    $rotate($order, 'merchant-order-596-b');
+    $mismatch = $prior_tx($order, 'merchant-order-596', 'CAPTURED', 'track-a', 'pay-a');
+    $mismatch['total_price'] = '12.000';
+    set_provider_transaction($mismatch);
+    PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-596', 'webhook');
+    PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-596', 'webhook');
+    same($order->get_status(), 'pending', 'R3 unbound capture never pays the order');
+    same(count($order->notes), 1, 'R3 unbound secondary capture adds one note');
+
+    // H6: authenticated terminal results reach the historical public status poll.
+    list($gateway, $order) = reset_fixture(590); set_provider_transaction(transaction_for($order, 'NOT CAPTURED'));
+    PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
+    same($order->get_meta('UPayments_WHS'), 'failed', 'H6 failed result reaches status poll');
+    list($gateway, $order) = reset_fixture(591); set_provider_transaction(transaction_for($order, 'CANCELED'));
+    PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
+    same($order->get_meta('UPayments_WHS'), 'cancelled', 'H6 cancelled result reaches status poll');
+
     // Static architecture/safety guards.
     $root = dirname(__DIR__, 2);
     $identity_source = @file_get_contents($root . '/src/Release/Identity.php');
@@ -575,6 +782,14 @@ namespace {
     $rate_source = file_get_contents($root . '/src/Payment/StatusRateGate.php');
     $lock_source = file_get_contents($root . '/src/Payment/OrderLock.php');
     $gateway_source = @file_get_contents($root . '/UPayments.php');
+
+    // H1: the Charge path records the superseded provider identity before rotating it.
+    $orchestrator_source = file_get_contents($root . '/src/Payment/CheckoutOrchestrator.php');
+    ok(strpos($lifecycle_source, "PRIOR_REQUESTED_META = '_simplixpay_upayments_prior_requested_v1'") !== false, 'H1 lifecycle reads the prior-attempt history key');
+    $prior_write = strpos($orchestrator_source, "'_simplixpay_upayments_prior_requested_v1'");
+    $rotation = strpos($orchestrator_source, '$order->delete_meta_data("UPayments_order_id");');
+    ok($prior_write !== false && $rotation !== false && $prior_write < $rotation, 'H1 orchestrator records prior identity before rotation');
+    ok(strpos($orchestrator_source, 'MAX_PRIOR_PROVIDER_ATTEMPTS = 5') !== false, 'H1 prior-attempt history is bounded');
 
     // In local isolated execution the repository-only files may be absent; CI has them.
     if (is_string($identity_source)) { ok(strpos($identity_source, 'PaymentLifecycle.php') !== false, 'release foothold loads payment lifecycle'); }

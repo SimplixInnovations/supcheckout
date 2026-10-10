@@ -32,7 +32,7 @@ Current executable gate: **external certification & release readiness**. Release
 
 Current provider disposition after exhaustive first-party research:
 
-- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — the **only provider-dependent blocker for the narrower first public core one-time-payment scope**.
+- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — the **only provider-dependent blocker for the narrower first public core one-time-payment scope**. Owner decision (2026-10-08): resolvable by the owner-run account probe in [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md) or by a written UPayments answer; sending the provider message stays optional unless the probe reports `REJECTED_AUTH`. The probe has not been run.
 - saved-card/token persistence: FUTURE FEATURE GATE.
 - auto-deduct capture/cycle identity: FUTURE RECURRING GATE.
 - webhook signature mechanics: FUTURE DEFENSE-IN-DEPTH.
