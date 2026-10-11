@@ -89,7 +89,7 @@ Historical Approach 3 (superseded by Release Candidate 1, `OWNER_TECHNICAL_ACCEP
 
 Any later candidate that changes distributable runtime or UI bytes **postdates this acceptance** and must receive fresh exact-head/package verification and a fresh explicit owner acceptance before it can replace the accepted baseline or be published.
 
-**Pending post-acceptance runtime candidate:** branch `fix/payment-lifecycle-hardening` (payment lifecycle hardening from the 2026-10-10 review) changes runtime bytes: 62 files / SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`. It is **NOT owner accepted**. Release Candidate 1 stays the accepted baseline until a fresh explicit acceptance of that candidate's exact head and package.
+**Post-acceptance runtime on `main`:** payment lifecycle hardening (2026-10-10 review) was squash-merged through PR #133 to `main` at `35ea66d4cb9c8395b264cd24b4844eaa268aa470` and changes runtime bytes: 62 files / SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`. It is **NOT owner accepted**. Release Candidate 1 stays the accepted baseline until a fresh explicit acceptance of an exact `main` SHA carrying this package, after `LOCAL-FINAL-VERIFICATION.md`.
 
 Historical Approach 2 (superseded, retained for audit): source `0c883d609906676966002eb022a82a9656eeacc5`, 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
@@ -299,12 +299,13 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
 
-### Owner action queue (reconciled 2026-10-08)
+### Owner action queue (reconciled 2026-10-11)
 
 Repository-side work for the current gate is complete. The remaining work is owner/external only, in this order:
 
+0. **Fresh technical acceptance of the current `main` package.** `main` carries runtime bytes newer than Release Candidate 1 (package `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`). Run `LOCAL-FINAL-VERIFICATION.md` on the exact `main` SHA, then record `OWNER_TECHNICAL_ACCEPTANCE=<label>` with that SHA and package, or keep Release Candidate 1. Live evidence must be produced with the package that will be released.
 1. **Production auth probe.** Run `tests/provider/production-auth-account-probe.sh` with `OWNER_PRODUCTION_AUTH_PROBE_AUTHORIZATION=YES`, following `PRODUCTION-AUTH-ACCOUNT-PROBE.md`. Commit the evidence file. If both probes report `BEARER_ONLY_ACCEPTED`, mark `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` in `RELEASE-CANDIDATE-GATE.md`. If either reports `REJECTED_AUTH`, send the provider message and open an HMAC runtime tranche.
-2. **Live one-time payment acceptance.** Needs `OWNER_LIVE_PAYMENT_TEST_AUTHORIZATION=YES` and step 1 resolved; follow `LIVE-PAYMENT-ACCEPTANCE-PLAN.md`.
+2. **Live one-time payment acceptance.** Needs `OWNER_LIVE_PAYMENT_TEST_AUTHORIZATION=YES` and step 1 resolved; follow `LIVE-PAYMENT-ACCEPTANCE-PLAN.md` on an isolated HTTPS staging site. A copy of a real store is acceptable only after sanitization: customer personal data anonymized or removed, stored payment/customer tokens and gateway credentials removed, and outbound email disabled (see `LIVE-PAYMENT-ACCEPTANCE-PLAN.md`). Real customers' checkout is never a test surface. An owner-run rehearsal of the same scenarios against the public UPayments sandbox on that staging site is recommended first; it costs nothing but proves nothing about production authentication.
 3. **Pentest and PCI/legal review,** only if the release will be claimed as enterprise production-ready.
 4. **Publication decision:** version, tag, GitHub Release and WordPress.org submission. Needs explicit publication authorization.
 

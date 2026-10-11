@@ -11,6 +11,7 @@ Until then: prepare only. No live monetary transaction.
 ## Environment prerequisites
 
 - Isolated staging WooCommerce site
+- If the staging site is a copy of a production store, sanitize it before the live merchant key is entered: anonymize or remove customer personal data, delete stored payment/customer tokens and every gateway credential copied from production, and disable outbound email and production webhooks/cron side effects
 - HTTPS
 - Current certified WP/WC/PHP (see Compatibility matrix)
 - Dedicated test merchant/account if provider supports
@@ -36,6 +37,10 @@ Credit Card / KNET where account supports:
 10. status inquiry after successful capture
 11. status inquiry after failure/cancel
 12. network loss after provider dispatch
+13. pay attempt A after attempt B was created on the same order (customer returns to the first payment tab): the order completes with A's payment ID
+14. pay both attempt A and attempt B on the same order: the order completes once, and the second capture produces exactly one "additional payment" order note naming its payment ID, for manual refund
+15. decline then succeed inside one hosted payment session, if the provider page allows a retry: the order completes with the successful track
+16. switch the order to another payment method after creating a UPayments attempt, then pay that attempt: the order is not marked paid, and one order note names the captured payment ID
 
 ## Required proof per scenario
 
@@ -71,7 +76,7 @@ Open an evidence file at `docs/project/evidence/LIVE-ONE-TIME-ACCEPTANCE-<YYYY-M
 
 ### Step 2 — per scenario
 
-Run the twelve scenarios in the order listed above, one at a time, and for each one record:
+Run the sixteen scenarios in the order listed above, one at a time, and for each one record:
 
 1. order ID, provider track ID and provider payment/transaction ID;
 2. the order's status and paid state after the browser return;
@@ -80,7 +85,7 @@ Run the twelve scenarios in the order listed above, one at a time, and for each 
 5. the order notes the run produced, verbatim;
 6. the outcome the customer saw.
 
-A scenario passes only when the order's paid state came from an authenticated provider status bound to that order and that transaction, the amount and currency match exactly, and repeated or reordered signals left the order completed once. Anything else is a failure, including a correct-looking result reached by a path the plugin did not authenticate.
+A scenario passes only when the order's paid state came from an authenticated provider status bound to that order and that transaction, the amount and currency match exactly, and repeated or reordered signals left the order completed once. Scenario 16 is the exception: it passes only when the order stayed unpaid and the authenticated capture produced exactly one order note naming its payment ID. Anything else is a failure, including a correct-looking result reached by a path the plugin did not authenticate.
 
 Stop the run on the first failure. A failed scenario is a bug report against this repository: reproduce it in a test, fix it on a bounded branch and re-run the whole sequence on the rebuilt package, rather than re-testing the one scenario.
 
@@ -93,4 +98,4 @@ Stop the run on the first failure. A failed scenario is a bug report against thi
 
 ### Step 4 — record the result
 
-Complete the evidence file with the end time, a per-scenario pass or fail table and the reversal references, then update `RELEASE-CANDIDATE-GATE.md`. `- [ ] live one-time payment acceptance complete` may only be checked when all twelve scenarios passed on one package identity, in one run, with cleanup complete.
+Complete the evidence file with the end time, a per-scenario pass or fail table and the reversal references, then update `RELEASE-CANDIDATE-GATE.md`. `- [ ] live one-time payment acceptance complete` may only be checked when all sixteen scenarios passed (scenario 15 may be recorded as not applicable when the provider page offers no retry) on one package identity, in one run, with cleanup complete.

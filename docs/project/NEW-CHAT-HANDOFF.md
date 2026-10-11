@@ -82,6 +82,8 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 Current executable gate: **external certification & release readiness**. Next executable dependency: **UPayments production-auth resolution** for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`), by the owner-run account probe (`PRODUCTION-AUTH-ACCOUNT-PROBE.md`) or a written UPayments answer. Release Candidate 1 is owner accepted (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`)), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
+`main` now carries post-acceptance runtime: PR #133 payment lifecycle hardening, merged at `35ea66d4cb9c8395b264cd24b4844eaa268aa470`, package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`, **NOT owner accepted**. Before any live evidence, the owner runs `LOCAL-FINAL-VERIFICATION.md` on an exact `main` SHA and records a fresh technical acceptance (or keeps Release Candidate 1); the production-auth probe and live acceptance must then use that accepted package. See the owner action queue in `START-HERE.md`.
+
 R5 is **DONE / VERIFIED** (PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`, package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
 R2 is **DONE / VERIFIED** (PR #110 certified head `5a4f83efa7bda0b5d6169811308800270c888d6c`, squash-merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`, package SHA-256 `126195841942e923e3ee07cf659a42fd58bce32057dd9cc3e8a15d180d4229c3`).
@@ -91,7 +93,7 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 1. **R3:** DONE / VERIFIED — first-card elimination, economic/identity binding, immutable cycle snapshot, parent discovery, pause/resume/cancel, held-cycle reconciliation without blind replay.
 3. **R4:** DONE / VERIFIED — bounded HistoricalEnrollment (BATCH_SIZE=50), Action Scheduler group `supcheckout`, args `{parent_order_id, cycle_due_gmt, retry_attempt}`, CycleClaim remains provider-mutation authority, retries 0..3 (+1h/+6h/+24h), HELD/dispatching/ambiguous never auto-next-charge.
 4. **R5:** DONE / VERIFIED — Option B / ADR-003 explicit-mode seam; legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only; legacy private verifier retired; provider egress unchanged.
-5. **R6:** DONE / VERIFIED — immutable exact-head qualification and fresh owner technical re-acceptance completed; remaining work is external/provider release evidence and a separate explicit version/publication decision.
+5. **R6:** DONE / VERIFIED — immutable exact-head qualification and fresh owner technical re-acceptance of Release Candidate 1 completed. Runtime merged after that acceptance (PR #133) needs its own fresh acceptance; remaining work is that acceptance, external/provider release evidence and a separate explicit version/publication decision.
 
 ## R5 architecture truth (recorded)
 
