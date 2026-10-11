@@ -91,7 +91,7 @@ Run the dry run again. Every count must be `0`.
 
 What it does:
 - **Removes:** customer names, emails, phones, addresses, IPs and notes from orders, users and the customer lookup; FunnelKit contacts, abandoned carts and engagement data; email logs, form entries, sessions and stored payment tokens; UPayments customer/card tokens; the copied UPayments API key, IBAN and multi-merchant accounts; the token identity secret. It also forces test mode.
-- **Stops:** UPayments cron jobs, all pending scheduled actions and WooCommerce webhooks, and deletes WooCommerce REST API keys.
+- **Stops:** per-order UPayments jobs (all arguments), all pending scheduled actions and WooCommerce webhooks, and deletes WooCommerce REST API keys. It leaves the hourly `upay_process_subscriptions` event alone: both UPayments plugins re-create it on every page load, and it cannot charge anyone once the key and tokens are gone and WP-Cron is disabled.
 - **Keeps:** administrator and shop-manager accounts, order numbers, totals, currencies, statuses, payment methods, UPayments order metadata, products, settings, WPML and the FunnelKit funnels.
 
 Third-party service credentials held in other plugins' settings stay in the copy. The guard stops those plugins or blocks their traffic. Delete them too if your policy requires it.
@@ -120,11 +120,13 @@ Record in an evidence file, `docs/project/evidence/STAGING-REHEARSAL-<YYYY-MM-DD
    - **Scripts:** with Perfmatters JavaScript delay on, payment selection and submission still work on first interaction.
    - **Upsells:** what a FunnelKit one-click upsell does after a UPayments payment. Record it; SUPCheckout does not support charging upsells.
 6. Run `LOCAL-FINAL-VERIFICATION.md` §6–7 on this site.
-7. Rehearse `LIVE-PAYMENT-ACCEPTANCE-PLAN.md` scenarios 1–16 with sandbox test cards. Cron is off, so trigger reconciliation by hand:
+7. Rehearse `LIVE-PAYMENT-ACCEPTANCE-PLAN.md` scenarios 1–16 with sandbox test cards. Cron is off, so trigger reconciliation by hand, and only the reconciliation jobs:
 
    ```bash
-   wp cron event run --due-now
+   wp cron event run simplixpay_upayments_reconcile_order simplixpay_upayments_reconcile_secondary
    ```
+
+   Do not use `wp cron event run --due-now`: it would also run every other due job on the copy.
 
    Sandbox results are rehearsal only. They prove nothing about production authentication and do not count as live acceptance.
 

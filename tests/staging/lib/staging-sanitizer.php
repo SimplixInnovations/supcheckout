@@ -182,24 +182,39 @@ function supcheckout_sanitizer_option_delete($name, $apply) {
     return 1;
 }
 
+/**
+ * Remove scheduled UPayments jobs, including per-order jobs that carry arguments
+ * (wp_clear_scheduled_hook() only matches argument-less events).
+ *
+ * The hourly upay_process_subscriptions event is left alone: both the official plugin and
+ * SUPCheckout re-create it on every page load, and it cannot charge anyone once the key
+ * and tokens are gone and WP-Cron is disabled.
+ *
+ * @return int Number of events removed (or that would be removed).
+ */
 function supcheckout_sanitizer_cron($apply) {
     $cron = _get_cron_array();
+    $events = 0;
     $hooks = array();
     if (is_array($cron)) {
-        foreach ($cron as $events) {
-            foreach (array_keys((array) $events) as $hook) {
+        foreach ($cron as $by_hook) {
+            foreach ((array) $by_hook as $hook => $instances) {
+                if ('upay_process_subscriptions' === $hook) {
+                    continue;
+                }
                 if (0 === strpos($hook, 'upay') || 0 === strpos($hook, 'simplixpay_upayments_')) {
                     $hooks[$hook] = true;
+                    $events += count((array) $instances);
                 }
             }
         }
     }
     if ($apply) {
         foreach (array_keys($hooks) as $hook) {
-            wp_clear_scheduled_hook($hook);
+            wp_unschedule_hook($hook);
         }
     }
-    return count($hooks);
+    return $events;
 }
 
 function supcheckout_sanitizer_scheduled_actions($apply) {

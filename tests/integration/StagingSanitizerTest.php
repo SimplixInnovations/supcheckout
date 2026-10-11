@@ -74,7 +74,9 @@ update_option('woocommerce_upayments_settings', array(
     'title' => 'UPayments',
 ));
 update_option('upayments_token_identity_secret_v2', 'copied-secret');
-wp_schedule_single_event(time() + 3600, 'upay_process_subscriptions');
+// Per-order UPayments jobs carry arguments; wp_clear_scheduled_hook() alone would miss them.
+wp_schedule_single_event(time() + 3600, 'simplixpay_upayments_reconcile_order', array($order_id));
+wp_schedule_single_event(time() + 7200, 'simplixpay_upayments_reconcile_secondary', array($order_id));
 if (function_exists('as_schedule_single_action')) {
     as_schedule_single_action(time() + 3600, 'supcheckout_cert_sanitizer_pending');
 }
@@ -142,7 +144,8 @@ supcheckout_cert_assert('' === $settings['api_key'] && '' === $settings['iban_nu
 supcheckout_cert_assert('yes' === $settings['test_mode'] && 'no' === $settings['enable_multimerchant'], 'gateway forced to test mode without multi-merchant');
 supcheckout_cert_assert('UPayments' === $settings['title'], 'non-secret gateway settings kept for the upgrade test');
 supcheckout_cert_assert(false === get_option('upayments_token_identity_secret_v2', false), 'copied token identity secret removed');
-supcheckout_cert_assert(false === wp_next_scheduled('upay_process_subscriptions'), 'UPayments subscription cron removed');
+supcheckout_cert_assert(false === wp_next_scheduled('simplixpay_upayments_reconcile_order', array($order_id)), 'per-order reconciliation job with arguments removed');
+supcheckout_cert_assert(false === wp_next_scheduled('simplixpay_upayments_reconcile_secondary', array($order_id)), 'per-order secondary reconciliation job with arguments removed');
 if (function_exists('as_has_scheduled_action')) {
     supcheckout_cert_assert(!as_has_scheduled_action('supcheckout_cert_sanitizer_pending'), 'pending scheduled actions canceled');
 }
