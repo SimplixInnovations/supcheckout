@@ -11,16 +11,23 @@ defined('ABSPATH') || exit;
  * one-minute slots per credential/mode scope. WordPress add_option() is backed
  * by a unique option_name, so concurrent workers cannot acquire the same slot.
  * Old slot options are removed when the minute bucket advances.
+ *
+ * Callback-triggered lookups (browser return, webhook) are reachable by any
+ * visitor who knows an order's routing identifiers, so they may use only the
+ * first CALLBACK_SLOTS_PER_MINUTE slots. The remainder stays reserved for
+ * bounded reconciliation, which recovers callbacks refused here.
  */
 final class StatusRateGate {
     private const LIMIT_PER_MINUTE = 30;
+    private const CALLBACK_SLOTS_PER_MINUTE = 24;
     private const PREFIX = 'simplixpay_upay_status_v1_';
 
     /**
      * @param mixed $gateway Defensive active-gateway boundary value.
+     * @param string $source 'reconcile' may use every slot; any other source is callback-triggered.
      * @return bool True when one provider-query slot was acquired.
      */
-    public static function acquire($gateway) {
+    public static function acquire($gateway, $source = 'reconcile') {
         if (!is_object($gateway)
             || !isset($gateway->apiKey)
             || !is_string($gateway->apiKey)
@@ -55,7 +62,8 @@ final class StatusRateGate {
             update_option($marker_name, $bucket, false);
         }
 
-        for ($slot = 0; $slot < self::LIMIT_PER_MINUTE; $slot++) {
+        $usable = $source === 'reconcile' ? self::LIMIT_PER_MINUTE : self::CALLBACK_SLOTS_PER_MINUTE;
+        for ($slot = 0; $slot < $usable; $slot++) {
             $option_name = self::slot_name($scope, $bucket, $slot);
             if (add_option($option_name, time(), '', 'no')) {
                 return true;

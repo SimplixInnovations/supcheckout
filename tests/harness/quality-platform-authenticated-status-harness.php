@@ -75,7 +75,7 @@ q4_assert(q4_contains($verifier, '$http_status !== 201'), 'status transport requ
 q4_assert(q4_contains($verifier, "\$decoded['status'] !== true"), 'provider envelope requires strict true status');
 
 $url_check = strpos($verifier, 'if (!self::is_allowed_status_url($url, $track_id))');
-$rate_check = strpos($verifier, 'if (!StatusRateGate::acquire($gateway))');
+$rate_check = strpos($verifier, 'if (!StatusRateGate::acquire($gateway, $source))');
 $http_call = strpos($verifier, '$response = wp_remote_get($url');
 q4_assert(
     $url_check !== false && $rate_check !== false && $http_call !== false

@@ -12,9 +12,13 @@ final class StatusVerifier {
      * @param mixed $gateway  Defensive active-gateway boundary value.
      * @param mixed $order    Defensive WooCommerce order boundary value.
      * @param mixed $track_id Provider status cursor.
+     * @param string $source  Lookup origin; callback sources use the reduced rate-gate share.
+     * @param string|null $expected_requested_order_id Provider order identity to bind; null means
+     *                    the order's current UPayments_order_id. Callers must have proven the
+     *                    identity belongs to this order.
      * @return array Authenticated status verification result.
      */
-    public static function verify($gateway, $order, $track_id) {
+    public static function verify($gateway, $order, $track_id, $source = 'reconcile', $expected_requested_order_id = null) {
         $result = self::base_result('invalid_request');
 
         if (!is_object($gateway)
@@ -46,7 +50,7 @@ final class StatusVerifier {
             return self::base_result('status_url_invalid');
         }
 
-        if (!StatusRateGate::acquire($gateway)) {
+        if (!StatusRateGate::acquire($gateway, $source)) {
             return self::base_result('status_rate_limited');
         }
 
@@ -93,7 +97,7 @@ final class StatusVerifier {
             return self::base_result('invalid_status_response');
         }
 
-        $bound = self::bind_transaction($gateway, $order, $track_id, $decoded['data']['transaction']);
+        $bound = self::bind_transaction($gateway, $order, $track_id, $decoded['data']['transaction'], $expected_requested_order_id);
         $bound['authenticated'] = true;
         return $bound;
     }
@@ -105,9 +109,10 @@ final class StatusVerifier {
      * @param mixed $order       Defensive WooCommerce order boundary value.
      * @param mixed $track_id    Provider status cursor.
      * @param mixed $transaction Provider transaction payload.
+     * @param string|null $expected_requested_order_id See verify().
      * @return array Authenticated binding result.
      */
-    public static function bind_transaction($gateway, $order, $track_id, $transaction) {
+    public static function bind_transaction($gateway, $order, $track_id, $transaction, $expected_requested_order_id = null) {
         $result = self::base_result('binding_invalid');
         $result['authenticated'] = true;
 
@@ -164,7 +169,9 @@ final class StatusVerifier {
             return $result;
         }
 
-        $local_upay_order_id = $order->get_meta('UPayments_order_id');
+        $local_upay_order_id = $expected_requested_order_id === null
+            ? $order->get_meta('UPayments_order_id')
+            : $expected_requested_order_id;
         if (!is_string($local_upay_order_id) || $local_upay_order_id === '') {
             $result['reason'] = 'missing_local_upay_order_id';
             return $result;
