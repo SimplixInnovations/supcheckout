@@ -292,6 +292,7 @@ jobs:
             tests/harness/phase-9i-operations-harness.php
             tests/harness/provider-payment-lifecycle-harness.php
             tests/harness/provider-payment-amount-binding-harness.php
+            tests/harness/staging-guard-harness.php
             tests/harness/security-threat-model-harness.php
             tests/harness/architecture-foundation-harness.php
             tests/harness/architecture-runtime-bindings-harness.php

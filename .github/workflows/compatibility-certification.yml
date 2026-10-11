@@ -258,6 +258,10 @@ jobs:
           SUPCHECKOUT_CERT_PHASE: final
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/OperationsRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      # Last: the staging sanitizer scrubs this disposable runtime.
+      - name: Verify staging sanitizer on real WooCommerce storage
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/StagingSanitizerTest.php" --path="$RUNNER_TEMP/wordpress"
+
   compatibility-gate:
     name: Compatibility Gate
     if: ${{ always() }}
