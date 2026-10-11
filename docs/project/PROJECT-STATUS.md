@@ -41,6 +41,7 @@
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | Current executable gate | **external certification & release readiness** |
 | Post-acceptance runtime on `main` | PR #133 payment lifecycle hardening (2026-10-10 review), merged main `35ea66d4cb9c8395b264cd24b4844eaa268aa470`; package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; **NOT owner accepted** |
+| Owner step before live evidence | **Fresh technical acceptance of the current `main` package** (`LOCAL-FINAL-VERIFICATION.md`). Live evidence must be produced with the package that will be released, not Release Candidate 1. |
 | Next executable dependency | **UPayments production-auth resolution** for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`) — owner-run account probe ([`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) or a written UPayments answer |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |

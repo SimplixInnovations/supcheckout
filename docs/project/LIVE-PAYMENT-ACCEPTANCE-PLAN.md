@@ -11,6 +11,7 @@ Until then: prepare only. No live monetary transaction.
 ## Environment prerequisites
 
 - Isolated staging WooCommerce site
+- If the staging site is a copy of a production store, sanitize it before the live merchant key is entered: anonymize or remove customer personal data, delete stored payment/customer tokens and every gateway credential copied from production, and disable outbound email and production webhooks/cron side effects
 - HTTPS
 - Current certified WP/WC/PHP (see Compatibility matrix)
 - Dedicated test merchant/account if provider supports
@@ -84,7 +85,7 @@ Run the sixteen scenarios in the order listed above, one at a time, and for each
 5. the order notes the run produced, verbatim;
 6. the outcome the customer saw.
 
-A scenario passes only when the order's paid state came from an authenticated provider status bound to that order and that transaction, the amount and currency match exactly, and repeated or reordered signals left the order completed once. Anything else is a failure, including a correct-looking result reached by a path the plugin did not authenticate.
+A scenario passes only when the order's paid state came from an authenticated provider status bound to that order and that transaction, the amount and currency match exactly, and repeated or reordered signals left the order completed once. Scenario 16 is the exception: it passes only when the order stayed unpaid and the authenticated capture produced exactly one order note naming its payment ID. Anything else is a failure, including a correct-looking result reached by a path the plugin did not authenticate.
 
 Stop the run on the first failure. A failed scenario is a bug report against this repository: reproduce it in a test, fix it on a bounded branch and re-run the whole sequence on the rebuilt package, rather than re-testing the one scenario.
 
