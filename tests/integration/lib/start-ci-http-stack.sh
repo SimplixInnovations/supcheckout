@@ -61,6 +61,8 @@ cat >"$conf_dir/fpm.conf" <<EOF
 [global]
 error_log = $conf_dir/fpm-error.log
 daemonize = no
+; A worker segfault leaves no PHP backtrace; keep its core for gdb.
+rlimit_core = unlimited
 
 [www]
 listen = $FPM_SOCK
@@ -76,6 +78,7 @@ request_terminate_timeout = 15s
 request_slowlog_timeout = 5s
 slowlog = $conf_dir/fpm-slow.log
 catch_workers_output = yes
+process.dumpable = yes
 php_admin_value[error_log] = $conf_dir/php-error.log
 php_admin_value[max_execution_time] = 12
 php_admin_value[memory_limit] = 256M
@@ -142,6 +145,16 @@ if command -v fuser >/dev/null 2>&1; then
   fuser -k "${port}/tcp" 2>/dev/null || true
 fi
 sleep 0.5
+
+# Keep PHP-FPM worker cores in the stack directory so diagnostics can print a
+# gdb backtrace for an intermittent SIGSEGV. Only on CI runners: the core
+# pattern is a host-wide setting.
+ulimit -c unlimited 2>/dev/null || true
+if [[ -n "${GITHUB_ACTIONS:-}" ]] && command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+  sudo -n sysctl -q -w "kernel.core_pattern=$conf_dir/core.%e.%p" >/dev/null 2>&1 || true
+fi
+printf '%s
+' "$FPM_BIN" > "$conf_dir/fpm-bin"
 
 "$FPM_BIN" -y "$conf_dir/fpm.conf" -F >"$conf_dir/fpm-stdout.log" 2>&1 &
 PHP_FPM_PID=$!

@@ -40,8 +40,29 @@ supcheckout_dump_http_server_diagnostics() {
         fi
       done
       echo '--- end HTTP stack logs ---'
+      supcheckout_dump_fpm_crash_backtraces "$stack_dir"
     fi
   } >&2
+}
+
+# A PHP-FPM worker that dies on a signal leaves only a core file. Print its
+# native backtrace so the crashing extension/function is visible in the log.
+supcheckout_dump_fpm_crash_backtraces() {
+  local stack_dir="$1"
+  local core fpm_bin=''
+  [[ -f "$stack_dir/fpm-bin" ]] && fpm_bin="$(head -n 1 "$stack_dir/fpm-bin")"
+  for core in "$stack_dir"/core.*; do
+    [[ -f "$core" ]] || continue
+    echo "--- PHP-FPM crash backtrace: $(basename "$core") ---"
+    if ! command -v gdb >/dev/null 2>&1 && [[ -n "${GITHUB_ACTIONS:-}" ]] && command -v apt-get >/dev/null 2>&1; then
+      timeout 180 sudo -n apt-get install -y -qq gdb >/dev/null 2>&1 || true
+    fi
+    if command -v gdb >/dev/null 2>&1 && [[ -n "$fpm_bin" ]]; then
+      timeout 120 gdb -batch -nx -ex 'bt 60' -ex 'info sharedlibrary' "$fpm_bin" "$core" 2>&1 | head -n 250 || true
+    else
+      echo '(gdb or PHP-FPM binary path unavailable; core kept in the stack directory)'
+    fi
+  done
 }
 
 supcheckout_curl_once_or_diagnose() {

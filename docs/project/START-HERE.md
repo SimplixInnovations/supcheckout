@@ -306,6 +306,6 @@ Repository-side work for the current gate is complete. The remaining work is own
 3. **Pentest and PCI/legal review,** only if the release will be claimed as enterprise production-ready.
 4. **Publication decision:** version, tag, GitHub Release and WordPress.org submission. Needs explicit publication authorization.
 
-Known CI watch item: the PHP 8.4 request-context stability cell has returned an intermittent Store API 502 (`45b564d`, `ee302c1`, PR #129). The CI stack now records PHP-FPM slow-request backtraces (`fpm-slow.log`). On the next recurrence, read that backtrace and fix the cause; do not treat it as a flake.
+Known CI watch item: the request-context stability cells have returned an intermittent nginx 502 (PHP 8.4 at `45b564d`, `ee302c1`, PR #129; PHP 8.2 / legacy at `9020c5b`, PR #133). The 2026-10-10 recurrence showed the cause class: a PHP-FPM worker died on `SIGSEGV` about 6 s after start, while rendering the checkout page, with no slow-log entry (the request ran under 5 s). A segfault is a native crash in the PHP binary or an extension, so the slow log cannot explain it. The stack now keeps worker core files, and a failing request prints their gdb backtrace. On the next recurrence, read that backtrace and fix or pin the crashing component; do not treat it as a flake.
 
 Contributor setup on any new machine: commit as `Simplix Innovations <admin@simplixi.com>`. Commits under an email that is not linked to the GitHub account are unattributed, and the `main` ruleset (`require_extra_approval_for_unattributed_changes`) then blocks the merge.
