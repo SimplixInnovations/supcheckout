@@ -15,7 +15,7 @@ Do not start local final verification until all of these are true:
 - living release/provider/design documents match the candidate;
 - `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` is still treated as a release blocker unless durable provider evidence has resolved it.
 
-A candidate that changes distributable runtime/UI bytes after owner acceptance at `146d65a1c182630c1acc651cacafe30cff5f6b79` requires a **fresh** package hash and fresh owner acceptance.
+A candidate that changes distributable runtime/UI bytes after the current owner acceptance (Release Candidate 1 at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243`, package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`) requires a **fresh** package hash and fresh owner acceptance. `main` at `35ea66d4cb9c8395b264cd24b4844eaa268aa470` (package `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`) is such a candidate.
 
 ## 2. Clean-clone identity
 
