@@ -12,6 +12,7 @@
 defined('ABSPATH') || exit;
 
 const SUPCHECKOUT_SANITIZER_ORDER_BATCH = 100;
+const SUPCHECKOUT_SANITIZER_REMOVED_TEXT = '[removed on staging copy]';
 
 /** Tables whose rows are personal data or customer-facing activity, never configuration. */
 const SUPCHECKOUT_SANITIZER_DATA_TABLES = array(
@@ -80,9 +81,15 @@ const SUPCHECKOUT_SANITIZER_LEGACY_ORDER_META = array(
  *
  * @return array{ok: bool, reason: string}
  */
+function supcheckout_sanitizer_canonical_host($host) {
+    $host = rtrim(strtolower(trim((string) $host)), '.');
+    return 0 === strpos($host, 'www.') ? substr($host, 4) : $host;
+}
+
 function supcheckout_sanitizer_preflight($env_type, $guard_defined, $home_host, $production_host) {
-    $home_host = strtolower(trim((string) $home_host));
-    $production_host = strtolower(trim((string) $production_host));
+    // www and apex are the same site; compare both sides in one canonical form.
+    $home_host = supcheckout_sanitizer_canonical_host($home_host);
+    $production_host = supcheckout_sanitizer_canonical_host($production_host);
     if ('staging' !== $env_type) {
         return array('ok' => false, 'reason' => 'WP_ENVIRONMENT_TYPE must be staging (got ' . $env_type . ')');
     }
@@ -92,9 +99,7 @@ function supcheckout_sanitizer_preflight($env_type, $guard_defined, $home_host, 
     if ('' === $production_host) {
         return array('ok' => false, 'reason' => 'set SUPCHECKOUT_PRODUCTION_HOST to the production domain');
     }
-    if ('' === $home_host || $home_host === $production_host
-        || substr($production_host, -strlen('.' . $home_host)) === '.' . $home_host
-    ) {
+    if ('' === $home_host || $home_host === $production_host) {
         return array('ok' => false, 'reason' => 'this site resolves to the production host ' . $home_host);
     }
     return array('ok' => true, 'reason' => 'staging copy at ' . $home_host);
@@ -298,7 +303,11 @@ function supcheckout_sanitizer_orders($apply) {
     do {
         $ids = wc_get_orders(array(
             'type' => 'shop_order',
-            'status' => 'any',
+            // 'any' skips checkout drafts and trash, which still hold personal data.
+            'status' => array_merge(
+                array_keys(wc_get_order_statuses()),
+                array('wc-checkout-draft', 'checkout-draft', 'trash', 'auto-draft')
+            ),
             'limit' => SUPCHECKOUT_SANITIZER_ORDER_BATCH,
             'paged' => $page,
             'orderby' => 'ID',
@@ -376,12 +385,13 @@ function supcheckout_sanitizer_legacy_order_meta($apply) {
  */
 function supcheckout_sanitizer_users($apply) {
     $total = 0;
-    foreach (get_users(array('fields' => array('ID', 'user_email'))) as $user) {
+    foreach (get_users(array('fields' => array('ID', 'user_email', 'user_login'))) as $user) {
         $id = (int) $user->ID;
         if (user_can($id, 'manage_woocommerce') || user_can($id, 'manage_options')) {
             continue;
         }
         if (supcheckout_sanitizer_is_anon_email($user->user_email)
+            && 'customer-' . $id === $user->user_login
             && supcheckout_sanitizer_is_anon_email(get_user_meta($id, 'billing_email', true))
             && '' === (string) get_user_meta($id, 'billing_phone', true)
         ) {
@@ -397,6 +407,16 @@ function supcheckout_sanitizer_users($apply) {
             'display_name' => 'User ' . $id,
             'user_url' => '',
         ));
+        // Logins are often the customer's email, and copied password hashes would let any
+        // customer sign in to staging with their production password.
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->users,
+            array('user_login' => 'customer-' . $id, 'user_nicename' => 'customer-' . $id),
+            array('ID' => $id)
+        );
+        wp_set_password(wp_generate_password(32, true, true), $id);
+        clean_user_cache($id);
         foreach (SUPCHECKOUT_SANITIZER_PERSONAL_USER_META as $key) {
             delete_user_meta($id, $key);
         }
@@ -423,19 +443,38 @@ function supcheckout_sanitizer_customer_lookup($apply) {
     return $count;
 }
 
+/**
+ * Order notes, reviews and log comments can hold names, phones, addresses and payloads in
+ * their bodies. Delete operational log comments; replace every other body, and anonymize
+ * the author of everything except order notes (whose author is the store or staff).
+ */
 function supcheckout_sanitizer_comments($apply) {
     global $wpdb;
-    $count = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM %i WHERE comment_type NOT IN ('order_note','action_log','webhook_delivery') AND comment_author_email <> '' AND comment_author_email NOT LIKE '%%@example.invalid'",
+    $logs = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM %i WHERE comment_type IN ('action_log','webhook_delivery')",
         $wpdb->comments
     ));
-    if ($apply && $count > 0) {
+    $bodies = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM %i WHERE comment_type NOT IN ('action_log','webhook_delivery') AND comment_content <> %s",
+        $wpdb->comments,
+        SUPCHECKOUT_SANITIZER_REMOVED_TEXT
+    ));
+    if ($apply && $logs > 0) {
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE comment_type IN ('action_log','webhook_delivery')", $wpdb->comments));
+    }
+    if ($apply && $bodies > 0) {
+        $wpdb->query($wpdb->prepare(
+            "UPDATE %i SET comment_content = %s WHERE comment_type NOT IN ('action_log','webhook_delivery')",
+            $wpdb->comments,
+            SUPCHECKOUT_SANITIZER_REMOVED_TEXT
+        ));
         $wpdb->query($wpdb->prepare(
             "UPDATE %i SET comment_author = 'Reviewer', "
             . "comment_author_email = CONCAT('reviewer-', comment_ID, '@example.invalid'), "
-            . "comment_author_IP = '', comment_agent = '', comment_author_url = '' WHERE comment_type NOT IN ('order_note','action_log','webhook_delivery')",
+            . "comment_author_IP = '', comment_agent = '', comment_author_url = '' WHERE comment_type <> 'order_note'",
             $wpdb->comments
         ));
+        wp_cache_flush();
     }
-    return $count;
+    return $logs + $bodies;
 }

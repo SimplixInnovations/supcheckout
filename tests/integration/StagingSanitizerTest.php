@@ -28,7 +28,7 @@ $admin_email = (string) $admin[0]->user_email;
 
 $customer_id = wp_insert_user(array(
     'user_login' => 'staging_sanitizer_customer',
-    'user_pass' => wp_generate_password(),
+    'user_pass' => 'production-password',
     'user_email' => 'real.customer@gmail.com',
     'role' => 'customer',
 ));
@@ -89,6 +89,21 @@ $webhook->set_delivery_url('https://example.invalid/hook');
 $webhook->set_status('paused');
 $webhook->save();
 
+// Orders outside status 'any': a checkout draft and a trashed order.
+$draft = wc_create_order();
+$draft->set_billing_email('draft.customer@gmail.com');
+$draft->set_billing_first_name('Draft');
+$draft->set_customer_ip_address('203.0.113.8');
+$draft->set_status('checkout-draft');
+$draft_id = $draft->save();
+$trashed = wc_create_order();
+$trashed->set_billing_email('trashed.customer@gmail.com');
+$trashed->set_billing_first_name('Trashed');
+$trashed_id = $trashed->save();
+$trashed->delete(false);
+
+$note_id = wc_get_order($order_id)->add_order_note('Customer Fatima Alsabah called from +96599999999 about Block 3', 1);
+
 $token = new WC_Payment_Token_CC();
 $token->set_token('tok_real');
 $token->set_gateway_id('upayments');
@@ -133,7 +148,17 @@ supcheckout_cert_assert('processing' === $after->get_status() && 'upayments' ===
 supcheckout_cert_assert('sanitizer-provider-order' === $after->get_meta('UPayments_order_id'), 'UPayments order identity kept');
 supcheckout_cert_assert('' === $after->get_meta('_upay_credit_card_token'), 'order card token removed');
 
+foreach (array($draft_id => 'checkout draft', $trashed_id => 'trashed order') as $hidden_id => $label) {
+    $hidden = wc_get_order($hidden_id);
+    supcheckout_cert_assert($hidden && 'customer-' . $hidden_id . '@example.invalid' === $hidden->get_billing_email(), "$label email anonymized");
+    supcheckout_cert_assert($hidden && '' === (string) $hidden->get_customer_ip_address(), "$label IP removed");
+}
+$note = get_comment($note_id);
+supcheckout_cert_assert(false === strpos($note->comment_content, 'Fatima') && false === strpos($note->comment_content, '99999999'), 'order note body no longer holds customer details');
+
 $customer = get_userdata($customer_id);
+supcheckout_cert_assert('customer-' . $customer_id === $customer->user_login && 'customer-' . $customer_id === $customer->user_nicename, 'customer login name replaced');
+supcheckout_cert_assert(!wp_check_password('production-password', $customer->user_pass, $customer_id), 'customer production password no longer works');
 supcheckout_cert_assert('user-' . $customer_id . '@example.invalid' === $customer->user_email, 'customer account email anonymized');
 supcheckout_cert_assert('' === get_user_meta($customer_id, 'billing_phone', true), 'customer phone removed');
 supcheckout_cert_assert('' === get_user_meta($customer_id, '_upay_customer_unique_token', true), 'customer provider token removed');
@@ -153,6 +178,7 @@ supcheckout_cert_assert('disabled' === wc_get_webhook($webhook->get_id())->get_s
 supcheckout_cert_assert(array() === WC_Payment_Tokens::get_customer_tokens($customer_id), 'stored payment tokens removed');
 $review = get_comment($review_id);
 supcheckout_cert_assert('reviewer-' . $review_id . '@example.invalid' === $review->comment_author_email && '' === $review->comment_author_IP, 'review author email and IP anonymized');
+supcheckout_cert_assert('Great' !== $review->comment_content, 'review body replaced');
 
 // ---- Idempotent: a second dry run finds nothing personal ----
 $again = supcheckout_sanitizer_run(false);

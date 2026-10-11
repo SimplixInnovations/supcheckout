@@ -90,7 +90,7 @@ SUPCHECKOUT_PRODUCTION_HOST=myorganicworld.net SUPCHECKOUT_SANITIZE=apply SUPCHE
 Run the dry run again. Every count must be `0`.
 
 What it does:
-- **Removes:** customer names, emails, phones, addresses, IPs and notes from orders, users and the customer lookup; FunnelKit contacts, abandoned carts and engagement data; email logs, form entries, sessions and stored payment tokens; UPayments customer/card tokens; the copied UPayments API key, IBAN and multi-merchant accounts; the token identity secret. It also forces test mode.
+- **Removes:** customer names, emails, phones, addresses, IPs and notes from every order (including checkout drafts and trashed orders), users and the customer lookup; customer login names and passwords (production passwords stop working on staging); the text of order notes and reviews, plus action/webhook log comments; FunnelKit contacts, abandoned carts and engagement data; email logs, form entries, sessions and stored payment tokens; UPayments customer/card tokens; the copied UPayments API key, IBAN and multi-merchant accounts; the token identity secret. It also forces test mode.
 - **Stops:** per-order UPayments jobs (all arguments), all pending scheduled actions and WooCommerce webhooks, and deletes WooCommerce REST API keys. It leaves the hourly `upay_process_subscriptions` event alone: both UPayments plugins re-create it on every page load, and it cannot charge anyone once the key and tokens are gone and WP-Cron is disabled.
 - **Keeps:** administrator and shop-manager accounts, order numbers, totals, currencies, statuses, payment methods, UPayments order metadata, products, settings, WPML and the FunnelKit funnels.
 

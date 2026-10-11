@@ -99,6 +99,9 @@ sg_ok(!supcheckout_sanitizer_preflight('staging', true, 'myorganicworld.net', 'm
 sg_ok(!supcheckout_sanitizer_preflight('staging', true, 'MyOrganicWorld.net', 'myorganicworld.net')['ok'], 'sanitizer production-host check ignores case');
 sg_ok(!supcheckout_sanitizer_preflight('staging', true, 'myorganicworld.net', 'www.myorganicworld.net')['ok'], 'sanitizer refuses the apex of a www production host');
 sg_ok(!supcheckout_sanitizer_preflight('staging', true, 'staging.example', '')['ok'], 'sanitizer refuses when the production host is not given');
+sg_ok(!supcheckout_sanitizer_preflight('staging', true, 'www.myorganicworld.net', 'myorganicworld.net')['ok'], 'sanitizer refuses a www production site given its apex');
+sg_ok(!supcheckout_sanitizer_preflight('staging', true, 'myorganicworld.net.', 'MYORGANICWORLD.NET')['ok'], 'sanitizer production-host check ignores trailing dot and case');
+sg_ok(supcheckout_sanitizer_preflight('staging', true, 'staging.myorganicworld.net', 'www.myorganicworld.net')['ok'], 'a staging subdomain is not the production host');
 
 $child = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__FILE__) . ' active';
 exec($child, $child_output, $child_rc);
