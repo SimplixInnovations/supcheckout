@@ -93,6 +93,35 @@ summarize() {
       $verdict = "INCONCLUSIVE";
     }
     echo "verdict=", $verdict, PHP_EOL;
+    // On a non-accepted response, show only the provider validation text: URLs (payment
+    // links) and the probed track ID are replaced, and each line is capped at 200 chars.
+    if (!$accepted && is_array($d)) {
+      $track = (string) getenv("PROBE_TRACK_ID");
+      $clean = function ($text) use ($track) {
+        $text = preg_replace("~https?://\\S+~i", "[url]", (string) $text);
+        if ($track !== "") {
+          $text = str_replace($track, "[track_id]", $text);
+        }
+        return substr(trim(preg_replace("~\\s+~", " ", $text)), 0, 200);
+      };
+      foreach (array("message", "error") as $key) {
+        if (isset($d[$key]) && is_scalar($d[$key])) {
+          echo "provider_", $key, "=", $clean($d[$key]), PHP_EOL;
+        }
+      }
+      if (isset($d["errors"]) && is_array($d["errors"])) {
+        $shown = 0;
+        foreach ($d["errors"] as $field => $messages) {
+          if ($shown++ >= 10) {
+            break;
+          }
+          $first = is_array($messages) ? reset($messages) : $messages;
+          if (is_scalar($first)) {
+            echo "provider_error=", $clean($field), ": ", $clean($first), PHP_EOL;
+          }
+        }
+      }
+    }
   ' "$kind" "$http" "$body_file"
 }
 
@@ -147,7 +176,7 @@ else
   probe_curl -X POST -o "$WORK/charge.json" -A 'UpaymentsWoocommercePlugin/2.2.1' \
     -H 'Accept: application/json' -H 'Content-Type: application/json' -H @"$WORK/auth.hdr" \
     --data-binary "$BODY" "${BASE}/charge"
-  summarize charge "$HTTP" "$WORK/charge.json"
+  PROBE_TRACK_ID="$TRACK_ID" summarize charge "$HTTP" "$WORK/charge.json"
   echo "probe_order_reference=${ID} (find it in the merchant dashboard; it expires unpaid)"
 fi
 
