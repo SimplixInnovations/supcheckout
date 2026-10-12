@@ -197,15 +197,16 @@ else
   fi
   # Same top-level keys, token placeholders and decimal amount form as
   # CheckoutOrchestrator (guest, one-time, no saved card, no multi-merchant split),
-  # in the account mode probe 0 reported: white-label accounts get
-  # is_whitelabled=true plus paymentGateway.src, exactly as the plugin adds it.
+  # in the account mode probe 0 reported, exactly as the plugin builds it:
+  # white-label accounts send the customer's method; non-white-label accounts send
+  # "knet" (official 3.1.1 parity; production rejects the field's absence).
   # paymentLinkExpiryInMinutes is the one added field: a safety bound so the
   # never-printed link expires after one minute.
   if [[ "$ACCOUNT_WHITELABEL" == "yes" ]]; then
     # shellcheck disable=SC2059
     MODE_JSON="$(printf '"is_whitelabled":true,"paymentGateway":{"src":"%s"}' "$GATEWAY_SRC")"
   else
-    MODE_JSON='"is_whitelabled":false'
+    MODE_JSON='"is_whitelabled":false,"paymentGateway":{"src":"knet"}'
   fi
   echo "charge_account_mode=whitelabel:${ACCOUNT_WHITELABEL} gateway_src:${GATEWAY_SRC:-none}"
   BODY="$(printf '{"returnUrl":"https://example.com/supcheckout-return","cancelUrl":"https://example.com/supcheckout-cancel","notificationUrl":"https://example.com/supcheckout-webhook","products":[{"name":"SUPCheckout auth probe","description":"Initialization only - do not pay","price":1.000,"quantity":1}],"order":{"id":"%s","description":"SUPCheckout production auth probe - do not pay","currency":"KWD","amount":1.000},"reference":{"id":"%s"},"customer":{"name":"SUPCheckout auth probe"},"plugin":{"src":"woocommerce"},%s,"language":"en","isSaveCard":false,"tokens":{"creditCard":null,"customerUniqueToken":null},"device":{"browser":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 OPR/93.0.0.0","browserDetails":{"screenWidth":"1920","screenHeight":"1080","colorDepth":"24","javaEnabled":"false","language":"en","timeZone":"-180","3DSecureChallengeWindowSize":"500_X_600"}},"extraMerchantData":null,"paymentLinkExpiryInMinutes":1}' "$ID" "$ID" "$MODE_JSON")"

@@ -182,11 +182,14 @@ final class ProductionAuthProbeContractTest extends TestCase {
         $probe = self::read_repository_file(self::PROBE);
         $orchestrator = self::read_repository_file('src/Payment/CheckoutOrchestrator.php');
 
-        // The plugin adds paymentGateway.src only for white-label accounts.
+        // White-label: the customer's method. Non-white-label: "knet", because production
+        // rejects a non-white-label Charge without paymentGateway.src (owner probe, 2026-10-12).
         self::assertStringContainsString("\$payload['paymentGateway'] = array('src' => \$src);", $orchestrator);
+        self::assertStringContainsString("\$payload['paymentGateway'] = array('src' => self::NON_WHITELABEL_GATEWAY_SRC);", $orchestrator);
+        self::assertStringContainsString("private const NON_WHITELABEL_GATEWAY_SRC = 'knet';", $orchestrator);
         self::assertStringContainsString('check-payment-button-status', $probe);
         self::assertStringContainsString('"is_whitelabled":true,"paymentGateway":{"src":"%s"}', $probe);
-        self::assertStringContainsString('"is_whitelabled":false', $probe);
+        self::assertStringContainsString("MODE_JSON='\"is_whitelabled\":false,\"paymentGateway\":{\"src\":\"knet\"}'", $probe);
         self::assertStringContainsString('verdict=SKIPPED_ACCOUNT_MODE_UNKNOWN', $probe, 'Charge never guesses the account mode');
     }
 
