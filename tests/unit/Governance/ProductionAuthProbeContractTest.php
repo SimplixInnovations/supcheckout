@@ -152,6 +152,44 @@ final class ProductionAuthProbeContractTest extends TestCase {
         self::assertStringNotContainsString('provider_message=', $out, 'accepted responses print no provider text');
     }
 
+    public function test_button_status_probe_reports_account_mode_like_the_plugin(): void {
+        $whitelabel = (string) json_encode(array('status' => true, 'data' => array(
+            'isWhiteLabel' => true,
+            'payButtons' => array('knet' => 1, 'credit_card' => 1, 'apple_pay' => 0),
+        )));
+        $out = self::run_summarize('buttons', 201, $whitelabel, 'T1');
+        self::assertStringContainsString('whitelabel=yes', $out);
+        self::assertStringContainsString('gateway_src=knet', $out);
+        self::assertStringContainsString('verdict=BEARER_ONLY_ACCEPTED', $out);
+
+        $card_only = (string) json_encode(array('status' => true, 'data' => array(
+            'isWhiteLabel' => '1',
+            'payButtons' => array('knet' => 0, 'credit_card' => 1),
+        )));
+        self::assertStringContainsString('gateway_src=cc', self::run_summarize('buttons', 201, $card_only, 'T1'));
+
+        $hosted = (string) json_encode(array('status' => true, 'data' => array('isWhiteLabel' => false, 'payButtons' => array())));
+        $out = self::run_summarize('buttons', 201, $hosted, 'T1');
+        self::assertStringContainsString('whitelabel=no', $out);
+        self::assertStringContainsString('verdict=BEARER_ONLY_ACCEPTED', $out);
+
+        $malformed = (string) json_encode(array('status' => true, 'data' => array('payButtons' => array())));
+        self::assertStringContainsString('verdict=INCONCLUSIVE', self::run_summarize('buttons', 201, $malformed, 'T1'));
+        self::assertStringContainsString('verdict=REJECTED_AUTH', self::run_summarize('buttons', 401, '{}', 'T1'));
+    }
+
+    public function test_charge_probe_uses_the_account_mode_the_plugin_would_use(): void {
+        $probe = self::read_repository_file(self::PROBE);
+        $orchestrator = self::read_repository_file('src/Payment/CheckoutOrchestrator.php');
+
+        // The plugin adds paymentGateway.src only for white-label accounts.
+        self::assertStringContainsString("\$payload['paymentGateway'] = array('src' => \$src);", $orchestrator);
+        self::assertStringContainsString('check-payment-button-status', $probe);
+        self::assertStringContainsString('"is_whitelabled":true,"paymentGateway":{"src":"%s"}', $probe);
+        self::assertStringContainsString('"is_whitelabled":false', $probe);
+        self::assertStringContainsString('verdict=SKIPPED_ACCOUNT_MODE_UNKNOWN', $probe, 'Charge never guesses the account mode');
+    }
+
     /** Runs the probe's own embedded summarize() PHP against a fixture body. */
     private static function run_summarize(string $kind, int $http, string $body, string $track): string {
         $probe = self::read_repository_file(self::PROBE);
