@@ -2107,7 +2107,16 @@ upay_assert_eq($state['provenance_writes'], 0, 'OW provenance_writes=0', 'semant
 upay_assert_eq($state['secret_creates'], 0, 'OW secret_creates=0', 'semantic_runtime');
 $ow_charge_str = (string) ($state['last_charge_body'] ?? '');
 $ow_charge = json_decode($ow_charge_str, true);
-upay_assert_eq(array_key_exists('paymentGateway', $ow_charge ?? []), false, 'OW paymentGateway ABSENT (non-Whitelabel)', 'semantic_runtime');
+// Production evidence (owner account probe, 2026-10-12): a non-white-label Charge
+// without paymentGateway.src is rejected with HTTP 422 ("paymentGateway.src is
+// required when is_whitelabled is false"). Official UPayments 3.1.1, accepted on the
+// same account, sends paymentGateway.src = "knet" for non-white-label checkouts.
+upay_assert_eq(
+    is_array($ow_charge) && isset($ow_charge['paymentGateway']['src']) ? $ow_charge['paymentGateway']['src'] : null,
+    'knet',
+    'OW paymentGateway.src=knet (non-Whitelabel, official 3.1.1 parity)',
+    'semantic_runtime'
+);
 upay_assert_eq(is_array($ow_charge) && ($ow_charge['is_whitelabled'] ?? null) === false, true, 'OW is_whitelabled=false', 'semantic_runtime');
 upay_assert_eq(is_array($ow_charge) && array_key_exists('tokens', $ow_charge) && array_key_exists('creditCard', $ow_charge['tokens']) && $ow_charge['tokens']['creditCard'] === null, true, 'OW tokens.creditCard === null', 'semantic_runtime');
 upay_assert_eq(is_array($ow_charge) && array_key_exists('tokens', $ow_charge) && array_key_exists('customerUniqueToken', $ow_charge['tokens']) && $ow_charge['tokens']['customerUniqueToken'] === null, true, 'OW tokens.customerUniqueToken === null', 'semantic_runtime');

@@ -76,6 +76,19 @@ summarize() {
         && (string) $d["data"]["transaction"]["track_id"] === $expected_track;
       echo "transaction_bound_to_probed_track=", $tx ? "yes" : "no", PHP_EOL;
       $accepted = $http === 201 && $ok && $tx;
+    } elseif ($kind === "buttons") {
+      // Same isWhiteLabel normalization as PaymentMethodAvailability; same
+      // knet-then-cc preference a white-label Charge needs for paymentGateway.src.
+      $wl = is_array($d) && isset($d["data"]) && is_array($d["data"]) && array_key_exists("isWhiteLabel", $d["data"])
+        ? $d["data"]["isWhiteLabel"] : null;
+      $mode = in_array($wl, array(true, 1, "1"), true) ? "yes" : (in_array($wl, array(false, 0, "0"), true) ? "no" : "");
+      $buttons = isset($d["data"]["payButtons"]) && is_array($d["data"]["payButtons"]) ? $d["data"]["payButtons"] : array();
+      $on = function ($k) use ($buttons) { return isset($buttons[$k]) && in_array($buttons[$k], array(true, 1, "1"), true); };
+      if ($mode !== "") {
+        echo "whitelabel=", $mode, PHP_EOL;
+        echo "gateway_src=", $on("knet") ? "knet" : ($on("credit_card") ? "cc" : ""), PHP_EOL;
+      }
+      $accepted = $http === 201 && $ok && $mode !== "";
     } else {
       // Same two link locations CheckoutOrchestrator / sandbox-charge-smoke accept.
       $link = is_array($d) && (
@@ -93,6 +106,42 @@ summarize() {
       $verdict = "INCONCLUSIVE";
     }
     echo "verdict=", $verdict, PHP_EOL;
+    // On a non-accepted response, show only the provider validation text: URLs (payment
+    // links), the API key (even if the provider reflects it), any Bearer credential and
+    // the probed track ID are replaced, and each line is capped at 200 chars.
+    if (!$accepted && is_array($d)) {
+      $track = (string) getenv("PROBE_TRACK_ID");
+      $key = (string) getenv("UPAYMENTS_PRODUCTION_API_KEY");
+      $clean = function ($text) use ($track, $key) {
+        $text = (string) $text;
+        if ($key !== "") {
+          $text = str_replace($key, "[api_key]", $text);
+        }
+        $text = preg_replace("~Bearer\\s+\\S+~i", "Bearer [api_key]", $text);
+        $text = preg_replace("~https?://\\S+~i", "[url]", $text);
+        if ($track !== "") {
+          $text = str_replace($track, "[track_id]", $text);
+        }
+        return substr(trim(preg_replace("~\\s+~", " ", $text)), 0, 200);
+      };
+      foreach (array("message", "error") as $key) {
+        if (isset($d[$key]) && is_scalar($d[$key])) {
+          echo "provider_", $key, "=", $clean($d[$key]), PHP_EOL;
+        }
+      }
+      if (isset($d["errors"]) && is_array($d["errors"])) {
+        $shown = 0;
+        foreach ($d["errors"] as $field => $messages) {
+          if ($shown++ >= 10) {
+            break;
+          }
+          $first = is_array($messages) ? reset($messages) : $messages;
+          if (is_scalar($first)) {
+            echo "provider_error=", $clean($field), ": ", $clean($first), PHP_EOL;
+          }
+        }
+      }
+    }
   ' "$kind" "$http" "$body_file"
 }
 
@@ -129,9 +178,23 @@ else
   PROBE_TRACK_ID="$TRACK_ID" summarize status "$HTTP" "$WORK/status.json"
 fi
 
+echo "--- probe 0: GET check-payment-button-status (read-only account mode) ---"
+# The request the plugin makes before every checkout; its answer decides whether
+# the plugin sends a white-label Charge.
+probe_curl -o "$WORK/buttons.json" -A 'UpaymentsWoocommercePlugin/2.2.1' \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' -H @"$WORK/auth.hdr" \
+  "${BASE}/check-payment-button-status"
+BUTTONS_OUT="$(summarize buttons "$HTTP" "$WORK/buttons.json")"
+printf '%s\n' "$BUTTONS_OUT"
+ACCOUNT_WHITELABEL="$(printf '%s\n' "$BUTTONS_OUT" | sed -n 's/^whitelabel=//p')"
+GATEWAY_SRC="$(printf '%s\n' "$BUTTONS_OUT" | sed -n 's/^gateway_src=//p')"
+
 echo "--- probe 2: POST charge (initialization only) ---"
 if [[ "${CONFIRM_PRODUCTION_CHARGE_INIT:-}" != "YES" ]]; then
   echo "verdict=SKIPPED_NOT_CONFIRMED (set CONFIRM_PRODUCTION_CHARGE_INIT=YES)"
+elif [[ "$ACCOUNT_WHITELABEL" != "yes" && "$ACCOUNT_WHITELABEL" != "no" ]] \
+  || [[ "$ACCOUNT_WHITELABEL" == "yes" && -z "$GATEWAY_SRC" ]]; then
+  echo "verdict=SKIPPED_ACCOUNT_MODE_UNKNOWN (probe 0 did not establish what the plugin would send)"
 else
   # Used as order id and reference.id; CheckoutOrchestrator rejects references over 35 chars.
   ID="scprobe-$(date -u +%s)-${RANDOM}"
@@ -140,14 +203,24 @@ else
     exit 3
   fi
   # Same top-level keys, token placeholders and decimal amount form as
-  # CheckoutOrchestrator (guest, one-time, not white-labelled, no saved card, no
-  # multi-merchant split). paymentLinkExpiryInMinutes is the one added field: a
-  # safety bound so the never-printed link expires after one minute.
-  BODY="$(printf '{"returnUrl":"https://example.com/supcheckout-return","cancelUrl":"https://example.com/supcheckout-cancel","notificationUrl":"https://example.com/supcheckout-webhook","products":[{"name":"SUPCheckout auth probe","description":"Initialization only - do not pay","price":1.000,"quantity":1}],"order":{"id":"%s","description":"SUPCheckout production auth probe - do not pay","currency":"KWD","amount":1.000},"reference":{"id":"%s"},"customer":{"name":"SUPCheckout auth probe"},"plugin":{"src":"woocommerce"},"is_whitelabled":false,"language":"en","isSaveCard":false,"tokens":{"creditCard":null,"customerUniqueToken":null},"device":{"browser":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 OPR/93.0.0.0","browserDetails":{"screenWidth":"1920","screenHeight":"1080","colorDepth":"24","javaEnabled":"false","language":"en","timeZone":"-180","3DSecureChallengeWindowSize":"500_X_600"}},"extraMerchantData":null,"paymentLinkExpiryInMinutes":1}' "$ID" "$ID")"
+  # CheckoutOrchestrator (guest, one-time, no saved card, no multi-merchant split),
+  # in the account mode probe 0 reported, exactly as the plugin builds it:
+  # white-label accounts send the customer's method; non-white-label accounts send
+  # "knet" (official 3.1.1 parity; production rejects the field's absence).
+  # paymentLinkExpiryInMinutes is the one added field: a safety bound so the
+  # never-printed link expires after one minute.
+  if [[ "$ACCOUNT_WHITELABEL" == "yes" ]]; then
+    # shellcheck disable=SC2059
+    MODE_JSON="$(printf '"is_whitelabled":true,"paymentGateway":{"src":"%s"}' "$GATEWAY_SRC")"
+  else
+    MODE_JSON='"is_whitelabled":false,"paymentGateway":{"src":"knet"}'
+  fi
+  echo "charge_account_mode=whitelabel:${ACCOUNT_WHITELABEL} gateway_src:${GATEWAY_SRC:-none}"
+  BODY="$(printf '{"returnUrl":"https://example.com/supcheckout-return","cancelUrl":"https://example.com/supcheckout-cancel","notificationUrl":"https://example.com/supcheckout-webhook","products":[{"name":"SUPCheckout auth probe","description":"Initialization only - do not pay","price":1.000,"quantity":1}],"order":{"id":"%s","description":"SUPCheckout production auth probe - do not pay","currency":"KWD","amount":1.000},"reference":{"id":"%s"},"customer":{"name":"SUPCheckout auth probe"},"plugin":{"src":"woocommerce"},%s,"language":"en","isSaveCard":false,"tokens":{"creditCard":null,"customerUniqueToken":null},"device":{"browser":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 OPR/93.0.0.0","browserDetails":{"screenWidth":"1920","screenHeight":"1080","colorDepth":"24","javaEnabled":"false","language":"en","timeZone":"-180","3DSecureChallengeWindowSize":"500_X_600"}},"extraMerchantData":null,"paymentLinkExpiryInMinutes":1}' "$ID" "$ID" "$MODE_JSON")"
   probe_curl -X POST -o "$WORK/charge.json" -A 'UpaymentsWoocommercePlugin/2.2.1' \
     -H 'Accept: application/json' -H 'Content-Type: application/json' -H @"$WORK/auth.hdr" \
     --data-binary "$BODY" "${BASE}/charge"
-  summarize charge "$HTTP" "$WORK/charge.json"
+  PROBE_TRACK_ID="$TRACK_ID" summarize charge "$HTTP" "$WORK/charge.json"
   echo "probe_order_reference=${ID} (find it in the merchant dashboard; it expires unpaid)"
 fi
 

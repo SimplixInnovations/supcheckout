@@ -15,6 +15,8 @@ class CheckoutOrchestrator {
     // Earlier provider order identities stay payable until their links expire;
     // PaymentLifecycle uses this bounded history to accept their late captures.
     private const MAX_PRIOR_PROVIDER_ATTEMPTS = 5;
+    // paymentGateway.src for non-white-label accounts (official UPayments 3.1.1 parity).
+    private const NON_WHITELABEL_GATEWAY_SRC = 'knet';
 
     private $gateway;
     private $requestBodyReader;
@@ -959,12 +961,16 @@ class CheckoutOrchestrator {
                 unset($payload['products']);
             }
 
-            // Whitelabel: add paymentGateway.
             if ($whitelabled) {
                 // Section AS: Source string is sent verbatim — no invented length
                 // ceiling. Provider documents the field but does not bound it.
                 // Future invariants can be added explicitly if documentation confirms a bound.
                 $payload['paymentGateway'] = array('src' => $src);
+            } else {
+                // Production rejects a non-white-label Charge without paymentGateway.src
+                // (HTTP 422). Official UPayments 3.1.1 sends "knet" here, which the
+                // provider accepts; the customer still pays on the hosted page.
+                $payload['paymentGateway'] = array('src' => self::NON_WHITELABEL_GATEWAY_SRC);
             }
 
             // The MM amount equality (per provider contract) is enforced after

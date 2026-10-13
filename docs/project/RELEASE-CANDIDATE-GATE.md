@@ -7,7 +7,8 @@ An RC may be produced only when **scope-aware** mandatory blockers are closed.
 - [x] current secure upstream WP/WC patches certified (live lookup CURRENT)
 - [x] all permanent CI green on certified repository head
 - [x] accepted runtime/package provenance understood
-- [ ] production auth contract resolved for provider API traffic — core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`); resolvable by a written UPayments answer **or** by the owner-run account probe in `PRODUCTION-AUTH-ACCOUNT-PROBE.md` (owner decision 2026-10-08)
+- [x] production auth contract resolved for provider API traffic — core Charge + track-ID Status: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` by the owner-run account probe in `PRODUCTION-AUTH-ACCOUNT-PROBE.md` on 2026-10-13 ([evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md)), scoped to that merchant account and to packages containing the PR #138 non-white-label Charge fix; re-run before each release
+- [ ] owner technical acceptance of a package that contains PR #138 (Release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released.)
 - [ ] live one-time payment acceptance complete
 - [x] public-claims audit complete
 - [x] no misleading recurring claim in current copy
@@ -39,7 +40,7 @@ real merchant scale, professional pentest (if claimed), PCI/legal, provider cont
 RELEASE CANDIDATE: BLOCKED
 ```
 
-**Global blockers:** `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`; live one-time acceptance; independent pentest + PCI/legal only where the final release is claimed/approved as enterprise production-ready.
+**Global blockers:** owner technical acceptance of a package containing PR #138; live one-time acceptance; independent pentest + PCI/legal only where the final release is claimed/approved as enterprise production-ready.
 
 **Feature-scoped:** saved-card BLOCKED; recurring EXCLUDED from production-ready claims.
 

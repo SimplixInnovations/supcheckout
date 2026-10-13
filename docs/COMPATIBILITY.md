@@ -83,7 +83,8 @@ Historical package-root movement remains certified for both pre-stable `simplixp
 | Classic checkout registration/runtime | **Verified** | Real WooCommerce gateway registry, protected ID `upayments`. |
 | Cart / Checkout Blocks registration & availability | **Verified** | Real Blocks registry plus enabled/disabled/default/malformed-settings behavior and reactive economics state. |
 | HPOS | **Verified / declared compatible** | Real legacy + HPOS WooCommerce CRUD with protected payment metadata. |
-| Provider Charge initialization | **Verified — bounded sandbox** | Public test Charge initialization; not production completion. |
+| Provider Charge initialization | **Verified — bounded sandbox + one production account** | Public test Charge initialization; plus one production merchant account (non-white-label) accepting the plugin's Charge initialization on 2026-10-13. Not production completion. |
+| Provider authentication | **Bearer API key only — known limitation** | SUPCheckout sends the merchant API key as a Bearer token and no HMAC / `X-Signature` / `X-Timestamp` headers. One production merchant account accepted this for payment status, button status and Charge initialization (2026-10-13). An account that enforces request signatures fails closed: checkout returns an error and no order is marked paid. |
 | Payment-status financial truth | **Verified lifecycle contract** | Authenticated provider-status binding plus exact order/transaction/economic checks. |
 | Saved-card/token identity | **Verified — bounded runtime** | Ownership/provenance/scope checks and fail-closed malformed/foreign identity behavior. |
 | Subscription checkout eligibility/pre-dispatch | **Verified — bounded runtime** | Guest/mixed-order/plan/interval/token-preflight safeguards. R3 recurring mutation hardening remains open. |

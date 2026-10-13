@@ -183,7 +183,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('- [x] accepted runtime/package provenance understood', $gate);
         self::assertStringContainsString('- [x] public-claims audit complete', $gate);
         self::assertStringContainsString('- [x] release scope explicitly locked', $gate);
-        self::assertStringContainsString('- [ ] production auth contract resolved for provider API traffic', $gate);
+        self::assertStringContainsString('- [x] production auth contract resolved for provider API traffic', $gate);
+        self::assertStringContainsString('RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY', $gate);
+        self::assertStringContainsString('- [ ] owner technical acceptance of a package that contains PR #138', $gate);
         self::assertStringContainsString('- [ ] live one-time payment acceptance complete', $gate);
         $status_hdr = self::read_repository_file('docs/project/PROJECT-STATUS.md');
         self::assertStringContainsString('Historical Approach 2 package', $status_hdr);
@@ -197,9 +199,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
-        self::assertStringContainsString('**Last reconciled:** 2026-10-10', $status_hdr);
+        self::assertStringContainsString('**Last reconciled:** 2026-10-13', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
-        self::assertStringContainsString('Next executable dependency: **UPayments production-auth resolution**', $handoff);
+        self::assertStringContainsString('Next executable dependency: **fresh owner acceptance of a package containing PR #138**', $handoff);
         // Owner decision 2026-10-08: the account probe is an accepted resolution path, so every
         // living handoff surface must name it instead of implying a provider answer is the only route.
         foreach (array('docs/project/PROJECT-STATUS.md', 'docs/project/OWNER-HANDOFF.md', 'docs/project/NEW-CHAT-HANDOFF.md') as $living) {
@@ -301,7 +303,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         // Acceptance is technical only: it must not unlock publication or clear provider/live gates.
         $gate = self::read_repository_file('docs/project/RELEASE-CANDIDATE-GATE.md');
         self::assertStringContainsString('RELEASE CANDIDATE: BLOCKED', $gate);
-        self::assertStringContainsString('- [ ] production auth contract resolved for provider API traffic', $gate);
+        self::assertStringContainsString('- [x] production auth contract resolved for provider API traffic', $gate);
+        self::assertStringContainsString('RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY', $gate);
+        self::assertStringContainsString('- [ ] owner technical acceptance of a package that contains PR #138', $gate);
         self::assertStringContainsString('- [ ] live one-time payment acceptance complete', $gate);
         self::assertStringContainsString('publication_authorized: false', $contract);
     }

@@ -120,6 +120,118 @@ final class ProductionAuthProbeContractTest extends TestCase {
         self::assertStringContainsString("-A 'UpaymentsWoocommercePlugin/2.2.1'", $probe);
     }
 
+    public function test_rejected_response_shows_only_scrubbed_provider_validation_text(): void {
+        // A 422 is a request-format failure, not an auth verdict; the operator needs
+        // the provider's validation text, and nothing else from the body.
+        $body = json_encode(array(
+            'status' => false,
+            'message' => 'The customer.email field is required. See https://pay.upayments.com/x?session=abc',
+            'errors' => array(
+                'customer.email' => array('The customer.email field is required.'),
+                'returnUrl' => 'Invalid url https://example.com/supcheckout-return',
+            ),
+            'data' => array('link' => 'https://pay.upayments.com/secret-link', 'track_id' => 'TRACKSECRET123'),
+        ));
+        $out = self::run_summarize('charge', 422, (string) $body, 'TRACKSECRET123');
+
+        self::assertStringContainsString('verdict=INCONCLUSIVE', $out);
+        self::assertStringContainsString('provider_message=The customer.email field is required.', $out);
+        self::assertStringContainsString('provider_error=customer.email: The customer.email field is required.', $out);
+        self::assertStringContainsString('provider_error=returnUrl: Invalid url [url]', $out);
+        self::assertStringNotContainsString('https://', $out, 'URLs (payment links) are never printed');
+        self::assertStringNotContainsString('secret-link', $out);
+        self::assertStringNotContainsString('TRACKSECRET123', $out, 'the probed track ID is never printed');
+
+        // A provider that reflects the submitted Bearer key must never get it printed.
+        $key = 'k' . bin2hex(random_bytes(20)); // generated, so no key-shaped literal exists in the repository
+        $reflected = json_encode(array(
+            'status' => false,
+            'message' => 'Unauthenticated token ' . $key,
+            'error' => 'Authorization: Bearer ' . $key,
+            'errors' => array('auth' => array('bad key ' . $key)),
+        ));
+        $out = self::run_summarize('charge', 401, (string) $reflected, 'T1', $key);
+        self::assertStringContainsString('verdict=REJECTED_AUTH', $out);
+        self::assertStringNotContainsString($key, $out, 'the API key is never printed, even when the provider reflects it');
+        self::assertStringContainsString('[api_key]', $out);
+
+        $long = json_encode(array('status' => false, 'message' => str_repeat('A', 500)));
+        $out = self::run_summarize('charge', 422, (string) $long, 'T1');
+        self::assertDoesNotMatchRegularExpression('/A{201}/', $out, 'provider text is capped at 200 characters');
+
+        $accepted = json_encode(array('status' => true, 'data' => array('link' => 'https://pay.upayments.com/l'), 'message' => 'ok'));
+        $out = self::run_summarize('charge', 201, (string) $accepted, 'T1');
+        self::assertStringContainsString('verdict=BEARER_ONLY_ACCEPTED', $out);
+        self::assertStringNotContainsString('provider_message=', $out, 'accepted responses print no provider text');
+    }
+
+    public function test_button_status_probe_reports_account_mode_like_the_plugin(): void {
+        $whitelabel = (string) json_encode(array('status' => true, 'data' => array(
+            'isWhiteLabel' => true,
+            'payButtons' => array('knet' => 1, 'credit_card' => 1, 'apple_pay' => 0),
+        )));
+        $out = self::run_summarize('buttons', 201, $whitelabel, 'T1');
+        self::assertStringContainsString('whitelabel=yes', $out);
+        self::assertStringContainsString('gateway_src=knet', $out);
+        self::assertStringContainsString('verdict=BEARER_ONLY_ACCEPTED', $out);
+
+        $card_only = (string) json_encode(array('status' => true, 'data' => array(
+            'isWhiteLabel' => '1',
+            'payButtons' => array('knet' => 0, 'credit_card' => 1),
+        )));
+        self::assertStringContainsString('gateway_src=cc', self::run_summarize('buttons', 201, $card_only, 'T1'));
+
+        $hosted = (string) json_encode(array('status' => true, 'data' => array('isWhiteLabel' => false, 'payButtons' => array())));
+        $out = self::run_summarize('buttons', 201, $hosted, 'T1');
+        self::assertStringContainsString('whitelabel=no', $out);
+        self::assertStringContainsString('verdict=BEARER_ONLY_ACCEPTED', $out);
+
+        $malformed = (string) json_encode(array('status' => true, 'data' => array('payButtons' => array())));
+        self::assertStringContainsString('verdict=INCONCLUSIVE', self::run_summarize('buttons', 201, $malformed, 'T1'));
+        self::assertStringContainsString('verdict=REJECTED_AUTH', self::run_summarize('buttons', 401, '{}', 'T1'));
+    }
+
+    public function test_charge_probe_uses_the_account_mode_the_plugin_would_use(): void {
+        $probe = self::read_repository_file(self::PROBE);
+        $orchestrator = self::read_repository_file('src/Payment/CheckoutOrchestrator.php');
+
+        // White-label: the customer's method. Non-white-label: "knet", because production
+        // rejects a non-white-label Charge without paymentGateway.src (owner probe, 2026-10-12).
+        self::assertStringContainsString("\$payload['paymentGateway'] = array('src' => \$src);", $orchestrator);
+        self::assertStringContainsString("\$payload['paymentGateway'] = array('src' => self::NON_WHITELABEL_GATEWAY_SRC);", $orchestrator);
+        self::assertStringContainsString("private const NON_WHITELABEL_GATEWAY_SRC = 'knet';", $orchestrator);
+        self::assertStringContainsString('check-payment-button-status', $probe);
+        self::assertStringContainsString('"is_whitelabled":true,"paymentGateway":{"src":"%s"}', $probe);
+        self::assertStringContainsString("MODE_JSON='\"is_whitelabled\":false,\"paymentGateway\":{\"src\":\"knet\"}'", $probe);
+        self::assertStringContainsString('verdict=SKIPPED_ACCOUNT_MODE_UNKNOWN', $probe, 'Charge never guesses the account mode');
+    }
+
+    /** Runs the probe's own embedded summarize() PHP against a fixture body. */
+    private static function run_summarize(string $kind, int $http, string $body, string $track, string $api_key = ''): string {
+        $probe = self::read_repository_file(self::PROBE);
+        $start = strpos($probe, "php -r '");
+        $end = strpos($probe, "  ' \"\$kind\"");
+        self::assertNotFalse($start);
+        self::assertNotFalse($end);
+        $code = substr($probe, $start + strlen("php -r '"), $end - $start - strlen("php -r '"));
+
+        $dir = sys_get_temp_dir() . '/probe-' . bin2hex(random_bytes(4));
+        mkdir($dir);
+        file_put_contents($dir . '/s.php', "<?php\n" . $code);
+        file_put_contents($dir . '/b.json', $body);
+        $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($dir . '/s.php') . ' ' . escapeshellarg($kind)
+            . ' ' . $http . ' ' . escapeshellarg($dir . '/b.json');
+        $env = array('PROBE_TRACK_ID' => $track, 'UPAYMENTS_PRODUCTION_API_KEY' => $api_key, 'PATH' => (string) getenv('PATH'), 'SystemRoot' => (string) getenv('SystemRoot'));
+        $proc = proc_open($cmd, array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes, null, $env);
+        self::assertIsResource($proc);
+        $out = (string) stream_get_contents($pipes[1]);
+        proc_close($proc);
+        @unlink($dir . '/s.php');
+        @unlink($dir . '/b.json');
+        @rmdir($dir);
+        return $out;
+    }
+
     public function test_probe_route_resolves_the_gate_only_through_its_written_rule(): void {
         $runbook = self::read_repository_file('docs/project/PRODUCTION-AUTH-ACCOUNT-PROBE.md');
         $gate = self::read_repository_file('docs/project/RELEASE-CANDIDATE-GATE.md');
@@ -130,8 +242,13 @@ final class ProductionAuthProbeContractTest extends TestCase {
         self::assertStringContainsString('A written UPayments answer, if one arrives, supersedes this rule.', $runbook);
         self::assertStringContainsString('PRODUCTION-AUTH-ACCOUNT-PROBE.md', $gate);
         self::assertStringContainsString('PRODUCTION-AUTH-ACCOUNT-PROBE.md', $tree);
-        // Preparing the route does not resolve the gate.
-        self::assertStringContainsString('- [ ] production auth contract resolved for provider API traffic', $gate);
+        // The gate is resolved only by committed owner evidence, and the release stays
+        // blocked until a package with the PR #138 Charge fix is accepted and live-tested.
+        $evidence = self::read_repository_file('docs/project/evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md');
+        self::assertSame(3, substr_count($evidence, 'verdict=BEARER_ONLY_ACCEPTED'), 'probes 1, 0 and 2 accepted in the recorded run');
+        self::assertStringContainsString('PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY', $evidence);
+        self::assertStringContainsString('- [x] production auth contract resolved for provider API traffic', $gate);
+        self::assertStringContainsString('evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md', $gate);
         self::assertStringContainsString('RELEASE CANDIDATE: BLOCKED', $gate);
     }
 
