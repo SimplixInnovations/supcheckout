@@ -89,7 +89,7 @@ Historical Approach 3 (superseded by Release Candidate 1, `OWNER_TECHNICAL_ACCEP
 
 Any later candidate that changes distributable runtime or UI bytes **postdates this acceptance** and must receive fresh exact-head/package verification and a fresh explicit owner acceptance before it can replace the accepted baseline or be published.
 
-**Post-acceptance runtime on `main`:** payment lifecycle hardening (2026-10-10 review) was squash-merged through PR #133 to `main` at `35ea66d4cb9c8395b264cd24b4844eaa268aa470` and changes runtime bytes: 62 files / SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`. It is **NOT owner accepted**. Release Candidate 1 stays the accepted baseline until a fresh explicit acceptance of an exact `main` SHA carrying this package, after `LOCAL-FINAL-VERIFICATION.md`.
+**Post-acceptance runtime on `main`:** payment lifecycle hardening (2026-10-10 review) was squash-merged through PR #133 to `main` at `35ea66d4cb9c8395b264cd24b4844eaa268aa470` and changes runtime bytes: 62 files / SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`. PR #138 (non-white-label Charge fix) then changes the package to `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`. Neither is **owner accepted**. Release Candidate 1 stays the accepted baseline until a fresh explicit acceptance of an exact `main` SHA carrying this package, after `LOCAL-FINAL-VERIFICATION.md`.
 
 Historical Approach 2 (superseded, retained for audit): source `0c883d609906676966002eb022a82a9656eeacc5`, 51 files / SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 
@@ -129,9 +129,11 @@ Release Candidate 1 is the current owner-accepted technical baseline (`OWNER_TEC
 
 ### Current provider-contract disposition
 
-Deep first-party research narrowed the **first public core one-time-payment** provider blocker to one contract decision:
+Deep first-party research narrowed the **first public core one-time-payment** provider blocker to one contract decision. The owner-run account probe resolved it for the release merchant account on 2026-10-13 ([evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md)):
 
-`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`
+`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`
+
+Scope: that account, at that time, for packages containing the PR #138 Charge fix. Release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released.
 
 The remaining provider-related areas are deliberately outside the first-release core claim: saved-card/token persistence is a **FUTURE FEATURE GATE**, auto-deduct capture/cycle identity is a **FUTURE RECURRING GATE**, webhook-signature mechanics are future defense-in-depth, and sandbox credential-family migration is a future test-infrastructure gate. None of those deferred areas may be silently promoted into supported production scope. Automatic recurring `VERIFIED_SUCCESS` remains fail-closed/unreachable. Publication remains **NOT AUTHORIZED**.
 
@@ -163,7 +165,7 @@ R5  callback lifecycle consolidation (Option B / ADR-003) — DONE / VERIFIED
  ↓
 R6  exact-head qualification + fresh owner re-acceptance — DONE / VERIFIED
  ↓
-external certification: core production-auth clarification (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`)
+external certification: core production-auth — `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13); remaining: fresh acceptance of a package containing PR #138, live one-time acceptance
  ↓
 explicit version/publication decision only after remaining release gates
 ```
@@ -194,7 +196,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | R6 | **DONE / VERIFIED** — exact-head qualification and owner technical re-acceptance complete |
 | Current operational gate | **external certification & release readiness** |
-| Immediate next external gate | **UPayments production-auth clarification — `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`** |
+| Immediate next external gate | **Fresh owner acceptance of a package containing PR #138, then live one-time acceptance** (production auth `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`, 2026-10-13) |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
@@ -299,12 +301,12 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
 
-### Owner action queue (reconciled 2026-10-11)
+### Owner action queue (reconciled 2026-10-13)
 
 Repository-side work for the current gate is complete. The remaining work is owner/external only, in this order:
 
-0. **Fresh technical acceptance of the current `main` package.** `main` carries runtime bytes newer than Release Candidate 1 (package `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`). Run `LOCAL-FINAL-VERIFICATION.md` on the exact `main` SHA, then record `OWNER_TECHNICAL_ACCEPTANCE=<label>` with that SHA and package, or keep Release Candidate 1. Live evidence must be produced with the package that will be released.
-1. **Production auth probe.** Run `tests/provider/production-auth-account-probe.sh` with `OWNER_PRODUCTION_AUTH_PROBE_AUTHORIZATION=YES`, following `PRODUCTION-AUTH-ACCOUNT-PROBE.md`. Commit the evidence file. If both probes report `BEARER_ONLY_ACCEPTED`, mark `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` in `RELEASE-CANDIDATE-GATE.md`. If either reports `REJECTED_AUTH`, send the provider message and open an HMAC runtime tranche.
+0. **Fresh technical acceptance of the current `main` package.** `main` carries runtime bytes newer than Release Candidate 1; with PR #138 the candidate package is `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`. Run `LOCAL-FINAL-VERIFICATION.md` on the exact `main` SHA, then record `OWNER_TECHNICAL_ACCEPTANCE=<label>` with that SHA and package, or keep Release Candidate 1. Live evidence must be produced with the package that will be released.
+1. **Production auth probe — DONE 2026-10-13.** Probes 1 (status), 0 (button status) and 2 (Charge) all reported `BEARER_ONLY_ACCEPTED` on the release merchant account in one run ([evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md)); gate `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`. The same run proved release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released. PR #138 fixes it, so step 0 must accept a package that contains PR #138. Re-run the probe before each release.
 2. **Live one-time payment acceptance.** Needs `OWNER_LIVE_PAYMENT_TEST_AUTHORIZATION=YES` and step 1 resolved; follow `LIVE-PAYMENT-ACCEPTANCE-PLAN.md` on an isolated HTTPS staging site. A copy of a real store is acceptable only after sanitization: customer personal data anonymized or removed, stored payment/customer tokens and gateway credentials removed, and outbound email disabled (see `LIVE-PAYMENT-ACCEPTANCE-PLAN.md`). Real customers' checkout is never a test surface. An owner-run rehearsal of the same scenarios against the public UPayments sandbox on that staging site is recommended first; it costs nothing but proves nothing about production authentication.
 3. **Pentest and PCI/legal review,** only if the release will be claimed as enterprise production-ready.
 4. **Publication decision:** version, tag, GitHub Release and WordPress.org submission. Needs explicit publication authorization.

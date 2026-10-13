@@ -6,6 +6,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Non-white-label Charge fix (release-blocking, not owner accepted)
+
+- Non-white-label Charges now send `paymentGateway.src = "knet"`, as official UPayments 3.1.1 does. A production merchant account rejected the previous request (no `paymentGateway`) with HTTP 422, so every checkout on a non-white-label account would have failed. The defect dates back to the Simplix baseline; the H12 assertion that pinned it is corrected.
+- The owner-run production auth probe (2026-10-13) accepted Bearer-only authentication for payment status, button status and the corrected Charge on that account: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`.
+- Candidate package: 62 files, SHA-256 `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`.
+
 ### Payment lifecycle hardening (post Release Candidate 1, not owner accepted)
 
 - A capture on an earlier Charge attempt of the same order is no longer dropped. Checkout keeps a bounded history (5) of superseded provider order identities. An authenticated, bound CAPTURED result for one of them completes a still-unpaid order. If the order is already paid, or was switched to another gateway, SUPCheckout records the payment once with an order note for manual refund. Non-captured results for those attempts never change the order.

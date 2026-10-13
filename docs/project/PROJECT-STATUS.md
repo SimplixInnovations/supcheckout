@@ -1,7 +1,7 @@
 # SUPCheckout for UPayments — Project Status
 
 **Status document:** canonical living engineering state
-**Last reconciled:** 2026-10-10
+**Last reconciled:** 2026-10-13
 **Canonical repository:** `SimplixInnovations/supcheckout`
 **Development version:** `0.1.0`
 **Owner technical acceptance:** **ACCEPTED for Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, recorded 2026-10-07)
@@ -40,9 +40,9 @@
 | R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | Current executable gate | **external certification & release readiness** |
-| Post-acceptance runtime on `main` | PR #133 payment lifecycle hardening (2026-10-10 review), merged main `35ea66d4cb9c8395b264cd24b4844eaa268aa470`; package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; **NOT owner accepted** |
+| Post-acceptance runtime on `main` | PR #133 payment lifecycle hardening (2026-10-10 review), merged main `35ea66d4cb9c8395b264cd24b4844eaa268aa470`; package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; then PR #138 non-white-label Charge fix, package `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`; **NOT owner accepted** |
 | Owner step before live evidence | **Fresh technical acceptance of the current `main` package** (`LOCAL-FINAL-VERIFICATION.md`). Live evidence must be produced with the package that will be released, not Release Candidate 1. |
-| Next executable dependency | **UPayments production-auth resolution** for core Charge + track-ID Status (`PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`) — owner-run account probe ([`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) or a written UPayments answer |
+| Next executable dependency | **Fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe, 2026-10-13, [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md), runbook [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -117,7 +117,7 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **external certification & release readiness**. The first-release core provider blocker is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED`. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
+Current executable gate: **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
 
 R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003; PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
@@ -133,7 +133,7 @@ R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a
 
 ## Current provider-contract disposition
 
-- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=UNRESOLVED` — FIRST-RELEASE CORE BLOCKER. Owner decision (2026-10-08): resolvable by the owner-run account probe in [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md) (`RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` under that document's resolution rule) or by a written UPayments answer, which supersedes the probe. The probe has not been run.
+- `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` — resolved 2026-10-13 by the owner-run account probe (see [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md), [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md)): status, button-status and Charge all accepted Bearer-only authentication. Account- and time-scoped; a written UPayments answer supersedes it. Release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released.
 - saved-card/token persistence: FUTURE FEATURE GATE.
 - auto-deduct capture/cycle identity: FUTURE RECURRING GATE.
 - webhook signature mechanics: FUTURE DEFENSE-IN-DEPTH.

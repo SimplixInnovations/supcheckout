@@ -229,8 +229,13 @@ final class ProductionAuthProbeContractTest extends TestCase {
         self::assertStringContainsString('A written UPayments answer, if one arrives, supersedes this rule.', $runbook);
         self::assertStringContainsString('PRODUCTION-AUTH-ACCOUNT-PROBE.md', $gate);
         self::assertStringContainsString('PRODUCTION-AUTH-ACCOUNT-PROBE.md', $tree);
-        // Preparing the route does not resolve the gate.
-        self::assertStringContainsString('- [ ] production auth contract resolved for provider API traffic', $gate);
+        // The gate is resolved only by committed owner evidence, and the release stays
+        // blocked until a package with the PR #138 Charge fix is accepted and live-tested.
+        $evidence = self::read_repository_file('docs/project/evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md');
+        self::assertSame(3, substr_count($evidence, 'verdict=BEARER_ONLY_ACCEPTED'), 'probes 1, 0 and 2 accepted in the recorded run');
+        self::assertStringContainsString('PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY', $evidence);
+        self::assertStringContainsString('- [x] production auth contract resolved for provider API traffic', $gate);
+        self::assertStringContainsString('evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md', $gate);
         self::assertStringContainsString('RELEASE CANDIDATE: BLOCKED', $gate);
     }
 
