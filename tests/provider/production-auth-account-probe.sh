@@ -107,11 +107,18 @@ summarize() {
     }
     echo "verdict=", $verdict, PHP_EOL;
     // On a non-accepted response, show only the provider validation text: URLs (payment
-    // links) and the probed track ID are replaced, and each line is capped at 200 chars.
+    // links), the API key (even if the provider reflects it), any Bearer credential and
+    // the probed track ID are replaced, and each line is capped at 200 chars.
     if (!$accepted && is_array($d)) {
       $track = (string) getenv("PROBE_TRACK_ID");
-      $clean = function ($text) use ($track) {
-        $text = preg_replace("~https?://\\S+~i", "[url]", (string) $text);
+      $key = (string) getenv("UPAYMENTS_PRODUCTION_API_KEY");
+      $clean = function ($text) use ($track, $key) {
+        $text = (string) $text;
+        if ($key !== "") {
+          $text = str_replace($key, "[api_key]", $text);
+        }
+        $text = preg_replace("~Bearer\\s+\\S+~i", "Bearer [api_key]", $text);
+        $text = preg_replace("~https?://\\S+~i", "[url]", $text);
         if ($track !== "") {
           $text = str_replace($track, "[track_id]", $text);
         }

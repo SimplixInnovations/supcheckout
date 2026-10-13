@@ -142,6 +142,19 @@ final class ProductionAuthProbeContractTest extends TestCase {
         self::assertStringNotContainsString('secret-link', $out);
         self::assertStringNotContainsString('TRACKSECRET123', $out, 'the probed track ID is never printed');
 
+        // A provider that reflects the submitted Bearer key must never get it printed.
+        $key = 'k' . bin2hex(random_bytes(20)); // generated, so no key-shaped literal exists in the repository
+        $reflected = json_encode(array(
+            'status' => false,
+            'message' => 'Unauthenticated token ' . $key,
+            'error' => 'Authorization: Bearer ' . $key,
+            'errors' => array('auth' => array('bad key ' . $key)),
+        ));
+        $out = self::run_summarize('charge', 401, (string) $reflected, 'T1', $key);
+        self::assertStringContainsString('verdict=REJECTED_AUTH', $out);
+        self::assertStringNotContainsString($key, $out, 'the API key is never printed, even when the provider reflects it');
+        self::assertStringContainsString('[api_key]', $out);
+
         $long = json_encode(array('status' => false, 'message' => str_repeat('A', 500)));
         $out = self::run_summarize('charge', 422, (string) $long, 'T1');
         self::assertDoesNotMatchRegularExpression('/A{201}/', $out, 'provider text is capped at 200 characters');
@@ -194,7 +207,7 @@ final class ProductionAuthProbeContractTest extends TestCase {
     }
 
     /** Runs the probe's own embedded summarize() PHP against a fixture body. */
-    private static function run_summarize(string $kind, int $http, string $body, string $track): string {
+    private static function run_summarize(string $kind, int $http, string $body, string $track, string $api_key = ''): string {
         $probe = self::read_repository_file(self::PROBE);
         $start = strpos($probe, "php -r '");
         $end = strpos($probe, "  ' \"\$kind\"");
@@ -208,7 +221,7 @@ final class ProductionAuthProbeContractTest extends TestCase {
         file_put_contents($dir . '/b.json', $body);
         $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($dir . '/s.php') . ' ' . escapeshellarg($kind)
             . ' ' . $http . ' ' . escapeshellarg($dir . '/b.json');
-        $env = array('PROBE_TRACK_ID' => $track, 'PATH' => (string) getenv('PATH'), 'SystemRoot' => (string) getenv('SystemRoot'));
+        $env = array('PROBE_TRACK_ID' => $track, 'UPAYMENTS_PRODUCTION_API_KEY' => $api_key, 'PATH' => (string) getenv('PATH'), 'SystemRoot' => (string) getenv('SystemRoot'));
         $proc = proc_open($cmd, array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes, null, $env);
         self::assertIsResource($proc);
         $out = (string) stream_get_contents($pipes[1]);
