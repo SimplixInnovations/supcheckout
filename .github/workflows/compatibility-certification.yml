@@ -169,6 +169,9 @@ jobs:
       - name: Verify gateway presentation checkbox safety
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/GatewayPresentationSafetyTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: Verify one gateway instance (hooks registered once)
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/GatewaySingleInstanceTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Verify fresh gateway default hydration safety
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/GatewayFreshDefaultsSafetyTest.php" --path="$RUNNER_TEMP/wordpress"
 
