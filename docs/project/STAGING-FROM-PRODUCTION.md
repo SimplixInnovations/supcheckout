@@ -28,7 +28,7 @@ Take a fresh WPvivid backup of production and confirm it completed. Note the tim
 
 ## Step 2: neutralize the copy before its first request
 
-Use ServerAvatar's file manager or SSH on the **staging** application.
+Use ServerAvatar's file manager or SSH on the **staging** application. Commands below run as the staging application's own user, for example `sudo -u <app-user> -- wp --path=<staging public_html> …`; find the folder with `grep -l "staging.myorganicworld.net" /home/*/*/public_html/wp-config.php`.
 
 1. Delete `wp-content/object-cache.php`. The LiteSpeed object cache would otherwise connect to the same cache server as production, and staging could write into production's cache.
 2. In the staging `wp-config.php`:
@@ -46,6 +46,23 @@ Use ServerAvatar's file manager or SSH on the **staging** application.
 3. Upload `tests/staging/supcheckout-staging-guard.php` to `wp-content/mu-plugins/supcheckout-staging-guard.php`.
 4. Upload `tests/staging/sanitize-staging.php` and the `tests/staging/lib/` folder to a directory **outside** the web root, for example `~/supcheckout-staging/`.
 5. Remove any ServerAvatar cron job that the clone copied for the staging application. Cron is run by hand in later steps.
+
+## Step 2b: HTTPS for the staging domain
+
+Try the panel's certificate install first. If it fails although DNS is correct (A record on this server, no stray AAAA, no CAA), check the challenge path:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}
+" http://staging.myorganicworld.net/.well-known/acme-challenge/x
+```
+
+If files in the site root are served but every `/.well-known/` path returns the web server's own 404 (seen on the first OpenLiteSpeed staging clone, 2026-10-15), do not edit the shared web-server configuration. Use DNS validation instead:
+
+```bash
+certbot certonly --manual --preferred-challenges dns -d staging.myorganicworld.net --cert-name <app-name>
+```
+
+Add the TXT record it shows (`_acme-challenge.staging`), wait until `dig +short TXT _acme-challenge.staging.myorganicworld.net @8.8.8.8` returns it, then continue. Install the certificate through the panel, or re-enable the app's HTTPS listener from the panel's own saved config. Manual certificates do not auto-renew: repeat the command within 90 days if staging is still needed.
 
 ## Step 3: verify with WP-CLI (SSH, staging application directory)
 
