@@ -26,7 +26,13 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
 
     public function initialize() {
         $this->settings = get_option( 'woocommerce_upayments_settings', [] );
-        if ( class_exists( 'WC_Upayments' ) ) {
+        // Reuse WooCommerce's registered gateway. The gateway registers its hooks in its
+        // constructor, so a second instance would render the admin payment box, the
+        // thank-you section and the order-totals rows twice.
+        $registered = self::registered_gateway();
+        if ( null !== $registered ) {
+            $this->gateway = $registered;
+        } elseif ( class_exists( 'WC_Upayments' ) ) {
             $this->gateway = new WC_Upayments();
         } elseif ( function_exists( 'wc_get_logger' ) ) {
             wc_get_logger()->warning(
@@ -34,6 +40,29 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
                 array( 'source' => 'upayments' )
             );
         }
+    }
+
+    /**
+     * The gateway instance WooCommerce already registered, or null before it exists.
+     *
+     * @return WC_Upayments|null
+     */
+    private static function registered_gateway() {
+        if ( ! function_exists( 'WC' ) || ! class_exists( 'WC_Upayments' ) ) {
+            return null;
+        }
+        $woocommerce = WC();
+        if ( ! is_object( $woocommerce ) || ! method_exists( $woocommerce, 'payment_gateways' ) ) {
+            return null;
+        }
+        $registry = $woocommerce->payment_gateways();
+        if ( ! is_object( $registry ) || ! method_exists( $registry, 'payment_gateways' ) ) {
+            return null;
+        }
+        $gateways = $registry->payment_gateways();
+        return ( is_array( $gateways ) && isset( $gateways['upayments'] ) && $gateways['upayments'] instanceof WC_Upayments )
+            ? $gateways['upayments']
+            : null;
     }
 
     public function is_active() {
