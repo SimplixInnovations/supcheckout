@@ -69,7 +69,7 @@ wp eval 'var_dump( wp_remote_get( "https://apiv2api.upayments.com/" ) instanceof
 ```bash
 wp plugin list --status=active --field=name
 ```
-→ ZeptoMail, FunnelKit Automations, Google for WooCommerce, Modular Connector and LiteSpeed Cache are absent.
+→ ZeptoMail (plugin folder `transmail`), FunnelKit Automations, Google for WooCommerce, Modular Connector and LiteSpeed Cache are absent.
 
 If any check fails, stop and fix it before Step 4.
 
