@@ -53,8 +53,21 @@ The store also runs a second gateway, **Direct Link Payment (Pay Later)**.
 | #11409 | Completed | CAPTURED | knet | ar | paid; later completed by staff |
 | #11009 | Failed | NOT CAPTURED | knet | ar | provider decline |
 | #10311 | Cancelled | (none) | — | en | abandoned: only `UPayments_order_id` |
-| #11010 | Completed ("Paid on Aug 8, 2026") | **FAILED** | card | en | **contradiction, open:** paid status with a failed provider result. Live order notes and the UPayments dashboard are needed to tell manual completion, an overwrite by a later failed attempt (which the official plugin does not guard against; SUPCheckout PR #133 does) or a false paid state. |
+| #11010 | Completed ("Paid on Aug 8, 2026") | **FAILED** | card | en | **Real payment; metadata overwritten.** See the analysis below. |
 | #9337 | Completed | — | Direct Link Payment | en | non-UPayments control |
+
+### #11010 analysis (live order notes, 2026-08-08)
+
+| Time | Live order note |
+|---|---|
+| 16:16 | "Received error response from UPayments. PaymentID 101622…8352": Pending → Failed |
+| 16:17 | Stock hold applied (customer retried checkout) |
+| 16:20 | "Payment successful with UPayments. PaymentID 786195…": Failed → Processing |
+| 16:59 | Staff bulk edit: Processing → Completed |
+
+The customer paid once (16:20). The order's stored `UPayments_*` fields, however, describe a **third** transaction (card, `FAILED`, PaymentID `019fe186…`). It matches neither noted attempt and left no note. A later failed callback for another attempt **silently overwrote the paid order's payment data** in official UPayments 3.1.1. The real PaymentID now survives only in an order note, so refunds or reconciliation read from the order fields would use the wrong ID.
+
+SUPCheckout's design prevents this. A verified capture short-circuits the primary path. Any other track on a paid order goes to the capture-only secondary path, where non-captured results never change the order and a second capture only adds one duplicate-capture note (PR #133). Rehearsal check: **after a successful payment, a failed callback for a different attempt must leave the order's status and payment fields unchanged.**
 
 Metadata written by the official plugin on paid and failed orders: `UPayments_order_id`, `_PaymentID`, `_TrackID`, `_TranID`, `_Ref`, `_Auth`, `_PostDate`, `_Result`, `_payment_type`, `_webhook_triggered`.
 
