@@ -14,6 +14,9 @@ defined('ABSPATH') || exit;
 const SUPCHECKOUT_SANITIZER_ORDER_BATCH = 100;
 const SUPCHECKOUT_SANITIZER_REMOVED_TEXT = '[removed on staging copy]';
 
+/** Recurring hooks that UPayments plugins re-create on every page load. */
+const SUPCHECKOUT_SANITIZER_SELF_RECREATING_CRON = array('upay_process_subscriptions', 'upay_hourly_cron_job');
+
 /** Tables whose rows are personal data or customer-facing activity, never configuration. */
 const SUPCHECKOUT_SANITIZER_DATA_TABLES = array(
     'woocommerce_sessions',
@@ -191,9 +194,9 @@ function supcheckout_sanitizer_option_delete($name, $apply) {
  * Remove scheduled UPayments jobs, including per-order jobs that carry arguments
  * (wp_clear_scheduled_hook() only matches argument-less events).
  *
- * The hourly upay_process_subscriptions event is left alone: both the official plugin and
- * SUPCheckout re-create it on every page load, and it cannot charge anyone once the key
- * and tokens are gone and WP-Cron is disabled.
+ * The hourly upay_process_subscriptions and upay_hourly_cron_job events are left alone:
+ * UPayments plugins (official 3.1.1 and SUPCheckout) re-create them on every page load,
+ * and they cannot charge anyone once the key and tokens are gone and WP-Cron is disabled.
  *
  * @return int Number of events removed (or that would be removed).
  */
@@ -204,7 +207,7 @@ function supcheckout_sanitizer_cron($apply) {
     if (is_array($cron)) {
         foreach ($cron as $by_hook) {
             foreach ((array) $by_hook as $hook => $instances) {
-                if ('upay_process_subscriptions' === $hook) {
+                if (in_array($hook, SUPCHECKOUT_SANITIZER_SELF_RECREATING_CRON, true)) {
                     continue;
                 }
                 if (0 === strpos($hook, 'upay') || 0 === strpos($hook, 'simplixpay_upayments_')) {

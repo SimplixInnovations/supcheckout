@@ -57,6 +57,7 @@ if ('active' === $mode) {
     $plugins = supcheckout_staging_guard_filter_plugins(array(
         'woocommerce/woocommerce.php',
         'zoho-zeptomail/zeptomail.php',
+        'transmail/transmail.php',
         'wp-marketing-automations/wp-marketing-automations.php',
         'wp-marketing-automations-pro/wp-marketing-automations-pro.php',
         'google-listings-and-ads/google-listings-and-ads.php',
