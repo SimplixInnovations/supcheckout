@@ -30,6 +30,7 @@ defined('ABSPATH') || exit;
 
 const SUPCHECKOUT_STAGING_GUARD_DISABLED_PLUGINS = array(
     'zeptomail',
+    'transmail', // Zoho ZeptoMail's plugin folder (its former product name)
     'wp-marketing-automations',
     'google-listings-and-ads',
     'modular-connector',
