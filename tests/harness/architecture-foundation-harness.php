@@ -464,8 +464,26 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // target=_blank account link, a translatable and escaped gateway icon label with
 // decorative alt text, and two one-line delegations to the CheckoutAssets-owned
 // localization payloads (the payloads themselves live outside the monolith).
-$acceptedGatewayBytes = 63366;
+// Activation no longer rewrites the merchant's checkout page: removing the legacy
+// activation callback reduces the shell by 1,235 bytes.
+$acceptedGatewayBytes = 62131;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'UPayments.php matches current exact architecture ratchet');
+foreach (array('UPayments.php', 'includes', 'src', 'templates') as $shipped) {
+    $shippedPath = $root . '/' . $shipped;
+    $shippedFiles = is_dir($shippedPath)
+        ? iterator_to_array(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($shippedPath, FilesystemIterator::SKIP_DOTS)))
+        : array($shippedPath => new SplFileInfo($shippedPath));
+    foreach ($shippedFiles as $shippedFile) {
+        if ($shippedFile->getExtension() !== 'php') {
+            continue;
+        }
+        $shippedSource = (string) file_get_contents($shippedFile->getPathname());
+        arch_assert(
+            !preg_match('/\bwp_(update|insert|delete)_post\s*\(/', $shippedSource),
+            'shipped code never creates, rewrites or deletes merchant posts/pages: ' . str_replace($root . '/', '', $shippedFile->getPathname())
+        );
+    }
+}
 arch_assert($gatewayClassTokens !== array(), 'legacy WC_Upayments gateway compatibility class remains executable');
 arch_assert(arch_contains($gateway, "add_filter(\"woocommerce_payment_gateways\", \"addUpaymentsGatewayClass\")"), 'WooCommerce gateway registration remains characterized');
 
