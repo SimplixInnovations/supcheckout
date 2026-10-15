@@ -25,6 +25,20 @@ final class OrderLockTest extends TestCase {
         self::assertArrayHasKey('simplixpay_upay_order_lock_v1_42', $GLOBALS['supcheckout_test_options']);
     }
 
+    public function test_acquire_loses_to_a_live_owner_created_just_before_its_insert(): void {
+        $name = 'simplixpay_upay_order_lock_v1_42';
+        $competitor = (string) (time() + 45) . ':' . str_repeat('c', 32);
+        $GLOBALS['wpdb']->before_query = function ($statement) use ($name, $competitor) {
+            if (strpos($statement['query'], 'INSERT IGNORE ') === 0) {
+                $GLOBALS['supcheckout_test_options'][$name] = $competitor;
+            }
+        };
+
+        self::assertNull(OrderLock::acquire(42));
+        self::assertSame($competitor, $GLOBALS['supcheckout_test_options'][$name]);
+        self::assertNotContains('add', array_column($GLOBALS['supcheckout_test_option_calls'], 0));
+    }
+
     public function test_release_requires_the_exact_owner_token(): void {
         $token = OrderLock::acquire(42);
         $name = 'simplixpay_upay_order_lock_v1_42';
