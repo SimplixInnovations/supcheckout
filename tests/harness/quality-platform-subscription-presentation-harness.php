@@ -68,7 +68,8 @@ q15_assert(substr_count($source, "!isset(\$values['product_id'])") === 1, 'order
 q15_assert(q15_contains($source, "method_exists(\$item, 'add_meta_data')"), 'order-item copy guards the mutation method');
 q15_assert(q15_contains($source, "method_exists(\$item, 'get_product')"), 'admin summary guards item product access');
 q15_assert(q15_contains($source, '$product instanceof \\WC_Product'), 'admin summary guards missing products');
-q15_assert(q15_contains($source, "\$gateway->render_subscription_summary(\$order);\n                return;"), 'admin summary renders at most once per order');
+q15_assert(q15_contains($source, "self::render_admin_summary(\$order);\n                return;"), 'admin summary renders at most once per order');
+q15_assert(!q15_contains($source, 'new \\WC_Upayments('), 'admin summary never constructs a second gateway');
 q15_assert(q15_contains($source, 'private static function date_time_or_null'), 'date parsing has one fail-closed boundary');
 q15_assert(q15_contains($source, 'catch (\\Exception $exception)'), 'invalid dates cannot escape the presentation boundary');
 q15_assert(q15_contains($source, "if (\$raw_status !== 'cancelled')"), 'cancelled admin summary does not expose a next-billing date');

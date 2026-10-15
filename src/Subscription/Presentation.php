@@ -180,8 +180,9 @@ final class Presentation {
             }
             $product = $item->get_product();
             if ($product instanceof \WC_Product && $product->get_type() === 'custom_type') {
-                $gateway = new \WC_Upayments();
-                $gateway->render_subscription_summary($order);
+                // Render directly: constructing a gateway here would register every
+                // gateway hook a second time and duplicate admin and thank-you output.
+                self::render_admin_summary($order);
                 return;
             }
         }

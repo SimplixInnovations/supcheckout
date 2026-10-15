@@ -17,6 +17,7 @@ final class PresentationTest extends TestCase {
         require_once dirname(__DIR__, 2) . '/fixtures/subscription-presentation-runtime.php';
         \supcheckout_test_reset_subscription_presentation();
         \WC_Upayments::$summary_orders = array();
+        \WC_Upayments::$constructed = 0;
         Utils::$custom = false;
         Utils::$normal = false;
     }
@@ -140,16 +141,26 @@ final class PresentationTest extends TestCase {
     public function test_admin_order_summary_ignores_missing_products_and_renders_once_per_order(): void {
         $subscription = new \WC_Product();
         $subscription->type = 'custom_type';
-        $order = new \WC_Order();
+        $order = $this->subscriptionOrder();
         $order->items = array(
             new \SUPCheckout_Test_Presentation_Item(null),
             new \SUPCheckout_Test_Presentation_Item($subscription),
             new \SUPCheckout_Test_Presentation_Item($subscription),
         );
 
+        ob_start();
         Presentation::render_admin_order_summary($order);
+        $rendered = ob_get_clean();
 
-        self::assertSame(array($order), \WC_Upayments::$summary_orders);
+        ob_start();
+        Presentation::render_admin_summary($order);
+        $expected = ob_get_clean();
+
+        self::assertNotSame('', $expected);
+        self::assertSame($expected, $rendered);
+        // A second gateway object would re-register every gateway hook and duplicate
+        // the admin payment box, thank-you section and order totals rows.
+        self::assertSame(0, \WC_Upayments::$constructed);
     }
 
     public function test_mixed_cart_validation_preserves_both_exact_rejection_contracts(): void {
