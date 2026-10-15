@@ -85,9 +85,13 @@ php_admin_value[memory_limit] = 256M
 php_admin_value[display_errors] = On
 EOF
 
-# Tiny readiness probe that must execute via PHP-FPM (not static).
+# Tiny readiness probe that must execute via PHP-FPM (not static). It also
+# reports whether the worker runs the opcache JIT (see FPM_PHP_ARGS below).
 cat >"$wp_root/supcheckout-fpm-probe.php" <<'EOF'
-<?php echo 'FPM_OK ' . PHP_VERSION;
+<?php
+$supcheckout_opcache = function_exists('opcache_get_status') ? opcache_get_status(false) : false;
+$supcheckout_jit = is_array($supcheckout_opcache) && !empty($supcheckout_opcache['jit']['enabled']);
+echo 'FPM_OK ' . PHP_VERSION . ' JIT=' . ($supcheckout_jit ? 'on' : 'off');
 EOF
 
 # Portable fastcgi params (avoid depending on distro nginx include path).
@@ -156,7 +160,18 @@ fi
 printf '%s
 ' "$FPM_BIN" > "$conf_dir/fpm-bin"
 
-"$FPM_BIN" -y "$conf_dir/fpm.conf" -F >"$conf_dir/fpm-stdout.log" 2>&1 &
+# setup-php appends opcache.enable=1 and the tracing JIT (opcache.jit=1235,
+# 256M buffer) to 99-pecl.ini and links that file into every SAPI's conf.d, so
+# PHP-FPM ran WordPress under the JIT while WP-CLI (opcache.enable_cli=0) never
+# did. Under PHP-FPM that JIT intermittently broke cold workers: PHP 8.2
+# segfaulted in ZEND_INIT_NS_FCALL_BY_NAME reading a WooCommerce trait method's
+# run-time cache, and PHP 8.4 wedged in the JIT compiler (ir_schedule) compiling
+# rest_sanitize_value_from_schema until max_execution_time. A/B over 2,240 cold
+# starts: 24/1,280 failed with the JIT on, 0/960 with it off, independent of the
+# loaded extension set. Opcache itself stays on, as on a production host; the
+# JIT stays off, which is also PHP's own default.
+FPM_PHP_ARGS=(-d opcache.jit=disable -d opcache.jit_buffer_size=0)
+"$FPM_BIN" "${FPM_PHP_ARGS[@]}" -y "$conf_dir/fpm.conf" -F >"$conf_dir/fpm-stdout.log" 2>&1 &
 PHP_FPM_PID=$!
 
 # Wait for the FPM socket to accept connections.
@@ -178,9 +193,11 @@ HTTP_STACK_PID=$!
 sleep 1
 
 ready=0
+fpm_probe=''
 for _ in $(seq 1 30); do
   # Readiness must execute PHP-FPM (not only static files).
-  if curl -fsS --max-time 5 "http://127.0.0.1:${port}/supcheckout-fpm-probe.php" 2>/dev/null | grep -q FPM_OK; then
+  fpm_probe="$(curl -fsS --max-time 5 "http://127.0.0.1:${port}/supcheckout-fpm-probe.php" 2>/dev/null || true)"
+  if [[ "$fpm_probe" == FPM_OK* ]]; then
     # Also require WordPress itself to respond via FPM.
     if curl -fsS --max-time 10 "http://127.0.0.1:${port}/wp-login.php" >/dev/null 2>&1; then
       ready=1
@@ -207,4 +224,14 @@ if [[ "$ready" != "1" ]]; then
   return 70
 fi
 
-echo "HTTP_STACK ready nginx+php-fpm (${PHP_VER}) on 127.0.0.1:${port}"
+# Fail closed if a worker still runs the JIT: the certification would again
+# depend on a runtime known to crash under this workload.
+if [[ "$fpm_probe" != *" JIT=off" ]]; then
+  echo "PHP-FPM worker reports the opcache JIT enabled (${fpm_probe}); refusing to certify on it" >&2
+  kill "$HTTP_STACK_PID" "$PHP_FPM_PID" 2>/dev/null || true
+  HTTP_STACK_PID=''
+  PHP_FPM_PID=''
+  return 75
+fi
+
+echo "HTTP_STACK ready nginx+php-fpm (${PHP_VER}, opcache JIT off) on 127.0.0.1:${port}"
