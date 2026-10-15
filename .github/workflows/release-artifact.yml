@@ -50,7 +50,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.3'
           extensions: zip
@@ -80,7 +80,7 @@ jobs:
           bash tests/security/r6-secret-scan.sh "$ZIP"
 
       - name: Upload canonical release evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: supcheckout-release-${{ env.RELEASE_SOURCE_SHA }}
           path: |
@@ -109,7 +109,7 @@ jobs:
         with:
           python-version: '3.14'
 
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.5'
           extensions: zip
@@ -145,7 +145,7 @@ jobs:
           cp "$MANIFEST" "cross-platform-evidence/${RUNNER_OS}.manifest.sha256"
 
       - name: Upload cross-platform evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: supcheckout-cross-platform-${{ runner.os }}-${{ env.RELEASE_SOURCE_SHA }}
           path: cross-platform-evidence/
@@ -159,19 +159,19 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Download canonical release evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: supcheckout-release-${{ env.RELEASE_SOURCE_SHA }}
           path: canonical
 
       - name: Download Linux evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: supcheckout-cross-platform-Linux-${{ env.RELEASE_SOURCE_SHA }}
           path: linux
 
       - name: Download Windows evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: supcheckout-cross-platform-Windows-${{ env.RELEASE_SOURCE_SHA }}
           path: windows
@@ -223,7 +223,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.3'
           extensions: curl, mbstring, mysqli, zip
@@ -231,7 +231,7 @@ jobs:
           tools: none
 
       - name: Download exact built release evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: supcheckout-release-${{ env.RELEASE_SOURCE_SHA }}
           path: release-output
@@ -373,7 +373,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: '8.3'
           extensions: curl, mbstring, mysqli, zip
@@ -381,7 +381,7 @@ jobs:
           tools: none
 
       - name: Download canonical SUPCheckout artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: supcheckout-release-${{ env.RELEASE_SOURCE_SHA }}
           path: release-output
