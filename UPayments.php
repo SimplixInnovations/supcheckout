@@ -1287,40 +1287,6 @@ add_action( 'woocommerce_blocks_loaded', function() {
     });
 });
 
-register_activation_hook(__FILE__, 'myPaymentPluginSetupCheckout');
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy activation callback retained for existing plugin lifecycle compatibility.
-function myPaymentPluginSetupCheckout() {
-    if ( ! class_exists( 'WooCommerce' ) ) {
-        add_action( 'admin_notices', 'upaymentsMissingWcNotice' );
-        return;
-    }
-    $checkout_page_id = wc_get_page_id('checkout');
-    if (!$checkout_page_id) {
-        return;
-    }
-
-    $post = get_post($checkout_page_id);
-    if (!$post) {
-        return;
-    }
-
-    $has_shortcode = has_shortcode($post->post_content, 'woocommerce_checkout');
-    $has_block     = has_block('woocommerce/checkout', $post->post_content);
-
-    $use_blocks = false;
-    $settings = get_option("woocommerce_upayments_settings");
-    if (is_array($settings) && isset($settings['enable_block_checkout']) && $settings['enable_block_checkout'] === 'yes') {
-        $use_blocks = true;
-    }
-
-    if (!$has_shortcode && !$has_block && !$use_blocks) {
-        wp_update_post([
-            'ID'           => $checkout_page_id,
-            'post_content' => '[woocommerce_checkout]', // default: classic
-        ]);
-    }
-}
-
 /* Subscription Product Data Handler from product Data Page - Start */
 SubscriptionComposition::register_presentation_hooks();
 

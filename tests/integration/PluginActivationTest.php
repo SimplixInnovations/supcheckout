@@ -62,9 +62,12 @@ if ('verify' === $phase) {
 
     $checkout_page_id = wc_get_page_id('checkout');
     $checkout_page = $checkout_page_id > 0 ? get_post($checkout_page_id) : null;
+    // The merchant owns the checkout page. Page builders and checkout plugins render
+    // checkout without the shortcode or block in post_content, so activation must
+    // never rewrite the page.
     supcheckout_cert_assert(
-        $checkout_page instanceof WP_Post && '[woocommerce_checkout]' === $checkout_page->post_content,
-        'SUPCheckout activation callback executed and replaced the marker with the Classic checkout shortcode'
+        $checkout_page instanceof WP_Post && $activation_marker === $checkout_page->post_content,
+        'SUPCheckout activation leaves the merchant checkout page content byte-for-byte unchanged'
     );
 
     $gateways = WC()->payment_gateways()->payment_gateways();
