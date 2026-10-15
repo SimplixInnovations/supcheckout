@@ -132,6 +132,7 @@ namespace Simplixi\SUPCheckout\Payment {
     }
 
     function __($text, $domain = 'default') { return $text; }
+    function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
     function wc_get_logger() { return new FakeLogger(); }
 
     class FakeWpError {}
@@ -797,6 +798,20 @@ namespace {
     ok(strpos($order->notes[0], 'track-a') !== false, 'R2 exhaustion note names the unverified track');
     same($order->get_status(), 'pending', 'R2 exhausted secondary leaves order unpaid');
 
+    // R2b: a callback track is untrusted input. Markup in it must reach the admin
+    // order note as inert text (WooCommerce renders notes through wp_kses_post).
+    list($gateway, $order) = reset_fixture(598);
+    $rotate($order, 'merchant-order-598-b');
+    \Simplixi\SUPCheckout\Payment\state()['remote_response'] = array('code' => 500, 'body' => '');
+    $hostile_track = '<a/href=//evil.example>refund</a>';
+    PaymentLifecycle::route_callback($gateway, $order, $hostile_track, 'merchant-order-598', 'webhook');
+    for ($attempt = 0; $attempt < 6; $attempt++) {
+        \Simplixi\SUPCheckout\Payment\state()['scheduled'] = array();
+        PaymentLifecycle::reconcile_secondary(598);
+    }
+    same(count($order->notes), 1, 'R2b hostile-track exhaustion adds one note');
+    ok(isset($order->notes[0]) && strpos($order->notes[0], '<a') === false, 'R2b exhaustion note never carries markup from a callback track');
+    ok(isset($order->notes[0]) && strpos($order->notes[0], '&lt;a/href=//evil.example&gt;') !== false, 'R2b exhaustion note shows the track as escaped text');
     // R3: an authenticated capture that cannot bind to the current order economics is surfaced once.
     list($gateway, $order) = reset_fixture(596);
     $rotate($order, 'merchant-order-596-b');

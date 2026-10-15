@@ -607,7 +607,9 @@ final class PaymentLifecycle {
         }
         if (empty($remaining) || $attempt >= self::MAX_RECONCILE_ATTEMPTS) {
             if (!empty($remaining) && method_exists($order, 'add_order_note')) {
-                $tracks = implode(', ', array_map(function ($entry) { return $entry['track']; }, $remaining));
+                // Tracks come from untrusted callbacks; WooCommerce renders notes through
+                // wp_kses_post, so they are escaped to stay inert text.
+                $tracks = implode(', ', array_map(function ($entry) { return esc_html($entry['track']); }, $remaining));
                 $order->add_order_note(
                     sprintf(
                         /* translators: %s: comma-separated UPayments track IDs. */
@@ -799,7 +801,7 @@ final class PaymentLifecycle {
             sprintf(
                 /* translators: %s: UPayments track ID. */
                 __('UPayments reported a transaction for another payment attempt on this order (track %s) whose amount or currency no longer matches the order. SUPCheckout did not apply it. Review it in the UPayments merchant dashboard.', 'supcheckout'),
-                (string) $track_id
+                esc_html((string) $track_id)
             )
         );
         $order->save();
