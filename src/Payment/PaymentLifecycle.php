@@ -143,7 +143,7 @@ final class PaymentLifecycle {
             self::finish_callback($is_browser, false, null, null);
         }
 
-        $order_id = self::parse_order_id($order_field['value']);
+        $order_id = self::parse_callback_order_id($order_field['value']);
         $track_id = self::parse_track_id($track_field['value']);
         $requested_order_id = self::parse_generic_identifier($requested_field['value'], 255);
         if ($order_id === null || $track_id === null || $requested_order_id === null) {
@@ -155,7 +155,7 @@ final class PaymentLifecycle {
         $gateway = self::gateway();
         $source = $is_browser ? 'browser' : 'webhook';
         $outcome = self::route_callback($gateway, $order, $track_id, $requested_order_id, $source);
-        self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order);
+        self::finish_callback($is_browser, self::outcome_captured($outcome), $gateway, $order, $outcome);
     }
 
     /**
@@ -1262,6 +1262,23 @@ final class PaymentLifecycle {
             && $order->has_status('refunded');
     }
 
+    /**
+     * Order ID from a provider callback. UPayments appends its return query with "?"
+     * to a return URL that already has one, so wc_order_id arrives as
+     * "<id>?payment_id=...". Keep the leading ID only in that exact shape; anything
+     * else stays strict. The ID is a routing hint: preflight still binds it to the
+     * order's provider identity, and paid state still needs verified provider status.
+     *
+     * @param mixed $value Raw wc_order_id boundary value.
+     * @return int|null
+     */
+    public static function parse_callback_order_id($value) {
+        if (is_string($value) && preg_match('/^([1-9][0-9]{0,17})\?/', $value, $matches)) {
+            return self::parse_order_id($matches[1]);
+        }
+        return self::parse_order_id($value);
+    }
+
     private static function parse_order_id($value) {
         if (is_int($value)) {
             return $value > 0 ? $value : null;
@@ -1300,17 +1317,55 @@ final class PaymentLifecycle {
         return is_array($gateways) && isset($gateways['upayments']) ? $gateways['upayments'] : null;
     }
 
-    private static function finish_callback($is_browser, $captured, $gateway, $order) {
+    /**
+     * Where a returning browser goes, and which notice it sees. Paid orders reach
+     * order-received. A failure or cancellation verified with the provider sends the
+     * customer back to pay the same order, with a message. Everything else stays on
+     * the neutral page and reveals nothing.
+     *
+     * @return array{url: string, notice: array{type: string, message: string}|null}
+     */
+    public static function browser_redirect($captured, $outcome, $gateway, $order) {
+        if ($captured && is_object($gateway) && is_object($order) && method_exists($gateway, 'get_return_url')) {
+            $candidate = $gateway->get_return_url($order);
+            if (is_string($candidate) && $candidate !== '') {
+                return array('url' => $candidate, 'notice' => null);
+            }
+        }
+        $state = is_array($outcome) && isset($outcome['state']) ? (string) $outcome['state'] : '';
+        if (($state === 'failed' || $state === 'cancelled')
+            && is_object($order)
+            && method_exists($order, 'needs_payment') && $order->needs_payment()
+            && method_exists($order, 'get_checkout_payment_url')
+        ) {
+            $pay_url = $order->get_checkout_payment_url();
+            if (is_string($pay_url) && $pay_url !== '') {
+                return array(
+                    'url' => $pay_url,
+                    'notice' => array(
+                        'type' => 'error',
+                        'message' => __('Your payment was not completed. Please try again or choose another payment method.', 'supcheckout'),
+                    ),
+                );
+            }
+        }
+        return array('url' => self::neutral_url(), 'notice' => null);
+    }
+
+    private static function finish_callback($is_browser, $captured, $gateway, $order, $outcome = null) {
         self::send_nocache_headers();
 
         if ($is_browser) {
-            $redirect = self::neutral_url();
-            if ($captured && is_object($gateway) && is_object($order) && method_exists($gateway, 'get_return_url')) {
-                $candidate = $gateway->get_return_url($order);
-                if (is_string($candidate) && $candidate !== '') {
-                    $redirect = $candidate;
-                }
-                $woocommerce = WC();
+            $target = self::browser_redirect($captured, $outcome, $gateway, $order);
+            $redirect = $target['url'];
+            $woocommerce = function_exists('WC') ? WC() : null;
+            // A notice needs the customer's WooCommerce session; without one, skip it.
+            if (is_array($target['notice']) && function_exists('wc_add_notice')
+                && is_object($woocommerce) && isset($woocommerce->session) && is_object($woocommerce->session)
+            ) {
+                wc_add_notice($target['notice']['message'], $target['notice']['type']);
+            }
+            if ($captured && $redirect !== self::neutral_url()) {
                 if (is_object($woocommerce) && isset($woocommerce->cart) && is_object($woocommerce->cart)
                     && method_exists($woocommerce->cart, 'empty_cart')
                 ) {
