@@ -26,7 +26,7 @@ Until then: prepare only. No live monetary transaction.
 Credit Card / KNET where account supports:
 
 1. successful initial payment
-2. explicit cancel
+2. explicit cancel (record the provider's authenticated result per method; the sandbox reports a KNET cancel as `NOT CAPTURED`, so it is handled like a decline, see `evidence/STAGING-REHEARSAL-2026-10-15.md` Step 6)
 3. decline
 4. 3DS/authentication failure if applicable
 5. browser closes before return

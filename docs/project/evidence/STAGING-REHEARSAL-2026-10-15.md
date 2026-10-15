@@ -78,3 +78,27 @@ Metadata written by the official plugin on paid and failed orders: `UPayments_or
 - #9337 shows no UPayments box or rows.
 - Gateway settings (title, description, design, the "Completed" preference, WCML country restriction) carry over unchanged.
 - Arabic labels are checked separately, because the plugin's text domain changes.
+
+## Step 6: SUPCheckout against the UPayments sandbox
+
+Sandbox key `jtest123`, KNET test card `8888880000000001`. Expiry `09/30` captures, and any other expiry is not captured. The staging guard blocks all email, so every "Email … failed to send" order note below is expected.
+
+### Before PR #141 (package from `main` `a9a7da9`)
+
+| Order | Scenario | Result |
+|---|---|---|
+| #11577 | KNET success | Order paid correctly, but the browser **landed on the home page**. UPayments glues its return query with `?`: `wc_order_id=11577?payment_id=…`. The order ID did not parse, so the plugin fell back to the neutral redirect. Fixed by PR #141. |
+| #11578 | KNET success in SAR (WCML multicurrency) | Verified amount and currency bound to the finalized SAR order total. Paid once. |
+
+### After PR #141: package `0b475e52a5c338f4e0c36d29de5dffc431599a986c9c530165a3d40028543808` (62 files, `main` `d8a9554`)
+
+Installed-tree fingerprint on staging (database `Delete_MYOW_DB25`), sorted `sha256sum` of all 62 files: `e4b213fe1efc69b4514191b5b90133b4cb9718b22d5231eb042670e5e79e3f5c`. It matches the extracted verified ZIP.
+
+| # | Order | Scenario | Landing page | Order result |
+|---|---|---|---|---|
+| 1 | #11580 | KNET success | FunnelKit thank-you page for #11580 | Processing. `CAPTURED`, PaymentID `100628810000039116` is the transaction ID. Stock reduced once (3→2). FunnelKit upsell skipped cleanly. |
+| 2 | #11581 | KNET decline (expiry not `09/30`) | `/checkout/order-pay/11581/` with "Your payment was not completed…" | Failed, from the authenticated provider status. No payment ID, no paid date, stock not reduced. |
+| 3 | #11582 | **Cancel** button on the KNET sandbox page | `/checkout/order-pay/11582/` with the same notice | Failed. The provider reports a KNET cancel as `NOT CAPTURED`, not `CANCELLED`. The plugin follows the authenticated provider status, never the URL it was returned to, so a KNET cancel is handled like a decline. The cancel → checkout path runs only when the provider answers `CANCELLED`. |
+| 4 | #11580 | Replay of the exact captured browser return URL (`curl`) | `302` to the same thank-you page; `Cache-Control: no-cache, must-revalidate, max-age=0, no-store, private` | **No change.** No new note, no second payment note, no second stock reduction, no email attempt. |
+
+Access log for #11580: the provider's server notification (`POST /wc-api/wc_upayments/?wc_order_id=11580`, 17:06:16) arrived **two seconds before** the browser return (`GET …?page=success&wc_order_id=11580?payment_id=…`, 17:06:18). The order was paid exactly once, so the lifecycle lock held under a real webhook-first race.
