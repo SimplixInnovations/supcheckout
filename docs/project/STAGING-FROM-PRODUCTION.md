@@ -28,7 +28,7 @@ Take a fresh WPvivid backup of production and confirm it completed. Note the tim
 
 ## Step 2: neutralize the copy before its first request
 
-Use ServerAvatar's file manager or SSH on the **staging** application.
+Use ServerAvatar's file manager or SSH on the **staging** application. Commands below run as the staging application's own user, for example `sudo -u <app-user> -- wp --path=<staging public_html> …`; find the folder with `grep -l "staging.myorganicworld.net" /home/*/*/public_html/wp-config.php`.
 
 1. Delete `wp-content/object-cache.php`. The LiteSpeed object cache would otherwise connect to the same cache server as production, and staging could write into production's cache.
 2. In the staging `wp-config.php`:
@@ -46,6 +46,23 @@ Use ServerAvatar's file manager or SSH on the **staging** application.
 3. Upload `tests/staging/supcheckout-staging-guard.php` to `wp-content/mu-plugins/supcheckout-staging-guard.php`.
 4. Upload `tests/staging/sanitize-staging.php` and the `tests/staging/lib/` folder to a directory **outside** the web root, for example `~/supcheckout-staging/`.
 5. Remove any ServerAvatar cron job that the clone copied for the staging application. Cron is run by hand in later steps.
+
+## Step 2b: HTTPS for the staging domain
+
+Try the panel's certificate install first. If it fails although DNS is correct (A record on this server, no stray AAAA, no CAA), check the challenge path:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}
+" http://staging.myorganicworld.net/.well-known/acme-challenge/x
+```
+
+If files in the site root are served but every `/.well-known/` path returns the web server's own 404 (seen on the first OpenLiteSpeed staging clone, 2026-10-15), do not edit the shared web-server configuration. Use DNS validation instead:
+
+```bash
+certbot certonly --manual --preferred-challenges dns -d staging.myorganicworld.net --cert-name <app-name>
+```
+
+Add the TXT record it shows (`_acme-challenge.staging`), wait until `dig +short TXT _acme-challenge.staging.myorganicworld.net @8.8.8.8` returns it, then continue. Install the certificate through the panel, or re-enable the app's HTTPS listener from the panel's own saved config. Manual certificates do not auto-renew: repeat the command within 90 days if staging is still needed.
 
 ## Step 3: verify with WP-CLI (SSH, staging application directory)
 
@@ -69,7 +86,7 @@ wp eval 'var_dump( wp_remote_get( "https://apiv2api.upayments.com/" ) instanceof
 ```bash
 wp plugin list --status=active --field=name
 ```
-→ ZeptoMail, FunnelKit Automations, Google for WooCommerce, Modular Connector and LiteSpeed Cache are absent.
+→ ZeptoMail (plugin folder `transmail`), FunnelKit Automations, Google for WooCommerce, Modular Connector and LiteSpeed Cache are absent.
 
 If any check fails, stop and fix it before Step 4.
 
@@ -91,7 +108,7 @@ Run the dry run again. Every count must be `0`.
 
 What it does:
 - **Removes:** customer names, emails, phones, addresses, IPs and notes from every order (including checkout drafts and trashed orders), users and the customer lookup; customer login names and passwords (production passwords stop working on staging); the text of order notes and reviews, plus action/webhook log comments; FunnelKit contacts, abandoned carts and engagement data; email logs, form entries, sessions and stored payment tokens; UPayments customer/card tokens; the copied UPayments API key, IBAN and multi-merchant accounts; the token identity secret. It also forces test mode.
-- **Stops:** per-order UPayments jobs (all arguments), all pending scheduled actions and WooCommerce webhooks, and deletes WooCommerce REST API keys. It leaves the hourly `upay_process_subscriptions` event alone: both UPayments plugins re-create it on every page load, and it cannot charge anyone once the key and tokens are gone and WP-Cron is disabled.
+- **Stops:** per-order UPayments jobs (all arguments), all pending scheduled actions and WooCommerce webhooks, and deletes WooCommerce REST API keys. It leaves the hourly `upay_process_subscriptions` and `upay_hourly_cron_job` events alone: UPayments plugins re-create them on every page load, and they cannot charge anyone once the key and tokens are gone and WP-Cron is disabled.
 - **Keeps:** administrator and shop-manager accounts, order numbers, totals, currencies, statuses, payment methods, UPayments order metadata, products, settings, WPML and the FunnelKit funnels.
 
 Third-party service credentials held in other plugins' settings stay in the copy. The guard stops those plugins or blocks their traffic. Delete them too if your policy requires it.

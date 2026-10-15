@@ -77,6 +77,8 @@ update_option('upayments_token_identity_secret_v2', 'copied-secret');
 // Per-order UPayments jobs carry arguments; wp_clear_scheduled_hook() alone would miss them.
 wp_schedule_single_event(time() + 3600, 'simplixpay_upayments_reconcile_order', array($order_id));
 wp_schedule_single_event(time() + 7200, 'simplixpay_upayments_reconcile_secondary', array($order_id));
+// Recurring jobs that UPayments plugins re-create on every page load (official 3.1.1 included).
+wp_schedule_event(time() + 3600, 'hourly', 'upay_hourly_cron_job');
 if (function_exists('as_schedule_single_action')) {
     as_schedule_single_action(time() + 3600, 'supcheckout_cert_sanitizer_pending');
 }
@@ -171,6 +173,7 @@ supcheckout_cert_assert('UPayments' === $settings['title'], 'non-secret gateway 
 supcheckout_cert_assert(false === get_option('upayments_token_identity_secret_v2', false), 'copied token identity secret removed');
 supcheckout_cert_assert(false === wp_next_scheduled('simplixpay_upayments_reconcile_order', array($order_id)), 'per-order reconciliation job with arguments removed');
 supcheckout_cert_assert(false === wp_next_scheduled('simplixpay_upayments_reconcile_secondary', array($order_id)), 'per-order secondary reconciliation job with arguments removed');
+supcheckout_cert_assert(false !== wp_next_scheduled('upay_hourly_cron_job'), 'self-recreating official-plugin hourly job is left alone, not counted as remaining work');
 if (function_exists('as_has_scheduled_action')) {
     supcheckout_cert_assert(!as_has_scheduled_action('supcheckout_cert_sanitizer_pending'), 'pending scheduled actions canceled');
 }
