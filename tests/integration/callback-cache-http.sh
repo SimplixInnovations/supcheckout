@@ -167,4 +167,44 @@ grep -Fq 'Order status unavailable.' <<<"$body" || {
 }
 assert_no_cache_headers 'public status unavailable'
 
+# UPayments appends its own query to the return URL with "?" although the URL
+# already has one (observed on the sandbox, 2026-10-15), so the order ID arrives as
+# "<id>?payment_id=...". A paid, verified order must still reach the order-received
+# page; this needs no provider call because the paid track is answered locally.
+paid_order_id="$("$wp_cli" eval '
+  $order = wc_create_order();
+  $order->set_payment_method("upayments");
+  $order->set_total("4.450");
+  $order->update_meta_data("UPayments_order_id", "cert-glued-requested");
+  $order->update_meta_data("UPayments_TrackID", "cert-glued-track");
+  $order->update_meta_data("_simplixpay_upayments_status_track_v1", "cert-glued-track");
+  $order->update_meta_data("_simplixpay_upayments_status_requested_v1", "cert-glued-requested");
+  $order->update_meta_data("_upay_verified_capture", 1);
+  $order->set_status("processing");
+  echo $order->save();
+' --path="$wp_root")"
+[[ "$paid_order_id" =~ ^[0-9]+$ ]] || { echo "FAIL: could not seed the paid order ($paid_order_id)" >&2; exit 1; }
+
+: > "$headers_file"
+: > "$body_file"
+supcheckout_curl_once_or_diagnose \
+  'browser return with provider-glued query' \
+  "$server_pid" \
+  "$server_log" \
+  -sS -D "$headers_file" -o "$body_file" \
+  --max-time 20 \
+  -X GET \
+  "$base_url/?wc-api=wc_upayments&page=success&wc_order_id=${paid_order_id}?payment_id=100628810000033571&result=CAPTURED&track_id=cert-glued-track&requested_order_id=cert-glued-requested" \
+  >/dev/null
+
+glued_headers="$(tr -d '\r' <"$headers_file")"
+echo "glued-return status line: $(head -n 1 <<<"$glued_headers")"
+grep -Eiq '^Location:.*order-received' <<<"$glued_headers" || {
+  echo "FAIL: paid order's browser return with the provider's glued query did not reach order-received" >&2
+  echo "$glued_headers" >&2
+  exit 1
+}
+echo 'PASS: browser return with the provider-glued query reaches order-received'
+assert_no_cache_headers 'browser return with provider-glued query'
+
 echo 'PASS: callback-cache HTTP fixture completed'
