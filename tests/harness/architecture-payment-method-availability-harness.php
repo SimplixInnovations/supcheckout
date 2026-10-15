@@ -19,6 +19,7 @@ function a2_reset() {
         'lock_releases' => 0,
         'update_result' => true,
         'option_writes' => 0,
+        'option_writes_by_name' => array(),
         'transport_calls' => 0,
         'lock_held_during_transport' => null,
         'gate_during_transport' => null,
@@ -47,6 +48,7 @@ function get_option($name, $default = false) {
 function update_option($name, $value, $autoload = null) {
     global $a2_state;
     $a2_state['option_writes']++;
+    $a2_state['option_writes_by_name'][$name] = (isset($a2_state['option_writes_by_name'][$name]) ? $a2_state['option_writes_by_name'][$name] : 0) + 1;
     if (!$a2_state['update_result']) {
         return false;
     }
@@ -248,7 +250,10 @@ a2_assert_same(1, $state['transport_calls'], 'fresh miss dispatches provider exa
 a2_assert_same(false, $state['lock_held_during_transport'], 'advisory lock is released before outbound HTTP');
 a2_assert_same(1, $state['lock_acquires'], 'fresh miss acquires one advisory lock');
 a2_assert_same(1, $state['lock_releases'], 'fresh miss releases the acquired advisory lock');
-a2_assert_same(1, $state['option_writes'], 'fresh miss persists durable gate exactly once');
+a2_assert_same(1, $state['option_writes_by_name']['upayments_payment_methods_rate_gate_live'] ?? 0, 'fresh miss persists durable gate exactly once');
+$lkg_writes = array_sum(array_intersect_key($state['option_writes_by_name'], array_flip(preg_grep('/^upay_pm_lkg_v1_[a-f0-9]{16}$/', array_keys($state['option_writes_by_name'])))));
+a2_assert_same(1, $lkg_writes, 'fresh success records exactly one scoped last-known-good copy');
+a2_assert_same(2, $state['option_writes'], 'fresh success writes only the gate and the last-known-good copy');
 $gate = $state['options']['upayments_payment_methods_rate_gate_live'];
 a2_assert($gate >= $before + 65 && $gate <= $after + 65, 'durable gate preserves the 65-second cooldown');
 a2_assert_same($gate, $state['gate_during_transport'], 'durable gate is persisted before outbound HTTP begins');

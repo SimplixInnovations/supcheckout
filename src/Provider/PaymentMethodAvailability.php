@@ -12,6 +12,8 @@ namespace Simplixi\SUPCheckout\Provider;
 final class PaymentMethodAvailability {
     private const CACHE_SCHEMA = 3;
     private const RATE_GATE_COOLDOWN = 65;
+    // How long a successful result may stand in when a refresh is blocked or fails.
+    private const LAST_KNOWN_GOOD_MAX_AGE = 21600;
 
     private const KNOWN_BUTTONS = array(
         'knet',
@@ -105,6 +107,43 @@ final class PaymentMethodAvailability {
         return update_option($this->rate_gate_option_name(), (int) $not_before, false);
     }
 
+    /** @return string */
+    private function last_known_good_name() {
+        return 'upay_pm_lkg_v1_' . substr($this->transient_name(), strlen('upay_pm_v3_'));
+    }
+
+    /**
+     * Keep the latest canonical success, scoped like the fresh cache.
+     *
+     * @param array $canonical Canonical schema-3 success value.
+     * @return void
+     */
+    private function remember_last_known_good(array $canonical) {
+        update_option($this->last_known_good_name(), array('saved_at' => time(), 'value' => $canonical), false);
+    }
+
+    /**
+     * The fresh cache and cooldown expire every minute. While one worker refreshes,
+     * every other checkout would otherwise see "unavailable", and one provider blip
+     * would block the method for the whole cooldown. A recent canonical success
+     * (at most six hours old, same credential and mode) stands in instead. With no
+     * valid last-known-good result the method still fails closed.
+     *
+     * @return array
+     */
+    private function failure_or_last_known_good() {
+        $stored = get_option($this->last_known_good_name(), null);
+        if (is_array($stored)
+            && isset($stored['saved_at'], $stored['value'])
+            && is_int($stored['saved_at'])
+            && $stored['saved_at'] <= time()
+            && time() - $stored['saved_at'] <= self::LAST_KNOWN_GOOD_MAX_AGE
+            && self::classify_cached($stored['value']) === 'success'
+        ) {
+            return $stored['value'];
+        }
+        return array('result' => 'failure');
+    }
     /** @return array|null */
     private function cached() {
         $cached = get_transient($this->transient_name());
@@ -192,7 +231,7 @@ final class PaymentMethodAvailability {
                 return $cached;
             }
             if ($status === 'failure') {
-                return array('result' => 'failure');
+                return $this->failure_or_last_known_good();
             }
         }
 
@@ -204,10 +243,10 @@ final class PaymentMethodAvailability {
                     return $cached;
                 }
                 if ($status === 'failure') {
-                    return array('result' => 'failure');
+                    return $this->failure_or_last_known_good();
                 }
             }
-            return array('result' => 'failure');
+            return $this->failure_or_last_known_good();
         }
 
         $gate = $this->rate_gate();
@@ -222,24 +261,24 @@ final class PaymentMethodAvailability {
             }
             if ($status === 'failure') {
                 $this->release_lock();
-                return array('result' => 'failure');
+                return $this->failure_or_last_known_good();
             }
         }
 
         if ($now < $gate['not_before']) {
             $this->release_lock();
-            return array('result' => 'failure');
+            return $this->failure_or_last_known_good();
         }
 
         $new_not_before = $now + self::RATE_GATE_COOLDOWN;
         if (!$this->set_rate_gate($new_not_before)) {
             $this->release_lock();
-            return array('result' => 'failure');
+            return $this->failure_or_last_known_good();
         }
         $verify_gate = $this->rate_gate();
         if ($verify_gate['not_before'] < $new_not_before) {
             $this->release_lock();
-            return array('result' => 'failure');
+            return $this->failure_or_last_known_good();
         }
 
         // The inherited contract releases the advisory lock before HTTP.
@@ -255,7 +294,7 @@ final class PaymentMethodAvailability {
             || (string) $transport['body'] === ''
         ) {
             $this->cache($failure, $new_not_before);
-            return array('result' => 'failure');
+            return $this->failure_or_last_known_good();
         }
 
         $result = json_decode((string) $transport['body'], true);
@@ -264,13 +303,13 @@ final class PaymentMethodAvailability {
             || !isset($result['data']) || !is_array($result['data'])
         ) {
             $this->cache($failure, $new_not_before);
-            return array('result' => 'failure');
+            return $this->failure_or_last_known_good();
         }
 
         $payment_methods = $result['data'];
         if (!array_key_exists('isWhiteLabel', $payment_methods)) {
             $this->cache($failure, $new_not_before);
-            return array('result' => 'failure');
+            return $this->failure_or_last_known_good();
         }
 
         $white_label = $payment_methods['isWhiteLabel'];
@@ -280,7 +319,7 @@ final class PaymentMethodAvailability {
             $normalized_white_label = false;
         } else {
             $this->cache($failure, $new_not_before);
-            return array('result' => 'failure');
+            return $this->failure_or_last_known_good();
         }
 
         $raw_buttons = isset($payment_methods['payButtons']) && is_array($payment_methods['payButtons'])
@@ -299,7 +338,7 @@ final class PaymentMethodAvailability {
                 $normalized_buttons[$button] = 0;
             } else {
                 $this->cache($failure, $new_not_before);
-                return array('result' => 'failure');
+                return $this->failure_or_last_known_good();
             }
         }
 
@@ -313,6 +352,7 @@ final class PaymentMethodAvailability {
         $payment_methods['isWhiteLabel'] = $normalized_white_label;
         $payment_methods['payButtons'] = $normalized_buttons;
         $this->cache($canonical, $new_not_before);
+        $this->remember_last_known_good($canonical);
         return $payment_methods;
     }
 }
