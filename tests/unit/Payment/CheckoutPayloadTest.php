@@ -36,6 +36,10 @@ final class CheckoutPayloadTest extends TestCase {
         self::assertSame('', CheckoutPayload::provider_mobile('+0965555'));
         self::assertSame('', CheckoutPayload::provider_mobile('+12345'));
         self::assertSame('', CheckoutPayload::provider_mobile('+1234567890123456'));
+        // UPayments limits customer.mobile to 15 characters including '+' (XLIM-12).
+        self::assertSame('+12345678901234', CheckoutPayload::provider_mobile('+12345678901234'));
+        self::assertSame('', CheckoutPayload::provider_mobile('+123456789012345'));
+        self::assertSame('', CheckoutPayload::provider_mobile('00123456789012345'));
         self::assertSame('', CheckoutPayload::provider_mobile('+965 5555 abcd'));
         self::assertSame('', CheckoutPayload::provider_mobile(''));
         self::assertSame('', CheckoutPayload::provider_mobile(null));

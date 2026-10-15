@@ -72,7 +72,8 @@ class CheckoutPayload {
      * Provider customer.mobile in E.164 form, or '' when it cannot be established.
      *
      * Arabic-Indic and Extended Arabic-Indic digits become ASCII digits, a leading 00
-     * international prefix becomes +, and common separators are removed. A number
+     * international prefix becomes +, and common separators are removed. The result is
+     * at most 15 characters including the + (the provider limit). A number
      * without an explicit country code is omitted rather than guessed. This only
      * shapes the optional provider mobile; customer.uniqueId keeps its legacy form.
      *
@@ -93,7 +94,8 @@ class CheckoutPayload {
         if (strpos($phone, '00') === 0) {
             $phone = '+' . substr($phone, 2);
         }
-        return preg_match('/^\+[1-9][0-9]{6,14}$/', $phone) ? $phone : '';
+        // UPayments limits customer.mobile to 15 characters including the + (XLIM-12).
+        return preg_match('/^\+[1-9][0-9]{6,13}$/', $phone) ? $phone : '';
     }
 
     /**
