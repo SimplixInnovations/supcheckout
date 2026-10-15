@@ -482,6 +482,10 @@ foreach (array('UPayments.php', 'includes', 'src', 'templates') as $shipped) {
             !preg_match('/\bwp_(update|insert|delete)_post\s*\(/', $shippedSource),
             'shipped code never creates, rewrites or deletes merchant posts/pages: ' . str_replace($root . '/', '', $shippedFile->getPathname())
         );
+        arch_assert(
+            !preg_match('/\bnew\s+\\\\?WC_Upayments\s*\(/', $shippedSource),
+            'shipped code never constructs a second WC_Upayments gateway (WooCommerce owns the one instance): ' . str_replace($root . '/', '', $shippedFile->getPathname())
+        );
     }
 }
 arch_assert($gatewayClassTokens !== array(), 'legacy WC_Upayments gateway compatibility class remains executable');

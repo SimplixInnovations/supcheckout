@@ -68,6 +68,11 @@ namespace {
 
     class WC_Upayments {
         public static $summary_orders = array();
+        public static $constructed = 0;
+
+        public function __construct() {
+            self::$constructed++;
+        }
 
         public function render_subscription_summary($order) {
             self::$summary_orders[] = $order;

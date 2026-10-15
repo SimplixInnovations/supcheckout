@@ -29,14 +29,14 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
         // Reuse WooCommerce's registered gateway. The gateway registers its hooks in its
         // constructor, so a second instance would render the admin payment box, the
         // thank-you section and the order-totals rows twice.
+        // Without a registered gateway, Blocks does not offer the method at all
+        // (is_active() is false); it never builds an unregistered second instance.
         $registered = self::registered_gateway();
         if ( null !== $registered ) {
             $this->gateway = $registered;
-        } elseif ( class_exists( 'WC_Upayments' ) ) {
-            $this->gateway = new WC_Upayments();
         } elseif ( function_exists( 'wc_get_logger' ) ) {
             wc_get_logger()->warning(
-                'UPayments gateway class not found during Blocks initialization.',
+                'UPayments gateway is not registered with WooCommerce during Blocks initialization.',
                 array( 'source' => 'upayments' )
             );
         }
