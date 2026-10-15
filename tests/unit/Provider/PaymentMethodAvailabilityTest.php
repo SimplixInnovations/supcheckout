@@ -308,6 +308,7 @@ final class PaymentMethodAvailabilityTest extends TestCase {
         $GLOBALS['supcheckout_test_availability']['lock_result'] = '0';
         $name = $this->invoke_private($good, 'last_known_good_name');
         self::assertStringNotContainsString('aged-key', $name);
+        self::assertMatchesRegularExpression('/^supcheckout_pm_lkg_v1_[a-f0-9]{16}$/', $name);
 
         // A different credential or mode never sees it.
         self::assertSame(array('result' => 'failure'), $this->service(false, 'other-key', $this->counting_transport($transport_calls, false))->fetch());

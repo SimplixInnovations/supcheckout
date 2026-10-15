@@ -109,7 +109,7 @@ final class PaymentMethodAvailability {
 
     /** @return string */
     private function last_known_good_name() {
-        return 'upay_pm_lkg_v1_' . substr($this->transient_name(), strlen('upay_pm_v3_'));
+        return 'supcheckout_pm_lkg_v1_' . substr($this->transient_name(), strlen('upay_pm_v3_'));
     }
 
     /**

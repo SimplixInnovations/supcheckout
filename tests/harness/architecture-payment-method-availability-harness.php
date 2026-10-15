@@ -251,7 +251,7 @@ a2_assert_same(false, $state['lock_held_during_transport'], 'advisory lock is re
 a2_assert_same(1, $state['lock_acquires'], 'fresh miss acquires one advisory lock');
 a2_assert_same(1, $state['lock_releases'], 'fresh miss releases the acquired advisory lock');
 a2_assert_same(1, $state['option_writes_by_name']['upayments_payment_methods_rate_gate_live'] ?? 0, 'fresh miss persists durable gate exactly once');
-$lkg_writes = array_sum(array_intersect_key($state['option_writes_by_name'], array_flip(preg_grep('/^upay_pm_lkg_v1_[a-f0-9]{16}$/', array_keys($state['option_writes_by_name'])))));
+$lkg_writes = array_sum(array_intersect_key($state['option_writes_by_name'], array_flip(preg_grep('/^supcheckout_pm_lkg_v1_[a-f0-9]{16}$/', array_keys($state['option_writes_by_name'])))));
 a2_assert_same(1, $lkg_writes, 'fresh success records exactly one scoped last-known-good copy');
 a2_assert_same(2, $state['option_writes'], 'fresh success writes only the gate and the last-known-good copy');
 $gate = $state['options']['upayments_payment_methods_rate_gate_live'];
