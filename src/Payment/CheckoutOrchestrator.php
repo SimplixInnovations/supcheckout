@@ -8,6 +8,7 @@ use UPayments\Token\CustomerTokenIdentity;
 defined('ABSPATH') || exit;
 
 require_once __DIR__ . '/OrderLock.php';
+require_once __DIR__ . '/ProviderErrorSummary.php';
 
 /**
  * Canonical WooCommerce checkout-to-Charge orchestration.
@@ -50,6 +51,38 @@ class CheckoutOrchestrator {
 
     private function execute_request($route, $method, $body = null) {
         return call_user_func($this->requestExecutor, $route, $method, $body);
+    }
+
+    /**
+     * Leave the merchant a private order note explaining a rejected Charge.
+     *
+     * Debug logging is opt-in, so without this a rejection leaves no trace. The
+     * reason is sanitized by ProviderErrorSummary; shoppers keep the generic notice.
+     *
+     * @param mixed $order     WooCommerce order.
+     * @param mixed $transport Charge transport result.
+     * @return void
+     */
+    private function record_charge_rejection($order, $transport) {
+        if (!is_object($order) || !method_exists($order, 'add_order_note')) {
+            return;
+        }
+        $http_status = is_array($transport) && isset($transport['http_status']) ? (int) $transport['http_status'] : 0;
+        $reached = is_array($transport)
+            && !empty($transport['transport_ok'])
+            && isset($transport['curl_errno']) && (int) $transport['curl_errno'] === 0
+            && $http_status > 0;
+        if (!$reached) {
+            $order->add_order_note(__('UPayments could not be reached to start this payment (network error or timeout). The customer was asked to try again.', 'supcheckout'));
+            return;
+        }
+        $detail = ProviderErrorSummary::detail(isset($transport['body']) ? $transport['body'] : '');
+        $order->add_order_note(sprintf(
+            /* translators: 1: HTTP status code, 2: sanitized provider reason. */
+            __('UPayments rejected the payment request (HTTP %1$d): %2$s', 'supcheckout'),
+            $http_status,
+            $detail !== '' ? $detail : __('no reason given', 'supcheckout')
+        ));
     }
 
     /**
@@ -1373,6 +1406,7 @@ class CheckoutOrchestrator {
                 || !isset($transport['body']) || !is_scalar($transport['body'])
             ) {
                 $gateway->log('UPayments charge request failed.', 'warning');
+                $this->record_charge_rejection($order, $transport);
                 WC()->session->set("refresh_totals", true);
                 wc_add_notice(__("Payment request could not be completed. Please try again.", 'supcheckout'), "error");
                 return ["result" => "failure", "redirect" => wc_get_checkout_url()];
@@ -1413,6 +1447,7 @@ class CheckoutOrchestrator {
 
                 if ($result['status'] === false) {
                     $gateway->log('Charge response: provider declared failure.', 'warning');
+                    $this->record_charge_rejection($order, $transport);
                     WC()->session->set("refresh_totals", true);
                     wc_add_notice(__("Payment request could not be completed. Please try again.", 'supcheckout'), "error");
                     return ["result" => "failure", "redirect" => wc_get_checkout_url()];
