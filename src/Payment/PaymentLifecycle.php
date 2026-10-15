@@ -308,7 +308,11 @@ final class PaymentLifecycle {
             if (self::retry_cursor_matches($order, $track_id)) {
                 self::schedule_reconciliation($order, 'order_lock_contention', $track_id);
             }
-            return self::outcome('unchanged', 'order_lock_contention');
+            // The provider has already confirmed this capture; another worker (usually
+            // the webhook) holds the lock while it completes the order.
+            $in_progress = isset($verification['classification'])
+                && $verification['classification'] === ProviderResult::CAPTURED;
+            return self::outcome($in_progress ? 'capture_in_progress' : 'unchanged', 'order_lock_contention');
         }
 
         $capture_attempted = false;
@@ -1326,13 +1330,36 @@ final class PaymentLifecycle {
      * @return array{url: string, notice: array{type: string, message: string}|null}
      */
     public static function browser_redirect($captured, $outcome, $gateway, $order) {
-        if ($captured && is_object($gateway) && is_object($order) && method_exists($gateway, 'get_return_url')) {
+        $state = is_array($outcome) && isset($outcome['state']) ? (string) $outcome['state'] : '';
+        // A capture the provider confirmed but another worker is still completing lands
+        // on order-received too, so the customer is not sent away after paying.
+        if (($captured || $state === 'capture_in_progress')
+            && is_object($gateway) && is_object($order) && method_exists($gateway, 'get_return_url')
+        ) {
             $candidate = $gateway->get_return_url($order);
             if (is_string($candidate) && $candidate !== '') {
                 return array('url' => $candidate, 'notice' => null);
             }
         }
-        $state = is_array($outcome) && isset($outcome['state']) ? (string) $outcome['state'] : '';
+        // Like official 3.1.1, a cancellation returns to checkout, where the cart remains.
+        if ($state === 'cancelled' && function_exists('wc_get_checkout_url')) {
+            return array(
+                'url' => wc_get_checkout_url(),
+                'notice' => array(
+                    'type' => 'notice',
+                    'message' => __('Your payment was cancelled. You can try again when you are ready.', 'supcheckout'),
+                ),
+            );
+        }
+        if ($state === 'pending') {
+            return array(
+                'url' => self::neutral_url(),
+                'notice' => array(
+                    'type' => 'notice',
+                    'message' => __('We are confirming your payment with UPayments. You will receive your order confirmation once it is verified.', 'supcheckout'),
+                ),
+            );
+        }
         if (($state === 'failed' || $state === 'cancelled')
             && is_object($order)
             && method_exists($order, 'needs_payment') && $order->needs_payment()
@@ -1365,7 +1392,8 @@ final class PaymentLifecycle {
             ) {
                 wc_add_notice($target['notice']['message'], $target['notice']['type']);
             }
-            if ($captured && $redirect !== self::neutral_url()) {
+            $paid = $captured || (is_array($outcome) && isset($outcome['state']) && $outcome['state'] === 'capture_in_progress');
+            if ($paid && $redirect !== self::neutral_url()) {
                 if (is_object($woocommerce) && isset($woocommerce->cart) && is_object($woocommerce->cart)
                     && method_exists($woocommerce->cart, 'empty_cart')
                 ) {
