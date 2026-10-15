@@ -68,8 +68,9 @@ class CheckoutOrchestrator {
             return;
         }
         $http_status = is_array($transport) && isset($transport['http_status']) ? (int) $transport['http_status'] : 0;
+        // transport_ok means 2xx only; a 4xx/5xx still carries the provider's status
+        // and body, so the provider was reached whenever cURL succeeded.
         $reached = is_array($transport)
-            && !empty($transport['transport_ok'])
             && isset($transport['curl_errno']) && (int) $transport['curl_errno'] === 0
             && $http_status > 0;
         if (!$reached) {

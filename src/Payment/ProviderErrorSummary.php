@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Payment;
 
 defined('ABSPATH') || exit;
 
+require_once __DIR__ . '/CheckoutPayload.php';
+
 /**
  * Merchant-safe summary of why UPayments rejected a request.
  *
@@ -77,10 +79,9 @@ final class ProviderErrorSummary {
         $text = (string) preg_replace('/[^\s@]+@[^\s@]+\.[^\s@]+/u', '[email]', $text);
         $text = (string) preg_replace('/\b(?=[A-Za-z0-9_\-]*\d)[A-Za-z0-9_\-]{20,}\b/u', '[redacted]', $text);
         $text = trim((string) preg_replace('/\s+/u', ' ', $text));
-        if (mb_strlen($text, 'UTF-8') > self::MAX_LENGTH) {
-            $text = rtrim(mb_substr($text, 0, self::MAX_LENGTH, 'UTF-8')) . '…';
-        }
-        return $text;
+        // CheckoutPayload's truncation is UTF-8 safe with or without mbstring.
+        $bounded = CheckoutPayload::truncate_provider_text($text, self::MAX_LENGTH);
+        return $bounded === $text ? $text : rtrim($bounded) . '…';
     }
 
     private function __construct() {}

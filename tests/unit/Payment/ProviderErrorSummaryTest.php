@@ -59,6 +59,12 @@ final class ProviderErrorSummaryTest extends TestCase {
         self::assertSame('', ProviderErrorSummary::detail(json_encode(array('status' => false))));
     }
 
+    public function test_summary_never_depends_on_the_optional_mbstring_extension(): void {
+        $source = (string) file_get_contents(dirname(__DIR__, 3) . '/src/Payment/ProviderErrorSummary.php');
+
+        self::assertDoesNotMatchRegularExpression('/\bmb_[a-z_]+\s*\(/', $source);
+    }
+
     public function test_arabic_provider_text_is_preserved(): void {
         $body = json_encode(array('message' => 'رقم الهاتف غير صحيح'));
 
