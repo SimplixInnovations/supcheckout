@@ -328,6 +328,18 @@ namespace {
     ok(PaymentLifecycle::merge_request_value(array('x' => '1'), array('x' => '1'), 'x')['valid'], 'identical GET/POST accepted');
     ok(!PaymentLifecycle::merge_request_value(array('x' => '1'), array('x' => '2'), 'x')['valid'], 'conflicting GET/POST rejected');
     ok(!PaymentLifecycle::merge_request_value(array('x' => array('1')), array(), 'x')['valid'], 'array GET rejected');
+
+    // UPayments appends its return query with "?" to a URL that already has one,
+    // so wc_order_id arrives as "<id>?payment_id=..." (sandbox, 2026-10-15).
+    same(PaymentLifecycle::parse_callback_order_id('11577'), 11577, 'callback order id: plain digits');
+    same(PaymentLifecycle::parse_callback_order_id('11577?payment_id=100628810000033571&result=CAPTURED'), 11577, 'callback order id: provider-glued query keeps the leading id');
+    same(PaymentLifecycle::parse_callback_order_id('11577?'), 11577, 'callback order id: bare trailing question mark');
+    same(PaymentLifecycle::parse_callback_order_id('11577x'), null, 'callback order id: other trailing text still rejected');
+    same(PaymentLifecycle::parse_callback_order_id('?11577'), null, 'callback order id: leading question mark rejected');
+    same(PaymentLifecycle::parse_callback_order_id('0?payment_id=1'), null, 'callback order id: zero rejected');
+    same(PaymentLifecycle::parse_callback_order_id('1157 7?x'), null, 'callback order id: spaces rejected');
+    same(PaymentLifecycle::parse_callback_order_id(array('11577')), null, 'callback order id: array rejected');
+    same(PaymentLifecycle::parse_callback_order_id(str_repeat('9', 19) . '?x'), null, 'callback order id: over-long id rejected');
     ok(!PaymentLifecycle::merge_request_value(array(), array('x' => array('1')), 'x')['valid'], 'array POST rejected');
     ok(!PaymentLifecycle::merge_request_value(array(), array(), 'x')['present'], 'missing request field remains missing');
 
@@ -533,6 +545,7 @@ namespace {
     \Simplixi\SUPCheckout\Payment\state()['options']['simplixpay_upay_order_lock_v1_551'] = $lock_record;
     $out = PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
     same($out['reason'], 'order_lock_contention', 'live order lock contention fails closed');
+    same($out['state'], 'capture_in_progress', 'B2 lock contention after a verified CAPTURED reports a capture in progress');
     same($order->payment_complete_calls, 0, 'lock contention prevents completion');
 
     \Simplixi\SUPCheckout\Payment\reset_state();
@@ -765,6 +778,50 @@ namespace {
     PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-596', 'webhook');
     same($order->get_status(), 'pending', 'R3 unbound capture never pays the order');
     same(count($order->notes), 1, 'R3 unbound secondary capture adds one note');
+
+    // B1: where a returning browser lands. A verified failure or cancellation sends the
+    // customer back to pay the same order with a message, not to the home page.
+    if (!function_exists('home_url')) { function home_url($path = '') { return 'https://shop.test' . $path; } }
+    if (!function_exists('is_user_logged_in')) { function is_user_logged_in() { return false; } }
+    if (!function_exists('wc_get_page_permalink')) { function wc_get_page_permalink($page) { return 'https://shop.test/' . $page . '/'; } }
+    if (!function_exists('wc_get_checkout_url')) { function wc_get_checkout_url() { return 'https://shop.test/checkout/'; } }
+    if (!function_exists('add_query_arg')) { function add_query_arg($key, $value, $url) { return $url . (strpos($url, '?') === false ? '?' : '&') . $key . '=' . $value; } }
+    $payable = new class(595, 'merchant-order-595') extends FakeOrder {
+        public $needs = true;
+        public function needs_payment() { return $this->needs; }
+        public function get_checkout_payment_url() { return 'https://shop.test/checkout/order-pay/595/?pay_for_order=true&key=wc_order_k'; }
+    };
+    $gw_with_return = new class extends FakeGateway {
+        public function get_return_url($order) { return 'https://shop.test/checkout/order-received/595/'; }
+    };
+    $r = PaymentLifecycle::browser_redirect(true, array('state' => 'captured', 'reason' => 'captured'), $gw_with_return, $payable);
+    same($r['url'], 'https://shop.test/checkout/order-received/595/', 'B1 captured return lands on order-received');
+    same($r['notice'], null, 'B1 captured return adds no notice');
+    $r = PaymentLifecycle::browser_redirect(false, array('state' => 'failed', 'reason' => 'provider_failed'), $gw_with_return, $payable);
+    same($r['url'], 'https://shop.test/checkout/order-pay/595/?pay_for_order=true&key=wc_order_k', 'B1 verified failure goes back to pay the same order');
+    same(is_array($r['notice']) ? $r['notice']['type'] : null, 'error', 'B1 verified failure shows an error notice');
+    // A cancelled WooCommerce order no longer needs payment; like official 3.1.1, the
+    // customer returns to checkout (the cart is still there) with a notice.
+    $cancelled = new class(596, 'merchant-order-596') extends FakeOrder {
+        public $status = 'cancelled';
+        public function needs_payment() { return false; }
+        public function get_checkout_payment_url() { return 'https://shop.test/checkout/order-pay/596/'; }
+    };
+    $r = PaymentLifecycle::browser_redirect(false, array('state' => 'cancelled', 'reason' => 'provider_cancelled'), $gw_with_return, $cancelled);
+    same($r['url'], 'https://shop.test/checkout/', 'B1 verified cancellation returns to checkout');
+    same(is_array($r['notice']) ? $r['notice']['type'] : null, 'notice', 'B1 verified cancellation shows a notice');
+    $r = PaymentLifecycle::browser_redirect(false, array('state' => 'capture_in_progress', 'reason' => 'order_lock_contention'), $gw_with_return, $payable);
+    same($r['url'], 'https://shop.test/checkout/order-received/595/', 'B2 verified capture still completing lands on order-received');
+    same($r['notice'], null, 'B2 capture in progress adds no notice');
+    $r = PaymentLifecycle::browser_redirect(false, array('state' => 'pending', 'reason' => 'pending'), $gw_with_return, $payable);
+    same($r['url'], 'https://shop.test/?upayments_verification=pending', 'B1 pending return keeps the neutral page');
+    same(is_array($r['notice']) ? $r['notice']['type'] : null, 'notice', 'B1 provider-pending return says the payment is being confirmed');
+    $payable->needs = false;
+    $r = PaymentLifecycle::browser_redirect(false, array('state' => 'failed', 'reason' => 'provider_failed'), $gw_with_return, $payable);
+    same($r['url'], 'https://shop.test/?upayments_verification=pending', 'B1 failed attempt on an order that no longer needs payment stays neutral');
+    $r = PaymentLifecycle::browser_redirect(false, null, null, null);
+    same($r['url'], 'https://shop.test/?upayments_verification=pending', 'B1 unrouted return stays neutral');
+    same($r['notice'], null, 'B1 unrouted return reveals nothing');
 
     // H6: authenticated terminal results reach the historical public status poll.
     list($gateway, $order) = reset_fixture(590); set_provider_transaction(transaction_for($order, 'NOT CAPTURED'));
