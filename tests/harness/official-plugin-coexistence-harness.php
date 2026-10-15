@@ -41,6 +41,14 @@ function coexistence_run($root, $scenario, $official_stub) {
     return array('code' => $code, 'out' => implode("\n", $output));
 }
 
+// Fake WP_PLUGIN_DIR: the official plugin's main file exists on disk, so only real
+// installations count as conflicts (WordPress itself skips missing plugin files).
+$plugins_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'supcheckout-coexistence-plugins-' . getmypid();
+@mkdir($plugins_dir . '/upayments', 0777, true);
+file_put_contents($plugins_dir . '/upayments/UPayments.php', "<?php
+");
+putenv('SUPCHECKOUT_COEXISTENCE_PLUGIN_DIR=' . $plugins_dir);
+
 // A minimal stand-in for the official 3.1.1 main file: same global names, same constants.
 $official_stub = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'supcheckout-official-upayments-stub-' . getmypid() . '.php';
 file_put_contents($official_stub, <<<'PHP'
@@ -84,10 +92,22 @@ coexistence_assert(strpos($notice_shopper['out'], 'notice notice-warning') === f
 $sitewide = coexistence_run($root, 'sitewide', $official_stub);
 coexistence_assert($sitewide['code'] === 0 && strpos($sitewide['out'], 'DECLARED:no') !== false, 'a network-activated official plugin also pauses SUPCheckout');
 
+$stale = coexistence_run($root, 'stale', $official_stub);
+coexistence_assert(strpos($stale['out'], 'DECLARED:yes') !== false && strpos($stale['out'], 'NOTICES:0') !== false, 'a stale active_plugins entry whose UPayments.php file is gone never pauses SUPCheckout');
+
+$stale_sitewide = coexistence_run($root, 'stale_sitewide', $official_stub);
+coexistence_assert(strpos($stale_sitewide['out'], 'DECLARED:yes') !== false && strpos($stale_sitewide['out'], 'NOTICES:0') !== false, 'a stale network-activated entry whose file is gone never pauses SUPCheckout');
+
+$traversal = coexistence_run($root, 'traversal', $official_stub);
+coexistence_assert(strpos($traversal['out'], 'DECLARED:yes') !== false && strpos($traversal['out'], 'NOTICES:0') !== false, 'an invalid path-traversal entry never pauses SUPCheckout');
+
 $unrelated = coexistence_run($root, 'unrelated', $official_stub);
 coexistence_assert(strpos($unrelated['out'], 'DECLARED:yes') !== false && strpos($unrelated['out'], 'NOTICES:0') !== false, 'unrelated active plugins never pause SUPCheckout');
 
 @unlink($official_stub);
+@unlink($plugins_dir . '/upayments/UPayments.php');
+@rmdir($plugins_dir . '/upayments');
+@rmdir($plugins_dir);
 
 echo "\nOfficial plugin coexistence: {$pass} PASS / {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);
@@ -97,6 +117,7 @@ exit($fail === 0 ? 0 : 1);
  */
 function coexistence_child($root, $scenario, $official_stub) {
     define('ABSPATH', __DIR__ . '/');
+    define('WP_PLUGIN_DIR', (string) getenv('SUPCHECKOUT_COEXISTENCE_PLUGIN_DIR'));
     $own = 'supcheckout/UPayments.php';
     $active = array($own);
     $sitewide = array();
@@ -104,6 +125,12 @@ function coexistence_child($root, $scenario, $official_stub) {
         $active = array($own, 'upayments/UPayments.php');
     } elseif ($scenario === 'sitewide') {
         $sitewide = array('upayments/UPayments.php' => time());
+    } elseif ($scenario === 'stale') {
+        $active = array($own, 'removed-upayments/UPayments.php');
+    } elseif ($scenario === 'stale_sitewide') {
+        $sitewide = array('removed-upayments/UPayments.php' => time());
+    } elseif ($scenario === 'traversal') {
+        $active = array($own, '../upayments/UPayments.php');
     } elseif ($scenario === 'unrelated') {
         $active = array($own, 'woocommerce/woocommerce.php', 'funnel-builder/funnel-builder.php');
     }
@@ -111,7 +138,7 @@ function coexistence_child($root, $scenario, $official_stub) {
         'own' => $own,
         'options' => array('active_plugins' => $active),
         'site_options' => array('active_sitewide_plugins' => $sitewide),
-        'multisite' => $scenario === 'sitewide',
+        'multisite' => $scenario === 'sitewide' || $scenario === 'stale_sitewide',
         'can_manage' => $scenario !== 'notice_shopper',
         'actions' => array(),
     );

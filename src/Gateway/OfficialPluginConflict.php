@@ -50,11 +50,34 @@ final class OfficialPluginConflict {
             }
         }
         foreach ($active as $basename) {
-            if (is_string($basename) && $basename !== $own && basename($basename) === self::MAIN_FILE) {
+            if (is_string($basename)
+                && $basename !== $own
+                && basename($basename) === self::MAIN_FILE
+                && self::is_loadable($basename)
+            ) {
                 return $basename;
             }
         }
         return null;
+    }
+
+    /**
+     * Mirror WordPress's own active-plugin validation: a stale entry whose file is gone,
+     * or an invalid path, never loads, so it must never pause SUPCheckout either.
+     *
+     * @param string $basename Plugin basename from active_plugins.
+     * @return bool
+     */
+    private static function is_loadable($basename) {
+        if (!defined('WP_PLUGIN_DIR')
+            || strpos($basename, '..') !== false
+            || strpos($basename, ':') !== false
+            || strpos($basename, '\\') !== false
+            || $basename[0] === '/'
+        ) {
+            return false;
+        }
+        return is_file(WP_PLUGIN_DIR . '/' . $basename);
     }
 
     /**
