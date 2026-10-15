@@ -53,6 +53,10 @@ function delete_option($name) {}
 
 /** @return bool */
 function wp_cache_delete($key, $group = '') {}
+/** @return mixed */
+function wp_cache_get($key, $group = '') {}
+/** @return bool */
+function wp_cache_set($key, $data, $group = '', $expire = 0) {}
 function wp_remote_get($url, $args = array()) {}
 function is_wp_error($value) {}
 function wp_remote_retrieve_response_code($response) {}

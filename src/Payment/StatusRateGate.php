@@ -8,8 +8,9 @@ defined('ABSPATH') || exit;
  * Small database-atomic rate gate for authenticated payment-status queries.
  *
  * The provider's dedicated endpoint documents 30 requests/minute. We use 30
- * one-minute slots per credential/mode scope. WordPress add_option() is backed
- * by a unique option_name, so concurrent workers cannot acquire the same slot.
+ * one-minute slots per credential/mode scope. Each slot is claimed with an
+ * INSERT IGNORE against the unique option_name index, so concurrent workers cannot
+ * acquire the same slot (WordPress add_option() is check-then-upsert, not a lock).
  * Old slot options are removed when the minute bucket advances.
  *
  * Callback-triggered lookups (browser return, webhook) are reachable by any
@@ -65,7 +66,7 @@ final class StatusRateGate {
         $usable = $source === 'reconcile' ? self::LIMIT_PER_MINUTE : self::CALLBACK_SLOTS_PER_MINUTE;
         for ($slot = 0; $slot < $usable; $slot++) {
             $option_name = self::slot_name($scope, $bucket, $slot);
-            if (add_option($option_name, time(), '', 'no')) {
+            if (OrderLock::insert_if_absent($option_name, (string) time())) {
                 return true;
             }
         }

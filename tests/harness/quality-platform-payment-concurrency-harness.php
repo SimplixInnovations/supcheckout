@@ -57,7 +57,8 @@ q3_assert(q3_contains($rate_gate, '@param mixed $gateway'), 'rate gate documents
 q3_assert(q3_contains($rate_gate, 'private const LIMIT_PER_MINUTE = 30;'), 'rate ceiling remains exactly 30 per minute');
 q3_assert(q3_contains($rate_gate, "private const PREFIX = 'simplixpay_upay_status_v1_';"), 'rate-slot option identity remains frozen');
 q3_assert(q3_contains($rate_gate, "hash_hmac('sha256', \$mode . '|' . \$gateway->apiKey, \$salt)"), 'credential/mode scope remains HMAC-derived');
-q3_assert(q3_contains($rate_gate, "add_option(\$option_name, time(), '', 'no')"), 'rate slots retain atomic non-autoloaded add_option acquisition');
+q3_assert(q3_contains($rate_gate, 'OrderLock::insert_if_absent($option_name, (string) time())'), 'rate slots are acquired by the atomic INSERT IGNORE helper');
+q3_assert(!q3_contains($rate_gate, 'if (add_option('), 'rate slots never trust non-atomic add_option() acquisition');
 q3_assert(q3_contains($rate_gate, 'self::delete_bucket($scope, $previous_bucket);'), 'valid previous bucket cleanup remains explicit');
 
 q3_assert(
@@ -67,7 +68,11 @@ q3_assert(
 q3_assert(q3_contains($order_lock, '@param mixed $token'), 'order lock documents its defensive mixed token boundary');
 q3_assert(q3_contains($order_lock, 'private const TTL = 45;'), 'order lock TTL remains exactly 45 seconds');
 q3_assert(q3_contains($order_lock, "private const PREFIX = 'simplixpay_upay_order_lock_v1_';"), 'order-lock option identity remains frozen');
-q3_assert(q3_contains($order_lock, "add_option(\$name, \$record, '', 'no')"), 'first lock acquisition remains atomic and non-autoloaded');
+q3_assert(q3_contains($order_lock, 'self::insert_if_absent($name, $record)'), 'first lock acquisition uses the atomic INSERT IGNORE helper');
+q3_assert(!q3_contains($order_lock, 'if (add_option('), 'first lock acquisition never trusts non-atomic add_option()');
+q3_assert(q3_contains($order_lock, 'INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, %s)'), 'lock creation relies on the unique option_name index');
+q3_assert(q3_contains($order_lock, '(int) $inserted !== 1'), 'only the worker whose insert created the row acquires');
+q3_assert(q3_contains($order_lock, "wp_cache_get('notoptions', 'options')"), 'raw lock insert clears the cached option-absent marker');
 q3_assert(q3_contains($order_lock, 'AND option_value = %s'), 'takeover/release SQL remains exact-record compare-and-swap');
 q3_assert(!q3_contains($order_lock, 'delete_option($name)'), 'order lock never blindly deletes a contested lock');
 q3_assert(q3_contains($order_lock, "wp_cache_delete(\$name, 'options')"), 'successful SQL mutation flushes the option cache');

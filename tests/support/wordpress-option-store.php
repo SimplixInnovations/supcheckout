@@ -36,6 +36,16 @@ if (!class_exists('SUPCheckout_Test_WPDB')) {
             }
 
             $args = $statement['args'];
+            if (strpos($statement['query'], 'INSERT IGNORE ') === 0 && count($args) === 3) {
+                list($name, $value) = $args;
+                if (array_key_exists($name, $GLOBALS['supcheckout_test_options'])) {
+                    return 0;
+                }
+
+                $GLOBALS['supcheckout_test_options'][$name] = $value;
+                return 1;
+            }
+
             if (strpos($statement['query'], 'UPDATE ') === 0 && count($args) === 3) {
                 list($replacement, $name, $expected) = $args;
                 if (!array_key_exists($name, $GLOBALS['supcheckout_test_options'])

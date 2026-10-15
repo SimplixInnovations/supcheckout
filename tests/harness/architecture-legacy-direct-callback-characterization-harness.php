@@ -156,6 +156,14 @@ class WC_Payment_Gateway {
 class T3Cart {
     public function empty_cart() { $GLOBALS['t3_cart_clears']++; echo "CART_CLEARED\n"; }
 }
+// OrderLock claims its row with an atomic INSERT IGNORE and fails closed without a
+// database handle. Each scenario uses a fresh order, so every conditional write succeeds.
+class T3Wpdb {
+    public $options = 'wp_options';
+    public function prepare($query, ...$args) { return $query; }
+    public function query($query) { return 1; }
+}
+$GLOBALS['wpdb'] = new T3Wpdb();
 
 
 require_once __DIR__ . '/../support/t3-payment-lifecycle-stubs.php';

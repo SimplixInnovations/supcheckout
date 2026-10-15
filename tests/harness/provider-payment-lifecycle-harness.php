@@ -19,6 +19,10 @@ namespace Simplixi\SUPCheckout\Payment {
             'remote_response' => array('code' => 201, 'body' => ''),
             'remote_mutator' => null,
             'db_query_mutator' => null,
+            // Real WordPress add_option() is check-then-upsert (INSERT ... ON DUPLICATE KEY
+            // UPDATE): two racing callers can both "succeed". 'wp_add_option_race' makes the
+            // fake behave like the losing side of that race.
+            'wp_add_option_race' => false,
             'logs' => array(),
         );
         $GLOBALS['wpdb'] = new FakeWpdb();
@@ -60,6 +64,10 @@ namespace Simplixi\SUPCheckout\Payment {
         return array_key_exists($name, state()['options']) ? state()['options'][$name] : $default;
     }
     function add_option($name, $value = '', $deprecated = '', $autoload = 'yes') {
+        if (state()['wp_add_option_race']) {
+            state()['options'][$name] = $value;
+            return true;
+        }
         if (array_key_exists($name, state()['options'])) { return false; }
         state()['options'][$name] = $value;
         return true;
@@ -147,6 +155,12 @@ namespace Simplixi\SUPCheckout\Payment {
             if (!is_array($prepared) || !isset($prepared['query'], $prepared['args'])) { return false; }
             $query = ltrim((string) $prepared['query']);
             $args = $prepared['args'];
+            if (stripos($query, 'INSERT IGNORE ') === 0 && count($args) === 3) {
+                list($name, $value) = $args;
+                if (array_key_exists($name, state()['options'])) { return 0; }
+                state()['options'][$name] = $value;
+                return 1;
+            }
             if (stripos($query, 'UPDATE ') === 0 && count($args) === 3) {
                 list($replacement, $name, $expected) = $args;
                 if (array_key_exists($name, state()['options']) && state()['options'][$name] === $expected) {
@@ -579,6 +593,21 @@ namespace {
     same((string) $order->get_meta('_simplixpay_upayments_reconcile_exhausted_v1'), '1', 'reconciliation exhaustion is durable');
     ok(count($order->notes) === 1, 'reconciliation exhaustion note emitted once');
     ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_order', array(560)) === false, 'no event remains after exhaustion');
+
+    // C1: acquisition must be atomic even where WordPress add_option() is not.
+    \Simplixi\SUPCheckout\Payment\reset_state();
+    \Simplixi\SUPCheckout\Payment\state()['wp_add_option_race'] = true;
+    $first = OrderLock::acquire(880);
+    ok(is_string($first) && $first !== '', 'C1 first worker acquires the order lock');
+    same(OrderLock::acquire(880), null, 'C1 a racing second worker never acquires a held order lock');
+    OrderLock::release(880, $first);
+    ok(is_string(OrderLock::acquire(880)), 'C1 the lock is acquirable again after release');
+    \Simplixi\SUPCheckout\Payment\reset_state();
+    \Simplixi\SUPCheckout\Payment\state()['wp_add_option_race'] = true;
+    $race_gateway = new FakeGateway();
+    $granted = 0; for ($i = 0; $i < 40; $i++) { if (StatusRateGate::acquire($race_gateway)) { $granted++; } }
+    same($granted, 30, 'C1 the status rate gate grants exactly 30 slots under add_option races');
+    \Simplixi\SUPCheckout\Payment\reset_state();
 
     // ---- Lifecycle hardening (2026-10-10 review) ----
     $prior_meta = '_simplixpay_upayments_prior_requested_v1';

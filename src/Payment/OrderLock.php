@@ -7,9 +7,12 @@ defined('ABSPATH') || exit;
 /**
  * Database-atomic, self-expiring per-order lifecycle lock.
  *
- * Acquisition first uses add_option(), whose unique option_name is atomic. Stale
- * recovery and release use SQL compare-and-swap/delete against the exact stored
- * scalar record so one worker can never delete or replace another worker's lock.
+ * Acquisition uses INSERT IGNORE against the unique option_name index, so exactly
+ * one worker can create the record. WordPress add_option() is not a lock: it checks
+ * existence first and then writes with ON DUPLICATE KEY UPDATE, so two racing
+ * workers can both report success. Stale recovery and release use SQL
+ * compare-and-swap/delete against the exact stored scalar record so one worker can
+ * never delete or replace another worker's lock.
  */
 final class OrderLock {
     private const PREFIX = 'simplixpay_upay_order_lock_v1_';
@@ -29,7 +32,7 @@ final class OrderLock {
         $token = self::token();
         $record = self::encode_record($token, time() + self::TTL);
 
-        if (add_option($name, $record, '', 'no')) {
+        if (self::insert_if_absent($name, $record)) {
             return $token;
         }
 
@@ -86,6 +89,46 @@ final class OrderLock {
             return null;
         }
         return array('expires' => $expires, 'token' => $matches[2]);
+    }
+
+    /**
+     * Create a non-autoloaded option only if no row with that name exists.
+     *
+     * The unique option_name index makes the insert atomic across workers. Fails
+     * closed (false) when the database handle is unavailable.
+     *
+     * @param mixed $name  Option name; anything but a non-empty string fails closed.
+     * @param mixed $value Option value; anything but a string fails closed.
+     * @return bool True only for the single worker whose insert created the row.
+     */
+    public static function insert_if_absent($name, $value) {
+        global $wpdb;
+        if (!is_object($wpdb)
+            || !isset($wpdb->options)
+            || !is_string($wpdb->options)
+            || $wpdb->options === ''
+            || !method_exists($wpdb, 'prepare')
+            || !method_exists($wpdb, 'query')
+            || !is_string($name)
+            || $name === ''
+            || !is_string($value)
+        ) {
+            return false;
+        }
+
+        $sql = $wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, %s)",
+            $name,
+            $value,
+            'no'
+        );
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic lock creation uses freshly prepared SQL and must bypass caches.
+        $inserted = $wpdb->query($sql);
+        if ((int) $inserted !== 1) {
+            return false;
+        }
+        self::flush_option_cache($name);
+        return true;
     }
 
     private static function replace_if_current($name, $expected, $replacement) {
@@ -147,6 +190,15 @@ final class OrderLock {
     private static function flush_option_cache($name) {
         if (function_exists('wp_cache_delete')) {
             wp_cache_delete($name, 'options');
+        }
+        // A raw insert bypasses add_option(), so drop any cached "option absent"
+        // marker or later get_option() calls in this request would still miss it.
+        if (function_exists('wp_cache_get') && function_exists('wp_cache_set')) {
+            $notoptions = wp_cache_get('notoptions', 'options');
+            if (is_array($notoptions) && isset($notoptions[$name])) {
+                unset($notoptions[$name]);
+                wp_cache_set('notoptions', $notoptions, 'options');
+            }
         }
     }
 
