@@ -94,6 +94,15 @@ grep -Fq 'process.dumpable = yes' "$stack_conf" || { echo 'FAIL: PHP-FPM workers
 grep -Fq 'kernel.core_pattern=$conf_dir/core.%e.%p' "$stack_conf" || { echo 'FAIL: worker cores are not written to the stack directory' >&2; exit 1; }
 grep -Fq '"$conf_dir/fpm-bin"' "$stack_conf" || { echo 'FAIL: PHP-FPM binary path is not recorded for gdb' >&2; exit 1; }
 
+# setup-php turns on opcache's tracing JIT for every SAPI. Under PHP-FPM it
+# crashed workers (8.2: SIGSEGV reading a run-time cache) and wedged them in the
+# JIT compiler (8.4: ir_schedule), so the stack must start PHP-FPM with the JIT
+# disabled and refuse a worker that still reports it enabled.
+grep -Fq 'FPM_PHP_ARGS=(-d opcache.jit=disable -d opcache.jit_buffer_size=0)' "$stack_conf" || { echo 'FAIL: PHP-FPM is not started with the opcache JIT disabled' >&2; exit 1; }
+grep -Fq '"$FPM_BIN" "${FPM_PHP_ARGS[@]}" -y "$conf_dir/fpm.conf"' "$stack_conf" || { echo 'FAIL: PHP-FPM launch does not pass the JIT-disable arguments' >&2; exit 1; }
+grep -Fq "opcache_get_status(false)" "$stack_conf" || { echo 'FAIL: readiness probe does not report the worker JIT state' >&2; exit 1; }
+grep -Fq '!= *" JIT=off"' "$stack_conf" || { echo 'FAIL: stack does not fail closed when a PHP-FPM worker runs the JIT' >&2; exit 1; }
+
 cat > "$fakebin/gdb" <<'GDB'
 #!/usr/bin/env bash
 echo "GDB-BACKTRACE-SENTINEL args: $*"
