@@ -723,16 +723,7 @@ class CheckoutOrchestrator {
 
             // Provider mobile: separate representation for API customer.mobile.
             // Only send when explicit international format can be safely established.
-            $provider_mobile = '';
-            if (is_scalar($billing_phone_raw)) {
-                $raw = trim((string) $billing_phone_raw);
-                if (strlen($raw) > 1 && $raw[0] === '+') {
-                    $candidate = preg_replace('/[\s\-\(\)]+/', '', $raw);
-                    if (preg_match('/^\+[0-9]+$/', $candidate) && strlen($candidate) <= 15) {
-                        $provider_mobile = $candidate;
-                    }
-                }
-            }
+            $provider_mobile = CheckoutPayload::provider_mobile($billing_phone_raw);
 
             // Determine if this transaction requires a customer token.
             $requires_token = $isSaveCard || $subscription_plan !== 'one_time';

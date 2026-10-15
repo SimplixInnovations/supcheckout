@@ -22,6 +22,26 @@ final class CheckoutPayloadTest extends TestCase {
         self::assertTrue(CheckoutPayload::classic_method_selected(null, array()));
     }
 
+    public function test_provider_mobile_accepts_only_unambiguous_international_numbers(): void {
+        self::assertSame('+96555551234', CheckoutPayload::provider_mobile('+965 5555 1234'));
+        self::assertSame('+96555551234', CheckoutPayload::provider_mobile('+965-5555-(1234)'));
+        // Arabic-Indic and Extended Arabic-Indic digits, as typed on Arabic keyboards.
+        self::assertSame('+96555551234', CheckoutPayload::provider_mobile('+٩٦٥ ٥٥٥٥ ١٢٣٤'));
+        self::assertSame('+96555551234', CheckoutPayload::provider_mobile('+۹۶۵۵۵۵۵۱۲۳۴'));
+        // The 00 international prefix is the same number.
+        self::assertSame('+96555551234', CheckoutPayload::provider_mobile('0096555551234'));
+        self::assertSame('+96555551234', CheckoutPayload::provider_mobile('٠٠٩٦٥٥٥٥٥١٢٣٤'));
+        // No country code, or not E.164: omit rather than guess.
+        self::assertSame('', CheckoutPayload::provider_mobile('55551234'));
+        self::assertSame('', CheckoutPayload::provider_mobile('+0965555'));
+        self::assertSame('', CheckoutPayload::provider_mobile('+12345'));
+        self::assertSame('', CheckoutPayload::provider_mobile('+1234567890123456'));
+        self::assertSame('', CheckoutPayload::provider_mobile('+965 5555 abcd'));
+        self::assertSame('', CheckoutPayload::provider_mobile(''));
+        self::assertSame('', CheckoutPayload::provider_mobile(null));
+        self::assertSame('', CheckoutPayload::provider_mobile(array('+96555551234')));
+    }
+
     public function test_decimal_comparison_preserves_exact_provider_economics(): void {
         self::assertSame(-1, CheckoutPayload::compare_nonnegative_decimal_strings('9.99', '10'));
         self::assertSame(0, CheckoutPayload::compare_nonnegative_decimal_strings('1.0', '1.000'));
