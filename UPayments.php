@@ -20,6 +20,28 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+use Simplixi\SUPCheckout\Release\Identity;
+use Simplixi\SUPCheckout\Admin\GatewaySettings;
+use Simplixi\SUPCheckout\Gateway\Availability;
+use Simplixi\SUPCheckout\Gateway\CheckoutAssets;
+use Simplixi\SUPCheckout\Gateway\OrderPresentation;
+use Simplixi\SUPCheckout\Provider\EndpointResolver;
+use Simplixi\SUPCheckout\Provider\PaymentMethodAvailability;
+use Simplixi\SUPCheckout\Payment\CheckoutPayload;
+use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
+use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
+use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
+use UPayments\Subscription\Cron\Scheduler;
+use UPayments\Token\CustomerTokenIdentity;
+
+require_once __DIR__ . '/src/Gateway/OfficialPluginConflict.php';
+
+// While the official UPayments plugin is active, declare nothing global: both plugins
+// share the protected legacy function and class names, so the second to load would
+// die with "Cannot redeclare". Top-level functions are bound at compile time, so the
+// declarations below must sit inside this condition rather than after a return.
+if ( ! \Simplixi\SUPCheckout\Gateway\OfficialPluginConflict::pause_if_active( __FILE__ ) ) :
+
 define("UP_PLUGIN_URL", plugin_dir_url(__FILE__));
 define("UP_PLUGIN_PATH", plugin_dir_path(__FILE__));
 define('UPAYMENTS_PLUGIN_FILE', __FILE__ );
@@ -43,19 +65,6 @@ require_once __DIR__ . '/src/Subscription/AutoDeductResultVerifier.php';
 require_once __DIR__ . '/includes/Token/CustomerTokenIdentity.php';
 require_once __DIR__ . '/src/Migration/MigrationBootstrap.php';
 
-use Simplixi\SUPCheckout\Release\Identity;
-use Simplixi\SUPCheckout\Admin\GatewaySettings;
-use Simplixi\SUPCheckout\Gateway\Availability;
-use Simplixi\SUPCheckout\Gateway\CheckoutAssets;
-use Simplixi\SUPCheckout\Gateway\OrderPresentation;
-use Simplixi\SUPCheckout\Provider\EndpointResolver;
-use Simplixi\SUPCheckout\Provider\PaymentMethodAvailability;
-use Simplixi\SUPCheckout\Payment\CheckoutPayload;
-use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
-use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
-use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
-use UPayments\Subscription\Cron\Scheduler;
-use UPayments\Token\CustomerTokenIdentity;
 
 define('SUPCHECKOUT_VERSION', Identity::VERSION);
 define('SUPCHECKOUT_SLUG', Identity::SLUG);
@@ -1454,3 +1463,5 @@ add_action('init', function () {
     wp_safe_redirect(wc_get_account_endpoint_url('view-order') . $order_id);
     exit;
 });
+
+endif;

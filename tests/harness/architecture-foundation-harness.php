@@ -466,7 +466,9 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // localization payloads (the payloads themselves live outside the monolith).
 // Activation no longer rewrites the merchant's checkout page: removing the legacy
 // activation callback reduces the shell by 1,235 bytes.
-$acceptedGatewayBytes = 62131;
+// Official-plugin coexistence adds 508 bytes: the global declarations now sit inside
+// one OfficialPluginConflict condition (the use block moves above it, unchanged).
+$acceptedGatewayBytes = 62639;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'UPayments.php matches current exact architecture ratchet');
 foreach (array('UPayments.php', 'includes', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;
