@@ -11,6 +11,9 @@ class CustomerTokenIdentity {
 
     const LEGACY_TOKEN_PATTERN = '/^[0-9]{8,18}$/';
 
+    // Create calls per establishment when UPayments reports the candidate as taken.
+    const MAX_CREATE_ATTEMPTS = 3;
+
     const SECRET_OPTION = 'upayments_token_identity_secret_v2';
 
     const SECRET_BYTES = 32;
@@ -1017,7 +1020,13 @@ class CustomerTokenIdentity {
             return $result;
         }
 
-        if (!isset($body['data']['customerUniqueToken']) || !is_string($body['data']['customerUniqueToken']) || $body['data']['customerUniqueToken'] === '') {
+        // UPayments echoes the token as a JSON number; accept a positive integer or a
+        // non-empty string and compare it exactly as a string.
+        $echoed = isset($body['data']['customerUniqueToken']) ? $body['data']['customerUniqueToken'] : null;
+        if (is_int($echoed) && $echoed > 0) {
+            $echoed = (string) $echoed;
+        }
+        if (!is_string($echoed) || $echoed === '') {
             $result['reason'] = 'missing_token';
             return $result;
         }
@@ -1027,7 +1036,7 @@ class CustomerTokenIdentity {
             return $result;
         }
 
-        if ($body['data']['customerUniqueToken'] !== $submitted_token) {
+        if ($echoed !== $submitted_token) {
             $result['reason'] = 'token_mismatch';
             return $result;
         }
@@ -2039,7 +2048,29 @@ class CustomerTokenIdentity {
         }
     }
 
+    /**
+     * UPayments rejects an already-registered token with HTTP 422. A fresh random
+     * candidate is tried instead, at most MAX_CREATE_ATTEMPTS times in total; every
+     * other failure is returned immediately.
+     */
     private static function establish_canonical_token(callable $create_token_caller) {
+        $result = array('success' => false, 'token' => null, 'reason' => 'unknown');
+        for ($attempt = 1; $attempt <= self::MAX_CREATE_ATTEMPTS; $attempt++) {
+            $result = self::establish_canonical_token_once($create_token_caller, $duplicate);
+            if ($result['success'] || !$duplicate) {
+                return $result;
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * @param callable $create_token_caller Provider create-token transport.
+     * @param bool     $duplicate          Set true when the provider reported the candidate as taken.
+     * @return array
+     */
+    private static function establish_canonical_token_once(callable $create_token_caller, &$duplicate) {
+        $duplicate = false;
         $result = array(
             'success' => false,
             'token' => null,
@@ -2068,8 +2099,31 @@ class CustomerTokenIdentity {
             return $result;
         }
 
+        $duplicate = self::is_duplicate_token_response($transport);
         $result['reason'] = $api_result['reason'];
         return $result;
+    }
+
+    /**
+     * @param mixed $transport Create-token transport result.
+     * @return bool True only for the provider's 422 "already exist" token error.
+     */
+    private static function is_duplicate_token_response($transport) {
+        if (!is_array($transport) || !isset($transport['http_status'], $transport['body'])
+            || (int) $transport['http_status'] !== 422 || !is_string($transport['body'])
+        ) {
+            return false;
+        }
+        $body = json_decode($transport['body'], true);
+        if (!is_array($body) || !isset($body['errors']['customerUniqueToken']) || !is_array($body['errors']['customerUniqueToken'])) {
+            return false;
+        }
+        foreach ($body['errors']['customerUniqueToken'] as $message) {
+            if (is_string($message) && stripos($message, 'already exist') !== false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ────────────────────────────────────────────────────────
