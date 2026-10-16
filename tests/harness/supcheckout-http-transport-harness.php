@@ -128,4 +128,5 @@ sut_assert(count($transport_calls) === 0, 'unsupported HTTP method performs no r
 sut_assert($result['transport_ok'] === false && $result['http_status'] === 0, 'unsupported HTTP method fails closed');
 
 echo "\nSUPCheckout Production HTTP Transport: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

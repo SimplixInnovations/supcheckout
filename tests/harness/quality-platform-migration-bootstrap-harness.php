@@ -103,4 +103,5 @@ q10_assert(!q10_contains($playbook, 'CURRENT / Q10'), 'playbook rejects stale cu
 q10_assert(q10_contains($workflow, "reject_across_live_records 'CURRENT / Q10'"), 'Governance rejects stale current-Q10 markers');
 
 echo "\nQ10 Migration Bootstrap Analysis: {$q10_pass} PASS / {$q10_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q10_fail === 0 ? 0 : 1);

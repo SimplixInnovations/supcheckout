@@ -99,6 +99,7 @@ if (in_array('--record', $argv, true)) {
 $expected_json = is_file($fixture) ? (string) file_get_contents($fixture) : '';
 if ($expected_json === $json) {
     echo 'Public surface: ' . count($entries) . " entries unchanged.\nPublic surface: PASS\n";
+    echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
     exit(0);
 }
 $expected = json_decode($expected_json, true);
@@ -109,6 +110,7 @@ foreach (surface_multiset_diff($expected, $entries) as $line) {
     echo $line . "\n";
 }
 echo "Re-record only with a stated reason: php tests/harness/public-surface-snapshot-harness.php --record\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit(1);
 
 /**

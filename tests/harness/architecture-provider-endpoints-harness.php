@@ -280,4 +280,5 @@ arch4_assert(
 );
 
 echo "\nArchitecture Provider Endpoints: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

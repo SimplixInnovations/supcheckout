@@ -52,4 +52,5 @@ supdb_assert(
 $GLOBALS['wpdb'] = new WpdbStub();
 
 echo "\nSUPCheckout Provenance DB Failure: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

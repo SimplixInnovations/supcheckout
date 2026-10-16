@@ -105,4 +105,5 @@ q12_assert(!q12_contains($playbook, 'CURRENT / Q12'), 'playbook rejects stale cu
 q12_assert(q12_contains($workflow, "reject_across_live_records 'CURRENT / Q12'"), 'Governance rejects stale current-Q12 markers');
 
 echo "\nQ12 Subscription Product Type Analysis: {$q12_pass} PASS / {$q12_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q12_fail === 0 ? 0 : 1);

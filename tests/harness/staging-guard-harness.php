@@ -110,4 +110,5 @@ echo implode("\n", $child_output) . "\n";
 sg_ok(0 === $child_rc, 'active-guard child process passes');
 
 echo "Staging guard harness: $pass PASS / $fail FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

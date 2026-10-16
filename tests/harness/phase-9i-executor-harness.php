@@ -244,4 +244,6 @@ $source=file_get_contents($root.'/src/Migration/MigrationExecutor.php'); p9e_ass
 p9e_assert(strpos($source,'curl_')===false && strpos($source,'wp_remote_')===false && strpos($source,'getSavedCards')===false,'P9E-STATIC no provider transport calls');
 p9e_assert(strpos($source,CustomerTokenIdentity::SOURCE_CREATE_201)===false,'P9E-STATIC executor never references create_201');
 
-echo "\n--- Phase 9I Executor Report ---\nPASS: $pass\nFAIL: $fail\n"; exit($fail===0?0:1);
+echo "\n--- Phase 9I Executor Report ---\nPASS: $pass\nFAIL: $fail\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
+exit($fail===0?0:1);

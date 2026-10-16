@@ -129,6 +129,7 @@ coexistence_assert(strpos($shim_official['out'], 'ACTIVE:["supcheckout/supchecko
 @rmdir($plugins_dir);
 
 echo "\nOfficial plugin coexistence: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);
 
 /**

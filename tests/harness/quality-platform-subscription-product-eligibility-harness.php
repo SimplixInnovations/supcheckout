@@ -233,4 +233,5 @@ foreach ($closed_quality_current_markers as $marker) {
 }
 
 echo "\nQ19 Subscription Product Eligibility: " . $pass . " PASS / " . $fail . " FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

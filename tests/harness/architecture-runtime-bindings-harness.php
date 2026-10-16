@@ -1911,4 +1911,5 @@ arch2_assert(
 arch2_assert($validProduct['found'], 'matcher accepts direct top-level product-meta registration/callback');
 
 printf("\nArchitecture Runtime Bindings: %d PASS / %d FAIL\n", $pass, $fail);
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

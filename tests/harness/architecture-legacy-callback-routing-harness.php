@@ -276,4 +276,5 @@ if (is_string($gateway_source)) {
 echo "\n--- Approach 3 T2 Legacy Callback Routing Report ---\n";
 echo "PASS: $t2_pass\n";
 echo "FAIL: $t2_fail\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($t2_fail === 0 ? 0 : 1);

@@ -142,4 +142,5 @@ sufi_assert(strpos($customer_css, '.woocommerce .order-again') === false, 'SUPCh
 
 
 echo "\nSUPCheckout Frontend Identity: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

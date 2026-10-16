@@ -81,6 +81,7 @@ cost_assert(strpos($gateway_source, 'register_deactivation_hook') === false, 'th
 cost_assert(strpos($scheduler_source, 'function deactivate(') === false, 'the scheduler has no deactivation path that clears the hourly tick');
 
 echo "\nRequest cost: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);
 
 function cost_child($root, $scenario) {

@@ -53,6 +53,7 @@ template_assert($order_pay['code'] === 0, 'pay-for-order renders without error')
 template_assert(strpos($order_pay['html'], '7.250 SAR') !== false, 'pay-for-order shows the order\'s own total and currency, not the empty cart');
 
 echo "\nCheckout template: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);
 
 function template_child($root, $scenario) {

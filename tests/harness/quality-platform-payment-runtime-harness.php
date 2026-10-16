@@ -214,4 +214,5 @@ q17_assert(q17_has($handoff, '- Quality Platform Q1-Q19 — **DONE / VERIFIED; p
 q17_assert(q17_has($handoff, '- Enterprise Tasks 1-8 — **DONE / VERIFIED**'), 'handoff records the historical enterprise task closure');
 
 echo "\nQ17 Payment Runtime Analysis: " . $pass . " PASS / " . $fail . " FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

@@ -79,4 +79,5 @@ q8_assert(!q8_contains($playbook, 'CURRENT / Q8'), 'playbook rejects stale curre
 q8_assert(q8_contains($workflow, "reject_across_live_records 'CURRENT / Q8'"), 'Governance rejects stale current-Q8 markers');
 
 echo "\nQ8 Release Identity Analysis: {$q8_pass} PASS / {$q8_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q8_fail === 0 ? 0 : 1);

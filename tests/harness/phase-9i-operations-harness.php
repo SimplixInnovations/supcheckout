@@ -276,5 +276,6 @@ namespace {
     p9o_assert(strpos($batchSource, 'update_user_meta') !== false && strpos($batchSource, 'operations_result_ledger_write_failed') !== false, 'P9O-13 durable ledger write/fail-closed path present');
 
     echo "\n--- Phase 9I Operations Report ---\nPASS: $pass\nFAIL: $fail\n";
+    echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
     exit($fail === 0 ? 0 : 1);
 }

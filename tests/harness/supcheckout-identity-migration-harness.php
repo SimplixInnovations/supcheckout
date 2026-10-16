@@ -73,4 +73,5 @@ supcheckout_identity_assert(strpos($standard, '`supcheckout-for-upayments`') !==
 supcheckout_identity_assert(strpos($spec, 'The word **for** is human-facing relationship copy only.') !== false, 'approved design records human-only for rule');
 
 echo "\nSUPCheckout Identity Migration: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

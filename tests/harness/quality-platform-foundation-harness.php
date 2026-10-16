@@ -134,4 +134,5 @@ q1_assert(
 );
 
 echo "\nQ1 Quality Platform Foundation: {$q1_pass} PASS / {$q1_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q1_fail === 0 ? 0 : 1);

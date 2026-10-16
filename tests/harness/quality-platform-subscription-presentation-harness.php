@@ -167,4 +167,5 @@ foreach (array(
 }
 
 echo "\nQ15 Subscription Presentation Analysis: {$q15_pass} PASS / {$q15_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q15_fail === 0 ? 0 : 1);

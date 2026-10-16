@@ -57,4 +57,5 @@ $lifecycle = (string) file_get_contents($root . '/src/Payment/PaymentLifecycle.p
 i18n_assert(strpos($lifecycle, "'_payment_method_title'") === false, 'a verified capture never overwrites the merchant-configured payment method title');
 
 echo "\nI18n presentation: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

@@ -143,4 +143,5 @@ q11_assert(!q11_contains($playbook, 'CURRENT / Q11'), 'playbook rejects stale cu
 q11_assert(q11_contains($workflow, "reject_across_live_records 'CURRENT / Q11'"), 'Governance rejects stale current-Q11 markers');
 
 echo "\nQ11 Subscription Composition Analysis: {$q11_pass} PASS / {$q11_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q11_fail === 0 ? 0 : 1);

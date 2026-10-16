@@ -99,4 +99,5 @@ q7_assert(!q7_contains($playbook, 'CURRENT / Q7'), 'playbook rejects stale curre
 q7_assert(q7_contains($workflow, "reject_across_live_records 'CURRENT / Q7'"), 'Governance rejects stale current-Q7 markers');
 
 echo "\nQ7 Public Order Status Analysis: {$q7_pass} PASS / {$q7_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q7_fail === 0 ? 0 : 1);

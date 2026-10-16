@@ -54,4 +54,5 @@ foreach (array($new_template, $old_template) as $index => $template) {
 wporgr_assert(strpos($token, '$wpdb->get_col(null)') === false, 'token provenance query does not consume an implicit prior SQL result');
 
 echo "\nWordPress.org Runtime Guard: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

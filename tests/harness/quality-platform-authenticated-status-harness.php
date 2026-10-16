@@ -148,4 +148,5 @@ q4_assert(!q4_contains($playbook, 'CURRENT / Q3'), 'master playbook rejects the 
 q4_assert(q4_contains($workflow, "reject_across_live_records 'CURRENT / Q3'"), 'Governance rejects stale current-Q3 markers');
 
 echo "\nQ4 Authenticated Status Analysis: {$q4_pass} PASS / {$q4_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q4_fail === 0 ? 0 : 1);

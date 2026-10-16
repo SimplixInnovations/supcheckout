@@ -336,6 +336,7 @@ jobs:
             tests/harness/release-artifact-harness.php
             tests/harness/wordpress-org-submission-harness.php
             tests/harness/phase-9g-h12-php-harness.php
+            tests/harness/harness-completion-marker-harness.php
           )
           failures=0
           for harness in "${harnesses[@]}"; do
@@ -347,6 +348,15 @@ jobs:
             fi
             printf '%s\n' "$output"
             if [[ "$status" -ne 0 ]]; then
+              failures=$((failures + 1))
+              continue
+            fi
+            # Exit status 0 alone is not evidence: a harness that requires a guarded
+            # production file before defining ABSPATH exits 0 without running its
+            # assertions. Each harness must end by printing its own completion marker.
+            last_line="$(tail -n 1 <<<"$output")"
+            if [[ "$last_line" != "HARNESS-COMPLETE: $(basename "$harness")" ]]; then
+              echo "Permanent PHP regression harness exited without its completion marker (assertions did not run to completion): $harness"
               failures=$((failures + 1))
               continue
             fi

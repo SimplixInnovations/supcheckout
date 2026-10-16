@@ -1957,4 +1957,5 @@ arch3_assert(
 );
 
 printf("\nArchitecture Bootstrap Paths: %d PASS / %d FAIL\n", $pass, $fail);
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

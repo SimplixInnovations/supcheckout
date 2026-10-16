@@ -389,4 +389,5 @@ foreach ($cases as $scenario => $expect) {
 echo "\n--- Approach 3 T3 Legacy Direct Callback Characterization Report ---\n";
 echo 'PASS: ' . $t3_pass . "\n";
 echo 'FAIL: ' . $t3_fail . "\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($t3_fail === 0 ? 0 : 1);

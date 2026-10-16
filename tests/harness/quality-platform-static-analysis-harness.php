@@ -290,4 +290,5 @@ q2_assert(
 );
 
 echo "\nQ2 Checkout Payload Analysis: {$q2_pass} PASS / {$q2_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q2_fail === 0 ? 0 : 1);
