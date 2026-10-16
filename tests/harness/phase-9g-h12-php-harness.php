@@ -2,7 +2,7 @@
 /**
  * Phase 9G-H12 PHP harness — residual correction #3.
  *
- * Executes the actual production source (UPayments.php + CustomerTokenIdentity.php)
+ * Executes the actual production source (supcheckout.php + CustomerTokenIdentity.php)
  * through real WC_Upayments subclasses. Drives process_payment() end-to-end with
  * synthetic WooCommerce fixtures and programmable transport / option / user_meta
  * / order / history stubs. Asserts:
@@ -853,7 +853,7 @@ upay_set_post(['payment_method' => 'upayments']);
 upay_assert_eq($upay_vf_gateway->validate_fields(), false, 'PHP-VF-1 white-label Classic checkout without a method is rejected before order creation', 'helper_unit_runtime');
 upay_set_post(['payment_method' => 'upayments', 'upayment_payment_type' => 'knet']);
 upay_assert_eq($upay_vf_gateway->validate_fields(), true, 'PHP-VF-2 a chosen method passes', 'helper_unit_runtime');
-$upay_vf_source = (string) file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
+$upay_vf_source = (string) file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
 $upay_vf_start = strpos($upay_vf_source, 'public function validate_fields()');
 upay_assert_eq(
     $upay_vf_start !== false
@@ -3176,7 +3176,7 @@ foreach ($prov_paths as $name => $desc) {
 }
 
 $artifact_paths = [
-    'XART-1' => '/UPayments.php',
+    'XART-1' => '/supcheckout.php',
     'XART-2' => '/includes/Token/CustomerTokenIdentity.php',
     'XART-3' => '/includes/class-wc-gateway-upayments-blocks.php',
     'XART-4' => '/templates/new-design-form.php',
@@ -3426,14 +3426,14 @@ if (is_resource($proc)) {
 upay_assert_eq($cycle_blob, 'a1ae04e3239e05c4894781480333fd5e747cefba', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
 
 // --- SEM14-J: Production code does NOT use bccomp/BCMath/GMP ---
-$upayments_content = file_get_contents($repo_root . '/UPayments.php');
+$upayments_content = file_get_contents($repo_root . '/supcheckout.php');
 foreach (['bccomp', 'bcadd', 'bcsub', 'bcmul', 'bcdiv', 'bcmod', 'bcpow', 'bcsqrt', 'bcscale', 'BCMath\\', 'GMP\\'] as $fn) {
     $found = strpos($upayments_content, $fn) !== false;
-    upay_assert_eq($found, false, "SEM14-J no $fn in production UPayments.php", 'static_source');
+    upay_assert_eq($found, false, "SEM14-J no $fn in production supcheckout.php", 'static_source');
 }
 
 // --- SEM14-K: No 9999999.9999 sentinel in production ---
-upay_assert(strpos($upayments_content, '9999999.9999') === false, 'SEM14-K no 9999999.9999 sentinel in production UPayments.php', 'static_source');
+upay_assert(strpos($upayments_content, '9999999.9999') === false, 'SEM14-K no 9999999.9999 sentinel in production supcheckout.php', 'static_source');
 
 // --- SEM14-L: Forbidden runtime ceilings removed ---
 $has_ceiling = preg_match('/>\s*10\.000/', $upayments_content) === 1;
@@ -4217,21 +4217,21 @@ foreach ([-1, '00', '01', '0005', '1.0', '1e2', '+1', '-1', '', ' 1', '1 ', null
 
 // --- SEM14-Z: lint_tooling category — frozen set of binary invariants ---
 foreach (['bccomp', 'bcadd', 'bcsub', 'bcmul', 'bcdiv'] as $fn) {
-    $content = file_get_contents($repo_root . '/UPayments.php');
+    $content = file_get_contents($repo_root . '/supcheckout.php');
     $found = preg_match('/\b' . preg_quote($fn, '/') . '\s*\(/', $content) === 1;
-    upay_assert_eq($found, false, "LINT-Z-1 $fn() absent from production UPayments.php", 'lint_tooling');
+    upay_assert_eq($found, false, "LINT-Z-1 $fn() absent from production supcheckout.php", 'lint_tooling');
 }
-$content = file_get_contents($repo_root . '/UPayments.php');
+$content = file_get_contents($repo_root . '/supcheckout.php');
 $has_9999 = strpos($content, '9999999.9999') !== false;
-upay_assert_eq($has_9999, false, 'LINT-Z-2 no 9999999.9999 sentinel in production UPayments.php', 'lint_tooling');
+upay_assert_eq($has_9999, false, 'LINT-Z-2 no 9999999.9999 sentinel in production supcheckout.php', 'lint_tooling');
 $has_ceiling = preg_match('/>\s*10\.000/', $content) === 1;
-upay_assert_eq($has_ceiling, false, 'LINT-Z-3 no > 10.000 runtime ceiling in production UPayments.php', 'lint_tooling');
+upay_assert_eq($has_ceiling, false, 'LINT-Z-3 no > 10.000 runtime ceiling in production supcheckout.php', 'lint_tooling');
 // round() banned for product economics
 $has_round = preg_match('/\bround\s*\(\s*\$/', $content) === 1;
-upay_assert_eq($has_round, false, 'LINT-Z-4 no round($) for product economics in production UPayments.php', 'lint_tooling');
+upay_assert_eq($has_round, false, 'LINT-Z-4 no round($) for product economics in production supcheckout.php', 'lint_tooling');
 // float product math banned
 $has_float_math = preg_match('/\$qty\s*\*\s*\$/', $content) === 1;
-upay_assert_eq($has_float_math, false, 'LINT-Z-5 no flat/float $qty*$ product math in production UPayments.php', 'lint_tooling');
+upay_assert_eq($has_float_math, false, 'LINT-Z-5 no flat/float $qty*$ product math in production supcheckout.php', 'lint_tooling');
 // direct php://input outside seam banned (exclude comments)
 $content_no_comments = preg_replace('/\/\*.*?\*\//s', '', $content);
 $content_no_comments = preg_replace('/\/\/.*$/m', '', $content_no_comments);
@@ -4988,7 +4988,7 @@ upay_assert(
 //     only when production entered the Blocks code path.
 //   * process_payment() returns {result: 'failure', redirect: ...} because
 //     production failed validation when extracting the missing extensions
-//     block (line ~2540 in UPayments.php: no card_token, no save_card, no
+//     block (line ~2540 in supcheckout.php: no card_token, no save_card, no
 //     upay_subscription_plan — extension_data is empty → fail-closed).
 //
 // What production DOES NOT DO (zero-mutation invariants):
@@ -5194,7 +5194,7 @@ upay_assert_eq($result_empty['process_payment_result']['result'] ?? null, 'failu
 
 // --- SP-X10: Valid extensions body --------------------------------------
 //
-// Production's Store API body contract reads (UPayments.php line 2514):
+// Production's Store API body contract reads (supcheckout.php line 2514):
 //   $request_data['extensions']['upayments']
 // The earlier fixture placed `extensions` inside `payment_data` — that
 // key is NOT read by production's classifier, so production returned
@@ -5202,13 +5202,13 @@ upay_assert_eq($result_empty['process_payment_result']['result'] ?? null, 'failu
 // Charge. Residual Correction #18: hoist `extensions` to TOP level to
 // match the WC Store API body shape.
 //
-// Production's Blocks path reads (UPayments.php line 2670):
+// Production's Blocks path reads (supcheckout.php line 2670):
 //   $extension_data['upayment_payment_type']
 // (key `paymentType` was also wrong — production expects
 // `upayment_payment_type`).
 //
 // `card_token` is set to null (not '0') because production's
-// has_selected_card check (UPayments.php line 2709) treats the literal
+// has_selected_card check (supcheckout.php line 2709) treats the literal
 // string '0' as a selected card — and selected-card + src=knet fails
 // Whitelabel validation at line 3244. null is the canonical "no
 // selected card" sentinel.
@@ -5372,7 +5372,7 @@ upay_assert($pid_a !== $pid_b, 'SP-X28 separate subprocess invocations produce d
 
 // --- SP-X29: wc_loaded is true in subprocess ---------------------------
 //             HARNESS self-test: confirms the child bootstrap actually
-//             evaluated require_once UPayments.php. Production code path
+//             evaluated require_once supcheckout.php. Production code path
 //             is already verified by SP-X26 charge_calls.
 //             Residual Correction #18: reclassified harness_self_test.
 upay_assert_eq($result_init['wc_loaded'] ?? null, true, 'SP-X29 wc_loaded=true in subprocess (production actually loaded)', 'harness_self_test');
@@ -5452,7 +5452,7 @@ upay_assert_eq((int) ($result_valid_ext['identity_writes'] ?? 0), 0, 'SP-X38 no 
 // --- SP-X39: successful charge writes authoritative order meta ---------
 //             Genuine semantic: a successful knet one_time charge
 //             dispatches and writes `UPayments_order_id` to the order
-//             (line ~3607 of UPayments.php). count >= 1 here is the
+//             (line ~3607 of supcheckout.php). count >= 1 here is the
 //             production contract.
 upay_assert((int) ($result_valid_ext['order_meta_writes'] ?? 0) >= 1, 'SP-X39 successful charge writes >=1 order_meta entry (UPayments_order_id)', 'semantic_runtime');
 
@@ -6384,7 +6384,7 @@ upay_assert_eq($boot_a === $boot_b, true, 'PHP-R19-BLN-2 bootstrap lock name is 
 // SECTION MALFORMED-CARD: Classic malformed saved-card security identifiers
 // ---------------------------------------------------------------------------
 // Phase 9I #30 evidence-integrity repair: the Classic production parser at
-// UPayments.php lines 2620-2637 enforces a strict contract on the card_token
+// supcheckout.php lines 2620-2637 enforces a strict contract on the card_token
 // POST field:
 //
 //   1. card_token must be a string (is_string check, else reject_non_string)

@@ -19,7 +19,7 @@ final class CallbackRequestBagNormalizationTest extends TestCase
     {
         $root = dirname(__DIR__, 3);
         $this->lifecycle = (string) file_get_contents($root . '/src/Payment/PaymentLifecycle.php');
-        $this->gateway = (string) file_get_contents($root . '/UPayments.php');
+        $this->gateway = (string) file_get_contents($root . '/supcheckout.php');
     }
 
     public function test_compat_entrypoint_accepts_explicit_request_bags(): void

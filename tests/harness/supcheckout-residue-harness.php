@@ -155,7 +155,7 @@ $current_identity_contracts = array(
     'AGENTS.md' => array('SUPCheckout for UPayments', 'Simplixi\\SUPCheckout', 'SimplixInnovations/supcheckout'),
     'docs/project/PROJECT-STATUS.md' => array('SUPCheckout for UPayments', 'supcheckout', 'SimplixInnovations/supcheckout'),
     'docs/project/NAMING-IDENTITY-STANDARD.md' => array('SUPCheckout for UPayments', 'Simplixi\\SUPCheckout', 'SimplixInnovations/supcheckout'),
-    'UPayments.php' => array(
+    'supcheckout.php' => array(
         'Plugin URI: https://github.com/SimplixInnovations/supcheckout',
         "define('SUPCHECKOUT_VERSION', Identity::VERSION);",
         "define('SUPCHECKOUT_SLUG', Identity::SLUG);",
@@ -180,7 +180,7 @@ $repository_coordinate_files = array(
     'AGENTS.md',
     'NOTICE.md',
     'UPSTREAM.md',
-    'UPayments.php',
+    'supcheckout.php',
     'docs/ENGINEERING-ROADMAP.md',
     'docs/project/ENTERPRISE-CERTIFICATION.md',
     'docs/project/NAMING-IDENTITY-STANDARD.md',

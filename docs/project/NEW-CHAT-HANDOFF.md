@@ -11,7 +11,7 @@ Use this with [`AGENTS.md`](../../AGENTS.md), [`PROJECT-STATUS.md`](PROJECT-STAT
 - Repository: `SimplixInnovations/supcheckout`
 - Technical slug / text domain: `supcheckout`
 - PHP namespace: `Simplixi\SUPCheckout`
-- Package root/bootstrap: `supcheckout/UPayments.php`
+- Package root/main file: `supcheckout/supcheckout.php` (renamed from `UPayments.php` in Sub-project 0a)
 - Development version: `0.1.0`
 
 Protected compatibility identities include `upayments`, `woocommerce_upayments_settings`, `wc_upayments`, `_upay_*`, `UPayments_order_id`, H12 token/provenance identities, subscription/billing-attempt identities, historical payment-method values, frozen Phase 9I identities, `getAPIUrlForRetreiveCards()`, and `whitelabled`.

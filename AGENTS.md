@@ -37,7 +37,7 @@ For every substantive active task, the open GitHub PR is the canonical task-leve
 - New first-party global prefix: `supcheckout_`
 - Constants: `SUPCHECKOUT_*`
 - Package root: `supcheckout/`
-- First-stable bootstrap: `supcheckout/UPayments.php`
+- Main file: `supcheckout/supcheckout.php`
 - Development version: `0.1.0`
 
 The word **for** is relationship copy only. Never encode it into repository URLs, WordPress.org slug, package names, namespaces, CSS/JS roots, REST namespaces or release artifacts. Do not invent alternate product names, slugs, prefixes or namespaces.
@@ -116,9 +116,9 @@ Never mechanically/global-replace provider/payment/persisted identities. Protect
 
 Changing one requires an explicitly approved migration contract with old/new precedence, upgrade, rollback/failure semantics and regression evidence.
 
-## First-stable bootstrap exception
+## Main file
 
-`supcheckout/UPayments.php` is intentional. Real WordPress qualification proved that directly renaming an already-active physical main file can strand WordPress's stored plugin basename. A future `supcheckout.php` physical rename requires a separately approved migration.
+`supcheckout/supcheckout.php` is the main file since Sub-project 0a (owner decision 2026-10-16, pre-release). A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically on zip upload, WP-CLI and one-click/bulk updates. The exception is the classic non-JavaScript single-plugin Update-now flow (`update.php?action=upgrade-plugin`), which ends deactivated with data unchanged; see `docs/COMPATIBILITY.md`. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it. The pre-rename name stays recorded as `Identity::LEGACY_MAIN_FILE`; the official UPayments plugin's own `UPayments.php` main file is unrelated and is still detected by `OfficialPluginConflict`.
 
 ## Permanent quality controls
 
@@ -178,7 +178,7 @@ The root README is a public product landing page, not an internal certification 
 - Use the authorized dedicated branch for the current tranche; do not implement on `main`.
 - Use TDD for production behavior/bug fixes: meaningful RED first, prove the RED, minimal GREEN, affected + permanent regressions, then exact-head recertification.
 - Keep changes bounded; no drive-by payment refactors.
-- Do not grow `UPayments.php` with new responsibilities.
+- Do not grow `supcheckout.php` with new responsibilities.
 - Large compatibility-sensitive files are not refactored solely for aesthetics.
 - Update living state docs when verified project truth changes.
 - Preserve historical records instead of rewriting milestone facts.

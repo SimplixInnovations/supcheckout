@@ -3,7 +3,7 @@
  * Shared bootstrap for the phase-9g-h12 harness family.
  *
  * Defines sandboxed WP/Woo function stubs, requires the production
- * plugin source (UPayments.php + CustomerTokenIdentity.php), and invokes
+ * plugin source (supcheckout.php + CustomerTokenIdentity.php), and invokes
  * woocommerceUpaymentsInit() so both the parent PHP harness and the Store
  * API subprocess child can run real production code.
  *
@@ -19,7 +19,7 @@ if (PHP_VERSION_ID < 70200) {
 }
 
 $ROOT = realpath(__DIR__ . '/../..');
-$PLUGIN_FILE = $ROOT . '/UPayments.php';
+$PLUGIN_FILE = $ROOT . '/supcheckout.php';
 $IDENTITY_FILE = $ROOT . '/includes/Token/CustomerTokenIdentity.php';
 
 if (!is_file($PLUGIN_FILE)) {

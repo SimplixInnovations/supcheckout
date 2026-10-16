@@ -1038,7 +1038,7 @@ function arch2_code_without_strings(array $tokens)
     return $code;
 }
 
-$gateway = arch2_read($root, 'UPayments.php');
+$gateway = arch2_read($root, 'supcheckout.php');
 // Owner-approved exception (official UPayments coexistence): the main file may wrap its
 // declarations in exactly one condition, the official-plugin pause guard, opened right
 // after the conflict class is loaded and closed by the file's final endif. Everything
@@ -1084,7 +1084,7 @@ $availabilityRegistration = arch2_direct_top_level_hook_callback(
     'woocommerce_available_payment_gateways',
     'enableUpaymentsGateway'
 );
-arch2_assert($gateway !== '', 'UPayments.php is readable');
+arch2_assert($gateway !== '', 'supcheckout.php is readable');
 arch2_assert(!arch2_has_namespace_declaration($gatewayTokens), 'legacy main file remains in the global namespace');
 arch2_assert($gatewayRegistration['found'], 'WooCommerce gateway registration is a direct executable global hook/callback pair');
 arch2_assert(

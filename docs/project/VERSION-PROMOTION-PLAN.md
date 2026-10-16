@@ -11,7 +11,7 @@ OWNER_VERSION_PROMOTION_AUTHORIZATION=<version>
 | Surface | Current | Change required at promotion |
 |---|---|---|
 | `src/Release/Identity.php` | 0.1.0 | yes |
-| `UPayments.php` header | 0.1.0 | yes |
+| `supcheckout.php` header | 0.1.0 | yes |
 | `readme.txt` stable tag | 0.1.0 | yes |
 | `CHANGELOG.md` | historical | add release notes |
 | `README.md` version text/badges | 0.1.0 | yes |

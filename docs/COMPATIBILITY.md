@@ -64,15 +64,15 @@ Public metadata derived from this matrix:
 | Repository / package slug | `supcheckout` |
 | Text domain | `supcheckout` |
 | PHP namespace | `Simplixi\SUPCheckout` |
-| First-stable physical bootstrap | `UPayments.php` retained |
-| Canonical package basename | `supcheckout/UPayments.php` |
+| Physical main file | `supcheckout.php` (renamed from `UPayments.php` in Sub-project 0a) |
+| Canonical package basename | `supcheckout/supcheckout.php` |
 | Gateway/payment ID | `upayments` preserved |
 | Settings option | `woocommerce_upayments_settings` preserved |
 | Blocks / Store API ID | `upayments` preserved |
 | Callback | `wc_upayments` preserved |
 | Historical payment/meta/token/subscription identities | preserved |
 
-The retained `UPayments.php` filename is an explicit compatibility decision. A future physical rename requires a separately tested migration.
+The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). A header-less transitional `supcheckout/UPayments.php` shim moves pre-rename installs' active entry to `supcheckout/supcheckout.php` on their next load, without reactivation or data changes. The Release Artifact `in-place-main-file-update` cells exercise the in-place update on real WordPress, single-site and network-activated, through WP-CLI, the Plugins screen, the upload installer and the bulk / one-click upgrader. Pre-rename installs: update by zip upload ("Replace current with uploaded"), WP-CLI, or the Plugins-screen / Updates-screen one-click and bulk updates (`bulk_upgrade()`). These keep the stored `supcheckout/UPayments.php` entry, and the shim moves it on the next request. The classic single-plugin Update-now flow (`wp-admin/update.php?action=upgrade-plugin`, `Plugin_Upgrader::upgrade()`, used without JavaScript) deactivates the plugin before installing and then reactivates it by the old basename. Validation rejects the header-less shim, so the install ends **deactivated**: no SUPCheckout code runs, merchant data is unchanged, and one activation of `supcheckout/supcheckout.php` recovers it. Any future update channel must key updates to `supcheckout/supcheckout.php`.
 
 Historical package-root movement remains certified for both pre-stable `simplixpay-upayments` and `sucheckout-upayments` roots moving to canonical `supcheckout`, including protected data continuity and rollback.
 

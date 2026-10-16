@@ -377,7 +377,7 @@ foreach ($failure_cases as $label => $response) {
 
 // Gateway/source boundary assertions freeze extraction ownership.
 $service_source = file_get_contents(dirname(__DIR__, 2) . '/src/Provider/PaymentMethodAvailability.php');
-$gateway_source = file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
+$gateway_source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
 a2_assert(is_string($service_source), 'availability service source is readable');
 a2_assert(is_string($gateway_source), 'gateway source is readable');
 a2_assert(strpos($service_source, 'namespace Simplixi\\SUPCheckout\\Provider;') !== false, 'availability service uses SUPCheckout Provider namespace');

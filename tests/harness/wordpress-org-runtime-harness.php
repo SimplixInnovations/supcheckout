@@ -26,7 +26,7 @@ function wporgr_read($root, $path) {
     return is_string($value) ? $value : '';
 }
 
-$gateway = wporgr_read($root, 'UPayments.php');
+$gateway = wporgr_read($root, 'supcheckout.php');
 $scheduler = wporgr_read($root, 'includes/Subscription/Cron/Scheduler.php');
 $status = wporgr_read($root, 'src/Payment/StatusVerifier.php');
 $payload = wporgr_read($root, 'src/Payment/CheckoutPayload.php');

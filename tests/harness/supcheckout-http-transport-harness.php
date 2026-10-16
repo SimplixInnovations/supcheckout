@@ -53,7 +53,7 @@ function sut_assert($condition, $message) {
     echo "FAIL: {$message}\n";
 }
 
-$gateway_source = file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
+$gateway_source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
 sut_assert(
     is_string($gateway_source)
         && strpos($gateway_source, 'wp_remote_request(') !== false

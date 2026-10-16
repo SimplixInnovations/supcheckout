@@ -1016,7 +1016,7 @@ namespace {
     $verifier_source = file_get_contents($root . '/src/Payment/StatusVerifier.php');
     $rate_source = file_get_contents($root . '/src/Payment/StatusRateGate.php');
     $lock_source = file_get_contents($root . '/src/Payment/OrderLock.php');
-    $gateway_source = @file_get_contents($root . '/UPayments.php');
+    $gateway_source = @file_get_contents($root . '/supcheckout.php');
 
     // H1: the Charge path records the superseded provider identity before rotating it.
     $orchestrator_source = file_get_contents($root . '/src/Payment/CheckoutOrchestrator.php');

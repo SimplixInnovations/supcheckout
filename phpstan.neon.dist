@@ -32,6 +32,9 @@ parameters:
         - src/Gateway/OfficialPluginConflict.php
         - src/Security/PublicOrderStatus.php
         - src/Release/Identity.php
+        - src/Autoloader.php
+        - src/Plugin.php
+        - src/Bootstrap/BasenameMigration.php
         - src/Migration/MigrationSettings.php
         - src/Migration/MigrationBootstrap.php
         - src/Subscription/Composition.php

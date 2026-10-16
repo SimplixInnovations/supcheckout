@@ -21,7 +21,7 @@
 | Provider scope | **UPayments only** |
 | Technical slug / text domain | `supcheckout` |
 | PHP namespace | `Simplixi\SUPCheckout` |
-| First-stable bootstrap | `supcheckout/UPayments.php` — intentional compatibility exception |
+| Main file | `supcheckout/supcheckout.php` — renamed from `UPayments.php` in Sub-project 0a (owner decision 2026-10-16, pre-release) |
 | Approach 2 | **HISTORICAL / SUPERSEDED OWNER-ACCEPTED BASELINE** |
 | Approach 3 | **HISTORICAL / SUPERSEDED OWNER-ACCEPTED BASELINE** |
 | Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |

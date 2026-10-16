@@ -101,11 +101,11 @@ jobs:
           grep -Fq '| Technical slug / text domain | `supcheckout` |' docs/project/PROJECT-STATUS.md
           grep -Fq '| PHP namespace | `Simplixi\SUPCheckout` |' docs/project/PROJECT-STATUS.md
           grep -Fq '**Canonical GitHub repository:** `SimplixInnovations/supcheckout`' docs/project/OWNER-HANDOFF.md
-          grep -Fq '`supcheckout/UPayments.php`' docs/project/PROJECT-STATUS.md
+          grep -Fq '`supcheckout/supcheckout.php`' docs/project/PROJECT-STATUS.md
           grep -Fq 'No Q20 is justified.' docs/project/PROJECT-STATUS.md
           grep -Fq '**Canonical slug:** `supcheckout`' docs/project/NAMING-IDENTITY-STANDARD.md
           grep -Fq '=== SUPCheckout for UPayments ===' readme.txt
-          grep -Fq 'Text Domain: supcheckout' UPayments.php
+          grep -Fq 'Text Domain: supcheckout' supcheckout.php
           grep -Fq 'SLUG="supcheckout"' scripts/build-release.sh
           grep -Fq 'slug = "supcheckout"' scripts/verify-release.sh
           grep -Fq 'slug: supcheckout' .github/workflows/wordpress-org-submission-check.yml
@@ -170,7 +170,7 @@ jobs:
             echo 'Retired first-party release ZIP identity detected.'
             exit 1
           fi
-          if grep -FnH -e 'Text Domain: upayments' -e 'Text Domain: sucheckout-upayments' UPayments.php readme.txt; then
+          if grep -FnH -e 'Text Domain: upayments' -e 'Text Domain: sucheckout-upayments' supcheckout.php readme.txt; then
             echo 'Retired first-party text domain detected in canonical metadata.'
             exit 1
           fi

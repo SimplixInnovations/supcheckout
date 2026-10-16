@@ -284,7 +284,7 @@ namespace {
     $root = dirname(__DIR__, 2);
     $owned_surface = '';
     foreach (array(
-        '/UPayments.php',
+        '/supcheckout.php',
         '/src/Payment/PaymentLifecycle.php',
         '/assets/js/new-upay.js',
         '/assets/js/upayments-block.js',

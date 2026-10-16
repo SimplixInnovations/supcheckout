@@ -481,7 +481,7 @@ final class CheckoutOrchestratorTest extends TestCase {
             static function () { return ''; },
             static function ($route, $method, $body) {
                 if ($route === 'charge') {
-                    // The real transport (UPayments.php) sets transport_ok only for 2xx,
+                    // The real transport (supcheckout.php) sets transport_ok only for 2xx,
                     // while keeping the status and body of a 4xx/5xx response.
                     return array(
                         'transport_ok' => false,

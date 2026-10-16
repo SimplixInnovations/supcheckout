@@ -107,7 +107,7 @@ final class ProductionAuthProbeContractTest extends TestCase {
     public function test_charge_probe_mirrors_the_plugin_request_shape(): void {
         $probe = self::read_repository_file(self::PROBE);
         $orchestrator = self::read_repository_file('src/Payment/CheckoutOrchestrator.php');
-        $gateway = self::read_repository_file('UPayments.php');
+        $gateway = self::read_repository_file('supcheckout.php');
 
         foreach (array('returnUrl', 'cancelUrl', 'notificationUrl', 'products', 'order', 'reference', 'customer', 'plugin', 'is_whitelabled', 'language', 'isSaveCard', 'tokens', 'device', 'extraMerchantData') as $key) {
             self::assertStringContainsString("'" . $key . "'", $orchestrator, 'plugin payload key moved: ' . $key);

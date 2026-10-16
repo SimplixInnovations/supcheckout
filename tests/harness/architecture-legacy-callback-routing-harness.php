@@ -87,7 +87,7 @@ function t2_child_boot($scenario) {
     $_POST = array();
     $_SERVER = array('REQUEST_METHOD' => 'GET');
 
-    require_once dirname(__DIR__, 2) . '/UPayments.php';
+    require_once dirname(__DIR__, 2) . '/supcheckout.php';
 
     // Define the historical gateway class without constructing a live
     // WooCommerce gateway instance.
@@ -257,7 +257,7 @@ foreach ($cases as $scenario => $expectations) {
     }
 }
 
-$gateway_source = file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
+$gateway_source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
 t2_assert(is_string($gateway_source), 'gateway source readable');
 if (is_string($gateway_source)) {
     t2_assert(

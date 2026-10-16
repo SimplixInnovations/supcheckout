@@ -424,7 +424,7 @@ $availabilityFilterSequence = array(
 );
 
 $architecture = arch_read($root, 'docs/project/ARCHITECTURE-CODE-QUALITY.md');
-$gateway = arch_read($root, 'UPayments.php');
+$gateway = arch_read($root, 'supcheckout.php');
 $status = arch_read($root, 'docs/project/PROJECT-STATUS.md');
 $naming = arch_read($root, 'docs/project/NAMING-IDENTITY-STANDARD.md');
 $paymentLifecycle = arch_read($root, 'src/Payment/PaymentLifecycle.php');
@@ -482,7 +482,7 @@ arch_assert($ordered, 'A1-A5 extraction stages remain in frozen order');
 
 arch_assert(arch_contains($architecture, 'no production runtime behavior changes in the discovery PR'), 'discovery tranche forbids runtime behavior changes');
 arch_assert(arch_contains($architecture, 'This is not permission for a big-bang rewrite'), 'big-bang rewrite is prohibited');
-arch_assert(arch_contains($architecture, 'exact accepted `UPayments.php` byte size for the current architecture milestone'), 'monolith ratchet update contract is explicit');
+arch_assert(arch_contains($architecture, 'exact accepted `supcheckout.php` byte size for the current architecture milestone'), 'monolith ratchet update contract is explicit');
 arch_assert(arch_contains($architecture, 'Composer only with an explicit distribution rule'), 'Composer introduction is gated by distribution contract');
 arch_assert(arch_contains($architecture, 'PHPCS/WPCS and PHPStan incrementally'), 'static-analysis rollout is incremental');
 arch_assert(
@@ -491,7 +491,7 @@ arch_assert(
 );
 arch_assert(arch_contains($naming, '**Canonical slug:** `supcheckout`'), 'canonical slug remains protected');
 
-$gatewayPath = $root . '/UPayments.php';
+$gatewayPath = $root . '/supcheckout.php';
 $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // Approach 3 T2 intentionally reduces the gateway shell by consolidating the
 // historical priority-10 check_ipn_response fallback onto PaymentLifecycle.
@@ -516,9 +516,16 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // Request-cost tranche: the icon filter drops its dead available-gateway loop and
 // the hourly tick is scheduled only while subscriptions are enabled (-253 bytes; no
 // deactivation hook, so a rollback keeps the canonical schedule unchanged).
-$acceptedGatewayBytes = 63165;
-arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'UPayments.php matches current exact architecture ratchet');
-foreach (array('UPayments.php', 'includes', 'src', 'templates') as $shipped) {
+// Sub-project 0a Task 2 renames UPayments.php to supcheckout.php (history-following
+// rename, owner decision 2026-10-16) and adds 154 bytes: the src/Autoloader.php
+// require, the Autoloader::register() call and the Plugin::boot(__FILE__)
+// composition-root call directly after the ABSPATH guard. No other byte changes.
+// Because the shim keeps a UPayments.php in the tree, git sees supcheckout.php as a new
+// file, so the Governance whitespace check covers every line: trailing whitespace on
+// 22 lines is stripped (-284 bytes, whitespace only).
+$acceptedGatewayBytes = 63035;
+arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
+foreach (array('supcheckout.php', 'UPayments.php', 'includes', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;
     $shippedFiles = is_dir($shippedPath)
         ? iterator_to_array(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($shippedPath, FilesystemIterator::SKIP_DOTS)))

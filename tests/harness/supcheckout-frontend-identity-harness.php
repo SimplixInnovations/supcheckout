@@ -27,7 +27,7 @@ function sufi_read($root, $path) {
     return is_string($value) ? $value : '';
 }
 
-$gateway = sufi_read($root, 'UPayments.php');
+$gateway = sufi_read($root, 'supcheckout.php');
 $blocks = sufi_read($root, 'includes/class-wc-gateway-upayments-blocks.php');
 $settings = sufi_read($root, 'src/Admin/GatewaySettings.php');
 $new_template = sufi_read($root, 'templates/new-design-form.php');
@@ -89,7 +89,7 @@ foreach (array(
 }
 
 foreach (array(
-    'UPayments.php' => $gateway,
+    'supcheckout.php' => $gateway,
     'src/Admin/GatewaySettings.php' => $settings,
     'includes/class-wc-gateway-upayments-blocks.php' => $blocks,
 ) as $path => $source) {

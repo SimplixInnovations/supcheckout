@@ -40,7 +40,9 @@ final class OfficialPluginConflict {
         if (!function_exists('get_option') || !function_exists('plugin_basename')) {
             return null;
         }
-        $own = plugin_basename((string) $plugin_file);
+        // Every entry inside SUPCheckout's own directory is ours, including the
+        // transitional supcheckout/UPayments.php shim; only other directories count.
+        $own_dir = dirname(str_replace('\\', '/', (string) plugin_basename((string) $plugin_file)));
         $active = get_option('active_plugins', array());
         $active = is_array($active) ? $active : array();
         if (function_exists('is_multisite') && is_multisite() && function_exists('get_site_option')) {
@@ -51,7 +53,7 @@ final class OfficialPluginConflict {
         }
         foreach ($active as $basename) {
             if (is_string($basename)
-                && $basename !== $own
+                && ($own_dir === '.' || dirname($basename) !== $own_dir)
                 && basename($basename) === self::MAIN_FILE
                 && self::is_loadable($basename)
             ) {

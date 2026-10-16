@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - '.distignore'
+      - 'supcheckout.php'
       - 'UPayments.php'
       - 'readme.txt'
       - 'src/**'
@@ -429,6 +430,7 @@ jobs:
           set -euo pipefail
           SUPCHECKOUT_PLUGIN_ZIP="$PREVIOUS_ZIP" \
           SUPCHECKOUT_PLUGIN_SLUG="$SUPCHECKOUT_LEGACY_SLUG" \
+          SUPCHECKOUT_PLUGIN_MAIN_FILE=UPayments.php \
           WP_CLI_BIN=/tmp/wp-cli.phar \
           bash scripts/install-wp-test-environment.sh "${{ matrix.wordpress }}" "${{ matrix.woocommerce }}" "$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar plugin activate "$SUPCHECKOUT_LEGACY_SLUG" --path="$RUNNER_TEMP/wordpress"
@@ -477,10 +479,173 @@ jobs:
           SUPCHECKOUT_UPGRADE_PHASE: cleanup
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/UpgradeCompatibilityTest.php" --path="$RUNNER_TEMP/wordpress"
 
+  in-place-main-file-update:
+    name: In-place update supcheckout/UPayments.php → supcheckout.php WP ${{ matrix.wordpress }} / WC ${{ matrix.woocommerce }} / PHP 8.3
+    needs: artifact-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wordpress: '7.1.3'
+            woocommerce: '11.1.2'
+          - wordpress: '6.9.10'
+            woocommerce: '10.8.1'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      # Last main before Sub-project 0a: it ships supcheckout/UPayments.php as the main file.
+      PRE_RENAME_SHA: '4f61421e8cde974e8062293e0c74250b7e7b0054'
+      SUPCHECKOUT_LEGACY_SLUG: supcheckout
+      SUPCHECKOUT_LEGACY_TEXT_DOMAIN: supcheckout
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip
+          coverage: none
+          tools: none
+
+      - name: Download canonical SUPCheckout artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: supcheckout-release-${{ env.RELEASE_SOURCE_SHA }}
+          path: release-output
+
+      - name: Verify canonical artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT_ZIP="$(find "$GITHUB_WORKSPACE/release-output" -maxdepth 1 -type f -name 'supcheckout-*.zip' -print -quit)"
+          test -n "$CURRENT_ZIP"
+          bash scripts/verify-release.sh "$CURRENT_ZIP"
+          echo "CURRENT_ZIP=$CURRENT_ZIP" >> "$GITHUB_ENV"
+
+      - name: Build pre-rename candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRE_RENAME_SOURCE="$RUNNER_TEMP/pre-rename-source"
+          PRE_RENAME_OUTPUT="$RUNNER_TEMP/pre-rename-output"
+          rm -rf "$PRE_RENAME_SOURCE" "$PRE_RENAME_OUTPUT"
+          git worktree add --detach "$PRE_RENAME_SOURCE" "$PRE_RENAME_SHA"
+          mkdir -p "$PRE_RENAME_OUTPUT"
+          (
+            cd "$PRE_RENAME_SOURCE"
+            bash scripts/build-release.sh "$PRE_RENAME_OUTPUT"
+          )
+          git worktree remove --force "$PRE_RENAME_SOURCE"
+          git worktree prune
+          PRE_RENAME_ZIP="$(find "$PRE_RENAME_OUTPUT" -maxdepth 1 -type f -name 'supcheckout-*.zip' -print -quit)"
+          test -n "$PRE_RENAME_ZIP"
+          unzip -Z1 "$PRE_RENAME_ZIP" | grep -Fqx 'supcheckout/UPayments.php'
+          if unzip -Z1 "$PRE_RENAME_ZIP" | grep -Fqx 'supcheckout/supcheckout.php'; then
+            echo 'Pre-rename candidate unexpectedly ships supcheckout/supcheckout.php' >&2
+            exit 1
+          fi
+          echo "PRE_RENAME_ZIP=$PRE_RENAME_ZIP" >> "$GITHUB_ENV"
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+          /tmp/wp-cli.phar --version
+
+      - name: Install pre-rename build active as supcheckout/UPayments.php
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUPCHECKOUT_PLUGIN_ZIP="$PRE_RENAME_ZIP" \
+          SUPCHECKOUT_PLUGIN_SLUG=supcheckout \
+          SUPCHECKOUT_PLUGIN_MAIN_FILE=UPayments.php \
+          WP_CLI_BIN=/tmp/wp-cli.phar \
+          bash scripts/install-wp-test-environment.sh "${{ matrix.wordpress }}" "${{ matrix.woocommerce }}" "$RUNNER_TEMP/wordpress"
+          # Determinism: no request may run the hourly tick and move its timestamp.
+          /tmp/wp-cli.phar config set DISABLE_WP_CRON true --raw --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar eval 'exit(in_array("supcheckout/UPayments.php", (array) get_option("active_plugins"), true) ? 0 : 1);' --path="$RUNNER_TEMP/wordpress"
+
+      - name: Seed pre-rename merchant state
+        env:
+          SUPCHECKOUT_UPGRADE_PHASE: seed-in-place
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/UpgradeCompatibilityTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Record the pre-rename subscription schedule
+        shell: bash
+        run: |
+          set -euo pipefail
+          # One plain request lets the pre-rename build schedule its hourly tick for the enabled settings.
+          /tmp/wp-cli.phar eval '1;' --path="$RUNNER_TEMP/wordpress"
+          SUPCHECKOUT_UPGRADE_PHASE=record-in-place-cron \
+            /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/UpgradeCompatibilityTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: WP-CLI overwrite in place without deactivating
+        run: bash tests/integration/in-place-update-paths.sh cli-overwrite "$RUNNER_TEMP/wordpress"
+
+      - name: Web first request is the Plugins screen after the overwrite
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/in-place-update-paths.sh reset "$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh web-first-request "$RUNNER_TEMP/wordpress"
+
+      - name: Upload installer ("Replace current with uploaded") code path
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/in-place-update-paths.sh reset "$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh upload-installer "$RUNNER_TEMP/wordpress"
+
+      - name: One-click / bulk update path for the old basename
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/in-place-update-paths.sh reset "$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh bulk-update "$RUNNER_TEMP/wordpress"
+
+      - name: Characterize the classic single-plugin upgrade flow (known limitation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/in-place-update-paths.sh reset "$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh single-upgrade "$RUNNER_TEMP/wordpress"
+
+      - name: Network-activated pre-rename build on multisite
+        run: bash tests/integration/in-place-update-paths.sh multisite "$RUNNER_TEMP/wordpress"
+
+      - name: Clean in-place certification fixtures
+        env:
+          SUPCHECKOUT_UPGRADE_PHASE: cleanup
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/UpgradeCompatibilityTest.php" --path="$RUNNER_TEMP/wordpress"
+
   release-gate:
     name: Release Gate
     if: ${{ always() }}
-    needs: [artifact-build, cross-platform-determinism, packaged-runtime, package-identity-migration]
+    needs: [artifact-build, cross-platform-determinism, packaged-runtime, package-identity-migration, in-place-main-file-update]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -490,6 +655,7 @@ jobs:
           CROSS_PLATFORM_RESULT: ${{ needs.cross-platform-determinism.result }}
           PACKAGED_RUNTIME_RESULT: ${{ needs.packaged-runtime.result }}
           PACKAGE_MIGRATION_RESULT: ${{ needs.package-identity-migration.result }}
+          IN_PLACE_UPDATE_RESULT: ${{ needs.in-place-main-file-update.result }}
         shell: bash
         run: |
           set -euo pipefail
@@ -497,3 +663,4 @@ jobs:
           test "$CROSS_PLATFORM_RESULT" = "success"
           test "$PACKAGED_RUNTIME_RESULT" = "success"
           test "$PACKAGE_MIGRATION_RESULT" = "success"
+          test "$IN_PLACE_UPDATE_RESULT" = "success"

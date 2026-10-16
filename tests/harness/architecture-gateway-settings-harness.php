@@ -289,7 +289,7 @@ a3_assert_same(array(), a3_asset_handles('scripts'), 'admin scripts do not load 
 // Source/delegation boundary keeps runtime payment orchestration outside Admin settings.
 $root = dirname(__DIR__, 2);
 $module_source = file_get_contents($root . '/src/Admin/GatewaySettings.php');
-$gateway_source = file_get_contents($root . '/UPayments.php');
+$gateway_source = file_get_contents($root . '/supcheckout.php');
 $checkout_orchestrator_source = file_get_contents($root . '/src/Payment/CheckoutOrchestrator.php');
 $checkout_runtime_source = $gateway_source . "\n" . $checkout_orchestrator_source;
 a3_assert(is_string($module_source), 'gateway settings module source is readable');

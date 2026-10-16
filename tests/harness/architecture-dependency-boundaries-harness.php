@@ -139,7 +139,7 @@ t1_dep_same(
 );
 
 $production_files = array(
-    $root . '/UPayments.php',
+    $root . '/supcheckout.php',
     $root . '/index.php',
     $root . '/uninstall.php',
 );
@@ -165,7 +165,7 @@ foreach ($production_files as $path) {
 sort($egress);
 
 $expected_egress = array(
-    'UPayments.php:wp_remote_request',
+    'supcheckout.php:wp_remote_request',
     'includes/Subscription/Cron/Scheduler.php:wp_remote_request',
     'src/Payment/StatusVerifier.php:wp_remote_get',
 );
@@ -179,7 +179,7 @@ t1_dep_same(
 // Pin the real callback/bootstrap topology without line-number coupling.
 $identity = file_get_contents($root . '/src/Release/Identity.php');
 $lifecycle = file_get_contents($root . '/src/Payment/PaymentLifecycle.php');
-$gateway = file_get_contents($root . '/UPayments.php');
+$gateway = file_get_contents($root . '/supcheckout.php');
 
 t1_dep_ok(is_string($identity), 'Release Identity source readable');
 t1_dep_ok(is_string($lifecycle), 'PaymentLifecycle source readable');

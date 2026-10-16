@@ -107,8 +107,9 @@ if (preg_match("/public const VERSION = '([^']+)';/", $identity, $matches) === 1
     $version = $matches[1];
 }
 release_assert($version !== '', 'release version is readable from canonical identity');
-release_assert(strpos($identity, "public const LEGACY_MAIN_FILE = 'UPayments.php';") !== false, 'qualified UPayments.php bootstrap is retained');
-release_assert(strpos($identity, "public const TARGET_MAIN_FILE = 'supcheckout.php';") !== false, 'unsafe physical main-file rename remains an explicit future target');
+release_assert(strpos($identity, "public const MAIN_FILE = 'supcheckout.php';") !== false, 'canonical identity names the supcheckout.php bootstrap');
+release_assert(strpos($identity, "public const LEGACY_MAIN_FILE = 'UPayments.php';") !== false, 'pre-rename UPayments.php main file stays recorded as legacy identity');
+release_assert(strpos($identity, "public const TARGET_MAIN_FILE = 'supcheckout.php';") !== false, 'packaging target main file remains supcheckout.php');
 
 foreach (array('/.github/', '/tests/', '/vendor/', '/composer.json', '/composer.lock', '/docs/', '/scripts/') as $excluded) {
     release_assert(strpos($distignore, $excluded) !== false, 'distribution excludes control/development path: ' . $excluded);
@@ -226,7 +227,23 @@ if ($version !== '') {
                     }
                 }
                 release_assert($safe, 'independent inspector sees one canonical SUPCheckout package root');
-                release_assert(in_array($prefix . 'UPayments.php', $names, true), 'canonical package retains qualified UPayments.php bootstrap');
+                release_assert(in_array($prefix . 'supcheckout.php', $names, true), 'canonical package ships the supcheckout.php bootstrap');
+                release_assert(in_array($prefix . 'UPayments.php', $names, true), 'canonical package ships the transitional UPayments.php basename-migration shim');
+                release_assert(in_array($prefix . 'src/Bootstrap/BasenameMigration.php', $names, true), 'canonical package ships the basename migration the shim requires');
+                $shim = $zip->getFromName($prefix . 'UPayments.php');
+                $shim = is_string($shim) ? $shim : '';
+                release_assert($shim !== '' && stripos($shim, 'Plugin Name:') === false, 'packaged shim has no Plugin Name header, so WordPress never lists a second plugin');
+                release_assert($shim !== '' && count(preg_split('/\r\n|\n|\r/', rtrim($shim, "\r\n"))) <= 12, 'packaged shim is at most 12 lines');
+                release_assert(strpos($shim, "defined('ABSPATH') || exit;") !== false, 'packaged shim exits on direct access');
+                $shim_requires = array();
+                preg_match_all('/\b(?:require|require_once|include|include_once)\b\s*\(?\s*([^;]+);/', $shim, $shim_matches);
+                foreach ($shim_matches[1] as $shim_target) {
+                    $shim_requires[] = trim($shim_target, " \t()");
+                }
+                release_assert(
+                    $shim_requires === array("__DIR__ . '/src/Bootstrap/BasenameMigration.php'", "__DIR__ . '/supcheckout.php'"),
+                    'packaged shim requires only src/Bootstrap/BasenameMigration.php and then supcheckout.php'
+                );
                 release_assert(in_array($prefix . 'readme.txt', $names, true), 'canonical package contains WordPress.org readme');
                 release_assert(!in_array($prefix . 'composer.json', $names, true), 'canonical package excludes Composer controls');
 
@@ -239,7 +256,7 @@ if ($version !== '') {
                 }
                 release_assert(!$contains_screenshots, 'canonical package excludes WordPress.org screenshot source material');
 
-                $plugin = $zip->getFromName($prefix . 'UPayments.php');
+                $plugin = $zip->getFromName($prefix . 'supcheckout.php');
                 release_assert(
                     is_string($plugin)
                         && strpos($plugin, 'Plugin Name: SUPCheckout for UPayments') !== false

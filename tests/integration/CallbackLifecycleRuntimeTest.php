@@ -11,7 +11,7 @@ require_once __DIR__ . '/bootstrap.php';
 use Simplixi\SUPCheckout\Payment\PaymentLifecycle;
 
 if (!class_exists('WC_Upayments')) {
-    require_once dirname(__DIR__, 2) . '/UPayments.php';
+    require_once dirname(__DIR__, 2) . '/supcheckout.php';
     woocommerceUpaymentsInit();
 }
 

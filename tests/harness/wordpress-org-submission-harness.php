@@ -25,7 +25,7 @@ function wporg_read($root, $relative) {
 }
 
 $readme = wporg_read($root, 'readme.txt');
-$plugin = wporg_read($root, 'UPayments.php');
+$plugin = wporg_read($root, 'supcheckout.php');
 $identity = wporg_read($root, 'src/Release/Identity.php');
 $build = wporg_read($root, 'scripts/build-release.sh');
 $verify = wporg_read($root, 'scripts/verify-release.sh');
