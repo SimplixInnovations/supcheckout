@@ -76,11 +76,20 @@ final class StatusRateGateTest extends TestCase {
             $GLOBALS['supcheckout_test_options'][$old_name] = 1;
         }
 
+        // Another credential's slots in the same old minute must survive this scope's cleanup.
+        $other = 'simplixpay_upay_status_v1_' . str_repeat('f', 16) . '_' . $old_bucket . '_0';
+        $GLOBALS['supcheckout_test_options'][$other] = 1;
+        $GLOBALS['supcheckout_test_option_calls'] = array();
+
         self::assertTrue(StatusRateGate::acquire($gateway));
         for ($slot = 0; $slot < 30; $slot++) {
             $old_name = 'simplixpay_upay_status_v1_' . $scope . '_' . $old_bucket . '_' . $slot;
             self::assertArrayNotHasKey($old_name, $GLOBALS['supcheckout_test_options']);
         }
+        self::assertArrayHasKey($other, $GLOBALS['supcheckout_test_options']);
+        // One scoped DELETE instead of thirty delete_option() round trips.
+        $deletes = array_filter($GLOBALS['supcheckout_test_option_calls'], static function ($call) { return $call[0] === 'delete'; });
+        self::assertCount(0, $deletes);
     }
 
     private function gateway($api_key, $test_mode) {
