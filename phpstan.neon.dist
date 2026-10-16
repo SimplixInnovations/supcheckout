@@ -22,6 +22,7 @@ parameters:
         - src/Payment/CheckoutOrchestrator.php
         - src/Payment/ProviderErrorSummary.php
         - src/Payment/PaymentLifecycle.php
+        - src/Payment/ReconciliationSweep.php
         - src/Provider/EndpointResolver.php
         - src/Provider/PaymentMethodAvailability.php
         - src/Admin/GatewaySettings.php
