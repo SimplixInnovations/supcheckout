@@ -19,6 +19,8 @@ namespace Simplixi\SUPCheckout\Payment {
             'remote_response' => array('code' => 201, 'body' => ''),
             'remote_mutator' => null,
             'db_query_mutator' => null,
+            // WP-Cron refusing an event (pre_schedule_event filter, cron option write failure).
+            'schedule_fails' => false,
             // Real WordPress add_option() is check-then-upsert (INSERT ... ON DUPLICATE KEY
             // UPDATE): two racing callers can both "succeed". 'wp_add_option_race' makes the
             // fake behave like the losing side of that race.
@@ -117,6 +119,7 @@ namespace Simplixi\SUPCheckout\Payment {
     }
     function wp_schedule_single_event($timestamp, $hook, $args = array()) {
         $key = $hook . '|' . json_encode(array_values($args));
+        if (!empty(state()['schedule_fails'])) { return false; }
         if (isset(state()['scheduled'][$key])) { return false; }
         state()['scheduled'][$key] = (int) $timestamp;
         return true;
@@ -886,6 +889,23 @@ namespace {
     $tracks = is_array($pending) ? array_map(function ($entry) { return $entry['track']; }, $pending) : array();
     sort($tracks);
     same($tracks, array('track-a', 'track-b'), 'R7 a track queued during reconciliation survives its final write');
+
+    // R8: when WP-Cron refuses the reconciliation event, the attempt is not consumed
+    // and the merchant is told once to verify the payment manually.
+    list($gateway, $order) = reset_fixture(615);
+    \Simplixi\SUPCheckout\Payment\state()['remote_response'] = array('code' => 500, 'body' => '');
+    \Simplixi\SUPCheckout\Payment\state()['schedule_fails'] = true;
+    PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-615', 'webhook');
+    same((int) $order->get_meta('_simplixpay_upayments_reconcile_attempt_v1'), 0, 'R8 a refused reconciliation event does not consume an attempt');
+    $schedule_notes = array_values(array_filter($order->notes, function ($note) { return strpos($note, 'could not schedule') !== false; }));
+    same(count($schedule_notes), 1, 'R8 the merchant is told once that the automatic payment check could not be scheduled');
+    PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-615', 'webhook');
+    $schedule_notes = array_values(array_filter($order->notes, function ($note) { return strpos($note, 'could not schedule') !== false; }));
+    same(count($schedule_notes), 1, 'R8 the scheduling note is not repeated');
+    \Simplixi\SUPCheckout\Payment\state()['schedule_fails'] = false;
+    PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-615', 'webhook');
+    same((int) $order->get_meta('_simplixpay_upayments_reconcile_attempt_v1'), 1, 'R8 once WP-Cron accepts the event the first attempt is counted');
+
     // R3: an authenticated capture that cannot bind to the current order economics is surfaced once.
     list($gateway, $order) = reset_fixture(596);
     $rotate($order, 'merchant-order-596-b');
