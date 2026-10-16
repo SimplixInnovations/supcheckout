@@ -844,6 +844,24 @@ $upay_establish->invoke(null, function ($candidate) use (&$upay_calls) {
     return ['http_status' => 500, 'transport_ok' => false, 'curl_errno' => 0, 'body' => '{}'];
 });
 upay_assert_eq(count($upay_calls), 1, 'PHP-CTR-18 non-duplicate failures are never retried', 'helper_unit_runtime');
+
+// Classic validate_fields(): a white-label checkout with no chosen method is
+// rejected before WooCommerce creates the order; Store API (Blocks) is skipped.
+upay_default_success_environment();
+$upay_vf_gateway = upay_make_testable_gateway();
+upay_set_post(['payment_method' => 'upayments']);
+upay_assert_eq($upay_vf_gateway->validate_fields(), false, 'PHP-VF-1 white-label Classic checkout without a method is rejected before order creation', 'helper_unit_runtime');
+upay_set_post(['payment_method' => 'upayments', 'upayment_payment_type' => 'knet']);
+upay_assert_eq($upay_vf_gateway->validate_fields(), true, 'PHP-VF-2 a chosen method passes', 'helper_unit_runtime');
+$upay_vf_source = (string) file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
+$upay_vf_start = strpos($upay_vf_source, 'public function validate_fields()');
+upay_assert_eq(
+    $upay_vf_start !== false
+        && strpos($upay_vf_source, 'is_store_api_checkout_request()', $upay_vf_start) < strpos($upay_vf_source, 'classic_method_selected(', $upay_vf_start),
+    true,
+    'PHP-VF-3 Store API (Blocks) requests skip the Classic pre-check',
+    'helper_unit_runtime'
+);
 // ---------------------------------------------------------------------------
 // 11. getSavedCardsForCurrentUser — strict gating
 // ---------------------------------------------------------------------------
@@ -7642,12 +7660,12 @@ $_expected_family_baseline = array(
 //                                                   TOTAL       = 21
 $_expected_categories = array(
     'semantic_runtime'    => 377,
-    'helper_unit_runtime' => 851,
+    'helper_unit_runtime' => 854,
     'static_source'       => 46,
     'harness_self_test'   => 662,    // 641 baseline + 21 §4/§5/§7 probes
     'lint_tooling'        => 10,
 );
-$_expected_total_pass    = 1946;    // 377 + 851 + 46 + 662 + 10
+$_expected_total_pass    = 1949;    // 377 + 854 + 46 + 662 + 10
 $_expected_total_fail    = 0;
 $_family_mismatch        = 0;
 $_category_mismatch      = 0;

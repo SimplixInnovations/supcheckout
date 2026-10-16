@@ -6,6 +6,22 @@ use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Payment\CheckoutPayload;
 
 final class CheckoutPayloadTest extends TestCase {
+    public function test_classic_method_selection_is_required_only_for_white_label_accounts(): void {
+        $white_label = array('whitelabled' => true, 'payment' => array('knet' => 'KNET', 'cc' => 'Credit Card'));
+        $hosted = array('whitelabled' => false, 'payment' => array('knet' => 'KNET'));
+
+        // White-label: the customer picks the method on the store, so it must be present.
+        self::assertFalse(CheckoutPayload::classic_method_selected($white_label, array()));
+        self::assertFalse(CheckoutPayload::classic_method_selected($white_label, array('upayment_payment_type' => '')));
+        self::assertFalse(CheckoutPayload::classic_method_selected($white_label, array('upayment_payment_type' => 'upayments')));
+        self::assertFalse(CheckoutPayload::classic_method_selected($white_label, array('upayment_payment_type' => array('knet'))));
+        self::assertTrue(CheckoutPayload::classic_method_selected($white_label, array('upayment_payment_type' => 'knet')));
+        // Hosted: UPayments' own page chooses the method; nothing is required here.
+        self::assertTrue(CheckoutPayload::classic_method_selected($hosted, array()));
+        // Unknown availability: let the authoritative server checks in process_payment decide.
+        self::assertTrue(CheckoutPayload::classic_method_selected(null, array()));
+    }
+
     public function test_decimal_comparison_preserves_exact_provider_economics(): void {
         self::assertSame(-1, CheckoutPayload::compare_nonnegative_decimal_strings('9.99', '10'));
         self::assertSame(0, CheckoutPayload::compare_nonnegative_decimal_strings('1.0', '1.000'));

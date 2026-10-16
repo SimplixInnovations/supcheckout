@@ -60,6 +60,24 @@ class CheckoutPayload {
      * @param string|int $key Field key.
      * @return bool
      */
+    /**
+     * Classic checkout pre-check: on white-label accounts the customer chooses the
+     * method on the store, so one must be selected before WooCommerce creates the
+     * order. Hosted accounts choose it on the UPayments page; unknown availability is
+     * left to the authoritative checks in process_payment().
+     *
+     * @param mixed $availability Normalized availability (whitelabled + payment map).
+     * @param mixed $post         Classic checkout POST data.
+     * @return bool
+     */
+    public static function classic_method_selected($availability, $post) {
+        if (!is_array($availability) || !isset($availability['whitelabled']) || $availability['whitelabled'] !== true) {
+            return true;
+        }
+        $selected = is_array($post) && isset($post['upayment_payment_type']) ? $post['upayment_payment_type'] : '';
+        return is_string($selected) && $selected !== '' && $selected !== 'upayments';
+    }
+
     public static function field_present($source, $key) {
         if (!is_array($source)) {
             return false;
