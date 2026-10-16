@@ -37,8 +37,11 @@ final class BasenameMigration {
 
         $changed = false;
         $active = get_option('active_plugins', array());
-        if (is_array($active)) {
-            $migrated = self::migrate_list($active, $shim, $main);
+        if (is_array($active) && self::migrate_list($active, $shim, $main) !== null) {
+            // Re-read uncached right before writing, so an activation another request
+            // made since the cached read is not lost.
+            $active = self::fresh_option('active_plugins', 'options', 'active_plugins');
+            $migrated = is_array($active) ? self::migrate_list($active, $shim, $main) : null;
             if ($migrated !== null) {
                 update_option('active_plugins', $migrated);
                 $changed = true;
@@ -49,8 +52,10 @@ final class BasenameMigration {
             && function_exists('get_site_option') && function_exists('update_site_option')
         ) {
             $sitewide = get_site_option('active_sitewide_plugins', array());
-            if (is_array($sitewide)) {
-                $migrated = self::migrate_map($sitewide, $shim, $main);
+            if (is_array($sitewide) && self::migrate_map($sitewide, $shim, $main) !== null) {
+                $network = function_exists('get_current_network_id') ? (int) get_current_network_id() : 1;
+                $sitewide = self::fresh_option('active_sitewide_plugins', 'site-options', $network . ':active_sitewide_plugins');
+                $migrated = is_array($sitewide) ? self::migrate_map($sitewide, $shim, $main) : null;
                 if ($migrated !== null) {
                     update_site_option('active_sitewide_plugins', $migrated);
                     $changed = true;
@@ -115,6 +120,28 @@ final class BasenameMigration {
             $migrated[$basename] = $value;
         }
         return $migrated;
+    }
+
+    /**
+     * Drop the object-cache copies of an option, then read it again.
+     *
+     * @param string $name Option name.
+     * @param string $group Object-cache group of the option.
+     * @param string $key Object-cache key of the option.
+     * @return mixed
+     */
+    private static function fresh_option($name, $group, $key) {
+        if (function_exists('wp_cache_delete')) {
+            if ($group === 'options') {
+                wp_cache_delete('alloptions', 'options');
+                wp_cache_delete('notoptions', 'options');
+            }
+            wp_cache_delete($key, $group);
+        }
+        if ($group === 'options') {
+            return get_option($name, array());
+        }
+        return function_exists('get_site_option') ? get_site_option($name, array()) : array();
     }
 
     private function __construct() {}

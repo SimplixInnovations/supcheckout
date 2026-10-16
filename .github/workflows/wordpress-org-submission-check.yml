@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'supcheckout.php'
+      - 'UPayments.php'
       - 'readme.txt'
       - 'LICENSE'
       - 'README.md'
@@ -28,6 +29,7 @@ on:
     branches: [main]
     paths:
       - 'supcheckout.php'
+      - 'UPayments.php'
       - 'readme.txt'
       - 'LICENSE'
       - 'README.md'
@@ -93,6 +95,8 @@ jobs:
           bash scripts/verify-release.sh "$ZIP"
           unzip -q "$ZIP" -d "${RUNNER_TEMP}/plugin-check"
           test -s "${RUNNER_TEMP}/plugin-check/supcheckout/supcheckout.php"
+          # The header-less transitional shim is part of the Plugin Check target too.
+          test -s "${RUNNER_TEMP}/plugin-check/supcheckout/UPayments.php"
           test -s "${RUNNER_TEMP}/plugin-check/supcheckout/readme.txt"
 
       - name: Run official WordPress Plugin Check against packaged artifact

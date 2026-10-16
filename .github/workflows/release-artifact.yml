@@ -483,7 +483,7 @@ jobs:
     name: In-place update supcheckout/UPayments.php → supcheckout.php WP ${{ matrix.wordpress }} / WC ${{ matrix.woocommerce }} / PHP 8.3
     needs: artifact-build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -584,6 +584,8 @@ jobs:
           SUPCHECKOUT_PLUGIN_MAIN_FILE=UPayments.php \
           WP_CLI_BIN=/tmp/wp-cli.phar \
           bash scripts/install-wp-test-environment.sh "${{ matrix.wordpress }}" "${{ matrix.woocommerce }}" "$RUNNER_TEMP/wordpress"
+          # Determinism: no request may run the hourly tick and move its timestamp.
+          /tmp/wp-cli.phar config set DISABLE_WP_CRON true --raw --path="$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
           /tmp/wp-cli.phar eval 'exit(in_array("supcheckout/UPayments.php", (array) get_option("active_plugins"), true) ? 0 : 1);' --path="$RUNNER_TEMP/wordpress"
 
@@ -601,18 +603,39 @@ jobs:
           SUPCHECKOUT_UPGRADE_PHASE=record-in-place-cron \
             /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/UpgradeCompatibilityTest.php" --path="$RUNNER_TEMP/wordpress"
 
-      - name: Overwrite in place with the canonical package without deactivating
+      - name: WP-CLI overwrite in place without deactivating
+        run: bash tests/integration/in-place-update-paths.sh cli-overwrite "$RUNNER_TEMP/wordpress"
+
+      - name: Web first request is the Plugins screen after the overwrite
         shell: bash
         run: |
           set -euo pipefail
-          /tmp/wp-cli.phar plugin install "$CURRENT_ZIP" --force --path="$RUNNER_TEMP/wordpress"
-          # The first ordinary request loads the shim, which moves the active entry.
-          /tmp/wp-cli.phar eval '1;' --path="$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh reset "$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh web-first-request "$RUNNER_TEMP/wordpress"
 
-      - name: Verify the active basename moved with merchant state intact
-        env:
-          SUPCHECKOUT_UPGRADE_PHASE: verify-in-place
-        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/UpgradeCompatibilityTest.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Upload installer ("Replace current with uploaded") code path
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/in-place-update-paths.sh reset "$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh upload-installer "$RUNNER_TEMP/wordpress"
+
+      - name: One-click / bulk update path for the old basename
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/in-place-update-paths.sh reset "$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh bulk-update "$RUNNER_TEMP/wordpress"
+
+      - name: Characterize the classic single-plugin upgrade flow (known limitation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/in-place-update-paths.sh reset "$RUNNER_TEMP/wordpress"
+          bash tests/integration/in-place-update-paths.sh single-upgrade "$RUNNER_TEMP/wordpress"
+
+      - name: Network-activated pre-rename build on multisite
+        run: bash tests/integration/in-place-update-paths.sh multisite "$RUNNER_TEMP/wordpress"
 
       - name: Clean in-place certification fixtures
         env:

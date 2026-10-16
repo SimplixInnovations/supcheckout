@@ -112,7 +112,18 @@ The first-stable release identity is:
 - namespace: `Simplixi\SUPCheckout`;
 - current development artifact: `supcheckout-0.1.0.zip`.
 
-The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). It was `UPayments.php` before; real-install qualification had shown that renaming an already-active main file strands WordPress's persisted plugin basename. A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it. The verifier requires `supcheckout.php` with its plugin header, the header-less `UPayments.php` shim and `src/Bootstrap/BasenameMigration.php` in the package, and `Identity::MAIN_FILE = 'supcheckout.php'`. The Release Artifact `in-place-main-file-update` cells install the pre-rename build active as `supcheckout/UPayments.php`, overwrite it in place without deactivating, and assert `supcheckout/supcheckout.php` is active with merchant state unchanged.
+The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). It was `UPayments.php` before; real-install qualification had shown that renaming an already-active main file strands WordPress's persisted plugin basename. A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it. The verifier requires `supcheckout.php` with its plugin header, the header-less `UPayments.php` shim and `src/Bootstrap/BasenameMigration.php` in the package, and `Identity::MAIN_FILE = 'supcheckout.php'`. The Release Artifact `in-place-main-file-update` cells install the pre-rename build active as `supcheckout/UPayments.php` on WP 7.1.3 / WC 11.1.2 and WP 6.9.10 / WC 10.8.1. Each cell then runs `tests/integration/in-place-update-paths.sh` through these paths, resetting to the pre-rename build between them:
+
+- a WP-CLI overwrite;
+- an authenticated `wp-admin/plugins.php` GET as the first request after the overwrite;
+- the upload installer (`Plugin_Upgrader::install(..., overwrite_package)`);
+- the bulk / one-click upgrader (`wp plugin update`);
+- a characterization of the classic single-plugin `Plugin_Upgrader::upgrade()`;
+- a network-activated multisite variant.
+
+Each migrating path asserts that `supcheckout/supcheckout.php` is active once, that no `supcheckout/UPayments.php` entry remains, and that merchant state and the subscription schedule are unchanged.
+
+Pre-rename installs: update by zip upload ("Replace current with uploaded"), WP-CLI, or the Plugins-screen / Updates-screen one-click and bulk updates (`bulk_upgrade()`). These keep the stored `supcheckout/UPayments.php` entry, and the shim moves it on the next request. The classic single-plugin Update-now flow (`wp-admin/update.php?action=upgrade-plugin`, `Plugin_Upgrader::upgrade()`, used without JavaScript) deactivates the plugin before installing and then reactivates it by the old basename. Validation rejects the header-less shim, so the install ends **deactivated**: no SUPCheckout code runs, merchant data is unchanged, and one activation of `supcheckout/supcheckout.php` recovers it. Any future update channel must key updates to `supcheckout/supcheckout.php`.
 
 ## Deterministic artifact contract
 

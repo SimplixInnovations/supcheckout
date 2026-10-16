@@ -143,6 +143,31 @@ final class BasenameMigrationTest extends TestCase {
         self::assertSame('corrupt', get_option('active_plugins'));
     }
 
+    public function test_it_re_reads_active_plugins_uncached_before_writing(): void {
+        $GLOBALS['supcheckout_test_options']['active_plugins'] = array('supcheckout/UPayments.php');
+        $reads = 0;
+        // A concurrent request activates akismet between the cached read and the write.
+        $GLOBALS['supcheckout_test_get_option_filter'] = static function ($name, $value) use (&$reads) {
+            if ($name !== 'active_plugins') {
+                return $value;
+            }
+            $reads++;
+            return $reads === 1 ? $value : array('supcheckout/UPayments.php', 'akismet/akismet.php');
+        };
+
+        self::assertTrue(BasenameMigration::run($this->shim('supcheckout')));
+        self::assertSame(2, $reads);
+        self::assertContains(array('alloptions', 'options'), $GLOBALS['supcheckout_test_cache_deletes']);
+        self::assertSame(array('supcheckout/supcheckout.php', 'akismet/akismet.php'), $GLOBALS['supcheckout_test_options']['active_plugins']);
+    }
+
+    public function test_a_no_op_run_never_flushes_the_options_cache(): void {
+        $GLOBALS['supcheckout_test_options']['active_plugins'] = array('supcheckout/supcheckout.php');
+
+        self::assertFalse(BasenameMigration::run($this->shim('supcheckout')));
+        self::assertSame(array(), $GLOBALS['supcheckout_test_cache_deletes']);
+    }
+
     private function shim(string $dir): string {
         return $this->plugins . '/' . $dir . '/UPayments.php';
     }

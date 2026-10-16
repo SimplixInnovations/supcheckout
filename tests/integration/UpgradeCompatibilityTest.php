@@ -10,9 +10,14 @@
  * that moves a pre-rename supcheckout/UPayments.php active entry in place.
  *
  * Phases: seed-existing / verify-canonical / verify-legacy-rollback /
- * verify-canonical-final / cleanup for the package-root migration, and
- * seed-in-place / record-in-place-cron / verify-in-place for the in-place
- * update of an active pre-rename build (SUPCHECKOUT_LEGACY_SLUG=supcheckout).
+ * verify-canonical-final / cleanup for the package-root migration, and, for the
+ * in-place update of an active pre-rename build (SUPCHECKOUT_LEGACY_SLUG=supcheckout,
+ * driven by tests/integration/in-place-update-paths.sh):
+ * - seed-in-place / record-in-place-cron / assert-pre-rename-active;
+ * - run-upload-installer (the "Replace current with uploaded" installer call);
+ * - characterize-single-upgrade / verify-single-upgrade-deactivated (the classic
+ *   single-plugin Plugin_Upgrader::upgrade() flow);
+ * - verify-in-place, and record-network-activation / verify-network-in-place.
  */
 
 require_once __DIR__ . '/bootstrap.php';
@@ -37,6 +42,7 @@ $settings_snapshot_key = '_supcheckout_upgrade_settings_snapshot';
 $order_key = '_supcheckout_upgrade_order_id';
 $product_key = '_supcheckout_upgrade_product_id';
 $cron_key = '_supcheckout_upgrade_cron_timestamp';
+$network_activation_key = '_supcheckout_upgrade_network_activation';
 
 function supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key) {
     $snapshot = get_option($settings_snapshot_key);
@@ -228,6 +234,99 @@ if ('verify-in-place' === $phase) {
     return;
 }
 
+if ('assert-pre-rename-active' === $phase) {
+    $active = get_option('active_plugins', array());
+    supcheckout_cert_assert(is_array($active) && in_array($legacy_basename, $active, true), 'reset: pre-rename build is active as ' . $legacy_basename);
+    supcheckout_cert_assert(!is_plugin_active($canonical_basename), 'reset: ' . $canonical_basename . ' is not active');
+    $headers = get_file_data(WP_PLUGIN_DIR . '/' . $legacy_basename, array('name' => 'Plugin Name'));
+    supcheckout_cert_assert(isset($headers['name']) && $headers['name'] !== '', 'reset: ' . $legacy_basename . ' is the real pre-rename main file, not the shim');
+    supcheckout_cert_assert(!file_exists(WP_PLUGIN_DIR . '/' . $canonical_basename), 'reset: the pre-rename package has no supcheckout.php');
+    supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
+    return;
+}
+
+if ('run-upload-installer' === $phase) {
+    // The exact call wp-admin/update.php makes for "Replace current with uploaded".
+    $zip = (string) getenv('SUPCHECKOUT_CURRENT_ZIP');
+    supcheckout_cert_assert($zip !== '' && is_file($zip), 'upload installer: current package zip exists');
+    require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+    $upgrader = new Plugin_Upgrader(new Automatic_Upgrader_Skin());
+    $result = $upgrader->install($zip, array('overwrite_package' => true));
+    supcheckout_cert_assert(true === $result, 'upload installer: Plugin_Upgrader::install($zip, overwrite_package) succeeds');
+    supcheckout_cert_assert(in_array($legacy_basename, (array) get_option('active_plugins', array()), true), 'upload installer leaves the stored ' . $legacy_basename . ' entry active (no deactivation)');
+    return;
+}
+
+if ('characterize-single-upgrade' === $phase) {
+    // Characterization of the classic single-plugin flow (wp-admin/update.php?action=upgrade-plugin):
+    // Plugin_Upgrader::upgrade() hooks deactivate_plugin_before_upgrade, then the skin's
+    // follow-up request reactivates by the OLD basename with activate_plugin($plugin, '', false, true).
+    $zip = (string) getenv('SUPCHECKOUT_CURRENT_ZIP');
+    supcheckout_cert_assert($zip !== '' && is_file($zip), 'single upgrade: current package zip exists');
+    add_filter('site_transient_update_plugins', static function ($value) use ($legacy_basename, $zip) {
+        $value = is_object($value) ? $value : new stdClass();
+        $value->response = isset($value->response) && is_array($value->response) ? $value->response : array();
+        $value->response[$legacy_basename] = (object) array(
+            'id' => 'supcheckout',
+            'slug' => 'supcheckout',
+            'plugin' => $legacy_basename,
+            'new_version' => '0.1.1',
+            'url' => '',
+            'package' => $zip,
+        );
+        return $value;
+    });
+    require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+    $upgrader = new Plugin_Upgrader(new Automatic_Upgrader_Skin());
+    $result = $upgrader->upgrade($legacy_basename);
+    supcheckout_cert_assert(true === $result, 'single upgrade: Plugin_Upgrader::upgrade(' . $legacy_basename . ') installs the new package');
+    supcheckout_cert_assert(!is_plugin_active($legacy_basename), 'single upgrade characterization: upgrade() deactivated ' . $legacy_basename . ' before installing');
+    wp_clean_plugins_cache(false);
+    $reactivated = activate_plugin($legacy_basename, '', false, true);
+    $code = is_wp_error($reactivated) ? $reactivated->get_error_code() : 'none';
+    supcheckout_cert_note('single upgrade reactivation by the old basename returned: ' . $code);
+    supcheckout_cert_assert(is_wp_error($reactivated), 'single upgrade characterization: reactivating the header-less ' . $legacy_basename . ' fails');
+    $active = (array) get_option('active_plugins', array());
+    supcheckout_cert_assert(!in_array($legacy_basename, $active, true) && !in_array($canonical_basename, $active, true), 'single upgrade characterization: SUPCheckout ends deactivated (known limitation)');
+    return;
+}
+
+if ('verify-single-upgrade-deactivated' === $phase) {
+    $active = (array) get_option('active_plugins', array());
+    supcheckout_cert_assert(!in_array($legacy_basename, $active, true) && !in_array($canonical_basename, $active, true), 'single upgrade characterization: still deactivated after a plain request (no SUPCheckout code ran)');
+    supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
+    supcheckout_cert_note('known limitation: the classic single-plugin Update-now flow deactivates a pre-rename install; merchant data is intact and one reactivation of supcheckout/supcheckout.php recovers it');
+    return;
+}
+
+if ('record-network-activation' === $phase) {
+    supcheckout_cert_assert(is_multisite(), 'network cell runs on multisite');
+    $sitewide = get_site_option('active_sitewide_plugins', array());
+    supcheckout_cert_assert(is_array($sitewide) && isset($sitewide[$legacy_basename]), 'pre-rename build is network-activated as ' . $legacy_basename);
+    supcheckout_cert_assert(!in_array($legacy_basename, (array) get_option('active_plugins', array()), true), 'pre-rename build is not also site-activated');
+    update_option($network_activation_key, $sitewide[$legacy_basename], false);
+    return;
+}
+
+if ('verify-network-in-place' === $phase) {
+    supcheckout_cert_assert(is_multisite(), 'network cell runs on multisite');
+    $sitewide = get_site_option('active_sitewide_plugins', array());
+    supcheckout_cert_assert(is_array($sitewide) && isset($sitewide[$canonical_basename]), 'network in-place update moved the network entry to ' . $canonical_basename);
+    supcheckout_cert_assert(is_array($sitewide) && !isset($sitewide[$pre_rename_basename]), 'no ' . $pre_rename_basename . ' key remains in active_sitewide_plugins');
+    supcheckout_cert_assert(
+        is_array($sitewide) && isset($sitewide[$canonical_basename]) && (int) get_option($network_activation_key) > 0
+            && (int) $sitewide[$canonical_basename] === (int) get_option($network_activation_key),
+        'network activation timestamp is preserved'
+    );
+    supcheckout_cert_assert(is_plugin_active_for_network($canonical_basename), $canonical_basename . ' is network-active');
+    $invalid = validate_active_plugins();
+    supcheckout_cert_assert(is_array($invalid) && $invalid === array(), 'validate_active_plugins() reports no invalid SUPCheckout entry on the network');
+    supcheckout_upgrade_assert_runtime_contract('canonical', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
+    supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
+    supcheckout_cert_note('network in-place update migrated ' . $pre_rename_basename . ' to ' . $canonical_basename);
+    return;
+}
+
 if ('verify-canonical' === $phase || 'verify-canonical-final' === $phase) {
     supcheckout_upgrade_assert_runtime_contract('canonical', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
     supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
@@ -252,7 +351,7 @@ if ('cleanup' === $phase) {
     if ($product_id > 0) {
         wp_delete_post($product_id, true);
     }
-    foreach (array($settings_snapshot_key, $order_key, $product_key, $cron_key) as $key) {
+    foreach (array($settings_snapshot_key, $order_key, $product_key, $cron_key, $network_activation_key) as $key) {
         delete_option($key);
     }
     supcheckout_cert_note('upgrade certification fixtures cleaned');
