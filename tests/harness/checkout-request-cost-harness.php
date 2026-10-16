@@ -71,16 +71,21 @@ $enabled_check = strpos($process_body, "get_option('enable_subscriptions') !== '
 $install_check = strpos($process_body, 'CycleClaim::maybe_install()');
 cost_assert($enabled_check !== false && $install_check !== false && $enabled_check < $install_check, 'the tick checks subscriptions are enabled before the cycle-claim table check');
 
-$deactivate = cost_run('deactivate');
-cost_assert($deactivate['code'] === 0 && strpos($deactivate['out'], 'CLEARED:upay_process_subscriptions') !== false, 'deactivation clears the hourly subscription tick');
-cost_assert(strpos($gateway_source, 'register_deactivation_hook(__FILE__, function () {') !== false && strpos($gateway_source, 'Scheduler::deactivate();') !== false, 'the deactivation hook is registered by the main plugin file');
+$existing = cost_run('enabled-existing');
+cost_assert($existing['code'] === 0 && strpos($existing['out'], 'SCHEDULED:') === false && strpos($existing['out'], 'CLEARED:') === false, 'an enabled store keeps its existing hourly tick timestamp untouched');
+
+// Non-destructive rollback contract (release-artifact migration cells): deactivating
+// SUPCheckout must leave the canonical subscription schedule exactly as it was, so a
+// merchant who rolls back and forward again keeps the same next run.
+cost_assert(strpos($gateway_source, 'register_deactivation_hook') === false, 'the main plugin file registers no deactivation hook that could clear the schedule');
+cost_assert(strpos($scheduler_source, 'function deactivate(') === false, 'the scheduler has no deactivation path that clears the hourly tick');
 
 echo "\nRequest cost: {$pass} PASS / {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);
 
 function cost_child($root, $scenario) {
     define('ABSPATH', __DIR__ . '/');
-    $GLOBALS['cost'] = array('scenario' => $scenario, 'events' => array('upay_process_subscriptions' => $scenario === 'disabled' || $scenario === 'deactivate'));
+    $GLOBALS['cost'] = array('scenario' => $scenario, 'events' => array('upay_process_subscriptions' => $scenario === 'disabled' || $scenario === 'enabled-existing'));
     eval(<<<'PHP'
 function add_action($hook, $callback, $priority = 10, $accepted_args = 1) { if ($hook === 'upay_process_subscriptions') { echo "HOOKED:{$hook}\n"; } return true; }
 function wp_next_scheduled($hook, $args = array()) { return !empty($GLOBALS['cost']['events'][$hook]) ? time() + 60 : false; }
@@ -88,16 +93,12 @@ function wp_schedule_event($timestamp, $recurrence, $hook, $args = array()) { $G
 function wp_clear_scheduled_hook($hook, $args = array()) { $had = !empty($GLOBALS['cost']['events'][$hook]); unset($GLOBALS['cost']['events'][$hook]); if ($had) { echo "CLEARED:{$hook}\n"; } return $had ? 1 : 0; }
 function get_option($name, $default = false) {
     if ($name === 'woocommerce_upayments_settings') {
-        return array('enable_subscriptions' => $GLOBALS['cost']['scenario'] === 'enabled' ? 'yes' : 'no');
+        return array('enable_subscriptions' => in_array($GLOBALS['cost']['scenario'], array('enabled', 'enabled-existing'), true) ? 'yes' : 'no');
     }
     return $default;
 }
 PHP
     );
     require $root . '/includes/Subscription/Cron/Scheduler.php';
-    if ($scenario === 'deactivate') {
-        \UPayments\Subscription\Cron\Scheduler::deactivate();
-        return;
-    }
     \UPayments\Subscription\Cron\Scheduler::init();
 }

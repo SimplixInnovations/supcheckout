@@ -121,15 +121,6 @@ class Scheduler
     /**
      * Main cron logic.
      */
-    /**
-     * Plugin deactivation: stop the hourly tick. Per-order reconciliation and
-     * Action Scheduler cycle actions are payment state and are left untouched.
-     */
-    public static function deactivate()
-    {
-        wp_clear_scheduled_hook(self::CRON_HOOK);
-    }
-
     public static function process()
     {
         $logger  = wc_get_logger();

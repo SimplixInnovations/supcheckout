@@ -1360,10 +1360,6 @@ add_action('woocommerce_init', function () {
     require_once __DIR__ . '/includes/Subscription/Cron/Scheduler.php';
     Scheduler::init();
 });
-register_deactivation_hook(__FILE__, function () {
-    require_once __DIR__ . '/includes/Subscription/Cron/Scheduler.php';
-    Scheduler::deactivate();
-});
 
 add_action('init', function () {
     $method = isset($_SERVER['REQUEST_METHOD']) && is_string($_SERVER['REQUEST_METHOD'])
