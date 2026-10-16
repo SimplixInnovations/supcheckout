@@ -25,6 +25,7 @@ final class PaymentLifecycle {
     private const PROVIDER_RESULT_META = '_simplixpay_upayments_provider_result_v1';
     private const RECONCILE_ATTEMPT_META = '_simplixpay_upayments_reconcile_attempt_v1';
     private const RECONCILE_REASON_META = '_simplixpay_upayments_reconcile_reason_v1';
+    private const RECONCILE_SCHEDULE_FAILED_META = '_supcheckout_reconcile_schedule_failed_v1';
     private const RECONCILE_EXHAUSTED_META = '_simplixpay_upayments_reconcile_exhausted_v1';
     private const MAX_RECONCILE_ATTEMPTS = 4;
     // Provider order identities of earlier Charge attempts on the same Woo order.
@@ -1205,16 +1206,34 @@ final class PaymentLifecycle {
         $delay = $delays[$attempt];
         $next_attempt = $attempt + 1;
 
-        $order->update_meta_data(self::RECONCILE_ATTEMPT_META, $next_attempt);
-        $order->update_meta_data(self::RECONCILE_REASON_META, self::safe_code($reason));
-        $order->save();
-
+        // Schedule first: an attempt is consumed only once WP-Cron has accepted it.
         $scheduled = wp_schedule_single_event(time() + $delay, self::RECONCILE_HOOK, $args);
         if ($scheduled === false) {
             self::log('reconcile_schedule_failed', 'warning');
+            self::note_reconciliation_unschedulable($order);
             return false;
         }
+        $order->update_meta_data(self::RECONCILE_ATTEMPT_META, $next_attempt);
+        $order->update_meta_data(self::RECONCILE_REASON_META, self::safe_code($reason));
+        $order->save();
         return true;
+    }
+
+    /**
+     * WP-Cron refused the event (a pre_schedule_event filter or a failed cron option
+     * write). Without it nothing re-checks the payment, so the merchant is told once.
+     */
+    private static function note_reconciliation_unschedulable($order) {
+        if ((string) $order->get_meta(self::RECONCILE_SCHEDULE_FAILED_META) === '1') {
+            return;
+        }
+        $order->update_meta_data(self::RECONCILE_SCHEDULE_FAILED_META, 1);
+        if (method_exists($order, 'add_order_note')) {
+            $order->add_order_note(
+                __('SUPCheckout could not schedule the automatic UPayments payment check for this order. Verify the payment in the UPayments merchant dashboard before fulfilling it.', 'supcheckout')
+            );
+        }
+        $order->save();
     }
 
     private static function mark_reconciliation_exhausted($order, $reason) {
