@@ -91,6 +91,21 @@ final class StatusRateGate {
         if (!is_string($bucket) || !preg_match('/^[0-9]{12}$/', $bucket)) {
             return;
         }
+        // One scoped DELETE instead of a delete_option() round trip per slot; this runs
+        // on the shopper's return from UPayments at each minute rollover. The slots
+        // are written with raw INSERT IGNORE and never read through get_option().
+        global $wpdb;
+        if (is_object($wpdb) && isset($wpdb->options) && is_string($wpdb->options) && $wpdb->options !== ''
+            && method_exists($wpdb, 'prepare') && method_exists($wpdb, 'query') && method_exists($wpdb, 'esc_like')
+        ) {
+            $sql = $wpdb->prepare(
+                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+                $wpdb->esc_like(self::PREFIX . $scope . '_' . $bucket . '_') . '%'
+            );
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Scoped rate-gate slot cleanup uses freshly prepared SQL; the slots never enter the option cache.
+            $wpdb->query($sql);
+            return;
+        }
         for ($slot = 0; $slot < self::LIMIT_PER_MINUTE; $slot++) {
             delete_option(self::slot_name($scope, $bucket, $slot));
         }

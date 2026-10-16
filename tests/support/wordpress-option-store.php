@@ -11,6 +11,10 @@ if (!class_exists('SUPCheckout_Test_WPDB')) {
         public $options = 'wp_options';
         public $before_query = null;
 
+        public function esc_like($text) {
+            return addcslashes((string) $text, '_%\\');
+        }
+
         public function prepare($query) {
             $args = func_get_args();
             array_shift($args);
@@ -58,6 +62,17 @@ if (!class_exists('SUPCheckout_Test_WPDB')) {
                 return 1;
             }
 
+            if (strpos($statement['query'], 'DELETE ') === 0 && strpos($statement['query'], ' LIKE ') !== false && count($args) === 1) {
+                $removed = 0;
+                foreach (array_keys($GLOBALS['supcheckout_test_options']) as $name) {
+                    if (supcheckout_test_like_matches((string) $args[0], (string) $name)) {
+                        unset($GLOBALS['supcheckout_test_options'][$name]);
+                        $removed++;
+                    }
+                }
+                return $removed;
+            }
+
             if (strpos($statement['query'], 'DELETE ') === 0 && count($args) === 2) {
                 list($name, $expected) = $args;
                 if (!array_key_exists($name, $GLOBALS['supcheckout_test_options'])
@@ -72,6 +87,29 @@ if (!class_exists('SUPCheckout_Test_WPDB')) {
 
             return false;
         }
+    }
+}
+
+if (!function_exists('supcheckout_test_like_matches')) {
+    /**
+     * MySQL LIKE semantics for the fake: % and _ are wildcards, backslash escapes them.
+     */
+    function supcheckout_test_like_matches($pattern, $subject) {
+        $regex = '';
+        $length = strlen($pattern);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $pattern[$i];
+            if ($char === '\\' && $i + 1 < $length) {
+                $regex .= preg_quote($pattern[++$i], '/');
+            } elseif ($char === '%') {
+                $regex .= '.*';
+            } elseif ($char === '_') {
+                $regex .= '.';
+            } else {
+                $regex .= preg_quote($char, '/');
+            }
+        }
+        return preg_match('/^' . $regex . '$/s', $subject) === 1;
     }
 }
 
