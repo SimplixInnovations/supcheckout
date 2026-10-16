@@ -425,6 +425,88 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertNotSame($provider_order_ids[0], $provider_order_ids[1]);
     }
 
+    public function test_rejected_charge_leaves_a_private_order_note_with_the_sanitized_provider_reason(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $order = new \WC_Order(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('simple'))));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) {
+                if ($route === 'charge') {
+                    // The real transport (UPayments.php) sets transport_ok only for 2xx,
+                    // while keeping the status and body of a 4xx/5xx response.
+                    return array(
+                        'transport_ok' => false,
+                        'http_status' => 400,
+                        'curl_errno' => 0,
+                        'body' => json_encode(array(
+                            'status' => false,
+                            'message' => 'The given data was invalid.',
+                            'errors' => array('paymentGateway.src' => array('The payment gateway src field is required.')),
+                        )),
+                    );
+                }
+                return array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertCount(1, $order->notes);
+        self::assertStringContainsString('HTTP 400', $order->notes[0]);
+        self::assertStringContainsString('paymentGateway.src: The payment gateway src field is required.', $order->notes[0]);
+        $notices = $GLOBALS['supcheckout_test_subscription_presentation']['notices'];
+        self::assertSame(array(array('Payment request could not be completed. Please try again.', 'error')), $notices);
+    }
+
+    public function test_declared_charge_failure_on_201_leaves_a_private_order_note(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $order = new \WC_Order(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('simple'))));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) {
+                return $route === 'charge'
+                    ? array('transport_ok' => true, 'http_status' => 201, 'curl_errno' => 0, 'body' => json_encode(array('status' => false, 'message' => 'Merchant account is not active.')))
+                    : array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        self::assertSame('failure', $orchestrator->process(42)['result']);
+        self::assertCount(1, $order->notes);
+        self::assertStringContainsString('HTTP 201', $order->notes[0]);
+        self::assertStringContainsString('Merchant account is not active.', $order->notes[0]);
+    }
+
+    public function test_unreachable_provider_leaves_a_network_order_note(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $order = new \WC_Order(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('simple'))));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) {
+                return $route === 'charge'
+                    ? array('transport_ok' => false, 'http_status' => 0, 'curl_errno' => 28, 'body' => '')
+                    : array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $orchestrator->process(42);
+
+        self::assertCount(1, $order->notes);
+        self::assertStringContainsString('could not be reached', $order->notes[0]);
+    }
+
     public function test_callback_urls_use_woocommerce_api_request_url_authority(): void {
         $gateway = new CheckoutOrchestratorGateway();
         $order = new \WC_Order(

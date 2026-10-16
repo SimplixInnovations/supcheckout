@@ -12,6 +12,7 @@
     <file>src/Payment/StatusRateGate.php</file>
     <file>src/Payment/StatusVerifier.php</file>
     <file>src/Payment/CheckoutOrchestrator.php</file>
+    <file>src/Payment/ProviderErrorSummary.php</file>
     <file>src/Payment/PaymentLifecycle.php</file>
     <file>src/Provider/EndpointResolver.php</file>
     <file>src/Provider/PaymentMethodAvailability.php</file>

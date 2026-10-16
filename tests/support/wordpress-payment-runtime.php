@@ -72,6 +72,8 @@ class WC_Order {
     public function add_meta_data($key, $value, $unique = false) {}
     public function delete_meta_data($key) {}
     public function save_meta_data() {}
+    public $notes = array();
+    public function add_order_note($note) { $this->notes[] = (string) $note; return count($this->notes); }
 }
 
 final class SUPCheckout_Test_Payment_Runtime_Session {
