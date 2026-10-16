@@ -283,6 +283,14 @@ A1 is verified. A2 extracts the characterized availability client/cache coordina
 - fresh success continues to retain unknown top-level provider fields while replacing `payButtons` with only the normalized known set; cache hits return the canonical cache shape;
 - `tests/harness/architecture-payment-method-availability-harness.php` freezes identity, locking, gate timing, cache schema, transport/provider mutation failures and gateway delegation, and is mandatory in Quality Gates.
 
+**Amendment: last-known-good availability (PR #151).** The A2 bullets above remain the historical milestone contract. One behavior is amended. The fresh cache and the 65-second cooldown expire together, so while one worker refreshed, every other checkout that missed the advisory lock was told payment methods were unavailable, and one provider blip hid the method for the whole cooldown. Each canonical schema-3 success is therefore also kept in the non-autoloaded option `supcheckout_pm_lkg_v1_` plus the same 16-hexadecimal fingerprint as the transient. Every path the A2 contract lists as failing closed returns that copy instead, but only when all of these hold:
+
+- it classifies as a canonical success;
+- it is at most **6 hours** old and not from the future;
+- it is scoped to the same credential and mode.
+
+With no valid copy those paths still fail closed exactly as above. The fresh cache, the failure sentinel, the gate timing, the advisory lock, the transport requirements and the no-unauthorized-provider-call guarantee are unchanged. The availability harness additionally asserts that a fresh success writes the rate gate exactly once before transport and exactly one scoped last-known-good copy.
+
 ### A3 — gateway settings/admin/multi-merchant presentation
 
 A2 is verified. A3 separates the characterized gateway settings/admin/single-additional-merchant presentation boundary to `src/Admin/GatewaySettings.php` behind the existing public gateway entry points.

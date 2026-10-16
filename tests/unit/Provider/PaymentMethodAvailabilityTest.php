@@ -97,7 +97,11 @@ final class PaymentMethodAvailabilityTest extends TestCase {
         self::assertFalse($lock_held_during_transport);
         self::assertSame(1, $GLOBALS['supcheckout_test_availability']['lock_acquires']);
         self::assertSame(1, $GLOBALS['supcheckout_test_availability']['lock_releases']);
-        self::assertCount(1, $GLOBALS['supcheckout_test_option_calls']);
+        // One rate-gate write before transport; the last-known-good copy is written after it.
+        $gate_writes = array_values(array_filter($GLOBALS['supcheckout_test_option_calls'], static function ($call) {
+            return $call[1] === 'upayments_payment_methods_rate_gate_live';
+        }));
+        self::assertCount(1, $gate_writes);
         $gate = $GLOBALS['supcheckout_test_options']['upayments_payment_methods_rate_gate_live'];
         self::assertGreaterThanOrEqual($before + 65, $gate);
         self::assertLessThanOrEqual($after + 65, $gate);
@@ -259,6 +263,65 @@ final class PaymentMethodAvailabilityTest extends TestCase {
             self::assertSame(1, $transport_calls, $label);
             self::assertSame(1, $GLOBALS['supcheckout_test_availability']['lock_releases'], $label);
         }
+    }
+
+    public function test_failed_refresh_serves_the_last_known_good_result(): void {
+        $transport_calls = 0;
+        $good = $this->service(false, 'lkg-key', $this->counting_transport($transport_calls, $this->envelope(array('isWhiteLabel' => false, 'payButtons' => array('knet' => 1)))));
+        self::assertSame('success', $good->fetch()['result']);
+
+        // The fresh cache and cooldown expire, then the provider blips.
+        $GLOBALS['supcheckout_test_availability']['transients'] = array();
+        $GLOBALS['supcheckout_test_options']['upayments_payment_methods_rate_gate_live'] = time() - 1;
+        $blip = $this->service(false, 'lkg-key', $this->counting_transport($transport_calls, false));
+
+        self::assertSame($this->canonical(false, 1, 0), $blip->fetch());
+        // The negative sentinel still throttles provider calls.
+        $transient = $this->invoke_private($blip, 'transient_name');
+        self::assertSame(array('schema' => 3, 'state' => 'failure'), $GLOBALS['supcheckout_test_availability']['transients'][$transient]);
+        self::assertSame($this->canonical(false, 1, 0), $blip->fetch());
+        self::assertSame(2, $transport_calls);
+    }
+
+    public function test_lock_contention_and_cooldown_serve_the_last_known_good_result(): void {
+        $transport_calls = 0;
+        $good = $this->service(false, 'busy-key', $this->counting_transport($transport_calls, $this->envelope(array('isWhiteLabel' => true, 'payButtons' => array('knet' => 1, 'credit_card' => 1)))));
+        $good->fetch();
+        $GLOBALS['supcheckout_test_availability']['transients'] = array();
+
+        // Another worker holds the refresh lock: this checkout still shows the methods.
+        $GLOBALS['supcheckout_test_availability']['lock_result'] = '0';
+        self::assertSame($this->canonical(true, 1, 1), $good->fetch());
+
+        // Inside the cooldown with no fresh cache: still the last known good.
+        $GLOBALS['supcheckout_test_availability']['lock_result'] = '1';
+        $GLOBALS['supcheckout_test_options']['upayments_payment_methods_rate_gate_live'] = time() + 30;
+        self::assertSame($this->canonical(true, 1, 1), $good->fetch());
+        self::assertSame(1, $transport_calls);
+    }
+
+    public function test_last_known_good_is_bounded_in_age_scoped_and_validated(): void {
+        $transport_calls = 0;
+        $good = $this->service(false, 'aged-key', $this->counting_transport($transport_calls, $this->envelope(array('isWhiteLabel' => false, 'payButtons' => array('knet' => 1)))));
+        $good->fetch();
+        $GLOBALS['supcheckout_test_availability']['transients'] = array();
+        $GLOBALS['supcheckout_test_availability']['lock_result'] = '0';
+        $name = $this->invoke_private($good, 'last_known_good_name');
+        self::assertStringNotContainsString('aged-key', $name);
+        self::assertMatchesRegularExpression('/^supcheckout_pm_lkg_v1_[a-f0-9]{16}$/', $name);
+
+        // A different credential or mode never sees it.
+        self::assertSame(array('result' => 'failure'), $this->service(false, 'other-key', $this->counting_transport($transport_calls, false))->fetch());
+        self::assertSame(array('result' => 'failure'), $this->service(true, 'aged-key', $this->counting_transport($transport_calls, false))->fetch());
+
+        // Older than six hours, from the future, or malformed: fail closed.
+        $GLOBALS['supcheckout_test_options'][$name]['saved_at'] = time() - 21601;
+        self::assertSame(array('result' => 'failure'), $good->fetch());
+        $GLOBALS['supcheckout_test_options'][$name]['saved_at'] = time() + 120;
+        self::assertSame(array('result' => 'failure'), $good->fetch());
+        $GLOBALS['supcheckout_test_options'][$name] = array('saved_at' => time(), 'value' => array('schema' => 3, 'result' => 'success'));
+        self::assertSame(array('result' => 'failure'), $good->fetch());
+        self::assertSame(1, $transport_calls);
     }
 
     private function service($test_mode, $api_key, $transport): PaymentMethodAvailability {
