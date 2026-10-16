@@ -35,6 +35,8 @@ if (isset($argv[1]) && $argv[1] === '--child') {
 
 require_once dirname(__DIR__) . '/support/public-surface-static-scan.php';
 
+surface_scanner_self_test();
+
 $mains = array();
 foreach (array('supcheckout.php', 'UPayments.php') as $candidate) {
     if (is_file($root . '/' . $candidate)) {
@@ -513,4 +515,56 @@ abstract class AbstractPaymentMethodType {
 }
 PHP
     );
+}
+
+/**
+ * Scanner self-test. An argument array changed after its assignment ($args[] = ...,
+ * $args['k'] = ..., compound assignment, array_push(), unset()) must never resolve to
+ * the earlier literal: stored cron/Action Scheduler events match exact args, so such a
+ * change has to stay visible in the snapshot as a dynamic shape.
+ *
+ * @return void
+ */
+function surface_scanner_self_test() {
+    $dir = str_replace(chr(92), '/', sys_get_temp_dir()) . '/supcheckout-surface-probe-' . getmypid();
+    if (!is_dir($dir) && !mkdir($dir, 0777, true)) {
+        echo "FAIL: scanner self-test could not create {$dir}\n";
+        exit(1);
+    }
+    $probe = $dir . '/Probe.php';
+    file_put_contents($probe, <<<'PHP'
+<?php
+function probe_plain($id) { $args = array((int) $id); wp_schedule_single_event(1, 'probe_plain', $args); }
+function probe_append($id) { $args = array((int) $id); $args[] = 'x'; wp_unschedule_event(1, 'probe_append', $args); }
+function probe_offset($id) { $args = array((int) $id); $args['k'] = 1; wp_next_scheduled('probe_offset', $args); }
+function probe_compound($id) { $args = array((int) $id); $args += array(1 => 2); wp_next_scheduled('probe_compound', $args); }
+function probe_push($id) { $args = array((int) $id); array_push($args, 2); wp_next_scheduled('probe_push', $args); }
+function probe_unset($id) { $args = array((int) $id, 2); unset($args[1]); wp_next_scheduled('probe_unset', $args); }
+function probe_read($id) { $args = array((int) $id); $first = $args[0]; wp_next_scheduled('probe_read', $args); }
+PHP
+    );
+    $index = array('files' => array(), 'constants' => array(), 'methods' => array());
+    surface_scan_index_file($index, $probe);
+    $shapes = array();
+    foreach (surface_scan_file_entries($index, $probe) as $entry) {
+        $shapes[$entry['hook']] = isset($entry['args']) ? $entry['args'] : '';
+    }
+    unlink($probe);
+    rmdir($dir);
+
+    $failures = array();
+    foreach (array('probe_plain' => '[0:int]', 'probe_read' => '[0:int]') as $hook => $expected) {
+        if (!isset($shapes[$hook]) || $shapes[$hook] !== $expected) {
+            $failures[] = "{$hook} should resolve to {$expected}, got " . (isset($shapes[$hook]) ? $shapes[$hook] : '(missing)');
+        }
+    }
+    foreach (array('probe_append', 'probe_offset', 'probe_compound', 'probe_push', 'probe_unset') as $hook) {
+        if (!isset($shapes[$hook]) || strpos($shapes[$hook], '<dynamic:') !== 0) {
+            $failures[] = "{$hook} mutates \$args after assignment and must be dynamic, got " . (isset($shapes[$hook]) ? $shapes[$hook] : '(missing)');
+        }
+    }
+    if ($failures !== array()) {
+        echo "FAIL: argument-shape scanner self-test:\n  " . implode("\n  ", $failures) . "\n";
+        exit(1);
+    }
 }

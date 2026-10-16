@@ -399,6 +399,9 @@ function surface_scan_shape(array $index, $path, array $range, $depth) {
     }
     if ($s === $e && $t[$s][0] === T_VARIABLE) {
         $assignment = surface_scan_assignment($f, $t[$s][1], $s);
+        if ($assignment !== null && surface_scan_mutated($f, $t[$s][1], $assignment[1] + 1, $s)) {
+            return '<dynamic:' . $t[$s][1] . ' changed after assignment>';
+        }
         if ($assignment !== null) {
             return surface_scan_shape($index, $path, $assignment, $depth + 1);
         }
@@ -447,6 +450,9 @@ function surface_scan_type(array $index, $path, array $range, $depth) {
         }
         if ($t[$s][0] === T_VARIABLE && $depth <= 4) {
             $assignment = surface_scan_assignment($f, $t[$s][1], $s);
+            if ($assignment !== null && surface_scan_mutated($f, $t[$s][1], $assignment[1] + 1, $s)) {
+                return 'expr(' . $t[$s][1] . ' changed after assignment)';
+            }
             if ($assignment !== null) {
                 return surface_scan_type($index, $path, $assignment, $depth + 1);
             }
@@ -501,6 +507,51 @@ function surface_scan_assignment(array $f, $name, $position) {
         return array($k + 2, $end - 1);
     }
     return null;
+}
+
+/**
+ * Whether $name is written between its assignment and its use: an offset write
+ * ($v[] = / $v['k'] = / $v[0] .= ...), a compound assignment ($v += ...), a by-reference
+ * array function (array_push/array_unshift/array_splice/array_pop/array_shift), unset($v[...])
+ * or an explicit reference (&$v). Reads such as $x = $v[0] are not writes.
+ *
+ * @param array<string, mixed> $f
+ * @param string $name
+ * @param int $from First token after the assignment.
+ * @param int $to Token of the use.
+ * @return bool
+ */
+function surface_scan_mutated(array $f, $name, $from, $to) {
+    $t = $f['t'];
+    $assignments = array('=', T_PLUS_EQUAL, T_MINUS_EQUAL, T_MUL_EQUAL, T_DIV_EQUAL, T_CONCAT_EQUAL, T_MOD_EQUAL,
+        T_AND_EQUAL, T_OR_EQUAL, T_XOR_EQUAL, T_SL_EQUAL, T_SR_EQUAL, T_POW_EQUAL, T_COALESCE_EQUAL);
+    $is_assignment = static function ($token) use ($assignments) {
+        return in_array($token[0] === null ? $token[1] : $token[0], $assignments, true);
+    };
+    $by_reference = array('array_push', 'array_unshift', 'array_splice', 'array_pop', 'array_shift', 'unset', 'settype');
+    for ($k = $from; $k < $to; $k++) {
+        if ($t[$k][0] !== T_VARIABLE || $t[$k][1] !== $name) {
+            continue;
+        }
+        $next = $k + 1;
+        while (isset($t[$next]) && $t[$next][1] === '[' && isset($f['match'][$next])) {
+            $next = $f['match'][$next] + 1;
+        }
+        if (isset($t[$next]) && $is_assignment($t[$next]) && ($next > $k + 1 || $t[$next][1] !== '=')) {
+            return true;
+        }
+        if ($k > 0 && $t[$k - 1][1] === '&') {
+            return true;
+        }
+        for ($p = $k - 1; $p > $from && $t[$p][1] !== ';'; $p--) {
+            if ($t[$p][1] === '(' && $p > 0 && in_array(strtolower(ltrim($t[$p - 1][1], chr(92))), $by_reference, true)
+                && isset($f['match'][$p]) && $f['match'][$p] > $k
+            ) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /**
