@@ -14,7 +14,8 @@ defined( 'ABSPATH' ) || exit;
 ?>
 <div class="supcheckout form-row form-row-wide">
     <?php 
-    echo wp_kses_post($gateway->description);
+    // get_description() applies woocommerce_gateway_description, where WPML/WCML translate it.
+    echo wp_kses_post($gateway->get_description());
     $icons = array();
     $whitelabled = false;
     

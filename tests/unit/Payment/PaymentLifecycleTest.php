@@ -202,7 +202,9 @@ final class PaymentLifecycleTest extends TestCase {
         self::assertSame('track-abc', $order->completion_hook_meta('UPayments_TrackID'));
         self::assertSame('KNET', $order->completion_hook_meta('UPayments_payment_type'));
         self::assertSame('42', $order->completion_hook_meta('UPayments_Ref'));
-        self::assertSame('UPayments', $order->completion_hook_meta('_payment_method_title'));
+        // The merchant's configured (and WPML/WCML-translated) title is never rewritten.
+        self::assertNull($order->completion_hook_meta('_payment_method_title'));
+        self::assertNull($order->durable_meta('_payment_method_title'));
         self::assertSame(1, $order->durable_meta('_upay_verified_capture'));
         self::assertSame(1, $order->durable_meta('UPayments_webhook_triggered'));
     }

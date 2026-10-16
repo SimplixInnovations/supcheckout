@@ -970,8 +970,9 @@ final class PaymentLifecycle {
             'UPayments_PaymentID' => $payment_id,
             'UPayments_TrackID' => (string) $transaction['track_id'],
             'UPayments_Ref' => (string) $transaction['reference'],
-            '_payment_method_title' => 'UPayments',
         );
+        // The payment method title is left alone: WooCommerce already stored the
+        // merchant-configured (and WPML/WCML-translated) title at checkout.
         if (isset($transaction['payment_type']) && is_scalar($transaction['payment_type'])) {
             $legacy_capture_meta['UPayments_payment_type'] = (string) $transaction['payment_type'];
         }

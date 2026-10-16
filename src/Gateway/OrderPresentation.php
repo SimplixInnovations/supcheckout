@@ -33,12 +33,12 @@ final class OrderPresentation {
             $new_total_rows[$key] = $total;
             if ('payment_method' === $key) {
                 $new_total_rows['payment_status'] = array(
-                    'label' => 'Payment Status:',
+                    'label' => __('Payment Status:', 'supcheckout'),
                     'value' => $payment_status,
                 );
                 if (!empty($upayment_id)) {
                     $new_total_rows['upayment_id'] = array(
-                        'label' => 'UPayment ID:',
+                        'label' => __('UPayment ID:', 'supcheckout'),
                         'value' => $upayment_id,
                     );
                 }
