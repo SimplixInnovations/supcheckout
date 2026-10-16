@@ -54,7 +54,7 @@ Technical contracts:
 - slug/text domain: `supcheckout`;
 - namespace: `Simplixi\SUPCheckout`;
 - package root: `supcheckout/`;
-- main file: `supcheckout/supcheckout.php` (a header-less transitional `supcheckout/UPayments.php` shim moves pre-rename installs automatically);
+- main file: `supcheckout/supcheckout.php` (a header-less transitional `supcheckout/UPayments.php` shim moves pre-rename installs automatically, except through the classic non-JavaScript single-plugin Update-now flow, which ends deactivated with data unchanged);
 - gateway/payment/Blocks ID: `upayments`;
 - callback: `wc_upayments`.
 
