@@ -520,7 +520,10 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // rename, owner decision 2026-10-16) and adds 154 bytes: the src/Autoloader.php
 // require, the Autoloader::register() call and the Plugin::boot(__FILE__)
 // composition-root call directly after the ABSPATH guard. No other byte changes.
-$acceptedGatewayBytes = 63319;
+// Because the shim keeps a UPayments.php in the tree, git sees supcheckout.php as a new
+// file, so the Governance whitespace check covers every line: trailing whitespace on
+// 22 lines is stripped (-284 bytes, whitespace only).
+$acceptedGatewayBytes = 63035;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
 foreach (array('supcheckout.php', 'UPayments.php', 'includes', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;

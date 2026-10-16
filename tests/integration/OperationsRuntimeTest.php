@@ -174,11 +174,11 @@ if ('seed' === $phase) {
     update_option($order_key, $order->get_id(), false);
 
     supcheckout_cert_assert(
-        class_exists('Simplixi\\SUPCheckout\\Migration\\MigrationCliCommand'),
+        class_exists('Simplixi\\SUPCheckout\\Migration\\MigrationCliCommand', false),
         'migration CLI module boots in WP-CLI context'
     );
     supcheckout_cert_assert(
-        !class_exists('Simplixi\\SUPCheckout\\Migration\\MigrationAdmin'),
+        !class_exists('Simplixi\\SUPCheckout\\Migration\\MigrationAdmin', false),
         'migration admin module does not boot in non-admin WP-CLI context'
     );
 
@@ -187,7 +187,7 @@ if ('seed' === $phase) {
     \Simplixi\SUPCheckout\Migration\MigrationBootstrap::boot();
     $boot_output = ob_get_clean();
     supcheckout_cert_assert(
-        class_exists('Simplixi\\SUPCheckout\\Migration\\MigrationAdmin'),
+        class_exists('Simplixi\\SUPCheckout\\Migration\\MigrationAdmin', false),
         'migration admin module boots only after an explicit admin context exists'
     );
     supcheckout_cert_assert(

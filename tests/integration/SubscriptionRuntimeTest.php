@@ -9,7 +9,7 @@ use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
 use Simplixi\SUPCheckout\Subscription\Presentation;
 use UPayments\Token\CustomerTokenIdentity;
 
-supcheckout_cert_assert(class_exists(CheckoutOrchestrator::class), 'checkout orchestrator is loaded for subscription certification');
+supcheckout_cert_assert(class_exists(CheckoutOrchestrator::class, false), 'checkout orchestrator is loaded for subscription certification');
 Presentation::register_product_class();
 supcheckout_cert_assert(class_exists('WCProductCustomType'), 'subscription product class is available in real WooCommerce');
 

@@ -248,7 +248,7 @@ function woocommerceUpaymentsInit() {
 
             // Register action hook for saving settings (critical for all new toggles)
             add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, [$this, 'process_admin_options']);
-            
+
             // Custom hooks for front-end rendering, scripts, etc.
             add_filter("woocommerce_get_order_item_totals", [$this, "add_order_item_totals"], 10, 3);
             add_action("woocommerce_api_" . strtolower("WC_UPayments") , [$this, "check_ipn_response", ]);
@@ -256,15 +256,15 @@ function woocommerceUpaymentsInit() {
             add_action("woocommerce_admin_order_data_after_order_details", [$this, "admin_order_details"], 10, 3);
             add_action("admin_enqueue_scripts", [$this, "admin_enqueue_scripts"]);
             add_action('wp_enqueue_scripts', [$this, 'enqueue_scripts']);
-            
+
             // Handlers to Display Thankyou Page after successful payment
             add_action("woocommerce_thankyou_" . $this->id, function ($order_id) {
                 $this->thankyou_page($order_id);
             });
-            
+
             // Handlers for Subscription Module
             $this->initializeSubscriptionModule();
-            
+
             // My Account link for Login users to view their orders and saved cards
             add_action('woocommerce_before_checkout_form', function () {
 
@@ -279,15 +279,15 @@ function woocommerceUpaymentsInit() {
                 esc_html_e('Go to My Account', 'supcheckout');
                 echo '</a>';
                 echo '</div>';
-                
+
                 $gateways = WC()->payment_gateways()->get_available_payment_gateways();
-                
+
                 if (!isset($gateways['upayments'])) {
                     return;
                 }
-                
+
                 $upay = $gateways['upayments'];
-                
+
                 if (WC()->session->get('chosen_payment_method') === 'upayments' && $upay->get_option('make_default_gateway') === 'no') {
                     WC()->session->set('chosen_payment_method', null);
                 }
@@ -325,13 +325,13 @@ function woocommerceUpaymentsInit() {
         }
 
         public function get_logged_in_user_phone_number() {
-            
+
             // Check if the user is logged in
             if (is_user_logged_in()) {
                 // Get the current user ID
                 $user_id = get_current_user_id();
                 $billing_phone = get_user_meta($user_id, 'billing_phone', true);
-                
+
                 if ($billing_phone) {
                     $phone = str_replace(' ', '', $billing_phone); // Replaces all spaces with hyphens.
                     $phone = preg_replace('/[^A-Za-z0-9\-]/','',$phone);
@@ -346,7 +346,7 @@ function woocommerceUpaymentsInit() {
             }
             if (function_exists('WC') && WC()->customer) {
                 $billing_phone = WC()->customer->get_billing_phone();
-                
+
                 if (!empty($billing_phone)) {
                     $phone = str_replace(' ', '', $billing_phone); // Replaces all spaces with hyphens.
                     $phone = preg_replace('/[^A-Za-z0-9\-]/','',$phone);
@@ -618,7 +618,7 @@ function woocommerceUpaymentsInit() {
             $template_args = array('gateway' => $this, 'save_card_enabled' => $save_card_enabled);
             // Check setting for design toggle
             $use_new_design = ($this->get_option('use_new_design') === 'yes');
-            
+
             wc_get_template(
                 $use_new_design ? 'new-design-form.php' : 'old-design-form.php',
                 $template_args,
@@ -626,7 +626,7 @@ function woocommerceUpaymentsInit() {
                 untrailingslashit( plugin_dir_path( __FILE__ ) ) . '/templates/'
             );
         }
-        
+
         /**
          * enqueue_scripts
          *
@@ -639,7 +639,7 @@ function woocommerceUpaymentsInit() {
                 return;
             }
             wp_enqueue_style('supcheckout-customer', $plugin_url . 'assets/css/customer.css', array(), SUPCHECKOUT_VERSION );
-            
+
             // Checkout must not depend on third-party font/icon CDNs.
             // Use site/system typography and plugin-local presentation only.
 
@@ -659,7 +659,7 @@ function woocommerceUpaymentsInit() {
                         'i18n' => CheckoutAssets::subscription_i18n(),
                     ));
                 }
-            }            
+            }
         }
 
         /**
@@ -714,7 +714,7 @@ function woocommerceUpaymentsInit() {
                                     </span>
                                 </td>
                             </tr>
-                            
+
                         </tbody>
                     </table>
             <?php
@@ -758,7 +758,7 @@ function woocommerceUpaymentsInit() {
             if ($this->get_option( 'enable_multimerchant' ) == 'no') {
                 return $this->get_default_credentials();
             }
-            
+
             // 2. Retrieve and parse the stored rules
             $rules_json = $this->get_option( 'multimerchant_accounts', '[]' );
             $rules = json_decode( $rules_json, true );
@@ -770,7 +770,7 @@ function woocommerceUpaymentsInit() {
             }
 
             // --- Core Routing Logic ---
-            
+
             foreach ( $rules as $rule ) {
                 $condition_type  = $rule['condition_type'] ?? '';
                 $condition_value = $rule['condition_value'] ?? '';
@@ -863,7 +863,7 @@ function woocommerceUpaymentsInit() {
         public function getMode() {
             return $this->testMode === 'yes';
         }
-        
+
         public function getAPIUrl($apiRoute = "")
         {
             return (new EndpointResolver($this->getMode()))->resolve($apiRoute);
@@ -889,7 +889,7 @@ function woocommerceUpaymentsInit() {
             }
             return $userAgent;
         }
-        
+
         public function getCurrencyCode($code)
         {
             return $code;
@@ -1165,7 +1165,7 @@ function woocommerceUpaymentsInit() {
                 array('source' => 'upayments')
             );
         }
-        
+
         /**
          * initializeSubscriptionModule
          * Handle Subscription Module Initialization If Enabled from Admin Settings
@@ -1241,7 +1241,7 @@ function woocommerceUpaymentsInit() {
                 $this->domain
             );
         }
-        
+
         /**
          * renderSubscriptionBadgeInProductList
          * Function to render subscription badge in product list if the product is subscription type
