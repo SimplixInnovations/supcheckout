@@ -454,7 +454,13 @@ function as_enqueue_async_action($hook, $args = array(), $group = '', $unique = 
 function plugin_dir_url($file) { return 'https://example.test/wp-content/plugins/supcheckout/'; }
 function plugin_dir_path($file) { return dirname((string) $file) . '/'; }
 function plugin_basename($file) { return 'supcheckout/' . basename((string) $file); }
-function get_option($name, $default = false) { return $name === 'active_plugins' ? array(plugin_basename($GLOBALS['surface']['main'])) : $default; }
+function get_option($name, $default = false) {
+    if ($name === 'active_plugins') {
+        return array(plugin_basename($GLOBALS['surface']['main']));
+    }
+    // Boot a store with subscriptions enabled so the conditional hourly tick is part of the frozen surface.
+    return $name === 'woocommerce_upayments_settings' ? array('enable_subscriptions' => 'yes') : $default;
+}
 function is_multisite() { return false; }
 function is_admin() { return $GLOBALS['surface']['context'] === 'admin'; }
 function wp_doing_ajax() { return false; }

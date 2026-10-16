@@ -1167,6 +1167,13 @@
     },
     {
         "kind": "schedule_reference",
+        "function": "wp_clear_scheduled_hook",
+        "hook": "upay_process_subscriptions",
+        "args": "(omitted)",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
         "function": "wp_next_scheduled",
         "hook": "simplixpay_upayments_reconcile_order",
         "args": "[0:int]",
@@ -1197,6 +1204,13 @@
         "kind": "schedule_reference",
         "function": "wp_next_scheduled",
         "hook": "upay_hourly_cron_job",
+        "args": "(omitted)",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "wp_next_scheduled",
+        "hook": "upay_process_subscriptions",
         "args": "(omitted)",
         "contexts": "static"
     },
