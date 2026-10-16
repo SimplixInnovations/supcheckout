@@ -169,8 +169,8 @@ release_assert(strpos($workflow, 'plugin deactivate "$SUPCHECKOUT_LEGACY_SLUG"')
 release_assert(strpos($workflow, 'plugin activate supcheckout') !== false, 'migration job explicitly activates canonical root');
 release_assert(strpos($workflow, 'SUPCHECKOUT_UPGRADE_PHASE=verify-legacy-rollback') !== false, 'migration job proves legacy rollback is non-destructive');
 release_assert(strpos($workflow, 'plugin delete "$SUPCHECKOUT_LEGACY_SLUG"') !== false, 'migration job ends with selected pre-stable package removed');
-release_assert(strpos($workflow, 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a') !== false, 'artifact upload action is immutably pinned');
-release_assert(strpos($workflow, 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c') !== false, 'artifact download action is immutably pinned');
+release_assert(strpos($workflow, 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9') !== false, 'artifact upload action is immutably pinned');
+release_assert(strpos($workflow, 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333') !== false, 'artifact download action is immutably pinned');
 release_assert(strpos($workflow, 'os: [ubuntu-latest, windows-latest]') !== false, 'release workflow certifies Linux and Windows artifact construction');
 release_assert(strpos($workflow, 'name: Cross-platform deterministic release') !== false, 'release workflow compares cross-platform evidence');
 release_assert(strpos($workflow, 'cmp "$CANONICAL_SIDECAR" linux/Linux.zip.sha256') !== false, 'release workflow binds Linux ZIP hash to canonical artifact');
