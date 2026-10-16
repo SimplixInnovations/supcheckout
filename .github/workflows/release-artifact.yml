@@ -509,7 +509,7 @@ jobs:
 
     env:
       # Last main before Sub-project 0a: it ships supcheckout/UPayments.php as the main file.
-      PRE_RENAME_SHA: '8bf0006b92582b7894c730bddc60324520d3674a'
+      PRE_RENAME_SHA: '4f61421e8cde974e8062293e0c74250b7e7b0054'
       SUPCHECKOUT_LEGACY_SLUG: supcheckout
       SUPCHECKOUT_LEGACY_TEXT_DOMAIN: supcheckout
 
