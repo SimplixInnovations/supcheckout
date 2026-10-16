@@ -121,6 +121,38 @@ $shim_official = coexistence_run($root, 'shim_official', $official_stub);
 coexistence_assert($shim_official['code'] === 0 && strpos($shim_official['out'], 'DECLARED:no') !== false && strpos($shim_official['out'], 'NOTICES:1') !== false, 'loading through the shim while the official plugin is active still pauses SUPCheckout');
 coexistence_assert(strpos($shim_official['out'], 'ACTIVE:["supcheckout/supcheckout.php","upayments/UPayments.php"]') !== false, 'the shim moves only SUPCheckout\'s entry; the official upayments/UPayments.php entry is untouched');
 
+// The 'upayments' gateway identity is shared with the official plugin until 0b, so a
+// paused SUPCheckout must register no gateway, availability or wc_upayments hook
+// (Plugin::boot() runs inside the pause guard). A running one registers all three.
+$all_gateway_hooks = 'GATEWAY_HOOKS:["woocommerce_api_wc_upayments","woocommerce_available_payment_gateways","woocommerce_payment_gateways"]';
+foreach (array(
+    'official_first' => $official_first,
+    'ours_first' => $ours_first,
+    'notice_admin' => $notice_admin,
+    'notice_shopper' => $notice_shopper,
+    'sitewide' => $sitewide,
+    'shim_official' => $shim_official,
+) as $scenario => $result) {
+    coexistence_assert(
+        strpos($result['out'], 'GATEWAY_HOOKS:[]') !== false,
+        "paused ({$scenario}): SUPCheckout registers no woocommerce_payment_gateways, woocommerce_available_payment_gateways or woocommerce_api_wc_upayments hook"
+    );
+}
+foreach (array(
+    'alone' => $alone,
+    'stale' => $stale,
+    'stale_sitewide' => $stale_sitewide,
+    'traversal' => $traversal,
+    'unrelated' => $unrelated,
+    'own_pre_rename_entry' => $own_entry,
+    'shim' => $shim,
+) as $scenario => $result) {
+    coexistence_assert(
+        strpos($result['out'], $all_gateway_hooks) !== false,
+        "running ({$scenario}): SUPCheckout registers both gateway filters and the wc_upayments route"
+    );
+}
+
 @unlink($official_stub);
 @unlink($plugins_dir . '/upayments/UPayments.php');
 @rmdir($plugins_dir . '/upayments');
@@ -165,6 +197,7 @@ function coexistence_child($root, $scenario, $official_stub) {
         'multisite' => $scenario === 'sitewide' || $scenario === 'stale_sitewide',
         'can_manage' => $scenario !== 'notice_shopper',
         'actions' => array(),
+        'filters' => array(),
     );
 
     coexistence_define_wordpress_stubs($root);
@@ -179,6 +212,16 @@ function coexistence_child($root, $scenario, $official_stub) {
     }
     // Observed before any official stub loads, so only SUPCheckout's own declarations count.
     $declared = function_exists('woocommerceUpaymentsInit') && $scenario !== 'official_first';
+    // Gateway-identity hooks SUPCheckout itself registered, also observed before any
+    // official stub loads: a paused SUPCheckout must register none of them.
+    $gateway_hooks = array();
+    foreach (array_merge($GLOBALS['coexistence']['actions'], $GLOBALS['coexistence']['filters']) as $registration) {
+        if (in_array($registration[0], array('woocommerce_payment_gateways', 'woocommerce_available_payment_gateways', 'woocommerce_api_wc_upayments'), true)) {
+            $gateway_hooks[] = (string) $registration[0];
+        }
+    }
+    $gateway_hooks = array_values(array_unique($gateway_hooks));
+    sort($gateway_hooks);
     if ($scenario === 'ours_first') {
         require $official_stub;
     }
@@ -194,6 +237,7 @@ function coexistence_child($root, $scenario, $official_stub) {
     }
     echo "\nNOTICES:{$notices}\n";
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
+    echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
     echo 'UP_PLUGIN_URL:' . (defined('UP_PLUGIN_URL') && strpos(UP_PLUGIN_URL, '/upayments/') !== false ? 'official' : 'other') . "\n";
     echo 'SUPCHECKOUT_VERSION:' . (defined('SUPCHECKOUT_VERSION') ? 'defined' : 'undefined') . "\n";
     echo 'ACTIVE:' . json_encode(array_values((array) $GLOBALS['coexistence']['options']['active_plugins']), JSON_UNESCAPED_SLASHES) . "\n";
@@ -211,7 +255,7 @@ function get_site_option($name, $default = false) { return array_key_exists($nam
 function is_multisite() { return $GLOBALS['coexistence']['multisite']; }
 function current_user_can($capability) { return $GLOBALS['coexistence']['can_manage'] && $capability === 'activate_plugins'; }
 function add_action($hook, $callback, $priority = 10, $accepted_args = 1) { $GLOBALS['coexistence']['actions'][] = array($hook, $callback); return true; }
-function add_filter($hook, $callback, $priority = 10, $accepted_args = 1) { return true; }
+function add_filter($hook, $callback, $priority = 10, $accepted_args = 1) { $GLOBALS['coexistence']['filters'][] = array($hook, $callback); return true; }
 function register_activation_hook($file, $callback) { return true; }
 function register_deactivation_hook($file, $callback) { return true; }
 function __($text, $domain = 'default') { return $text; }

@@ -118,7 +118,7 @@ R2 is **Verified — bounded** at certified PR #110 head `5a4f83efa7bda0b5d61698
 
 Proven in repository automation:
 
-- public WooCommerce WC-API URL construction via the WC_Upayments platform resolver (not hand-built `site_url()` callbacks);
+- public WooCommerce WC-API URL construction via the gateway (`Simplixi\SUPCheckout\Gateway\Gateway`) platform resolver (not hand-built `site_url()` callbacks);
 - public-home vs WordPress-site divergence and subdirectory/index/permalink layouts;
 - trusted HTTPS/public-origin behavior without raw forwarded-header trust;
 - explicit no-cache response semantics for public callback/status surfaces;

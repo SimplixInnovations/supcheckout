@@ -119,7 +119,29 @@ foreach (array('/vendor/', '/tests/', '/composer.json', '/composer.lock', '/phpc
     q1_assert(q1_contains($distignore, $entry), "distribution excludes development artifact: {$entry}");
 }
 q1_assert(q1_contains($gitignore, '/vendor/'), 'Composer vendor directory is ignored');
-q1_assert(!q1_contains(q1_read($q1_root, 'supcheckout.php'), 'vendor/autoload.php'), 'plugin runtime does not load Composer vendor code');
+// Every shipped runtime PHP file: the main file, the transitional UPayments.php shim
+// and everything under src/ and includes/ (the PSR-4 autoloader is hand-written).
+$q1_runtime_files = array('supcheckout.php', 'UPayments.php');
+foreach (array('src', 'includes') as $q1_runtime_dir) {
+    $q1_iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($q1_root . '/' . $q1_runtime_dir, FilesystemIterator::SKIP_DOTS));
+    foreach ($q1_iterator as $q1_file) {
+        if ($q1_file->isFile() && strtolower($q1_file->getExtension()) === 'php') {
+            $q1_runtime_files[] = str_replace('\\', '/', substr($q1_file->getPathname(), strlen($q1_root) + 1));
+        }
+    }
+}
+sort($q1_runtime_files);
+$q1_composer_loaders = array();
+foreach ($q1_runtime_files as $q1_runtime_file) {
+    if (q1_contains(q1_read($q1_root, $q1_runtime_file), 'vendor/autoload.php')) {
+        $q1_composer_loaders[] = $q1_runtime_file;
+    }
+}
+q1_assert(
+    count($q1_runtime_files) > 2 && $q1_composer_loaders === array(),
+    'plugin runtime does not load Composer vendor code (' . count($q1_runtime_files) . ' shipped PHP files scanned)'
+        . ($q1_composer_loaders === array() ? '' : ': ' . implode(', ', $q1_composer_loaders))
+);
 q1_assert(q1_contains($quality_record, 'Q1 is DONE / VERIFIED'), 'quality control record closes the Q1 foundation');
 q1_assert(
     q1_contains($quality_record, '**Status:** Q17 / IMPLEMENTATION')

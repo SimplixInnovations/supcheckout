@@ -424,7 +424,6 @@ $availabilityFilterSequence = array(
 );
 
 $architecture = arch_read($root, 'docs/project/ARCHITECTURE-CODE-QUALITY.md');
-$gateway = arch_read($root, 'supcheckout.php');
 $status = arch_read($root, 'docs/project/PROJECT-STATUS.md');
 $naming = arch_read($root, 'docs/project/NAMING-IDENTITY-STANDARD.md');
 $paymentLifecycle = arch_read($root, 'src/Payment/PaymentLifecycle.php');
@@ -438,7 +437,6 @@ $checkoutOrchestrator = arch_read($root, 'src/Payment/CheckoutOrchestrator.php')
 $gatewayAvailability = arch_read($root, 'src/Gateway/Availability.php');
 $gatewayOrderPresentation = arch_read($root, 'src/Gateway/OrderPresentation.php');
 $multiMerchantContract = arch_read($root, 'src/Provider/MultiMerchantContract.php');
-$gatewayTokens = arch_executable_tokens($gateway);
 // Sub-project 0a Task 3: the gateway class and its WooCommerce registration live in
 // src/Gateway/Gateway.php and src/Gateway/GatewayRegistration.php.
 $gatewayClassSource = arch_read($root, 'src/Gateway/Gateway.php');

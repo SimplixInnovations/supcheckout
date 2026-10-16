@@ -1224,6 +1224,19 @@ arch3_assert(
     arch3_has_direct_statement_text($gatewayTokens, '\\Simplixi\\SUPCheckout\\Plugin::boot(__FILE__);'),
     'main file directly and unconditionally calls Plugin::boot(__FILE__)'
 );
+// Plugin::boot() registers the 'upayments' gateway, which the official plugin also
+// owns until 0b: the call must sit inside the official-plugin pause guard, once.
+$bootCall = '\\Simplixi\\SUPCheckout\\Plugin::boot(__FILE__);';
+$bootAt = strpos($gateway, $bootCall);
+$guardCloseAt = strlen($gateway) - strlen($coexistenceClose);
+arch3_assert(
+    $coexistenceWrapped
+        && substr_count($gateway, $bootCall) === 1
+        && $bootAt !== false
+        && $bootAt > $coexistenceOpenAt + strlen($coexistenceOpen)
+        && $bootAt < $guardCloseAt,
+    'Plugin::boot(__FILE__) is called exactly once, inside the official-plugin pause guard'
+);
 arch3_assert(
     $pluginBoot['found'] && arch3_has_direct_statement_text($pluginBoot['body'], 'GatewayRegistration::register();'),
     'Plugin::boot directly and unconditionally calls GatewayRegistration::register()'
