@@ -513,7 +513,9 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // one OfficialPluginConflict condition (the use block moves above it, unchanged).
 // Classic validate_fields(): a white-label checkout without a chosen method is
 // rejected before WooCommerce creates the order (delegates to CheckoutPayload).
-$acceptedGatewayBytes = 63418;
+// Request-cost tranche: the icon filter drops its dead available-gateway loop and
+// the main file registers a deactivation hook that clears the hourly tick (-97 bytes).
+$acceptedGatewayBytes = 63321;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'UPayments.php matches current exact architecture ratchet');
 foreach (array('UPayments.php', 'includes', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;

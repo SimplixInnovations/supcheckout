@@ -309,6 +309,7 @@ jobs:
             tests/harness/i18n-presentation-harness.php
             tests/harness/official-plugin-coexistence-harness.php
             tests/harness/checkout-template-harness.php
+            tests/harness/checkout-request-cost-harness.php
             tests/harness/ecosystem-callback-cache-harness.php
             tests/harness/ecosystem-subscription-safety-harness.php
             tests/harness/ecosystem-subscription-lifecycle-matrix-harness.php

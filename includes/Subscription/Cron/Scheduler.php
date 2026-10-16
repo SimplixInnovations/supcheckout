@@ -64,7 +64,15 @@ class Scheduler
             wp_clear_scheduled_hook('upay_hourly_cron_job');
         }
 
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
+        // The hourly tick exists only while subscriptions are enabled; a store that
+        // never enabled them carries no event (and no table checks) at all.
+        $settings = get_option('woocommerce_upayments_settings', array());
+        $enabled = is_array($settings) && isset($settings['enable_subscriptions']) && $settings['enable_subscriptions'] === 'yes';
+        if (!$enabled) {
+            if (wp_next_scheduled(self::CRON_HOOK)) {
+                wp_clear_scheduled_hook(self::CRON_HOOK);
+            }
+        } elseif (!wp_next_scheduled(self::CRON_HOOK)) {
             wp_schedule_event(time(), 'hourly', self::CRON_HOOK);
         }
         add_action(self::CRON_HOOK, [__CLASS__, 'process']);
@@ -113,6 +121,15 @@ class Scheduler
     /**
      * Main cron logic.
      */
+    /**
+     * Plugin deactivation: stop the hourly tick. Per-order reconciliation and
+     * Action Scheduler cycle actions are payment state and are left untouched.
+     */
+    public static function deactivate()
+    {
+        wp_clear_scheduled_hook(self::CRON_HOOK);
+    }
+
     public static function process()
     {
         $logger  = wc_get_logger();
@@ -129,18 +146,18 @@ class Scheduler
 
             // Fail closed if the persistent attempt journal is unavailable.
             // We will NOT dispatch an auto-deduct POST without a per-cycle claim.
+            $gateway = self::getGateway();
+
+            if (!$gateway || $gateway->get_option('enable_subscriptions') !== 'yes') {
+                $logger->info('Subscriptions disabled or gateway unavailable', $context);
+                return;
+            }
+
             if (!CycleClaim::maybe_install()) {
                 $logger->error(
                     'Subscription auto-deduction skipped: cycle claim table is not available.',
                     $context
                 );
-                return;
-            }
-
-            $gateway = self::getGateway();
-
-            if (!$gateway || $gateway->get_option('enable_subscriptions') !== 'yes') {
-                $logger->info('Subscriptions disabled or gateway unavailable', $context);
                 return;
             }
 
