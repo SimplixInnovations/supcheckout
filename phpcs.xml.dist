@@ -19,6 +19,7 @@
     <file>src/Gateway/Availability.php</file>
     <file>src/Gateway/CheckoutAssets.php</file>
     <file>src/Gateway/OrderPresentation.php</file>
+    <file>src/Gateway/OfficialPluginConflict.php</file>
     <file>src/Security/PublicOrderStatus.php</file>
     <file>src/Release/Identity.php</file>
     <file>src/Migration/MigrationSettings.php</file>

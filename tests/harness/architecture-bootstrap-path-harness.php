@@ -1084,7 +1084,37 @@ function arch3_has_direct_gateway_id_assignment(array $body)
 }
 
 $gateway = arch3_read($root, 'UPayments.php');
-$gatewayTokens = arch3_tokens($gateway);
+// Owner-approved exception (official UPayments coexistence): the main file may wrap its
+// declarations in exactly one condition, the official-plugin pause guard, opened right
+// after the conflict class is loaded and closed by the file's final endif. Everything
+// inside is then held to the same direct, unconditional rules as before; any other
+// wrapper, or a guard anywhere else, leaves the source unchanged and fails below.
+$coexistenceGuard = "require_once __DIR__ . '/src/Gateway/OfficialPluginConflict.php';
+
+";
+$coexistenceOpen = "if ( ! \Simplixi\SUPCheckout\Gateway\OfficialPluginConflict::pause_if_active( __FILE__ ) ) :
+";
+$coexistenceClose = "
+
+endif;
+";
+$coexistenceOpenAt = strpos($gateway, $coexistenceOpen);
+$coexistenceGuardAt = strpos($gateway, $coexistenceGuard);
+$coexistenceWrapped = substr_count($gateway, $coexistenceOpen) === 1
+    && substr_count($gateway, 'OfficialPluginConflict::pause_if_active(') === 1
+    && $coexistenceGuardAt !== false
+    && $coexistenceOpenAt !== false
+    && $coexistenceGuardAt < $coexistenceOpenAt
+    && strpos(substr($gateway, $coexistenceGuardAt + strlen($coexistenceGuard), $coexistenceOpenAt - $coexistenceGuardAt - strlen($coexistenceGuard)), ';') === false
+    && substr($gateway, -strlen($coexistenceClose)) === $coexistenceClose
+    && substr_count($gateway, "
+endif;") === 1;
+arch3_assert($coexistenceWrapped, 'main file uses exactly the approved official-plugin coexistence wrapper');
+$gatewayUnwrapped = $coexistenceWrapped
+    ? substr($gateway, 0, $coexistenceOpenAt) . substr($gateway, $coexistenceOpenAt + strlen($coexistenceOpen), -strlen($coexistenceClose)) . "
+"
+    : $gateway;
+$gatewayTokens = arch3_tokens($gatewayUnwrapped);
 
 $bootstrap = arch3_direct_top_level_hook_callback(
     $gatewayTokens,
