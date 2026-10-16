@@ -24,7 +24,7 @@ final class CallbackModeNormalizationTest extends TestCase
     {
         $root = dirname(__DIR__, 3);
         $this->lifecycle = (string) file_get_contents($root . '/src/Payment/PaymentLifecycle.php');
-        $this->gateway = (string) file_get_contents($root . '/UPayments.php');
+        $this->gateway = (string) file_get_contents($root . '/supcheckout.php');
     }
 
     public function test_lifecycle_exposes_compat_seam_and_private_mode_body(): void

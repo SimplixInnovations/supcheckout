@@ -352,7 +352,7 @@ namespace {
             }
         }
 
-        require_once dirname(__DIR__, 2) . '/UPayments.php';
+        require_once dirname(__DIR__, 2) . '/supcheckout.php';
         woocommerceUpaymentsInit();
 
         $reflection = new ReflectionClass('WC_Upayments');
@@ -382,7 +382,7 @@ namespace {
             }
         }
 
-        require_once dirname(__DIR__, 2) . '/UPayments.php';
+        require_once dirname(__DIR__, 2) . '/supcheckout.php';
         woocommerceUpaymentsInit();
 
         $reflection = new ReflectionClass('WC_Upayments');

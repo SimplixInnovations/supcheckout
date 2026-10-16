@@ -35,9 +35,9 @@ Forbidden technical form: `supcheckout-for-upayments`.
 | Canonical GitHub repository | `SimplixInnovations/supcheckout` |
 | WordPress.org slug | `supcheckout` |
 | Plugin folder | `supcheckout/` |
-| First-stable physical bootstrap | `UPayments.php` |
-| First-stable plugin basename | `supcheckout/UPayments.php` |
-| Future optional bootstrap target | `supcheckout.php` — only after a separately approved migration proves it safe |
+| Physical main file | `supcheckout.php` |
+| Plugin basename | `supcheckout/supcheckout.php` |
+| Pre-rename main file (legacy record only) | `UPayments.php` — `Identity::LEGACY_MAIN_FILE` |
 | Text domain | `supcheckout` |
 | Composer package | `simplix-innovations/supcheckout` |
 | PHP namespace root | `Simplixi\SUPCheckout` |
@@ -111,23 +111,17 @@ New REST routes use `supcheckout/v1`.
 
 ## Physical bootstrap decision
 
-The **first-stable physical bootstrap is intentionally `UPayments.php`**.
-
-Prior real WordPress qualification proved that deleting or renaming an already-active `UPayments.php` can strand WordPress's stored plugin basename. The canonical SUPCheckout package therefore uses:
+**Current decision (Sub-project 0a, owner decision 2026-10-16, pre-release):** the main file is `supcheckout.php` and the canonical SUPCheckout package uses:
 
 ```text
-supcheckout/UPayments.php
+supcheckout/supcheckout.php
 ```
 
-The future filename `supcheckout.php` is not current release identity. It may be considered only in a dedicated future migration that proves, on real WordPress:
+SUPCheckout was never released, so only staging and test installs ever activated the pre-rename `supcheckout/UPayments.php`. WordPress drops that stale `active_plugins` entry once the file is gone and shows the plugin as deactivated; such a build must be reactivated once on the Plugins screen. No data changes. The safety is procedural: no SUPCheckout code can run under the missing file name to warn. The release-artifact controls assert the package ships `supcheckout/supcheckout.php` and never `supcheckout/UPayments.php`.
 
-1. old active installations continue loading;
-2. no duplicate visible plugin entry is created;
-3. activation, update, rollback and duplicate-package behavior remain safe;
-4. stored plugin-basename state is migrated without stranding the plugin;
-5. rollback remains non-destructive.
+**Superseded decision (history):** the first-stable physical bootstrap was intentionally `UPayments.php`. Prior real WordPress qualification proved that deleting or renaming an already-active `UPayments.php` can strand WordPress's stored plugin basename, so the package used `supcheckout/UPayments.php` and treated `supcheckout.php` as a future target that needed its own migration. The owner accepted the one-time reactivation above instead, because no production install exists.
 
-Until that proof exists, `UPayments.php` is a deliberate compatibility contract, not unfinished branding work.
+The official UPayments plugin's own `UPayments.php` main file is a different package. `OfficialPluginConflict` still detects it by that name.
 
 ## Text domain and translations
 
@@ -193,6 +187,6 @@ Unsafe destructive compatibility rename verdict:
 `DO NOT MERGE.`
 
 **Naming architecture:** FROZEN / CURRENT
-**First-stable bootstrap:** `UPayments.php` PROTECTED
+**Main file:** `supcheckout.php` (renamed from `UPayments.php` in Sub-project 0a)
 **Legacy compatibility identifiers:** PROTECTED
 **Formal trademark/legal clearance:** separate business/legal gate

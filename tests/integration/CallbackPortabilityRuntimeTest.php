@@ -111,7 +111,7 @@ try {
     );
 
     $orchestrator_source = file_get_contents(dirname(__DIR__, 2) . '/src/Payment/CheckoutOrchestrator.php');
-    $adapter_source = file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
+    $adapter_source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
     supcheckout_cert_assert(is_string($orchestrator_source), 'CheckoutOrchestrator source is readable');
     supcheckout_cert_assert(is_string($adapter_source), 'WC_Upayments adapter source is readable');
     supcheckout_cert_assert(

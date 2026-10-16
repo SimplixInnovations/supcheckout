@@ -169,7 +169,7 @@ $GLOBALS['wpdb'] = new T3Wpdb();
 
 require_once __DIR__ . '/../support/t3-payment-lifecycle-stubs.php';
 require_once dirname(__DIR__, 2) . '/src/Payment/PaymentLifecycle.php';
-require_once dirname(__DIR__, 2) . '/UPayments.php';
+require_once dirname(__DIR__, 2) . '/supcheckout.php';
 
 woocommerceUpaymentsInit();
 
@@ -353,7 +353,7 @@ t3_reset();
 $r = t3_verify(null, null, 'track-abc');
 t3_assert($r['reason'] === 'retired' && $r['verified'] === false, 'legacy verifier retired; financial authority is PaymentLifecycle');
 
-$source = file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
+$source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
 t3_assert(is_string($source), 'gateway source readable');
 if (is_string($source)) {
     t3_assert(!t3_contains($source, 'function verify_payment_status'), 'legacy private verifier is retired');

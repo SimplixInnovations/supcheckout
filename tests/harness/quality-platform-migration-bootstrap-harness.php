@@ -58,7 +58,7 @@ foreach (array(
 q10_assert(q10_contains($source, "add_action('admin_menu', array(MigrationAdmin::class, 'register'))"), 'admin context registers only the canonical menu callback');
 q10_assert(q10_contains($source, "if (\$is_cli && class_exists('WP_CLI'))"), 'CLI registration requires the command class to exist');
 q10_assert(q10_contains($source, "add_command('simplixpay-upayments migration', MigrationCliCommand::class)"), 'CLI context registers the canonical namespace');
-foreach (array('UPayments.php', 'wp_enqueue_scripts', 'woocommerce_checkout', 'wp_remote_', 'curl_') as $forbidden) {
+foreach (array('supcheckout.php', 'wp_enqueue_scripts', 'woocommerce_checkout', 'wp_remote_', 'curl_') as $forbidden) {
     q10_assert(!q10_contains($source, $forbidden), "bootstrap excludes frontend/payment/provider path: {$forbidden}");
 }
 

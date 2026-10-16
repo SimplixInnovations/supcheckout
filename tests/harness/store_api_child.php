@@ -282,7 +282,7 @@ $charge_envelope = [
 ];
 
 // --- availability_response ----------------------------------------------
-// Production's getPaymentIcons() (UPayments.php line 4475) reads
+// Production's getPaymentIcons() (supcheckout.php line 4475) reads
 // `isWhiteLabel` from the upstream response. Using `whitelabled`
 // would silently exercise the Non-Whitelabel generic-checkout branch.
 $state['availability_response'] = [

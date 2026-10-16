@@ -76,8 +76,8 @@ if [[ -n "${SUPCHECKOUT_PLUGIN_ZIP:-}" ]]; then
     echo "Packaged plugin was not installed as a real directory: $PLUGIN_PATH" >&2
     exit 69
   }
-  [[ -f "$PLUGIN_PATH/UPayments.php" ]] || {
-    echo "Packaged plugin is missing transitional main file UPayments.php" >&2
+  [[ -f "$PLUGIN_PATH/supcheckout.php" ]] || {
+    echo "Packaged plugin is missing main file supcheckout.php" >&2
     exit 70
   }
 else

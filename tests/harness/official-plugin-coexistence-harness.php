@@ -118,7 +118,7 @@ exit($fail === 0 ? 0 : 1);
 function coexistence_child($root, $scenario, $official_stub) {
     define('ABSPATH', __DIR__ . '/');
     define('WP_PLUGIN_DIR', (string) getenv('SUPCHECKOUT_COEXISTENCE_PLUGIN_DIR'));
-    $own = 'supcheckout/UPayments.php';
+    $own = 'supcheckout/supcheckout.php';
     $active = array($own);
     $sitewide = array();
     if (in_array($scenario, array('official_first', 'ours_first', 'notice_admin', 'notice_shopper'), true)) {
@@ -148,7 +148,7 @@ function coexistence_child($root, $scenario, $official_stub) {
     if ($scenario === 'official_first') {
         require $official_stub;
     }
-    require $root . '/UPayments.php';
+    require $root . '/supcheckout.php';
     // Observed before any official stub loads, so only SUPCheckout's own declarations count.
     $declared = function_exists('woocommerceUpaymentsInit') && $scenario !== 'official_first';
     if ($scenario === 'ours_first') {

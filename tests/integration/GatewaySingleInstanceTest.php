@@ -37,7 +37,7 @@ supcheckout_cert_assert(
 );
 
 // Start the Blocks integration the way WooCommerce does on every request.
-$blocks = new WCGatewayUPaymentsBlocks(WP_PLUGIN_DIR . '/' . getenv('SUPCHECKOUT_PLUGIN_SLUG') . '/UPayments.php');
+$blocks = new WCGatewayUPaymentsBlocks(WP_PLUGIN_DIR . '/' . getenv('SUPCHECKOUT_PLUGIN_SLUG') . '/supcheckout.php');
 $blocks->initialize();
 
 $property = new ReflectionProperty($blocks, 'gateway');

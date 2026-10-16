@@ -229,7 +229,7 @@ foreach (array('no' => $liveBase, 'yes' => $sandboxBase, '' => $liveBase) as $se
 }
 
 $resolverSource = file_get_contents(dirname(__DIR__, 2) . '/src/Provider/EndpointResolver.php');
-$gatewaySource = file_get_contents(dirname(__DIR__, 2) . '/UPayments.php');
+$gatewaySource = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
 arch4_assert(is_string($resolverSource), 'provider endpoint resolver source is readable');
 arch4_assert(is_string($gatewaySource), 'gateway source is readable');
 arch4_assert(

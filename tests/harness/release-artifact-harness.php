@@ -107,8 +107,9 @@ if (preg_match("/public const VERSION = '([^']+)';/", $identity, $matches) === 1
     $version = $matches[1];
 }
 release_assert($version !== '', 'release version is readable from canonical identity');
-release_assert(strpos($identity, "public const LEGACY_MAIN_FILE = 'UPayments.php';") !== false, 'qualified UPayments.php bootstrap is retained');
-release_assert(strpos($identity, "public const TARGET_MAIN_FILE = 'supcheckout.php';") !== false, 'unsafe physical main-file rename remains an explicit future target');
+release_assert(strpos($identity, "public const MAIN_FILE = 'supcheckout.php';") !== false, 'canonical identity names the supcheckout.php bootstrap');
+release_assert(strpos($identity, "public const LEGACY_MAIN_FILE = 'UPayments.php';") !== false, 'pre-rename UPayments.php main file stays recorded as legacy identity');
+release_assert(strpos($identity, "public const TARGET_MAIN_FILE = 'supcheckout.php';") !== false, 'packaging target main file remains supcheckout.php');
 
 foreach (array('/.github/', '/tests/', '/vendor/', '/composer.json', '/composer.lock', '/docs/', '/scripts/') as $excluded) {
     release_assert(strpos($distignore, $excluded) !== false, 'distribution excludes control/development path: ' . $excluded);
@@ -226,7 +227,7 @@ if ($version !== '') {
                     }
                 }
                 release_assert($safe, 'independent inspector sees one canonical SUPCheckout package root');
-                release_assert(in_array($prefix . 'UPayments.php', $names, true), 'canonical package retains qualified UPayments.php bootstrap');
+                release_assert(in_array($prefix . 'supcheckout.php', $names, true), 'canonical package ships the supcheckout.php bootstrap');
                 release_assert(in_array($prefix . 'readme.txt', $names, true), 'canonical package contains WordPress.org readme');
                 release_assert(!in_array($prefix . 'composer.json', $names, true), 'canonical package excludes Composer controls');
 
@@ -239,7 +240,7 @@ if ($version !== '') {
                 }
                 release_assert(!$contains_screenshots, 'canonical package excludes WordPress.org screenshot source material');
 
-                $plugin = $zip->getFromName($prefix . 'UPayments.php');
+                $plugin = $zip->getFromName($prefix . 'supcheckout.php');
                 release_assert(
                     is_string($plugin)
                         && strpos($plugin, 'Plugin Name: SUPCheckout for UPayments') !== false

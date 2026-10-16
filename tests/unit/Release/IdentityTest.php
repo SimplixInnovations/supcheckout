@@ -16,6 +16,14 @@ final class IdentityTest extends TestCase {
         self::assertSame('Simplixi\\SUPCheckout', Identity::NAMESPACE_ROOT);
     }
 
+    public function test_main_file_is_the_renamed_bootstrap_and_the_pre_rename_file_stays_legacy(): void {
+        self::assertSame('supcheckout.php', Identity::MAIN_FILE);
+        self::assertSame(Identity::TARGET_MAIN_FILE, Identity::MAIN_FILE);
+        self::assertNotSame(Identity::LEGACY_MAIN_FILE, Identity::MAIN_FILE);
+        self::assertFileExists(dirname(__DIR__, 3) . '/' . Identity::MAIN_FILE);
+        self::assertFileDoesNotExist(dirname(__DIR__, 3) . '/' . Identity::LEGACY_MAIN_FILE);
+    }
+
     public function test_version_remains_an_independent_pre_one_release(): void {
         self::assertMatchesRegularExpression('/\A0\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\z/', Identity::VERSION);
         self::assertSame('0.1.0', Identity::VERSION);

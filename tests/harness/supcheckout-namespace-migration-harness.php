@@ -76,10 +76,10 @@ foreach ($scan_roots as $scan_root) {
     }
 }
 
-$bootstrap = (string) file_get_contents($root . '/UPayments.php');
+$bootstrap = (string) file_get_contents($root . '/supcheckout.php');
 foreach ($retired as $retired_namespace) {
     if (strpos($bootstrap, $retired_namespace) !== false) {
-        $legacy_files[] = 'UPayments.php :: ' . $retired_namespace;
+        $legacy_files[] = 'supcheckout.php :: ' . $retired_namespace;
     }
 }
 if (strpos($bootstrap, $canonical) !== false) {

@@ -93,7 +93,7 @@ with zipfile.ZipFile(zip_path, "r") as archive:
             raise SystemExit(f"Forbidden development/control path: {rel}")
 
     allowed_exact = {
-        "UPayments.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
+        "supcheckout.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
     }
     allowed_prefixes = ("src/", "includes/", "assets/", "templates/")
     for rel in rel_names:
@@ -155,7 +155,7 @@ with zipfile.ZipFile(zip_path, "r") as archive:
             raise SystemExit(f"ZIP bytes do not match Git HEAD source: {name}")
 
     required = {
-        "UPayments.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
+        "supcheckout.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
         "src/Release/Identity.php",
         "includes/class-wc-gateway-upayments-blocks.php",
     }
@@ -166,7 +166,7 @@ with zipfile.ZipFile(zip_path, "r") as archive:
         if not any(rel.startswith(subtree) for rel in rel_names):
             raise SystemExit(f"Missing required runtime subtree: {subtree}")
 
-    plugin_source = archive.read(prefix + "UPayments.php").decode("utf-8")
+    plugin_source = archive.read(prefix + "supcheckout.php").decode("utf-8")
     identity_source = archive.read(prefix + "src/Release/Identity.php").decode("utf-8")
     if "Plugin Name: SUPCheckout for UPayments" not in plugin_source:
         raise SystemExit("Packaged plugin name is invalid")
@@ -174,8 +174,8 @@ with zipfile.ZipFile(zip_path, "r") as archive:
         raise SystemExit("Packaged plugin version mismatches canonical identity")
     if "Text Domain: supcheckout" not in plugin_source:
         raise SystemExit("Canonical SUPCheckout text domain changed during packaging")
-    if "public const LEGACY_MAIN_FILE = 'UPayments.php';" not in identity_source:
-        raise SystemExit("Transitional main-file identity changed during packaging")
+    if "public const MAIN_FILE = 'supcheckout.php';" not in identity_source:
+        raise SystemExit("Canonical main-file identity changed during packaging")
 
     parsed = {}
     for line in manifest_path.read_text(encoding="utf-8").splitlines():

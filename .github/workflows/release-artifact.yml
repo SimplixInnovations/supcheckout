@@ -7,7 +7,7 @@ on:
     branches: [main]
     paths:
       - '.distignore'
-      - 'UPayments.php'
+      - 'supcheckout.php'
       - 'readme.txt'
       - 'src/**'
       - 'includes/**'

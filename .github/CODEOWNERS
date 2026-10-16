@@ -3,7 +3,7 @@
 /AGENTS.md                              @SimplixInnovationsAdmin
 /docs/project/                          @SimplixInnovationsAdmin
 /.github/                               @SimplixInnovationsAdmin
-/UPayments.php                          @SimplixInnovationsAdmin
+/supcheckout.php                        @SimplixInnovationsAdmin
 /includes/Token/                        @SimplixInnovationsAdmin
 /includes/Subscription/                 @SimplixInnovationsAdmin
 /includes/class-wc-gateway-upayments-blocks.php @SimplixInnovationsAdmin

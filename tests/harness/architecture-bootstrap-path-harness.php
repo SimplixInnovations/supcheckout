@@ -1083,7 +1083,7 @@ function arch3_has_direct_gateway_id_assignment(array $body)
     return false;
 }
 
-$gateway = arch3_read($root, 'UPayments.php');
+$gateway = arch3_read($root, 'supcheckout.php');
 // Owner-approved exception (official UPayments coexistence): the main file may wrap its
 // declarations in exactly one condition, the official-plugin pause guard, opened right
 // after the conflict class is loaded and closed by the file's final endif. Everything
@@ -1129,7 +1129,7 @@ $constructor = $gatewayClass['found']
     ? arch3_direct_public_method($gatewayClass['body'], '__construct')
     : array('found' => false, 'body' => array());
 
-arch3_assert($gateway !== '', 'UPayments.php is readable');
+arch3_assert($gateway !== '', 'supcheckout.php is readable');
 arch3_assert(!arch3_has_namespace_declaration($gatewayTokens), 'legacy main file remains global for bootstrap callbacks');
 arch3_assert($bootstrap['found'], 'plugins_loaded directly registers and owns woocommerceUpaymentsInit');
 arch3_assert($gatewayClass['found'], 'woocommerceUpaymentsInit directly owns WC_Upayments declaration');

@@ -50,7 +50,7 @@ function q2_supcheckout_i18n_violations($root) {
         'esc_attr__' => 1,
         'esc_attr_e' => 1,
     );
-    $paths = array('UPayments.php');
+    $paths = array('supcheckout.php');
     foreach (array('src', 'includes') as $directory) {
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS)
@@ -157,7 +157,7 @@ $composer = json_decode(q2_read($q2_root, 'composer.json'), true);
 $phpstan = q2_read($q2_root, 'phpstan.neon.dist');
 $tests = q2_read($q2_root, 'tests/unit/Payment/CheckoutPayloadTest.php');
 $checkout = q2_read($q2_root, 'src/Payment/CheckoutPayload.php');
-$runtime = q2_read($q2_root, 'UPayments.php');
+$runtime = q2_read($q2_root, 'supcheckout.php');
 $workflow = q2_read($q2_root, '.github/workflows/quality-gates.yml');
 $quality_record = q2_read($q2_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q2_read($q2_root, 'docs/project/PROJECT-STATUS.md');

@@ -64,10 +64,10 @@ if ('active' === $mode) {
         'modular-connector/init.php',
         'litespeed-cache/litespeed-cache.php',
         'upayments/UPayments.php',
-        'supcheckout/UPayments.php',
+        'supcheckout/supcheckout.php',
         'funnel-builder-pro/funnel-builder-pro.php',
     ));
-    sg_ok($plugins === array('woocommerce/woocommerce.php', 'upayments/UPayments.php', 'supcheckout/UPayments.php', 'funnel-builder-pro/funnel-builder-pro.php'),
+    sg_ok($plugins === array('woocommerce/woocommerce.php', 'upayments/UPayments.php', 'supcheckout/supcheckout.php', 'funnel-builder-pro/funnel-builder-pro.php'),
         'side-effect plugins stop; WooCommerce, both UPayments plugins and the FunnelKit checkout keep running');
     // A guard file and constant copied to production by mistake must stay inert.
     $GLOBALS['sg_env'] = 'production';

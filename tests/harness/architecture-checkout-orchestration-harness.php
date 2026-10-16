@@ -38,7 +38,7 @@ function a5_contains($source, $needle) {
     return is_string($source) && strpos($source, $needle) !== false;
 }
 
-$gatewayPath = $root . '/UPayments.php';
+$gatewayPath = $root . '/supcheckout.php';
 $payloadPath = $root . '/src/Payment/CheckoutPayload.php';
 $orchestratorPath = $root . '/src/Payment/CheckoutOrchestrator.php';
 

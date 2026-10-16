@@ -69,7 +69,7 @@ final class MigrationBootstrapTest extends TestCase {
         ) as $dependency) {
             self::assertSame(1, substr_count($source, "require_once __DIR__ . '/{$dependency}'"));
         }
-        self::assertStringNotContainsString('UPayments.php', $source);
+        self::assertStringNotContainsString('supcheckout.php', $source);
         self::assertStringNotContainsString('wp_enqueue_scripts', $source);
         self::assertStringNotContainsString('woocommerce_checkout', $source);
         self::assertStringNotContainsString('wp_remote_', $source);

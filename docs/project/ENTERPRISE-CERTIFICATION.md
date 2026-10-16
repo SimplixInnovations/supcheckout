@@ -206,6 +206,8 @@ Historical Task 7 decision at that time:
 
 The approved SUCheckout migration later superseded the package/text identity while retaining the physical `UPayments.php` compatibility decision. Current canonical package basename is `supcheckout/UPayments.php` and current text domain is `supcheckout`; the legacy root remains only for migration/rollback evidence.
 
+Sub-project 0a later superseded the physical-file decision (owner decision 2026-10-16, pre-release): the canonical package basename is `supcheckout/supcheckout.php`. The record above is retained as history.
+
 Task 7 merged as `02b8d1c2851faabe020f23bbe84ebcca43a4827d`. Post-merge `main` passed Quality #545, Compatibility #73, Release Artifact #27 and CodeQL #349.
 
 ## External/manual evidence classification

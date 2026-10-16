@@ -64,15 +64,15 @@ Public metadata derived from this matrix:
 | Repository / package slug | `supcheckout` |
 | Text domain | `supcheckout` |
 | PHP namespace | `Simplixi\SUPCheckout` |
-| First-stable physical bootstrap | `UPayments.php` retained |
-| Canonical package basename | `supcheckout/UPayments.php` |
+| Physical main file | `supcheckout.php` (renamed from `UPayments.php` in Sub-project 0a) |
+| Canonical package basename | `supcheckout/supcheckout.php` |
 | Gateway/payment ID | `upayments` preserved |
 | Settings option | `woocommerce_upayments_settings` preserved |
 | Blocks / Store API ID | `upayments` preserved |
 | Callback | `wc_upayments` preserved |
 | Historical payment/meta/token/subscription identities | preserved |
 
-The retained `UPayments.php` filename is an explicit compatibility decision. A future physical rename requires a separately tested migration.
+The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). Builds activated as `supcheckout/UPayments.php` (staging and test installs only) must be reactivated once; no data changes.
 
 Historical package-root movement remains certified for both pre-stable `simplixpay-upayments` and `sucheckout-upayments` roots moving to canonical `supcheckout`, including protected data continuity and rollback.
 

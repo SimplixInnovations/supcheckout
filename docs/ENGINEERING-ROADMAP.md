@@ -76,6 +76,8 @@ supcheckout/UPayments.php
 
 A future physical rename to `supcheckout.php` remains separately gated.
 
+Superseded in Sub-project 0a (owner decision 2026-10-16, pre-release): the main file is now `supcheckout/supcheckout.php`, and builds activated under the old name are reactivated once.
+
 ### Task 8 — Enterprise Release Candidate Closeout
 
 **DONE / VERIFIED.** The pre-rebrand enterprise engineering foundation was closed with full exact-head quality, compatibility, artifact, provider and security evidence. Those records remain historical evidence.
@@ -88,7 +90,7 @@ The first-party identity is now:
 - technical slug/text domain: `supcheckout`;
 - PHP namespace: `Simplixi\SUPCheckout`;
 - package root: `supcheckout/`;
-- first-stable physical bootstrap: `UPayments.php`;
+- physical main file: `supcheckout.php` (was `UPayments.php` until Sub-project 0a);
 - canonical GitHub repository: `SimplixInnovations/supcheckout`.
 
 The word `for` is human-facing relationship wording only and never appears in technical identifiers.

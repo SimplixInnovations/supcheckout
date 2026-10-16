@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'UPayments.php'
+      - 'supcheckout.php'
       - 'readme.txt'
       - 'LICENSE'
       - 'README.md'
@@ -27,7 +27,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'UPayments.php'
+      - 'supcheckout.php'
       - 'readme.txt'
       - 'LICENSE'
       - 'README.md'
@@ -92,7 +92,7 @@ jobs:
           test -n "$ZIP"
           bash scripts/verify-release.sh "$ZIP"
           unzip -q "$ZIP" -d "${RUNNER_TEMP}/plugin-check"
-          test -s "${RUNNER_TEMP}/plugin-check/supcheckout/UPayments.php"
+          test -s "${RUNNER_TEMP}/plugin-check/supcheckout/supcheckout.php"
           test -s "${RUNNER_TEMP}/plugin-check/supcheckout/readme.txt"
 
       - name: Run official WordPress Plugin Check against packaged artifact

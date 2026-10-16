@@ -98,9 +98,9 @@ Current engineering evidence belongs in [`docs/project/PROJECT-STATUS.md`](docs/
 | WordPress text domain | `supcheckout` |
 | PHP namespace | `Simplixi\SUPCheckout` |
 | Package root | `supcheckout/` |
-| First-stable bootstrap | `supcheckout/UPayments.php` |
+| Main file | `supcheckout/supcheckout.php` |
 
-The physical `UPayments.php` bootstrap is intentional. Real upgrade qualification showed that renaming an already-active plugin main file can strand WordPress's stored plugin basename. A future physical rename requires its own migration contract and evidence.
+The main file was renamed from `UPayments.php` to `supcheckout.php` before the first release. A build activated under the old file name must be reactivated once on the Plugins screen; no data changes.
 
 Some UPayments-facing/persisted identities are also intentionally retained for merchant compatibility, including the gateway ID `upayments`, `woocommerce_upayments_settings`, callback identity `wc_upayments`, historical `_upay_*` metadata and related token/subscription state. See [`docs/project/NAMING-IDENTITY-STANDARD.md`](docs/project/NAMING-IDENTITY-STANDARD.md).
 

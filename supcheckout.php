@@ -19,6 +19,9 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+require_once __DIR__ . '/src/Autoloader.php';
+\Simplixi\SUPCheckout\Autoloader::register(__DIR__ . '/src');
+\Simplixi\SUPCheckout\Plugin::boot(__FILE__);
 
 use Simplixi\SUPCheckout\Release\Identity;
 use Simplixi\SUPCheckout\Admin\GatewaySettings;

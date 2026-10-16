@@ -218,7 +218,7 @@ a4_assert(strpos($admin_html, 'upay-subscription-summary') !== false && strpos($
 
 // Gateway compatibility wrappers and high-risk boundaries remain in place.
 $root = dirname(__DIR__, 2);
-$gateway = file_get_contents($root . '/UPayments.php');
+$gateway = file_get_contents($root . '/supcheckout.php');
 $composition = file_get_contents($root . '/src/Subscription/Composition.php');
 $presentation = file_get_contents($root . '/src/Subscription/Presentation.php');
 foreach (array('initializeSubscriptionModule', 'render_subscription_summary', 'restrictMixedCartProducts', 'renderSubscriptionBadgeInProductList') as $method) {

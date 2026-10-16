@@ -83,8 +83,8 @@ Technical slug:      supcheckout
 Text domain:         supcheckout
 Namespace:           Simplixi\SUPCheckout
 Package root:        supcheckout/
-First-stable file:   UPayments.php
-Canonical basename:  supcheckout/UPayments.php
+Main file:           supcheckout.php
+Canonical basename:  supcheckout/supcheckout.php
 Canonical GitHub:    SimplixInnovations/supcheckout
 Development version: 0.1.0
 ```

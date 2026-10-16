@@ -106,15 +106,13 @@ The first-stable release identity is:
 
 - human product: **SUPCheckout for UPayments**;
 - package root: `supcheckout/`;
-- physical main file: `UPayments.php`;
-- plugin basename: `supcheckout/UPayments.php`;
+- physical main file: `supcheckout.php`;
+- plugin basename: `supcheckout/supcheckout.php`;
 - text domain: `supcheckout`;
 - namespace: `Simplixi\SUPCheckout`;
 - current development artifact: `supcheckout-0.1.0.zip`.
 
-The retained `UPayments.php` filename is deliberate. Real-install qualification proved that directly renaming an already-active physical main file can strand WordPress's persisted plugin basename.
-
-A future physical filename `supcheckout.php` is a separately gated migration target, not a first-stable requirement.
+The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). It was `UPayments.php` before; real-install qualification had shown that renaming an already-active main file strands WordPress's persisted plugin basename. Only staging and test installs ever activated `supcheckout/UPayments.php`; they must be reactivated once after updating. The verifier requires `supcheckout.php` in the package and `Identity::MAIN_FILE = 'supcheckout.php'`.
 
 ## Deterministic artifact contract
 
@@ -174,7 +172,7 @@ Each cell:
 2. installs/activates it as `simplixpay-upayments/UPayments.php`;
 3. seeds protected merchant settings, order/payment/token/subscription metadata and cron state;
 4. deactivates the legacy package;
-5. installs/activates canonical `supcheckout/UPayments.php`;
+5. installs/activates canonical `supcheckout/supcheckout.php`;
 6. verifies settings/data/provider IDs/callback/cron continuity;
 7. proves rollback to the legacy package remains non-destructive;
 8. returns to canonical SUPCheckout;
@@ -223,7 +221,7 @@ The repository remains at development version `0.1.0` until the owner explicitly
 If the version changes, use a dedicated PR and update all canonical version surfaces together, including at minimum:
 
 - `src/Release/Identity.php`;
-- plugin header in `UPayments.php`;
+- plugin header in `supcheckout.php`;
 - `readme.txt` stable tag/changelog;
 - root `CHANGELOG.md`;
 - README version badge/text;

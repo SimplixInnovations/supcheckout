@@ -17,7 +17,7 @@
 | Technical slug / text domain | `supcheckout` |
 | PHP namespace | `Simplixi\SUPCheckout` |
 | Package root | `supcheckout/` |
-| First-stable bootstrap | `supcheckout/UPayments.php` |
+| Main file | `supcheckout/supcheckout.php` |
 | Development version | `0.1.0` |
 | Public tag / GitHub Release | **Not created** |
 | WordPress.org publication | **Not performed / not authorized** |
@@ -227,7 +227,7 @@ Do not mechanically rename or refactor protected identities, including:
 - public compatibility wrapper `getAPIUrlForRetreiveCards()`;
 - normalized `whitelabled` compatibility shape.
 
-`supcheckout/UPayments.php` is an intentional first-stable compatibility exception. A physical bootstrap rename requires its own migration project.
+`supcheckout/supcheckout.php` is the main file since Sub-project 0a (owner decision 2026-10-16, pre-release). Builds activated as `supcheckout/UPayments.php` must be reactivated once.
 
 Payment/security ambiguity fails closed. Routing input is not financial truth. Charge initialization is not capture. Paid state requires authenticated provider verification bound to the correct order/transaction/economics. Non-idempotent payment/refund/auto-deduct mutations are not blindly retried.
 

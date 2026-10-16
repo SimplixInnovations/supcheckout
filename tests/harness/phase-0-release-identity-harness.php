@@ -8,7 +8,7 @@
  */
 
 $root = dirname(__DIR__, 2);
-$bootstrap_path = $root . '/UPayments.php';
+$bootstrap_path = $root . '/supcheckout.php';
 $identity_path = $root . '/src/Release/Identity.php';
 $uninstall_path = $root . '/uninstall.php';
 
@@ -83,9 +83,9 @@ p0_assert(!p0_contains($bootstrap, 'PucFactory'), 'bootstrap no longer instantia
 p0_assert(!p0_contains($bootstrap, 'plugin-update-checker'), 'bootstrap no longer loads Plugin Update Checker');
 p0_assert(!is_dir($root . '/vendor/plugin-update-checker'), 'bundled Plugin Update Checker is removed');
 
-// Physical basename migration is not smuggled into the rebrand.
-p0_assert(basename($bootstrap_path) === Identity::LEGACY_MAIN_FILE, 'legacy main filename is intentionally retained');
-p0_assert(!file_exists($root . '/' . Identity::TARGET_MAIN_FILE), 'target main filename is not introduced before migration');
+// Exactly one physical main file: the owner-approved supcheckout.php rename (Sub-project 0a, 2026-10-16).
+p0_assert(basename($bootstrap_path) === Identity::MAIN_FILE, 'main filename is the approved supcheckout.php bootstrap');
+p0_assert(!file_exists($root . '/' . Identity::LEGACY_MAIN_FILE), 'pre-rename UPayments.php main file is not shipped beside the renamed bootstrap');
 
 // Core compatibility identities must remain discoverable in the source tree.
 p0_assert(p0_contains($bootstrap, 'WC_Upayments'), 'legacy gateway class identity remains present');

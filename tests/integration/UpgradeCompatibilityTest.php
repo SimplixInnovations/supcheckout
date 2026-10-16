@@ -4,8 +4,9 @@
  *
  * The pre-release product identity moves from simplixpay-upayments/ to
  * supcheckout/ while preserving merchant/payment data contracts.
- * The physical bootstrap filename remains UPayments.php because prior
- * qualification proved an in-place filename rename unsafe for activation.
+ * Pre-stable packages ship the UPayments.php bootstrap; the canonical package
+ * ships supcheckout/supcheckout.php since Sub-project 0a (owner decision
+ * 2026-10-16, pre-release) and never the pre-rename supcheckout/UPayments.php.
  */
 
 require_once __DIR__ . '/bootstrap.php';
@@ -22,8 +23,8 @@ if (!is_string($legacy_text_domain) || $legacy_text_domain === '') {
     throw new RuntimeException('SUPCHECKOUT_LEGACY_TEXT_DOMAIN is required.');
 }
 $legacy_basename = $legacy_slug . '/UPayments.php';
-$canonical_basename = 'supcheckout/UPayments.php';
-$future_basename = 'supcheckout/supcheckout.php';
+$canonical_basename = 'supcheckout/supcheckout.php';
+$pre_rename_basename = 'supcheckout/UPayments.php';
 
 $settings_key = 'woocommerce_upayments_settings';
 $settings_snapshot_key = '_supcheckout_upgrade_settings_snapshot';
@@ -88,17 +89,18 @@ function supcheckout_upgrade_translation_hits($plugin_root, $domain) {
     return $hits;
 }
 
-function supcheckout_upgrade_assert_runtime_contract($mode, $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $future_basename) {
+function supcheckout_upgrade_assert_runtime_contract($mode, $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename) {
     $legacy = 'legacy' === $mode;
     $active_basename = $legacy ? $legacy_basename : $canonical_basename;
     $inactive_basename = $legacy ? $canonical_basename : $legacy_basename;
     $root = WP_PLUGIN_DIR . '/' . ($legacy ? $legacy_slug : 'supcheckout');
     $expected_domain = $legacy ? $legacy_text_domain : 'supcheckout';
     $label = $legacy ? 'pre-stable existing-install ' . $legacy_slug : 'canonical SUPCheckout';
+    $main_file = basename($active_basename);
 
-    supcheckout_cert_assert(file_exists($root . '/UPayments.php'), $label . ' retains qualified UPayments.php bootstrap');
+    supcheckout_cert_assert(file_exists($root . '/' . $main_file), $label . ' ships its ' . $main_file . ' bootstrap');
     if (!$legacy) {
-        supcheckout_cert_assert(!file_exists(WP_PLUGIN_DIR . '/' . $future_basename), 'unsafe physical bootstrap rename remains absent');
+        supcheckout_cert_assert(!file_exists(WP_PLUGIN_DIR . '/' . $pre_rename_basename), 'pre-rename UPayments.php bootstrap is absent from the canonical package');
     }
     supcheckout_cert_assert(is_plugin_active($active_basename), $label . ' plugin basename is active');
     supcheckout_cert_assert(!is_plugin_active($inactive_basename), 'alternate package identity is inactive');
@@ -111,7 +113,7 @@ function supcheckout_upgrade_assert_runtime_contract($mode, $legacy_slug, $legac
     );
     supcheckout_cert_assert(false !== has_action('woocommerce_api_wc_upayments'), 'historical WooCommerce API callback hook remains registered');
 
-    $headers = get_file_data($root . '/UPayments.php', array('text_domain' => 'Text Domain'));
+    $headers = get_file_data($root . '/' . $main_file, array('text_domain' => 'Text Domain'));
     supcheckout_cert_assert(
         isset($headers['text_domain']) && $headers['text_domain'] === $expected_domain,
         $label . ' exposes expected text domain'
@@ -123,7 +125,7 @@ function supcheckout_upgrade_assert_runtime_contract($mode, $legacy_slug, $legac
 }
 
 if ('seed-existing' === $phase) {
-    supcheckout_upgrade_assert_runtime_contract('legacy', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $future_basename);
+    supcheckout_upgrade_assert_runtime_contract('legacy', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
 
     // Prime the negative cache to keep this fixture representative of an
     // already-running merchant installation.
@@ -170,14 +172,14 @@ if ('seed-existing' === $phase) {
 }
 
 if ('verify-canonical' === $phase || 'verify-canonical-final' === $phase) {
-    supcheckout_upgrade_assert_runtime_contract('canonical', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $future_basename);
+    supcheckout_upgrade_assert_runtime_contract('canonical', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
     supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
     supcheckout_cert_note('canonical SUPCheckout package-root migration verified');
     return;
 }
 
 if ('verify-legacy-rollback' === $phase) {
-    supcheckout_upgrade_assert_runtime_contract('legacy', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $future_basename);
+    supcheckout_upgrade_assert_runtime_contract('legacy', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
     supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
     supcheckout_cert_note('legacy rollback remains non-destructive');
     return;

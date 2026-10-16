@@ -22,10 +22,13 @@ final class Identity {
     public const TEXT_DOMAIN = 'supcheckout';
     public const NAMESPACE_ROOT = 'Simplixi\\SUPCheckout';
 
+    /** Physical main file inside the package root since Sub-project 0a. */
+    public const MAIN_FILE = 'supcheckout.php';
+
     /** External self-updates stay disabled until release authority is explicitly enabled. */
     public const UPDATE_CHANNEL = 'disabled';
 
-    /** Historical install/runtime identities retained for compatibility. */
+    /** Historical install/runtime identities retained for compatibility (LEGACY_MAIN_FILE is the pre-rename main file). */
     public const LEGACY_MAIN_FILE = 'UPayments.php';
     public const LEGACY_TEXT_DOMAIN = 'upayments';
     public const LEGACY_GATEWAY_ID = 'upayments';

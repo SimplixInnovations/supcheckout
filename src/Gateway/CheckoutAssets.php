@@ -69,7 +69,7 @@ final class CheckoutAssets {
      * @return void
      */
     private static function enqueue_for_template($template_name, $gateway) {
-        $plugin_url = plugin_dir_url(dirname(__DIR__, 2) . '/UPayments.php');
+        $plugin_url = plugin_dir_url(dirname(__DIR__, 2) . '/supcheckout.php');
 
         wp_enqueue_style(
             'supcheckout-customer',
