@@ -310,6 +310,7 @@ jobs:
             tests/harness/official-plugin-coexistence-harness.php
             tests/harness/checkout-template-harness.php
             tests/harness/checkout-request-cost-harness.php
+            tests/harness/public-surface-snapshot-harness.php
             tests/harness/ecosystem-callback-cache-harness.php
             tests/harness/ecosystem-subscription-safety-harness.php
             tests/harness/ecosystem-subscription-lifecycle-matrix-harness.php
