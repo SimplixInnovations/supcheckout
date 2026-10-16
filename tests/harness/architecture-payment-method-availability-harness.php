@@ -393,4 +393,5 @@ a2_assert(strpos($gateway_source, 'Payment methods could not be loaded. Please t
 a2_assert(strpos($gateway_source, "array('result' => 'failure', 'redirect' => wc_get_checkout_url())") !== false, 'gateway preserves legacy failure redirect shape');
 
 echo "\nArchitecture Payment-Method Availability: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

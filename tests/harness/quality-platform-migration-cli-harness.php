@@ -115,4 +115,5 @@ q13_assert(!q13_contains($playbook, 'CURRENT / Q13'), 'playbook rejects stale cu
 q13_assert(q13_contains($workflow, "reject_across_live_records 'CURRENT / Q13'"), 'Governance rejects stale current-Q13 markers');
 
 echo "\nQ13 Migration CLI Analysis: {$q13_pass} PASS / {$q13_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q13_fail === 0 ? 0 : 1);

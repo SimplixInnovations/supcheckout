@@ -286,4 +286,5 @@ t1_dep_ok(
 echo "\n--- Approach 3 T1 Dependency Boundaries Report ---\n";
 echo "PASS: $pass\n";
 echo "FAIL: $fail\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

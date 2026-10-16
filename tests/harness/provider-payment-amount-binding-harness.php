@@ -56,5 +56,6 @@ namespace Simplixi\SUPCheckout\Payment {
     $check(empty($different_result['bound']) && $different_result['reason'] === 'binding_amount', 'different amount rejected');
 
     echo "\n--- Provider Amount Binding Report ---\nPASS: {$pass}\nFAIL: {$fail}\n";
+    echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
     exit($fail === 0 ? 0 : 1);
 }

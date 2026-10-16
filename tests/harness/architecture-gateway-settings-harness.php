@@ -59,7 +59,17 @@ function wp_add_inline_style($handle, $css) {
     $a3_assets['inline'][] = array($handle, $css);
 }
 
+// The production modules below open with `defined('ABSPATH') || exit;`. Without this
+// definition the first require exits the process silently with status 0 and none of
+// the assertions in this harness ever run.
+if (!defined('ABSPATH')) {
+    define('ABSPATH', __DIR__ . '/');
+}
+
 require_once dirname(__DIR__, 2) . '/src/Release/Identity.php';
+// GatewaySettings depends on MultiMerchantContract (PR #108); UPayments.php loads it
+// immediately before GatewaySettings.php, so the harness mirrors that order.
+require_once dirname(__DIR__, 2) . '/src/Provider/MultiMerchantContract.php';
 require_once dirname(__DIR__, 2) . '/src/Admin/GatewaySettings.php';
 
 $pass = 0;
@@ -155,10 +165,15 @@ a3_assert_same(true, $missing_api['api_key_missing'], 'empty protected API-key p
 a3_assert_same(false, $missing_api['multimerchant_missing'], 'API-key failure does not invent a multi-merchant error');
 a3_assert_same(array('woocommerce_upayments_api_key' => ''), $missing_api['post_data'], 'API-key failure leaves post data unchanged');
 
+// Raw WooCommerce POST shape: an enabled checkbox is the exact string '1' and the IBAN
+// must satisfy MultiMerchantContract::is_valid_iban(). PR #108 (d69377d) made
+// GatewaySettings::prepare_post_data() reject the former int 1 / 'KW01' fixture values
+// as malformed; this fixture tracks that intentional contract (also pinned by
+// tests/unit/Admin/GatewaySettingsTest.php).
 $complete_multi = array(
     'woocommerce_upayments_api_key' => 'secret',
-    'woocommerce_upayments_enable_multimerchant' => 1,
-    'woocommerce_upayments_iban_number' => 'KW01',
+    'woocommerce_upayments_enable_multimerchant' => '1',
+    'woocommerce_upayments_iban_number' => 'KW81CBKU0000000000001234560101',
     'woocommerce_upayments_cc_charge' => '1.000',
     'woocommerce_upayments_cc_charge_type' => 'fixed',
     'woocommerce_upayments_knet_charge' => '2.000',
@@ -325,4 +340,5 @@ a3_assert(strpos($checkout_runtime_source, "'amount'         => '__UPAY_MM_AMOUN
 a3_assert(strpos($checkout_runtime_source, "array(\n                    array(\n                        'amount'         => '__UPAY_MM_AMOUNT_SENTINEL__'") !== false, 'runtime payload retains exactly one nested allocation entry');
 
 echo "\nArchitecture Gateway Settings: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

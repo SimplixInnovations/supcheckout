@@ -7767,4 +7767,5 @@ if ($fail > 0) {
     }
 }
 
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail > 0 ? 1 : 0);

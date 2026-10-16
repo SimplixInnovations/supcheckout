@@ -163,5 +163,6 @@ namespace {
     );
 
     echo "\nQ18 Blocks Availability Enforcement: " . $pass . " PASS / " . $fail . " FAIL\n";
+    echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
     exit($fail === 0 ? 0 : 1);
 }

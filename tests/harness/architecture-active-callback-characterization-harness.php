@@ -427,5 +427,6 @@ namespace {
     echo "\n--- Approach 3 T1 Active Callback Characterization Report ---\n";
     echo "PASS: $t1_pass\n";
     echo "FAIL: $t1_fail\n";
+    echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
     exit($t1_fail === 0 ? 0 : 1);
 }

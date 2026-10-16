@@ -321,4 +321,5 @@ sur_assert(is_file($root . '/assets/images/google-pay.png'), 'dynamic Google Pay
 sur_assert(is_file($root . '/assets/images/samsung-pay.png'), 'dynamic Samsung Pay icon asset remains packaged');
 
 echo "\nSUPCheckout Residue: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

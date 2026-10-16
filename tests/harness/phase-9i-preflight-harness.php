@@ -387,4 +387,5 @@ p9_run('P9I-19 provenance/history conflict', function () {
 p9_run('P9I-20 DB uncertainty', function () { p9_state()['db_failure'] = true; }, MigrationPreflight::INDETERMINATE, 'provenance_query_failed');
 
 echo "\n--- Phase 9I Preflight Report ---\nPASS: {$pass}\nFAIL: {$fail}\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

@@ -85,6 +85,13 @@ function wp_nonce_field($action, $name, $referer = true) { echo 'NONCE:' . esc_h
 function add_query_arg($key = null, $value = null) { return 'https://example.test/account/orders/'; }
 function selected($selected, $current = true, $echo = true) { $out = (string) $selected === (string) $current ? ' selected="selected"' : ''; if ($echo) { echo $out; } return $out; }
 
+// Presentation::register_product_class() requires src/Subscription/WCProductCustomType.php,
+// which opens with `defined( 'ABSPATH' ) || exit;`. Without this definition the process
+// exits silently with status 0 after the first assertion and the rest never run.
+if (!defined('ABSPATH')) {
+    define('ABSPATH', __DIR__ . '/');
+}
+
 require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Composition.php';
 
@@ -214,7 +221,9 @@ $auto_html = a4_output(function () use ($auto_order) { Presentation::render_acco
 a4_assert(strpos($auto_html, 'woocommerce-subscription-details') !== false && strpos($auto_html, 'name="upay_action"') === false, 'auto-deduction order keeps details but exposes no manual mutation forms');
 
 $admin_html = a4_output(function () use ($manual_order) { Presentation::render_admin_summary($manual_order); });
-a4_assert(strpos($admin_html, 'upay-subscription-summary') !== false && strpos($admin_html, 'Every 2 Month(s)') !== false, 'admin subscription summary retains plan/interval presentation');
+// PR #128 (8f2b8af, "fix(i18n): localize subscription admin fallback copy") replaced the
+// hand-built "Every N Month(s)" string with the shared localized interval label table.
+a4_assert(strpos($admin_html, 'upay-subscription-summary') !== false && strpos($admin_html, 'Every 2 Months') !== false, 'admin subscription summary retains plan/interval presentation');
 
 // Gateway compatibility wrappers and high-risk boundaries remain in place.
 $root = dirname(__DIR__, 2);
@@ -256,10 +265,17 @@ foreach (array('process_payment', 'auto-deduct', 'upay_process_subscriptions', '
 }
 a4_assert(strpos($composition, 'register_presentation_hooks') !== false && strpos($composition, 'register_gateway_hooks') !== false, 'composition explicitly owns global and gateway hook registration');
 
-// Exact protected scheduler/cycle-claim blobs remain unchanged except for the approved SUPCheckout identity migration.
-a4_same('75be4ded83142f67a933be0e1c24cedc484f9a73', a4_git_blob_sha($root . '/includes/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches approved SUPCheckout identity migration');
-a4_same('c34d83e2d77cc65024fe663e4c378cecb2b17347', a4_git_blob_sha($root . '/includes/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
+// Exact protected scheduler/cycle-claim blobs remain unchanged except for reviewed changes.
+// Scheduler.php: last reviewed change 6416f27 (PR #157), which moved the pin in the other
+// harnesses to f5dae0da (earlier reviewed changes: #87 d07b847, #112 e1ad338, #114 10a33b4).
+// CycleClaim.php: last reviewed change e1ad338 (PR #112, R3 subscription safety redesign;
+// earlier: #71 bfadff3). This harness exited silently before reaching these pins, so they
+// still named the #67 / pre-#71 blobs; they now match the pins in the H12, Q13, Q14, Q16
+// and Q17 harnesses.
+a4_same('f5dae0dae437ac85e00d17646b063b6ed9bbff61', a4_git_blob_sha($root . '/includes/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
+a4_same('a1ae04e3239e05c4894781480333fd5e747cefba', a4_git_blob_sha($root . '/includes/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
 
 echo "\nArchitecture Subscription Presentation: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);
 }

@@ -481,5 +481,6 @@ namespace {
     }
 
     echo "\nEcosystem callback/cache harness: {$r2_pass} PASS / {$r2_fail} FAIL\n";
+    echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
     exit($r2_fail === 0 ? 0 : 1);
 }

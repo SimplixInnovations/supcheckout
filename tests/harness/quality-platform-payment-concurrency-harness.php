@@ -133,4 +133,5 @@ q3_assert(!q3_contains($playbook, 'CURRENT / Q2'), 'master playbook rejects the 
 q3_assert(q3_contains($workflow, "reject_across_live_records 'CURRENT / Q2'"), 'Governance rejects stale current-Q2 markers');
 
 echo "\nQ3 Payment Concurrency Analysis: {$q3_pass} PASS / {$q3_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q3_fail === 0 ? 0 : 1);

@@ -164,4 +164,5 @@ q6_assert(!q6_contains($playbook, 'CURRENT / Q6'), 'master playbook rejects the 
 q6_assert(q6_contains($workflow, "reject_across_live_records 'CURRENT / Q6'"), 'Governance rejects stale current-Q6 markers');
 
 echo "\nQ6 Gateway Settings Analysis: {$q6_pass} PASS / {$q6_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q6_fail === 0 ? 0 : 1);

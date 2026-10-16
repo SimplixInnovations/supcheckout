@@ -135,4 +135,5 @@ r3t_assert(strpos($cycle, 'Never auto-expire') !== false || strpos($cycle, 'neve
     'non-claimed states remain non-auto-expiring');
 
 echo "\nR3 Characterization/Failure Matrix: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

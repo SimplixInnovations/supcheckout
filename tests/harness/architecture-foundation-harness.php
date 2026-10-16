@@ -779,4 +779,5 @@ arch_assert(arch_contains($gatewaySettings, 'namespace Simplixi\SUPCheckout\Admi
 arch_assert(is_file($root . '/tests/harness/architecture-gateway-settings-harness.php'), 'A3 gateway settings harness exists');
 
 printf("\nArchitecture Foundation: %d PASS / %d FAIL\n", $pass, $fail);
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

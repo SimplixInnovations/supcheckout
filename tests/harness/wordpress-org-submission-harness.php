@@ -84,4 +84,5 @@ wporg_assert(
 );
 
 echo "\nWordPress.org Submission Readiness: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

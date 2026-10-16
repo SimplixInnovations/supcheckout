@@ -99,4 +99,5 @@ q9_assert(!q9_contains($playbook, 'CURRENT / Q9'), 'playbook rejects stale curre
 q9_assert(q9_contains($workflow, "reject_across_live_records 'CURRENT / Q9'"), 'Governance rejects stale current-Q9 markers');
 
 echo "\nQ9 Migration Settings Analysis: {$q9_pass} PASS / {$q9_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q9_fail === 0 ? 0 : 1);

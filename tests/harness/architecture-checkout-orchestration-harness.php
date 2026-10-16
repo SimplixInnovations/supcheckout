@@ -139,4 +139,5 @@ a5_same('abc', CheckoutPayload::truncate_provider_text('abcdef', 3), 'provider t
 a5_same('', CheckoutPayload::truncate_provider_text(array('x'), 3), 'provider text truncation rejects non-scalars');
 
 echo "\nA5 Checkout Orchestration: {$pass} passed, {$fail} failed\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

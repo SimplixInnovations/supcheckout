@@ -132,4 +132,5 @@ q16_assert(!q16_has($audit, 'No Q18 is planned or authorized'), 'repository audi
 q16_assert(q16_has($audit, 'new enterprise-critical evidence independently demonstrates another bounded risk'), 'repository audit preserves bounded enterprise-risk extension policy');
 
 echo "\nQ16 Migration Core Analysis: " . $pass . " PASS / " . $fail . " FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

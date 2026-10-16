@@ -94,4 +94,5 @@ supcheckout_ns_assert(count($legacy_files) === 0, 'no retired first-party namesp
 supcheckout_ns_assert($canonical_files >= 20, 'canonical SUPCheckout namespace is established across first-party code');
 
 echo "\nSUPCheckout Namespace Migration: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

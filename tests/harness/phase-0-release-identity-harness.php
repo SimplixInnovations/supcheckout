@@ -114,4 +114,5 @@ echo "\n--- Phase 0 Release Identity Report ---\n";
 echo "PASS: {$pass}\n";
 echo "FAIL: {$fail}\n";
 
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

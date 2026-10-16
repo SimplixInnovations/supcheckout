@@ -198,4 +198,5 @@ sec_assert(strpos($public_status_source, "method !== 'GET'") !== false, 'status 
 sec_assert(strpos($public_status_source, 'ALLOWED_STATUSES') !== false, 'status boundary allowlists returned state');
 
 printf("\n--- Security Threat-Model Report ---\nPASS: %d\nFAIL: %d\n", $pass, $fail);
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

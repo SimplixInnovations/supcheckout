@@ -144,4 +144,5 @@ q5_assert(!q5_contains($playbook, 'CURRENT / Q5'), 'master playbook rejects the 
 q5_assert(q5_contains($workflow, "reject_across_live_records 'CURRENT / Q5'"), 'Governance rejects stale current-Q5 markers');
 
 echo "\nQ5 Payment-Method Availability Analysis: {$q5_pass} PASS / {$q5_fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($q5_fail === 0 ? 0 : 1);
