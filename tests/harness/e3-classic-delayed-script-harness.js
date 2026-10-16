@@ -161,6 +161,7 @@ function createScene(pendingAction) {
             return placeOrderCollection();
         }
         if (value === 'form.checkout') return checkoutFormCollection();
+        if (value === '.payment_box.payment_method_upayments .upay-payment-method') return { length: 1 };
         throw new Error('Unexpected jQuery selector in delayed-script harness: ' + String(value));
     }
 
@@ -256,7 +257,7 @@ console.log('Running e3-classic-delayed-script-harness.js');
     const updateEvent = 'updated_checkout.supcheckoutPaymentLifecycle';
     const selector = 'input[name="payment_method"]';
 
-    record(scene.countHandlers('form', changeEvent, selector) === 1,
+    record(scene.countHandlers('body', changeEvent, selector) === 1,
         'script initialization owns exactly one namespaced payment-method lifecycle handler');
     record(scene.countHandlers('body', updateEvent) === 1,
         'script initialization owns exactly one namespaced updated-checkout lifecycle handler');
@@ -265,7 +266,7 @@ console.log('Running e3-classic-delayed-script-harness.js');
 
     scene.rerun();
     scene.rerun();
-    record(scene.countHandlers('form', changeEvent, selector) === 1,
+    record(scene.countHandlers('body', changeEvent, selector) === 1,
         'duplicate or combined script evaluation replaces rather than stacks the payment-method lifecycle handler');
     record(scene.countHandlers('body', updateEvent) === 1,
         'duplicate or combined script evaluation replaces rather than stacks the updated-checkout lifecycle handler');

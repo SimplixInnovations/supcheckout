@@ -37,6 +37,7 @@ function createScene(options) {
         placeOrderExists: options.placeOrderExists !== false,
         placeOrderDisabled: options.placeOrderDisabled === true,
         placeOrderHidden: false,
+        methodButtons: options.methodButtons === undefined ? 1 : options.methodButtons,
         placeOrderClicks: 0,
         directFormSubmits: 0,
         formSubmitEvents: 0,
@@ -178,6 +179,9 @@ function createScene(options) {
             return placeOrderCollection();
         }
         if (value === 'form.checkout') return checkoutFormCollection();
+        if (value === '.payment_box.payment_method_upayments .upay-payment-method') {
+            return { length: state.methodButtons };
+        }
         throw new Error('Unexpected jQuery selector in harness: ' + String(value));
     }
 
@@ -277,7 +281,7 @@ console.log('Running e1-classic-place-order-lifecycle-harness.js');
     scene.addThirdPartyHandler('body', 'updated_checkout.thirdParty');
     scene.rerun();
     record(
-        scene.countHandlers('form', 'change', 'input[name="payment_method"]') === 1,
+        scene.countHandlers('body', 'change', 'input[name="payment_method"]') === 1,
         'repeated modern checkout script evaluation owns exactly one payment-method change handler'
     );
     record(
@@ -288,6 +292,39 @@ console.log('Running e1-classic-place-order-lifecycle-harness.js');
         scene.countExactHandlers('body', 'updated_checkout.thirdParty') === 1,
         'modern checkout handler refresh preserves unrelated namespaced updated_checkout listeners'
     );
+}
+
+{
+    // Methods could not be loaded: no UPayments button renders, so hiding the
+    // canonical button would leave the customer with no way to pay.
+    const scene = createScene({ selectedPaymentMethod: 'upayments', methodButtons: 0 });
+    record(scene.state.placeOrderHidden === false,
+        'UPayments selected with no method buttons keeps the canonical place-order control visible');
+}
+
+{
+    // Pay-for-order (form#order_review) has no form.checkout: the gateway switch
+    // must still re-show place-order.
+    const scene = createScene({ selectedPaymentMethod: 'upayments' });
+    record(scene.state.placeOrderHidden === true, 'pay-for-order starts with UPayments selected');
+    scene.state.selectedPaymentMethod = 'cod';
+    const delegated = scene.state.handlers.filter(function (entry) {
+        return entry.target === 'body' && baseEvent(entry.eventName) === 'change' && entry.selector === 'input[name="payment_method"]';
+    });
+    delegated.forEach(function (entry) { entry.handler(); });
+    record(delegated.length === 1 && scene.state.placeOrderHidden === false,
+        'a gateway switch anywhere on the page (incl. pay-for-order) re-shows the place-order control');
+}
+
+{
+    // The visible save-card checkbox is the customer's consent even if the toggle
+    // click happened before this script loaded.
+    const scene = createScene({ saveCard: '0', checkboxChecked: true });
+    scene.api.submitPaymentMethod('cc');
+    record(scene.state.saveCard === '1', 'new-card submission sends the visible save-card consent');
+    const unchecked = createScene({ saveCard: '1', checkboxChecked: false });
+    unchecked.api.submitPaymentMethod('cc');
+    record(unchecked.state.saveCard === '0', 'an unchecked save-card box never sends consent');
 }
 
 console.log('Classic place-order lifecycle results: ' + pass + ' passed, ' + fail + ' failed.');
