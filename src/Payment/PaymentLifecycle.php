@@ -11,6 +11,7 @@ require_once __DIR__ . '/ProviderResult.php';
 require_once __DIR__ . '/StatusRateGate.php';
 require_once __DIR__ . '/OrderLock.php';
 require_once __DIR__ . '/StatusVerifier.php';
+require_once __DIR__ . '/ReconciliationSweep.php';
 
 /**
  * Payment callback + reconciliation strangler for the historical wc_upayments route.
@@ -56,6 +57,28 @@ final class PaymentLifecycle {
         add_action(self::CALLBACK_HOOK, array(__CLASS__, 'handle_callback'), 5);
         add_action(self::RECONCILE_HOOK, array(__CLASS__, 'reconcile_order'), 10, 1);
         add_action(self::SECONDARY_RECONCILE_HOOK, array(__CLASS__, 'reconcile_secondary'), 10, 1);
+        ReconciliationSweep::register();
+    }
+
+    /**
+     * Orders still carrying a payment cursor (trusted or unverified).
+     *
+     * @return array wc_get_orders() meta_query.
+     */
+    public static function sweep_cursor_meta_query() {
+        return array(
+            'relation' => 'OR',
+            array('key' => self::UNVERIFIED_TRACK_META, 'compare' => 'EXISTS'),
+            array('key' => self::TRUSTED_TRACK_META, 'compare' => 'EXISTS'),
+        );
+    }
+
+    /**
+     * @param int $order_id WooCommerce order ID.
+     * @return bool
+     */
+    public static function has_scheduled_reconciliation($order_id) {
+        return wp_next_scheduled(self::RECONCILE_HOOK, array((int) $order_id)) !== false;
     }
 
     /**

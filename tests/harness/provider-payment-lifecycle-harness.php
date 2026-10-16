@@ -113,6 +113,24 @@ namespace Simplixi\SUPCheckout\Payment {
         return isset(state()['orders'][$id]) ? state()['orders'][$id] : false;
     }
 
+    // Minimal wc_get_orders() for the reconciliation sweep: honours status,
+    // payment_method, limit and an OR of meta EXISTS clauses over in-memory orders.
+    function wc_get_orders($args = array()) {
+        $ids = array();
+        foreach (state()['orders'] as $id => $order) {
+            if (isset($args['status']) && !in_array($order->status, (array) $args['status'], true)) { continue; }
+            if (isset($args['payment_method']) && $order->get_payment_method() !== $args['payment_method']) { continue; }
+            if (isset($args['meta_query'])) {
+                $matched = false;
+                foreach ($args['meta_query'] as $clause) {
+                    if (is_array($clause) && isset($clause['key']) && (string) $order->get_meta($clause['key']) !== '') { $matched = true; }
+                }
+                if (!$matched) { continue; }
+            }
+            $ids[] = $id;
+        }
+        return array_slice($ids, 0, isset($args['limit']) ? (int) $args['limit'] : 10);
+    }
     function wp_next_scheduled($hook, $args = array()) {
         $key = $hook . '|' . json_encode(array_values($args));
         return isset(state()['scheduled'][$key]) ? state()['scheduled'][$key] : false;
@@ -905,6 +923,28 @@ namespace {
     \Simplixi\SUPCheckout\Payment\state()['schedule_fails'] = false;
     PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-615', 'webhook');
     same((int) $order->get_meta('_simplixpay_upayments_reconcile_attempt_v1'), 1, 'R8 once WP-Cron accepts the event the first attempt is counted');
+
+    // S1: the hourly safety-net sweep re-checks pending orders whose reconciliation
+    // event was lost (low-traffic WP-Cron, a refused event) and leaves alone orders
+    // that already have a check scheduled or are already paid.
+    list($gateway, $lost) = reset_fixture(620);
+    $lost->meta['_simplixpay_upayments_unverified_track_v1'] = 'track-lost';
+    $lost->meta['_simplixpay_upayments_unverified_requested_v1'] = 'merchant-order-620';
+    $waiting = new FakeOrder(621, 'merchant-order-621');
+    $waiting->meta['_simplixpay_upayments_unverified_track_v1'] = 'track-waiting';
+    $waiting->meta['_simplixpay_upayments_unverified_requested_v1'] = 'merchant-order-621';
+    \Simplixi\SUPCheckout\Payment\state()['orders'][621] = $waiting;
+    \Simplixi\SUPCheckout\Payment\state()['scheduled']['simplixpay_upayments_reconcile_order|[621]'] = time() + 60;
+    set_provider_transaction(transaction_for($lost, 'CAPTURED', 'track-lost', 'pay-lost'));
+    $calls_before = \Simplixi\SUPCheckout\Payment\state()['remote_get_calls'];
+    \Simplixi\SUPCheckout\Payment\ReconciliationSweep::run();
+    same($lost->get_status(), 'processing', 'S1 a pending order whose check was lost is completed by the sweep');
+    same($lost->get_transaction_id(), 'pay-lost', 'S1 the sweep records the verified payment');
+    same($waiting->get_status(), 'pending', 'S1 an order that already has a check scheduled is left to it');
+    same(\Simplixi\SUPCheckout\Payment\state()['remote_get_calls'] - $calls_before, 1, 'S1 the sweep makes exactly one provider lookup for one candidate');
+    $calls_before = \Simplixi\SUPCheckout\Payment\state()['remote_get_calls'];
+    \Simplixi\SUPCheckout\Payment\ReconciliationSweep::run();
+    same(\Simplixi\SUPCheckout\Payment\state()['remote_get_calls'] - $calls_before, 0, 'S1 a paid order is never swept again');
 
     // R3: an authenticated capture that cannot bind to the current order economics is surfaced once.
     list($gateway, $order) = reset_fixture(596);
