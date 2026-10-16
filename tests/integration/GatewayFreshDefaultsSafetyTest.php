@@ -16,7 +16,7 @@ $original = get_option($option_name, $missing);
 delete_option($option_name);
 wp_cache_delete($option_name, 'options');
 
-$fresh = new WC_Upayments();
+$fresh = new \Simplixi\SUPCheckout\Gateway\Gateway();
 $fresh_fields = $fresh->get_form_fields();
 
 supcheckout_cert_assert(
@@ -79,7 +79,7 @@ $configured_settings = array(
     'enable_subscriptions' => 'no',
 );
 supcheckout_cert_store_option_raw($option_name, $configured_settings);
-$configured = new WC_Upayments();
+$configured = new \Simplixi\SUPCheckout\Gateway\Gateway();
 
 supcheckout_cert_assert($configured->title === 'Configured constructor title', 'Configured gateway cached title is preserved');
 supcheckout_cert_assert($configured->description === 'Configured constructor description', 'Configured gateway cached description is preserved');

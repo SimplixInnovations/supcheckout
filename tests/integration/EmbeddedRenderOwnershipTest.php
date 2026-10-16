@@ -11,7 +11,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 use Simplixi\SUPCheckout\Subscription\Presentation;
 
-supcheckout_cert_assert(class_exists('WC_Upayments'), 'SUPCheckout gateway class is available for repeated-render certification');
+supcheckout_cert_assert(class_exists('Simplixi\SUPCheckout\Gateway\Gateway'), 'SUPCheckout gateway class is available for repeated-render certification');
 
 class SUPCheckout_EmbeddedRenderCartProbe {
     /** @var object */
@@ -74,7 +74,7 @@ $template_filter = static function ($template, $template_name) use ($fixture) {
 add_filter('wc_get_template', $template_filter, 999, 2);
 
 $reset_assets();
-$gateway = new WC_Upayments();
+$gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 $gateway->settings['use_new_design'] = 'yes';
 $gateway->autoDeduction = 'no';
 

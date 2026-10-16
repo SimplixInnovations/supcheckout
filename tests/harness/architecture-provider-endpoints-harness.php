@@ -209,7 +209,7 @@ foreach (array(false => $liveBase, true => $sandboxBase) as $mode => $base) {
 
 require_once __DIR__ . '/_bootstrap.php';
 
-$gateway = new WC_Upayments();
+$gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 foreach (array('no' => $liveBase, 'yes' => $sandboxBase, '' => $liveBase) as $setting => $base) {
     $gateway->testMode = $setting;
     arch4_assert($gateway->getAPIUrl() === $base, "gateway {$setting} mode preserves empty-route URL");
@@ -229,7 +229,11 @@ foreach (array('no' => $liveBase, 'yes' => $sandboxBase, '' => $liveBase) as $se
 }
 
 $resolverSource = file_get_contents(dirname(__DIR__, 2) . '/src/Provider/EndpointResolver.php');
-$gatewaySource = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gatewayMain = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+$gatewayClass = file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
+$gatewaySource = is_string($gatewayMain) && is_string($gatewayClass) ? $gatewayMain . "\n" . $gatewayClass : false;
 arch4_assert(is_string($resolverSource), 'provider endpoint resolver source is readable');
 arch4_assert(is_string($gatewaySource), 'gateway source is readable');
 arch4_assert(

@@ -382,7 +382,11 @@ namespace {
     // Static compatibility characterization remains deliberately separate from
     // the active callback proof above.
     $root = dirname(__DIR__, 2);
-    $gateway_source = file_get_contents($root . '/supcheckout.php');
+    // The legacy gateway source is the main file plus the gateway class it registers
+    // (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+    $gateway_main = file_get_contents($root . '/supcheckout.php');
+    $gateway_class = file_get_contents($root . '/src/Gateway/Gateway.php');
+    $gateway_source = is_string($gateway_main) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_class : false;
     $lifecycle_source = file_get_contents($root . '/src/Payment/PaymentLifecycle.php');
 
     t1_assert(is_string($gateway_source), 'legacy gateway source readable');

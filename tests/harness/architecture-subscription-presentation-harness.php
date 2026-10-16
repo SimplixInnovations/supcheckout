@@ -227,8 +227,10 @@ a4_assert(strpos($admin_html, 'upay-subscription-summary') !== false && strpos($
 
 // Gateway compatibility wrappers and high-risk boundaries remain in place.
 $root = dirname(__DIR__, 2);
-$gateway = file_get_contents($root . '/supcheckout.php');
-$composition = file_get_contents($root . '/src/Subscription/Composition.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gateway = file_get_contents($root . '/supcheckout.php') . "\n" . file_get_contents($root . '/src/Gateway/Gateway.php');
+$composition =file_get_contents($root . '/src/Subscription/Composition.php');
 $presentation = file_get_contents($root . '/src/Subscription/Presentation.php');
 foreach (array('initializeSubscriptionModule', 'render_subscription_summary', 'restrictMixedCartProducts', 'renderSubscriptionBadgeInProductList') as $method) {
     a4_assert((bool) preg_match('/public\s+function\s+' . preg_quote($method, '/') . '\s*\(/', $gateway), "legacy public {$method} seam remains callable");

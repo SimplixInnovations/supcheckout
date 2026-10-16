@@ -2,7 +2,7 @@
 /**
  * Approach 3 T2 direct legacy callback routing regression.
  *
- * This harness invokes the real WC_Upayments::check_ipn_response() method in
+ * This harness invokes the real Simplixi\SUPCheckout\Gateway\Gateway::check_ipn_response() method in
  * child PHP processes while replacing the three legacy routing targets with
  * sentinels. On the pre-T2 base those sentinels are expected to win, making
  * this harness RED. After the bounded T2 implementation the real
@@ -93,7 +93,7 @@ function t2_child_boot($scenario) {
     // WooCommerce gateway instance.
     woocommerceUpaymentsInit();
 
-    class T2LegacyGatewayProbe extends WC_Upayments {
+    class T2LegacyGatewayProbe extends \Simplixi\SUPCheckout\Gateway\Gateway {
         public function get_payment_staus() {
             echo "LEGACY_STATUS_SENTINEL\n";
             exit(71);
@@ -257,7 +257,11 @@ foreach ($cases as $scenario => $expectations) {
     }
 }
 
-$gateway_source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gateway_main = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+$gateway_class = file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
+$gateway_source = is_string($gateway_main) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_class : false;
 t2_assert(is_string($gateway_source), 'gateway source readable');
 if (is_string($gateway_source)) {
     t2_assert(

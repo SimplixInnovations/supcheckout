@@ -58,7 +58,7 @@ if ('verify' === $phase) {
         'activation preserves the complete serialized protected settings option byte-for-byte'
     );
     supcheckout_cert_assert(class_exists('WooCommerce'), 'WooCommerce is active in the certification runtime');
-    supcheckout_cert_assert(class_exists('WC_Upayments'), 'SUPCheckout Classic gateway class loads in the real WooCommerce runtime');
+    supcheckout_cert_assert(class_exists('Simplixi\SUPCheckout\Gateway\Gateway'), 'SUPCheckout Classic gateway class loads in the real WooCommerce runtime');
 
     $checkout_page_id = wc_get_page_id('checkout');
     $checkout_page = $checkout_page_id > 0 ? get_post($checkout_page_id) : null;
@@ -73,7 +73,7 @@ if ('verify' === $phase) {
     $gateways = WC()->payment_gateways()->payment_gateways();
     supcheckout_cert_assert(is_array($gateways), 'WooCommerce returns a real payment gateway registry');
     supcheckout_cert_assert(isset($gateways['upayments']), 'Classic gateway ID upayments is registered');
-    supcheckout_cert_assert($gateways['upayments'] instanceof WC_Upayments, 'registered Classic gateway is the SUPCheckout gateway instance');
+    supcheckout_cert_assert($gateways['upayments'] instanceof \Simplixi\SUPCheckout\Gateway\Gateway, 'registered Classic gateway is the SUPCheckout gateway instance');
 
     supcheckout_cert_note('activation and Classic gateway certification complete');
     return;

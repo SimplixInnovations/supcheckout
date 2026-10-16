@@ -30,6 +30,7 @@ parameters:
         - src/Gateway/CheckoutAssets.php
         - src/Gateway/OrderPresentation.php
         - src/Gateway/OfficialPluginConflict.php
+        - src/Gateway/GatewayRegistration.php
         - src/Security/PublicOrderStatus.php
         - src/Release/Identity.php
         - src/Autoloader.php

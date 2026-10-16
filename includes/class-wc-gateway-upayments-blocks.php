@@ -45,10 +45,10 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
     /**
      * The gateway instance WooCommerce already registered, or null before it exists.
      *
-     * @return WC_Upayments|null
+     * @return \Simplixi\SUPCheckout\Gateway\Gateway|null
      */
     private static function registered_gateway() {
-        if ( ! function_exists( 'WC' ) || ! class_exists( 'WC_Upayments' ) ) {
+        if ( ! function_exists( 'WC' ) || ! class_exists( \Simplixi\SUPCheckout\Gateway\Gateway::class ) ) {
             return null;
         }
         $woocommerce = WC();
@@ -60,7 +60,7 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
             return null;
         }
         $gateways = $registry->payment_gateways();
-        return ( is_array( $gateways ) && isset( $gateways['upayments'] ) && $gateways['upayments'] instanceof WC_Upayments )
+        return ( is_array( $gateways ) && isset( $gateways['upayments'] ) && $gateways['upayments'] instanceof \Simplixi\SUPCheckout\Gateway\Gateway )
             ? $gateways['upayments']
             : null;
     }

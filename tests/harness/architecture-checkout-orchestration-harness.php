@@ -38,15 +38,18 @@ function a5_contains($source, $needle) {
     return is_string($source) && strpos($source, $needle) !== false;
 }
 
+// The legacy gateway adapter is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
 $gatewayPath = $root . '/supcheckout.php';
+$gatewayClassPath = $root . '/src/Gateway/Gateway.php';
 $payloadPath = $root . '/src/Payment/CheckoutPayload.php';
 $orchestratorPath = $root . '/src/Payment/CheckoutOrchestrator.php';
 
-a5_assert(is_file($gatewayPath), 'legacy gateway adapter exists');
+a5_assert(is_file($gatewayPath) && is_file($gatewayClassPath), 'legacy gateway adapter exists');
 a5_assert(is_file($payloadPath), 'CheckoutPayload service exists');
 a5_assert(is_file($orchestratorPath), 'CheckoutOrchestrator service exists');
 
-$gateway = file_get_contents($gatewayPath);
+$gateway = (string) file_get_contents($gatewayPath) . "\n" . (string) file_get_contents($gatewayClassPath);
 $payload = file_get_contents($payloadPath);
 $orchestrator = file_get_contents($orchestratorPath);
 

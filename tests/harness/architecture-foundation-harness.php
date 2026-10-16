@@ -439,17 +439,32 @@ $gatewayAvailability = arch_read($root, 'src/Gateway/Availability.php');
 $gatewayOrderPresentation = arch_read($root, 'src/Gateway/OrderPresentation.php');
 $multiMerchantContract = arch_read($root, 'src/Provider/MultiMerchantContract.php');
 $gatewayTokens = arch_executable_tokens($gateway);
-$gatewayClassTokens = arch_class_body_tokens($gatewayTokens, 'WC_Upayments');
+// Sub-project 0a Task 3: the gateway class and its WooCommerce registration live in
+// src/Gateway/Gateway.php and src/Gateway/GatewayRegistration.php.
+$gatewayClassSource = arch_read($root, 'src/Gateway/Gateway.php');
+$gatewayRegistrationSource = arch_read($root, 'src/Gateway/GatewayRegistration.php');
+$gatewayClassTokens = arch_class_body_tokens(arch_executable_tokens($gatewayClassSource), 'Gateway');
+$gatewayRegistrationClassTokens = arch_class_body_tokens(arch_executable_tokens($gatewayRegistrationSource), 'GatewayRegistration');
+$registrationRegister = arch_direct_public_method($gatewayRegistrationClassTokens, 'register');
+$registrationAvailable = arch_direct_public_method($gatewayRegistrationClassTokens, 'filter_available');
+$registrationAvailabilitySequence = array(
+    'name:add_filter', '(', 'string:woocommerce_available_payment_gateways', ',',
+    'array', '(', 'name:self', '::', 'class', ',', 'string:filter_available', ')', ')', ';',
+);
+$registrationAvailabilityDelegateSequence = array(
+    'return', 'name:Availability', '::', 'name:filter', '(', 'variable:$gateways', ')', ';',
+);
 $checkoutOrchestratorTokens = arch_executable_tokens($checkoutOrchestrator);
 $checkoutOrchestratorClassTokens = arch_class_body_tokens($checkoutOrchestratorTokens, 'CheckoutOrchestrator');
 $checkoutProcess = arch_direct_public_method($checkoutOrchestratorClassTokens, 'process');
 $gatewayAvailabilityTokens = arch_executable_tokens($gatewayAvailability);
 $gatewayAvailabilityClassTokens = arch_class_body_tokens($gatewayAvailabilityTokens, 'Availability');
 $gatewayAvailabilityFilter = arch_direct_public_method($gatewayAvailabilityClassTokens, 'filter');
-$availabilityBinding = arch_direct_top_level_filter_callback(
-    $gatewayTokens,
-    $availabilityFilterSequence,
-    'enableUpaymentsGateway'
+$availabilityBinding = array(
+    'found' => $registrationRegister['found']
+        && arch_has_token_sequence($registrationRegister['body'], $registrationAvailabilitySequence)
+        && $registrationAvailable['found'],
+    'body' => $registrationAvailable['body'],
 );
 
 arch_assert($architecture !== '', 'architecture control record exists');
@@ -523,7 +538,12 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // Because the shim keeps a UPayments.php in the tree, git sees supcheckout.php as a new
 // file, so the Governance whitespace check covers every line: trailing whitespace on
 // 22 lines is stripped (-284 bytes, whitespace only).
-$acceptedGatewayBytes = 63035;
+// Sub-project 0a Task 3 moves class WC_Upayments verbatim into
+// src/Gateway/Gateway.php (Simplixi\SUPCheckout\Gateway\Gateway) and the two
+// WooCommerce gateway callbacks into src/Gateway/GatewayRegistration.php, drops the
+// use imports only the class needed, and moves Plugin::boot(__FILE__) inside the
+// official-plugin pause guard (-50,771 bytes).
+$acceptedGatewayBytes = 12264;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
 foreach (array('supcheckout.php', 'UPayments.php', 'includes', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;
@@ -539,14 +559,20 @@ foreach (array('supcheckout.php', 'UPayments.php', 'includes', 'src', 'templates
             !preg_match('/\bwp_(update|insert|delete)_post\s*\(/', $shippedSource),
             'shipped code never creates, rewrites or deletes merchant posts/pages: ' . str_replace($root . '/', '', $shippedFile->getPathname())
         );
+        // Retargeted in Sub-project 0a Task 3 to the namespaced class, in every spelling
+        // (bare Gateway, the fully qualified name, and the legacy WC_Upayments name).
         arch_assert(
-            !preg_match('/\bnew\s+\\\\?WC_Upayments\s*\(/', $shippedSource),
-            'shipped code never constructs a second WC_Upayments gateway (WooCommerce owns the one instance): ' . str_replace($root . '/', '', $shippedFile->getPathname())
+            !preg_match('/\bnew\s+(?:\\\\?Simplixi\\\\SUPCheckout\\\\Gateway\\\\)?\\\\?(WC_Upayments|Gateway)\s*\(/', $shippedSource),
+            'shipped code never constructs a second gateway (WooCommerce owns the one instance): ' . str_replace($root . '/', '', $shippedFile->getPathname())
         );
     }
 }
-arch_assert($gatewayClassTokens !== array(), 'legacy WC_Upayments gateway compatibility class remains executable');
-arch_assert(arch_contains($gateway, "add_filter(\"woocommerce_payment_gateways\", \"addUpaymentsGatewayClass\")"), 'WooCommerce gateway registration remains characterized');
+arch_assert($gatewayClassTokens !== array(), 'gateway compatibility class remains executable');
+arch_assert(
+    arch_contains($gatewayRegistrationSource, "add_filter('woocommerce_payment_gateways', array(self::class, 'filter_gateways'));")
+        && arch_contains($gatewayRegistrationSource, '$methods[] = Gateway::class;'),
+    'WooCommerce gateway registration remains characterized'
+);
 
 $publicMethods = array(
     'process_payment' => 'process_payment compatibility entry point remains public',
@@ -572,7 +598,7 @@ foreach ($publicMethods as $methodName => $message) {
     arch_assert($resolvedPublicMethods[$methodName]['found'], $message);
 }
 
-arch_assert(arch_contains($gateway, '\\Simplixi\\SUPCheckout\\Security\\PublicOrderStatus::handle();'), 'public status polling delegates to Security boundary');
+arch_assert(arch_contains($gatewayClassSource, '\\Simplixi\\SUPCheckout\\Security\\PublicOrderStatus::handle();'),'public status polling delegates to Security boundary');
 arch_assert(arch_contains($subscriptionComposition, "add_action('woocommerce_process_product_meta', 'saveCustomFieldData')"), 'subscription product-meta hook retains legacy callback identity through A4 composition');
 arch_assert(is_file($root . '/src/Release/Identity.php'), 'Release module exists');
 arch_assert(is_dir($root . '/src/Migration'), 'Migration module exists');
@@ -592,8 +618,8 @@ arch_assert(is_file($root . '/src/Payment/CheckoutOrchestrator.php'), 'A5 Checko
 arch_assert(arch_contains($subscriptionPresentation, 'namespace Simplixi\\SUPCheckout\\Subscription;'), 'Subscription presentation uses SUPCheckout namespace');
 arch_assert(arch_contains($checkoutPayload, 'namespace Simplixi\\SUPCheckout\\Payment;'), 'A5 checkout payload uses SUPCheckout Payment namespace');
 arch_assert(arch_contains($checkoutOrchestrator, 'namespace Simplixi\\SUPCheckout\\Payment;'), 'A5 checkout orchestrator uses SUPCheckout Payment namespace');
-arch_assert(arch_contains($gateway, 'GatewaySettings::fields('), 'gateway settings schema delegates to Admin boundary');
-arch_assert(arch_contains($gateway, 'GatewaySettings::render_multimerchant('), 'multi-merchant presentation delegates to Admin boundary');
+arch_assert(arch_contains($gatewayClassSource, 'GatewaySettings::fields('), 'gateway settings schema delegates to Admin boundary');
+arch_assert(arch_contains($gatewayClassSource, 'GatewaySettings::render_multimerchant('),'multi-merchant presentation delegates to Admin boundary');
 arch_assert(is_file($root . '/src/Payment/OrderLock.php'), 'Payment OrderLock boundary exists');
 arch_assert(is_file($root . '/src/Payment/ProviderResult.php'), 'Payment ProviderResult boundary exists');
 arch_assert(is_file($root . '/src/Payment/StatusRateGate.php'), 'Payment StatusRateGate boundary exists');
@@ -608,20 +634,21 @@ arch_assert(arch_contains($scheduler, 'class Scheduler'), 'subscription Schedule
 arch_assert(is_file($root . '/includes/class-wc-gateway-upayments-blocks.php'), 'Checkout Blocks gateway integration exists');
 
 $constructor = arch_direct_public_method($gatewayClassTokens, '__construct');
-arch_assert($constructor['found'], 'WC_Upayments constructor remains public and executable');
+arch_assert($constructor['found'], 'Gateway constructor remains public and executable');
 arch_assert(
     arch_has_token_sequence($constructor['body'], $gatewayIdSequence),
-    'gateway ID remains executable in WC_Upayments::__construct and bound to upayments'
+    'gateway ID remains executable in Gateway::__construct and bound to upayments'
 );
 arch_assert(
     arch_has_token_sequence($constructor['body'], $callbackWithTrailingComma)
         || arch_has_token_sequence($constructor['body'], $callbackWithoutTrailingComma),
-    'wc_upayments callback hook remains executable in WC_Upayments::__construct and bound to check_ipn_response'
+    'wc_upayments callback hook remains executable in Gateway::__construct and bound to check_ipn_response'
 );
-arch_assert($availabilityBinding['found'], 'enableUpaymentsGateway remains a direct top-level registered availability callback');
+arch_assert($availabilityBinding['found'], 'GatewayRegistration::filter_available remains the registered availability callback');
 arch_assert(
-    arch_has_token_sequence($availabilityBinding['body'], $availabilityDelegateSequence),
-    'legacy global availability callback directly delegates to the E1 Gateway Availability boundary'
+    arch_has_token_sequence($availabilityBinding['body'], $registrationAvailabilityDelegateSequence)
+        && count($availabilityBinding['body']) === count($registrationAvailabilityDelegateSequence),
+    'availability callback directly and only delegates to the E1 Gateway Availability boundary'
 );
 arch_assert($gatewayAvailabilityFilter['found'], 'E1 Gateway Availability filter entry point is public and executable');
 arch_assert(
@@ -650,7 +677,7 @@ arch_assert(
             'variable:$total_rows', ',', 'variable:$order', ',', 'variable:$this', '->', 'name:id', ')', ';',
         )
     ),
-    'WC_Upayments::add_order_item_totals directly delegates to R1 OrderPresentation'
+    'Gateway::add_order_item_totals directly delegates to R1 OrderPresentation'
 );
 arch_assert(
     arch_contains($gatewayOrderPresentation, 'get_payment_method()')
@@ -668,7 +695,7 @@ arch_assert(
             ')', ')', '->', 'name:process', '(', 'variable:$order_id', ')', ';',
         )
     ),
-    'WC_Upayments::process_payment directly delegates to the A5 checkout orchestrator'
+    'Gateway::process_payment directly delegates to the A5 checkout orchestrator'
 );
 arch_assert($checkoutProcess['found'], 'A5 CheckoutOrchestrator process entry point is public and executable');
 // The provider-order identity is persisted by process() through its locked,

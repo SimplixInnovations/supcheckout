@@ -1016,7 +1016,11 @@ namespace {
     $verifier_source = file_get_contents($root . '/src/Payment/StatusVerifier.php');
     $rate_source = file_get_contents($root . '/src/Payment/StatusRateGate.php');
     $lock_source = file_get_contents($root . '/src/Payment/OrderLock.php');
-    $gateway_source = @file_get_contents($root . '/supcheckout.php');
+    // The gateway source is the main file plus the gateway class it registers
+    // (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+    $gateway_main = @file_get_contents($root . '/supcheckout.php');
+    $gateway_class = @file_get_contents($root . '/src/Gateway/Gateway.php');
+    $gateway_source = is_string($gateway_main) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_class : false;
 
     // H1: the Charge path records the superseded provider identity before rotating it.
     $orchestrator_source = file_get_contents($root . '/src/Payment/CheckoutOrchestrator.php');

@@ -143,7 +143,7 @@ try {
     supcheckout_cert_assert(1.0 === (float) $order->get_total_tax(), 'mixed-tax order reloads aggregate Woo tax independently of payment authority');
     supcheckout_cert_assert(3 === count($order->get_items('tax')), 'mixed-tax order persists standard/reduced/zero tax items');
 
-    $gateway = new WC_Upayments();
+    $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
     $gateway->domain = 'upayments';
     $gateway->apiKey = 'certification-api-key';
     $gateway->testMode = 'yes';

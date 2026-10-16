@@ -70,7 +70,7 @@ foreach ($cases as $label => $case) {
 }
 
 // E1: Classic availability must own the same deterministic local configuration
-// boundary as Blocks. This assertion calls WC_Upayments::is_available() directly
+// boundary as Blocks. This assertion calls Simplixi\SUPCheckout\Gateway\Gateway::is_available() directly
 // so admin-ajax/custom checkout code cannot depend on the outer
 // woocommerce_available_payment_gateways filter having executed first.
 $classic_cases = array(
@@ -106,7 +106,7 @@ foreach ($classic_cases as $label => $case) {
     update_option('woocommerce_currency', $case['currency'], false);
     wp_cache_delete('woocommerce_currency', 'options');
 
-    $gateway = new WC_Upayments();
+    $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
     supcheckout_cert_assert(
         $gateway->is_available() === $case['available'],
         'Classic gateway availability is exact for case ' . $label
@@ -125,7 +125,7 @@ supcheckout_cert_store_option_raw(
         'test_mode' => 'no',
     )
 );
-$title_gateway = new WC_Upayments();
+$title_gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 supcheckout_cert_assert(
     $title_gateway->get_title() === 'Configured SUPCheckout title',
     'Classic gateway exposes the merchant-configured checkout title'
@@ -135,7 +135,7 @@ supcheckout_cert_assert(
 // local API-key/currency eligibility. In particular, a gateway-level maximum
 // transaction amount must still suppress availability when a cart exists.
 if (!class_exists('SUPCheckoutAvailabilityLimitProbeGateway', false)) {
-    class SUPCheckoutAvailabilityLimitProbeGateway extends WC_Upayments {
+    class SUPCheckoutAvailabilityLimitProbeGateway extends \Simplixi\SUPCheckout\Gateway\Gateway {
         protected function get_order_total() {
             return 200.0;
         }
@@ -233,7 +233,7 @@ supcheckout_cert_store_option_raw(
         'test_mode' => 'no',
     )
 );
-$notice_gateway = new WC_Upayments();
+$notice_gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 supcheckout_cert_assert($notice_gateway->getMode() === false, 'Notice-isolation fixture uses live availability scope');
 update_option('upayments_payment_methods_rate_gate_live', time() + 65, false);
 wc_clear_notices();

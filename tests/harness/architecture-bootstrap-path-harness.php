@@ -981,14 +981,34 @@ function arch3_has_direct_gateway_id_assignment(array $body)
         array(T_CONSTANT_ENCAPSED_STRING, 'upayments'),
         array(null, ';'),
     );
+    $need = count($expected);
 
+    return arch3_has_direct_statement($body, static function (array $tokens, $i) use ($expected, $need) {
+        if ($i + $need > count($tokens)) {
+            return 'stop';
+        }
+        foreach ($expected as $offset => $want) {
+            $actual = $tokens[$i + $offset];
+            if ($actual['id'] !== $want[0] || $actual['text'] !== $want[1]) {
+                return false;
+            }
+        }
+        return true;
+    });
+}
+
+/**
+ * Walks the direct (top-level, reachable) statements of $body and asks $matcher
+ * about each statement start: true = found, 'stop' = give up, false = continue.
+ */
+function arch3_has_direct_statement(array $body, callable $matcher)
+{
     $altStarts = arch3_alt_start_indexes($body);
     $deferredTerminators = arch3_try_terminator_defer_map($body);
     $terminationBoundaries = array();
     $braceDepth = 0;
     $altDepth = 0;
     $count = count($body);
-    $need = count($expected);
 
     for ($i = 0; $i < $count; $i++) {
         if (isset($terminationBoundaries[$i])) {
@@ -1063,24 +1083,71 @@ function arch3_has_direct_gateway_id_assignment(array $body)
         if (!arch3_is_direct_statement_start($body, $i)) {
             continue;
         }
-        if ($i + $need > $count) {
+        $verdict = $matcher($body, $i);
+        if ($verdict === 'stop') {
             return false;
         }
-
-        $matches = true;
-        foreach ($expected as $offset => $want) {
-            $actual = $body[$i + $offset];
-            if ($actual['id'] !== $want[0] || $actual['text'] !== $want[1]) {
-                $matches = false;
-                break;
-            }
-        }
-        if ($matches) {
+        if ($verdict === true) {
             return true;
         }
     }
 
     return false;
+}
+
+/**
+ * Concatenated token texts of the statement starting at $index, up to and
+ * including its terminating top-level ';' (string literals appear decoded).
+ */
+function arch3_statement_text(array $tokens, $index)
+{
+    $text = '';
+    $depth = 0;
+    $count = count($tokens);
+    for ($i = $index; $i < $count; $i++) {
+        $piece = $tokens[$i]['text'];
+        $text .= $piece;
+        if ($piece === '(' || $piece === '[' || $piece === '{') {
+            $depth++;
+        } elseif ($piece === ')' || $piece === ']' || $piece === '}') {
+            $depth--;
+        } elseif ($piece === ';' && $depth === 0) {
+            return $text;
+        }
+    }
+
+    return $text;
+}
+
+/**
+ * Whether $statement (compact token text, see arch3_statement_text) is a direct,
+ * unconditional and reachable statement of $body, under the same terminator rules
+ * as the protected gateway ID assignment.
+ */
+function arch3_has_direct_statement_text(array $body, $statement)
+{
+    return arch3_has_direct_statement($body, static function (array $tokens, $i) use ($statement) {
+        return arch3_statement_text($tokens, $i) === $statement;
+    });
+}
+
+/**
+ * Class body of a top-level class declared directly in a file; a leading `final`
+ * or `abstract` modifier does not affect reachability, so it is ignored.
+ */
+function arch3_direct_file_class(array $tokens, $className)
+{
+    $filtered = array();
+    $count = count($tokens);
+    for ($i = 0; $i < $count; $i++) {
+        if (in_array($tokens[$i]['id'], array(T_FINAL, T_ABSTRACT), true)
+            && isset($tokens[$i + 1]) && $tokens[$i + 1]['id'] === T_CLASS) {
+            continue;
+        }
+        $filtered[] = $tokens[$i];
+    }
+
+    return arch3_direct_class($filtered, $className);
 }
 
 $gateway = arch3_read($root, 'supcheckout.php');
@@ -1122,18 +1189,59 @@ $bootstrap = arch3_direct_top_level_hook_callback(
     'plugins_loaded',
     'woocommerceUpaymentsInit'
 );
-$gatewayClass = $bootstrap['found']
-    ? arch3_direct_class($bootstrap['body'], 'WC_Upayments')
+// Sub-project 0a Task 3: the gateway class is no longer declared inside the
+// plugins_loaded callback. The same reachability rule (direct, unconditional,
+// executable at every step) now follows the composition-root path instead:
+// main file -> Plugin::boot() -> GatewayRegistration::register() ->
+// woocommerce_payment_gateways -> Gateway::class -> src/Gateway/Gateway.php.
+$pluginTokens = arch3_tokens(arch3_read($root, 'src/Plugin.php'));
+$registrationTokens = arch3_tokens(arch3_read($root, 'src/Gateway/GatewayRegistration.php'));
+$gatewayClassTokens = arch3_tokens(arch3_read($root, 'src/Gateway/Gateway.php'));
+$pluginClass = arch3_direct_file_class($pluginTokens, 'Plugin');
+$pluginBoot = $pluginClass['found']
+    ? arch3_direct_public_method($pluginClass['body'], 'boot')
     : array('found' => false, 'body' => array());
+$registrationClass = arch3_direct_file_class($registrationTokens, 'GatewayRegistration');
+$registrationRegister = $registrationClass['found']
+    ? arch3_direct_public_method($registrationClass['body'], 'register')
+    : array('found' => false, 'body' => array());
+$registrationFilter = $registrationClass['found']
+    ? arch3_direct_public_method($registrationClass['body'], 'filter_gateways')
+    : array('found' => false, 'body' => array());
+$gatewayClass = arch3_direct_file_class($gatewayClassTokens, 'Gateway');
 $constructor = $gatewayClass['found']
     ? arch3_direct_public_method($gatewayClass['body'], '__construct')
     : array('found' => false, 'body' => array());
+$filterText = '';
+foreach ($registrationFilter['body'] as $filterToken) {
+    $filterText .= $filterToken['text'];
+}
 
 arch3_assert($gateway !== '', 'supcheckout.php is readable');
 arch3_assert(!arch3_has_namespace_declaration($gatewayTokens), 'legacy main file remains global for bootstrap callbacks');
 arch3_assert($bootstrap['found'], 'plugins_loaded directly registers and owns woocommerceUpaymentsInit');
-arch3_assert($gatewayClass['found'], 'woocommerceUpaymentsInit directly owns WC_Upayments declaration');
-arch3_assert($constructor['found'], 'WC_Upayments constructor remains a direct public method');
+arch3_assert(
+    arch3_has_direct_statement_text($gatewayTokens, '\\Simplixi\\SUPCheckout\\Plugin::boot(__FILE__);'),
+    'main file directly and unconditionally calls Plugin::boot(__FILE__)'
+);
+arch3_assert(
+    $pluginBoot['found'] && arch3_has_direct_statement_text($pluginBoot['body'], 'GatewayRegistration::register();'),
+    'Plugin::boot directly and unconditionally calls GatewayRegistration::register()'
+);
+arch3_assert(
+    $registrationRegister['found']
+        && arch3_has_direct_statement_text($registrationRegister['body'], 'add_filter(woocommerce_payment_gateways,array(self::class,filter_gateways));'),
+    'GatewayRegistration::register directly and unconditionally registers filter_gateways on woocommerce_payment_gateways'
+);
+arch3_assert(
+    $registrationFilter['found']
+        && strpos($filterText, 'if(!in_array(Gateway::class,$methods,true)){$methods[]=Gateway::class;}') !== false
+        // A return is itself a terminator, so it is pinned as the body's final statement.
+        && substr($filterText, -strlen('return$methods;')) === 'return$methods;',
+    'filter_gateways hands WooCommerce the namespaced Gateway class'
+);
+arch3_assert($gatewayClass['found'], 'src/Gateway/Gateway.php directly and unconditionally declares the Gateway class');
+arch3_assert($constructor['found'], 'Gateway constructor remains a direct public method');
 arch3_assert(
     $constructor['found'] && arch3_has_direct_gateway_id_assignment($constructor['body']),
     'gateway ID upayments is an unconditional direct constructor statement'
@@ -1954,6 +2062,35 @@ arch3_assert($validClass['found'], 'bootstrap guard accepts direct gateway class
 arch3_assert(
     $validConstructor['found'] && arch3_has_direct_gateway_id_assignment($validConstructor['body']),
     'constructor guard accepts direct protected gateway ID assignment'
+);
+
+// Sensitivity of the composition-root statement guard (Sub-project 0a Task 3).
+$statementTokens = function ($body) {
+    return arch3_tokens("<?php\n" . $body);
+};
+arch3_assert(
+    arch3_has_direct_statement_text($statementTokens("if (\$booted) { return; }\nGatewayRegistration::register();\n"), 'GatewayRegistration::register();'),
+    'statement guard accepts a direct registration after a conditional return'
+);
+arch3_assert(
+    !arch3_has_direct_statement_text($statementTokens("if (\$enabled) { GatewayRegistration::register(); }\n"), 'GatewayRegistration::register();'),
+    'statement guard rejects a registration hidden in a conditional'
+);
+arch3_assert(
+    !arch3_has_direct_statement_text($statementTokens("return;\nGatewayRegistration::register();\n"), 'GatewayRegistration::register();'),
+    'statement guard rejects a registration after a direct return'
+);
+arch3_assert(
+    !arch3_has_direct_statement_text($statementTokens("\$x = function () { GatewayRegistration::register(); };\n"), 'GatewayRegistration::register();'),
+    'statement guard rejects a registration inside a nested closure'
+);
+arch3_assert(
+    arch3_direct_file_class(arch3_tokens("<?php\nnamespace A;\ndefined('ABSPATH') || exit;\nfinal class Plugin {}\n"), 'Plugin')['found'],
+    'file class guard accepts a final class after the ABSPATH guard'
+);
+arch3_assert(
+    !arch3_direct_file_class(arch3_tokens("<?php\nnamespace A;\nif (false) { final class Plugin {} }\n"), 'Plugin')['found'],
+    'file class guard rejects a conditionally declared class'
 );
 
 printf("\nArchitecture Bootstrap Paths: %d PASS / %d FAIL\n", $pass, $fail);

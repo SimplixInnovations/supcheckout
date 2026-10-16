@@ -51,7 +51,7 @@ function supcheckout_e2_order($items, $currency = 'KWD') {
 }
 
 function supcheckout_e2_gateway() {
-    $gateway = new WC_Upayments();
+    $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
     $gateway->domain = 'upayments';
     $gateway->apiKey = 'certification-api-key';
     $gateway->testMode = 'yes';

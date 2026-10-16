@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Gateway\GatewayRegistration;
+
 /**
  * Composition root. From Task 3 on, every WordPress hook SUPCheckout registers is
  * added from here (or from a class this method calls), never from the main file.
@@ -21,6 +23,7 @@ final class Plugin {
             return;
         }
         self::$main_file = (string) $main_file;
+        GatewayRegistration::register();
     }
 
     /** @return string */

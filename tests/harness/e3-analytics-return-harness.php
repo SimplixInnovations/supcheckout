@@ -285,6 +285,7 @@ namespace {
     $owned_surface = '';
     foreach (array(
         '/supcheckout.php',
+        '/src/Gateway/Gateway.php',
         '/src/Payment/PaymentLifecycle.php',
         '/assets/js/new-upay.js',
         '/assets/js/upayments-block.js',

@@ -9,7 +9,7 @@
 
 require_once __DIR__ . '/bootstrap.php';
 
-supcheckout_cert_assert(class_exists('WC_Upayments'), 'SUPCheckout gateway class is available for child-theme certification');
+supcheckout_cert_assert(class_exists('Simplixi\SUPCheckout\Gateway\Gateway'), 'SUPCheckout gateway class is available for child-theme certification');
 
 $expected_child_slug = getenv('SUPCHECKOUT_CHILD_THEME_SLUG');
 $expected_parent_slug = getenv('SUPCHECKOUT_PARENT_THEME_SLUG');
@@ -51,7 +51,7 @@ $template_observer = static function ($template, $template_name) {
 };
 add_filter('wc_get_template', $template_observer, 999, 2);
 
-$gateway = new WC_Upayments();
+$gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 $gateway->settings['use_new_design'] = 'yes';
 $gateway->autoDeduction = 'no';
 

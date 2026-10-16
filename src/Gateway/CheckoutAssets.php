@@ -50,12 +50,12 @@ final class CheckoutAssets {
         if (! is_array($args)
             || ! isset($args['gateway'])
             || ! is_object($args['gateway'])
-            || ! is_a($args['gateway'], 'WC_Upayments')
+            || ! is_a($args['gateway'], Gateway::class)
         ) {
             return $located;
         }
 
-        /** @var \WC_Upayments $gateway */
+        /** @var Gateway $gateway */
         $gateway = $args['gateway'];
         self::enqueue_for_template($template_name, $gateway);
         return $located;
@@ -65,7 +65,7 @@ final class CheckoutAssets {
      * Enqueue render-owned assets without widening frontend scope.
      *
      * @param string         $template_name Exact SUPCheckout template name.
-     * @param \WC_Upayments $gateway       Exact rendered gateway instance.
+     * @param Gateway       $gateway       Exact rendered gateway instance.
      * @return void
      */
     private static function enqueue_for_template($template_name, $gateway) {

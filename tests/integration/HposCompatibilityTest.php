@@ -54,7 +54,7 @@ supcheckout_cert_assert('10.00' === wc_format_decimal($reloaded->get_total(), 2)
 // through another gateway. WooCommerce applies woocommerce_get_order_item_totals
 // globally, so SUPCheckout must not inject an empty UPayments status row into
 // COD, bank-transfer, or third-party-gateway orders.
-$gateway = new WC_Upayments();
+$gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 $base_rows = array(
     'cart_subtotal' => array('label' => 'Subtotal:', 'value' => '10.00'),
     'payment_method' => array('label' => 'Payment method:', 'value' => 'Cash on delivery'),

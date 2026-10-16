@@ -69,7 +69,12 @@ q15_assert(q15_contains($source, "method_exists(\$item, 'add_meta_data')"), 'ord
 q15_assert(q15_contains($source, "method_exists(\$item, 'get_product')"), 'admin summary guards item product access');
 q15_assert(q15_contains($source, '$product instanceof \\WC_Product'), 'admin summary guards missing products');
 q15_assert(q15_contains($source, "self::render_admin_summary(\$order);\n                return;"), 'admin summary renders at most once per order');
-q15_assert(!q15_contains($source, 'new \\WC_Upayments('), 'admin summary never constructs a second gateway');
+q15_assert(
+    !q15_contains($source, 'new \\WC_Upayments(')
+        && !q15_contains($source, 'new \\Simplixi\\SUPCheckout\\Gateway\\Gateway(')
+        && !q15_contains($source, 'new Gateway('),
+    'admin summary never constructs a second gateway'
+);
 q15_assert(q15_contains($source, 'private static function date_time_or_null'), 'date parsing has one fail-closed boundary');
 q15_assert(q15_contains($source, 'catch (\\Exception $exception)'), 'invalid dates cannot escape the presentation boundary');
 q15_assert(q15_contains($source, "if (\$raw_status !== 'cancelled')"), 'cancelled admin summary does not expose a next-billing date');
@@ -111,7 +116,10 @@ q15_assert(q15_contains($tests, "array('product_id' => array(12))"), 'malformed 
 q15_assert(q15_contains($fixture, "'capability_calls'"), 'fixture records capability checks');
 q15_assert(q15_contains($fixture, "'meta_writes'"), 'fixture records product-meta writes');
 q15_assert(q15_contains($fixture, "'nonce_fields'"), 'fixture records manual-action nonces');
-q15_assert(q15_contains($runtime, 'class WC_Upayments'), 'runtime fixture isolates the gateway summary delegate');
+q15_assert(
+    q15_contains($runtime, "namespace Simplixi\\SUPCheckout\\Gateway {") && q15_contains($runtime, 'class Gateway {'),
+    'runtime fixture isolates the gateway summary delegate'
+);
 q15_assert(q15_contains($stubs, 'namespace UPayments\\Subscription\\Cron'), 'analysis stub models the scheduler boundary without running it');
 q15_assert(q15_contains($bootstrap, "require __DIR__ . '/support/wordpress-subscription-presentation.php';"), 'PHPUnit bootstrap loads the presentation fixture');
 

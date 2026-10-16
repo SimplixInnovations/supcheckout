@@ -10,7 +10,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 use Simplixi\SUPCheckout\Payment\PaymentLifecycle;
 
-if (!class_exists('WC_Upayments')) {
+if (!class_exists('Simplixi\SUPCheckout\Gateway\Gateway')) {
     require_once dirname(__DIR__, 2) . '/supcheckout.php';
     woocommerceUpaymentsInit();
 }
@@ -65,8 +65,8 @@ function supcheckout_r5_process($order, $result) {
             }
         }
     }
-    if (!$gateway instanceof WC_Upayments) {
-        $gateway = new WC_Upayments();
+    if (!$gateway instanceof \Simplixi\SUPCheckout\Gateway\Gateway) {
+        $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
     }
 
     $m = new ReflectionMethod(PaymentLifecycle::class, 'process_order_status');

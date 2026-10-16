@@ -30,7 +30,7 @@ add_filter(
     2
 );
 
-$gateway = new WC_Upayments();
+$gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 
 $cases = array(
     'explicit-enabled' => array(

@@ -16,8 +16,8 @@ final class PresentationTest extends TestCase {
     protected function setUp(): void {
         require_once dirname(__DIR__, 2) . '/fixtures/subscription-presentation-runtime.php';
         \supcheckout_test_reset_subscription_presentation();
-        \WC_Upayments::$summary_orders = array();
-        \WC_Upayments::$constructed = 0;
+        \Simplixi\SUPCheckout\Gateway\Gateway::$summary_orders = array();
+        \Simplixi\SUPCheckout\Gateway\Gateway::$constructed = 0;
         Utils::$custom = false;
         Utils::$normal = false;
     }
@@ -160,7 +160,7 @@ final class PresentationTest extends TestCase {
         self::assertSame($expected, $rendered);
         // A second gateway object would re-register every gateway hook and duplicate
         // the admin payment box, thank-you section and order totals rows.
-        self::assertSame(0, \WC_Upayments::$constructed);
+        self::assertSame(0, \Simplixi\SUPCheckout\Gateway\Gateway::$constructed);
     }
 
     public function test_mixed_cart_validation_preserves_both_exact_rejection_contracts(): void {

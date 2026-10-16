@@ -27,7 +27,9 @@ function sufi_read($root, $path) {
     return is_string($value) ? $value : '';
 }
 
-$gateway = sufi_read($root, 'supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gateway = sufi_read($root, 'supcheckout.php') . "\n" . sufi_read($root, 'src/Gateway/Gateway.php');
 $blocks = sufi_read($root, 'includes/class-wc-gateway-upayments-blocks.php');
 $settings = sufi_read($root, 'src/Admin/GatewaySettings.php');
 $new_template = sufi_read($root, 'templates/new-design-form.php');
@@ -89,7 +91,7 @@ foreach (array(
 }
 
 foreach (array(
-    'supcheckout.php' => $gateway,
+    'supcheckout.php + src/Gateway/Gateway.php' => $gateway,
     'src/Admin/GatewaySettings.php' => $settings,
     'includes/class-wc-gateway-upayments-blocks.php' => $blocks,
 ) as $path => $source) {

@@ -153,7 +153,7 @@ if (!function_exists('wp_parse_url')) {
 
 /**
  * Explicit platform URL seam for unit tests. Production injects this from
- * WC_Upayments; tests never put WC() inside CheckoutOrchestrator.
+ * Simplixi\SUPCheckout\Gateway\Gateway; tests never put WC() inside CheckoutOrchestrator.
  */
 function supcheckout_test_callback_url_resolver() {
     return static function () {

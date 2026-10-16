@@ -28,7 +28,9 @@ function q6_contains($source, $needle) {
 $phpstan = q6_read($q6_root, 'phpstan.neon.dist');
 $phpcs = q6_read($q6_root, 'phpcs.xml.dist');
 $settings = q6_read($q6_root, 'src/Admin/GatewaySettings.php');
-$gateway = q6_read($q6_root, 'supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gateway = q6_read($q6_root, 'supcheckout.php') . "\n" . q6_read($q6_root, 'src/Gateway/Gateway.php');
 $tests = q6_read($q6_root, 'tests/unit/Admin/GatewaySettingsTest.php');
 $fixture = q6_read($q6_root, 'tests/support/wordpress-gateway-settings.php');
 $analysis_stubs = q6_read($q6_root, 'tests/phpstan/wordpress-option-stubs.php');

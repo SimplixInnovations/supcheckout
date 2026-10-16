@@ -165,7 +165,7 @@ foreach ($production_files as $path) {
 sort($egress);
 
 $expected_egress = array(
-    'supcheckout.php:wp_remote_request',
+    'src/Gateway/Gateway.php:wp_remote_request',
     'includes/Subscription/Cron/Scheduler.php:wp_remote_request',
     'src/Payment/StatusVerifier.php:wp_remote_get',
 );
@@ -179,7 +179,11 @@ t1_dep_same(
 // Pin the real callback/bootstrap topology without line-number coupling.
 $identity = file_get_contents($root . '/src/Release/Identity.php');
 $lifecycle = file_get_contents($root . '/src/Payment/PaymentLifecycle.php');
-$gateway = file_get_contents($root . '/supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gateway_main = file_get_contents($root . '/supcheckout.php');
+$gateway_class = file_get_contents($root . '/src/Gateway/Gateway.php');
+$gateway = is_string($gateway_main) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_class : false;
 
 t1_dep_ok(is_string($identity), 'Release Identity source readable');
 t1_dep_ok(is_string($lifecycle), 'PaymentLifecycle source readable');
@@ -213,7 +217,7 @@ if (is_string($gateway)) {
             '/add_action\\s*\\(\\s*"woocommerce_api_"\\s*\\.\\s*strtolower\\s*\\(\\s*"WC_UPayments"\\s*\\)\\s*,\\s*\\[\\s*\\$this\\s*,\\s*"check_ipn_response"\\s*,?\\s*\\]\\s*\\)\\s*;/',
             $gateway
         ) === 1,
-        'legacy WC_Upayments callback remains registered with default priority 10'
+        'legacy gateway check_ipn_response callback remains registered with default priority 10'
     );
 }
 

@@ -52,7 +52,8 @@ function cost_run($scenario) {
     return array('code' => $code, 'out' => implode("\n", $output));
 }
 
-$gateway_source = (string) file_get_contents($root . '/supcheckout.php');
+// The gateway class moved from supcheckout.php to src/Gateway/Gateway.php (Sub-project 0a Task 3).
+$gateway_source = (string) file_get_contents($root . '/src/Gateway/Gateway.php');
 $icon_body = cost_method_body($gateway_source, 'public function custom_payment_gateway_icons(');
 cost_assert($icon_body !== '', 'gateway icon filter exists');
 cost_assert(strpos($icon_body, 'get_available_payment_gateways') === false, 'gateway icon filter never rebuilds the available-gateway list');

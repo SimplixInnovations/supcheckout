@@ -1072,32 +1072,55 @@ $gatewayUnwrapped = $coexistenceWrapped
 $gatewayTokens = arch2_tokens($gatewayUnwrapped);
 $subscriptionComposition = arch2_read($root, 'src/Subscription/Composition.php');
 
-$gatewayRegistration = arch2_direct_top_level_hook_callback(
-    $gatewayTokens,
-    'add_filter',
-    'woocommerce_payment_gateways',
-    'addUpaymentsGatewayClass'
-);
-$availabilityRegistration = arch2_direct_top_level_hook_callback(
-    $gatewayTokens,
-    'add_filter',
-    'woocommerce_available_payment_gateways',
-    'enableUpaymentsGateway'
-);
+// Sub-project 0a Task 3 moves the two WooCommerce gateway bindings from global
+// main-file callbacks into GatewayRegistration, registered from Plugin::boot().
+// The rules stay exact: each binding is a direct executable hook/callback pair and
+// each callback body is pinned token-for-token (strings decoded, no whitespace).
+// Reachability from the main file is enforced by architecture-bootstrap-path-harness.
+$compactBody = function (array $tokens) {
+    $text = '';
+    foreach ($tokens as $token) {
+        $text .= $token['text'];
+    }
+    return $text;
+};
+$pluginClass = arch2_class_body_tokens(arch2_tokens(arch2_read($root, 'src/Plugin.php')), 'Plugin');
+$registrationClass = arch2_class_body_tokens(arch2_tokens(arch2_read($root, 'src/Gateway/GatewayRegistration.php')), 'GatewayRegistration');
+$pluginBoot = arch2_direct_public_method($pluginClass, 'boot');
+$registrationRegister = arch2_direct_public_method($registrationClass, 'register');
+$registrationFilter = arch2_direct_public_method($registrationClass, 'filter_gateways');
+$registrationAvailable = arch2_direct_public_method($registrationClass, 'filter_available');
 arch2_assert($gateway !== '', 'supcheckout.php is readable');
 arch2_assert(!arch2_has_namespace_declaration($gatewayTokens), 'legacy main file remains in the global namespace');
-arch2_assert($gatewayRegistration['found'], 'WooCommerce gateway registration is a direct executable global hook/callback pair');
 arch2_assert(
-    arch2_gateway_callback_returns_registered_methods($gatewayRegistration['body']),
-    'gateway registration callback is exactly WC_UPayments append then methods return'
+    $pluginBoot['found']
+        && $compactBody($pluginBoot['body']) === 'if(self::$main_file!==null){return;}self::$main_file=(string)$main_file;GatewayRegistration::register();',
+    'Plugin::boot is the idempotent composition root that registers the gateway bindings'
 );
-arch2_assert($availabilityRegistration['found'], 'availability registration is a direct executable global hook/callback pair');
+arch2_assert(
+    $registrationRegister['found']
+        && $compactBody($registrationRegister['body']) === 'add_filter(woocommerce_payment_gateways,array(self::class,filter_gateways));'
+            . 'add_filter(woocommerce_available_payment_gateways,array(self::class,filter_available));',
+    'WooCommerce gateway and availability registrations are direct executable hook/callback pairs'
+);
+arch2_assert(
+    $registrationFilter['found']
+        && $compactBody($registrationFilter['body']) === '$methods=is_array($methods)?$methods:array();'
+            . 'if(!in_array(Gateway::class,$methods,true)){$methods[]=Gateway::class;}return$methods;',
+    'gateway registration callback is exactly a once-only Gateway::class append then methods return'
+);
+arch2_assert(
+    $registrationAvailable['found']
+        && $compactBody($registrationAvailable['body']) === 'returnAvailability::filter($gateways);',
+    'availability registration callback directly delegates only to Gateway Availability'
+);
 arch2_assert(
     strpos($subscriptionComposition, "add_action('woocommerce_process_product_meta', 'saveCustomFieldData')") !== false,
     'subscription product-meta registration retains its legacy callback identity in the A4 composition boundary'
 );
 
-$gatewayClass = arch2_class_body_tokens($gatewayTokens, 'WC_Upayments');
+// The gateway class lives in src/Gateway/Gateway.php since Sub-project 0a Task 3.
+$gatewayClass = arch2_class_body_tokens(arch2_tokens(arch2_read($root, 'src/Gateway/Gateway.php')), 'Gateway');
 $statusMethod = arch2_direct_public_method($gatewayClass, 'get_payment_staus');
 $statusDelegation = '\\Simplixi\\SUPCheckout\\Security\\PublicOrderStatus::handle();';
 arch2_assert($statusMethod['found'], 'historical public status-poll wrapper remains executable');

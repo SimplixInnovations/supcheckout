@@ -50,7 +50,7 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
     }
 
     public function test_classic_checkout_javascript_copy_is_server_localized(): void {
-        $gateway = self::read_repository_file('supcheckout.php');
+        $gateway = self::read_repository_file('supcheckout.php') . "\n" . self::read_repository_file('src/Gateway/Gateway.php');
         $assets = self::read_repository_file('src/Gateway/CheckoutAssets.php');
         $new_design = self::read_repository_file('assets/js/new-upay.js');
         $subscription = self::read_repository_file('assets/js/subscription-checkout.js');
@@ -98,7 +98,7 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
     }
 
     public function test_remaining_runtime_ui_copy_uses_the_plugin_text_domain(): void {
-        $gateway = self::read_repository_file('supcheckout.php');
+        $gateway = self::read_repository_file('supcheckout.php') . "\n" . self::read_repository_file('src/Gateway/Gateway.php');
         $migration = self::read_repository_file('src/Migration/MigrationAdmin.php');
 
         self::assertStringNotContainsString('<span>Pay securely with <img', $gateway);

@@ -3,7 +3,7 @@
  * Phase 9G-H12 PHP harness — residual correction #3.
  *
  * Executes the actual production source (supcheckout.php + CustomerTokenIdentity.php)
- * through real WC_Upayments subclasses. Drives process_payment() end-to-end with
+ * through real Simplixi\SUPCheckout\Gateway\Gateway subclasses. Drives process_payment() end-to-end with
  * synthetic WooCommerce fixtures and programmable transport / option / user_meta
  * / order / history stubs. Asserts:
  *   - provider-call counters (availability, create_token, retrieve_cards, charge)
@@ -216,7 +216,7 @@ function upay_make_gateway($config = []) {
         'debug' => 'no',
     ];
     $config = array_merge($defaults, $config);
-    $gateway = new WC_Upayments();
+    $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
     foreach ($config as $k => $v) {
         $gateway->$k = $v;
     }
@@ -520,108 +520,108 @@ if ($_fail_harness_self_test > 0) {
 // 1. parse_save_card_strict
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [0]), false, 'PHP-PMSC-1 0 => false', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', ['0']), false, "PHP-PMSC-2 '0' => false", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [1]), true, 'PHP-PMSC-3 1 => true', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', ['1']), true, "PHP-PMSC-4 '1' => true", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [null]), null, 'PHP-PMSC-5 null => invalid', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', ['']), null, "PHP-PMSC-6 '' => invalid", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', ['yes']), null, "PHP-PMSC-7 'yes' => invalid", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', ['true']), null, "PHP-PMSC-8 'true' => invalid", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [true]), null, 'PHP-PMSC-9 true => invalid', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [false]), null, 'PHP-PMSC-10 false => invalid', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [2]), null, 'PHP-PMSC-11 2 => invalid', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [1.5]), null, 'PHP-PMSC-12 1.5 => invalid', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [[]]), null, 'PHP-PMSC-13 array => invalid', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_save_card_strict', [' 1 ']), null, "PHP-PMSC-14 ' 1 ' whitespace rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [0]), false, 'PHP-PMSC-1 0 => false', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', ['0']), false, "PHP-PMSC-2 '0' => false", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [1]), true, 'PHP-PMSC-3 1 => true', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', ['1']), true, "PHP-PMSC-4 '1' => true", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [null]), null, 'PHP-PMSC-5 null => invalid', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', ['']), null, "PHP-PMSC-6 '' => invalid", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', ['yes']), null, "PHP-PMSC-7 'yes' => invalid", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', ['true']), null, "PHP-PMSC-8 'true' => invalid", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [true]), null, 'PHP-PMSC-9 true => invalid', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [false]), null, 'PHP-PMSC-10 false => invalid', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [2]), null, 'PHP-PMSC-11 2 => invalid', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [1.5]), null, 'PHP-PMSC-12 1.5 => invalid', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [[]]), null, 'PHP-PMSC-13 array => invalid', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_save_card_strict', [' 1 ']), null, "PHP-PMSC-14 ' 1 ' whitespace rejected", 'helper_unit_runtime');
 // ---------------------------------------------------------------------------
 // 2. field_present
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(upay_call_static('WC_Upayments', 'field_present', [['save_card' => '1'], 'save_card']), true, 'PHP-FP-1 present', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'field_present', [['save_card' => null], 'save_card']), true, 'PHP-FP-2 explicit null is present', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'field_present', [['save_card' => ''], 'save_card']), true, "PHP-FP-3 explicit '' is present", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'field_present', [['card_token' => 'x'], 'save_card']), false, 'PHP-FP-4 absent', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'field_present', ['not array', 'save_card']), false, 'PHP-FP-5 non-array source', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'field_present', [null, 'save_card']), false, 'PHP-FP-6 null source', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'field_present', [['save_card' => '1'], 'save_card']), true, 'PHP-FP-1 present', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'field_present', [['save_card' => null], 'save_card']), true, 'PHP-FP-2 explicit null is present', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'field_present', [['save_card' => ''], 'save_card']), true, "PHP-FP-3 explicit '' is present", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'field_present', [['card_token' => 'x'], 'save_card']), false, 'PHP-FP-4 absent', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'field_present', ['not array', 'save_card']), false, 'PHP-FP-5 non-array source', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'field_present', [null, 'save_card']), false, 'PHP-FP-6 null source', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
 // 3. parse_interval
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [0]), 0, 'PHP-PI-1 0 => 0', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', ['0']), 0, "PHP-PI-2 '0' => 0", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [1]), 1, 'PHP-PI-3 1 => 1', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [2]), 2, 'PHP-PI-4 2 => 2', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [3]), 3, 'PHP-PI-5 3 => 3', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [4]), -1, 'PHP-PI-6 4 => -1', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [null]), -1, 'PHP-PI-7 null => -1', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', ['']), -1, "PHP-PI-8 '' => -1", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [' 1 ']), -1, "PHP-PI-9 ' 1 ' => -1", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [true]), -1, 'PHP-PI-10 true => -1', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [1.5]), -1, 'PHP-PI-11 1.5 => -1', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_interval', [[1]]), -1, 'PHP-PI-12 array => -1', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [0]), 0, 'PHP-PI-1 0 => 0', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', ['0']), 0, "PHP-PI-2 '0' => 0", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [1]), 1, 'PHP-PI-3 1 => 1', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [2]), 2, 'PHP-PI-4 2 => 2', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [3]), 3, 'PHP-PI-5 3 => 3', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [4]), -1, 'PHP-PI-6 4 => -1', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [null]), -1, 'PHP-PI-7 null => -1', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', ['']), -1, "PHP-PI-8 '' => -1", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [' 1 ']), -1, "PHP-PI-9 ' 1 ' => -1", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [true]), -1, 'PHP-PI-10 true => -1', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [1.5]), -1, 'PHP-PI-11 1.5 => -1', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_interval', [[1]]), -1, 'PHP-PI-12 array => -1', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
 // 4. parse_payment_source_strict
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', ['cc']), 'cc', "PHP-PPS-1 'cc'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', ['knet']), 'knet', "PHP-PPS-2 'knet'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', ['  cc  ']), null, "PHP-PPS-3 '  cc  ' rejected (no-trim, exact-match)", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', ['']), null, "PHP-PPS-4 '' => null", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', ['   ']), null, "PHP-PPS-5 '   ' => null", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', ['cc apple']), null, "PHP-PPS-6 'cc apple' => null", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', [[]]), null, 'PHP-PPS-7 array => null', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', [null]), null, 'PHP-PPS-8 null => null', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', [true]), null, 'PHP-PPS-9 true => null', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_payment_source_strict', [42]), null, 'PHP-PPS-10 42 => null', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', ['cc']), 'cc', "PHP-PPS-1 'cc'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', ['knet']), 'knet', "PHP-PPS-2 'knet'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', ['  cc  ']), null, "PHP-PPS-3 '  cc  ' rejected (no-trim, exact-match)", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', ['']), null, "PHP-PPS-4 '' => null", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', ['   ']), null, "PHP-PPS-5 '   ' => null", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', ['cc apple']), null, "PHP-PPS-6 'cc apple' => null", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', [[]]), null, 'PHP-PPS-7 array => null', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', [null]), null, 'PHP-PPS-8 null => null', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', [true]), null, 'PHP-PPS-9 true => null', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', [42]), null, 'PHP-PPS-10 42 => null', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
 // 5. parse_subscription_plan_strict
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['one_time']), 'one_time', "PHP-PSP-1 'one_time'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['daily']), 'daily', "PHP-PSP-2 'daily'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['weekly']), 'weekly', "PHP-PSP-3 'weekly'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['monthly']), 'monthly', "PHP-PSP-4 'monthly'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['quarterly']), 'quarterly', "PHP-PSP-5 'quarterly'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['yearly']), 'yearly', "PHP-PSP-6 'yearly'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['bad plan']), null, "PHP-PSP-7 'bad plan' => null", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['']), null, "PHP-PSP-8 '' => null", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', [42]), null, 'PHP-PSP-9 42 => null', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', [null]), null, 'PHP-PSP-10 null => null', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', [true]), null, 'PHP-PSP-11 true => null', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ["daily\n"]), null, "PHP-PSP-12 newline-suffix => null", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ['  daily  ']), null, "PHP-PSP-13 '  daily  ' => null (no trim)", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'parse_subscription_plan_strict', ["\tdaily"]), null, "PHP-PSP-14 leading-tab => null", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['one_time']), 'one_time', "PHP-PSP-1 'one_time'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['daily']), 'daily', "PHP-PSP-2 'daily'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['weekly']), 'weekly', "PHP-PSP-3 'weekly'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['monthly']), 'monthly', "PHP-PSP-4 'monthly'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['quarterly']), 'quarterly', "PHP-PSP-5 'quarterly'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['yearly']), 'yearly', "PHP-PSP-6 'yearly'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['bad plan']), null, "PHP-PSP-7 'bad plan' => null", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['']), null, "PHP-PSP-8 '' => null", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', [42]), null, 'PHP-PSP-9 42 => null', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', [null]), null, 'PHP-PSP-10 null => null', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', [true]), null, 'PHP-PSP-11 true => null', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ["daily\n"]), null, "PHP-PSP-12 newline-suffix => null", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ['  daily  ']), null, "PHP-PSP-13 '  daily  ' => null (no trim)", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_subscription_plan_strict', ["\tdaily"]), null, "PHP-PSP-14 leading-tab => null", 'helper_unit_runtime');
 // ---------------------------------------------------------------------------
 // 6. build_amount_json_token
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['1.00']), '1.00', "PHP-AMT-1 '1.00'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['1']), '1', "PHP-AMT-2 '1'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['0.01']), '0.01', "PHP-AMT-3 '0.01'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['0.001']), '0.001', "PHP-AMT-4 '0.001'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['1.5']), '1.5', "PHP-AMT-5 '1.5'", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['12345678901234567890.1']), '12345678901234567890.1', 'PHP-AMT-6 22 chars', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['123456789012345678901.2']), null, 'PHP-AMT-7 23 chars rejected', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['0']), null, "PHP-AMT-8 '0' rejected (zero)", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['00']), null, "PHP-AMT-9 '00' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['0.0']), null, "PHP-AMT-10 '0.0' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['000.000']), null, "PHP-AMT-11 '000.000' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['1e+10']), null, "PHP-AMT-12 '1e+10' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['-1.00']), null, "PHP-AMT-13 '-1.00' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['+1.00']), null, "PHP-AMT-14 '+1.00' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', [' 1.00 ']), null, "PHP-AMT-15 ' 1.00 ' whitespace rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['1.']), null, "PHP-AMT-16 '1.' trailing dot rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['.5']), null, "PHP-AMT-17 '.5' leading dot rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['1.2.3']), null, "PHP-AMT-18 '1.2.3' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['NaN']), null, "PHP-AMT-19 'NaN' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['INF']), null, "PHP-AMT-20 'INF' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', [null]), null, 'PHP-AMT-21 null rejected', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', ['']), null, "PHP-AMT-22 '' rejected", 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'build_amount_json_token', [[]]), null, 'PHP-AMT-23 array rejected', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['1.00']), '1.00', "PHP-AMT-1 '1.00'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['1']), '1', "PHP-AMT-2 '1'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['0.01']), '0.01', "PHP-AMT-3 '0.01'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['0.001']), '0.001', "PHP-AMT-4 '0.001'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['1.5']), '1.5', "PHP-AMT-5 '1.5'", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['12345678901234567890.1']), '12345678901234567890.1', 'PHP-AMT-6 22 chars', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['123456789012345678901.2']), null, 'PHP-AMT-7 23 chars rejected', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['0']), null, "PHP-AMT-8 '0' rejected (zero)", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['00']), null, "PHP-AMT-9 '00' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['0.0']), null, "PHP-AMT-10 '0.0' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['000.000']), null, "PHP-AMT-11 '000.000' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['1e+10']), null, "PHP-AMT-12 '1e+10' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['-1.00']), null, "PHP-AMT-13 '-1.00' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['+1.00']), null, "PHP-AMT-14 '+1.00' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', [' 1.00 ']), null, "PHP-AMT-15 ' 1.00 ' whitespace rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['1.']), null, "PHP-AMT-16 '1.' trailing dot rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['.5']), null, "PHP-AMT-17 '.5' leading dot rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['1.2.3']), null, "PHP-AMT-18 '1.2.3' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['NaN']), null, "PHP-AMT-19 'NaN' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['INF']), null, "PHP-AMT-20 'INF' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', [null]), null, 'PHP-AMT-21 null rejected', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', ['']), null, "PHP-AMT-22 '' rejected", 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'build_amount_json_token', [[]]), null, 'PHP-AMT-23 array rejected', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
 // 7. inject_amount_token_into_payload_json (order + MM sentinels)
@@ -637,7 +637,7 @@ $payload = [
     ],
 ];
 $raw = json_encode($payload);
-$out = upay_call_static('WC_Upayments', 'inject_amount_token_into_payload_json', [$raw, [
+$out = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'inject_amount_token_into_payload_json', [$raw, [
     '__UPAY_ORDER_AMOUNT_SENTINEL__' => '12.50',
     '__UPAY_MM_AMOUNT_SENTINEL__' => '12.50',
     '__UPAY_MM_KNET_CHARGE_SENTINEL__' => '1.50',
@@ -662,7 +662,7 @@ $payload = [
     'extraMerchantData' => null,
 ];
 $raw = json_encode($payload);
-$out = upay_call_static('WC_Upayments', 'inject_amount_token_into_payload_json', [$raw, [
+$out = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'inject_amount_token_into_payload_json', [$raw, [
     '__UPAY_ORDER_AMOUNT_SENTINEL__' => '12.50',
 ]]);
 upay_assert($out !== null, 'PHP-INJ-9 no-MM sentinel case succeeds', 'helper_unit_runtime');
@@ -671,7 +671,7 @@ upay_assert_eq(strpos($out, '__UPAY_MM_AMOUNT_SENTINEL__'), false, 'PHP-INJ-10 n
 // Missing order sentinel => reject
 $payload = ['order' => ['id' => 'x', 'amount' => 5]];
 $raw = json_encode($payload);
-upay_assert_eq(upay_call_static('WC_Upayments', 'inject_amount_token_into_payload_json', [$raw, [
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'inject_amount_token_into_payload_json', [$raw, [
     '__UPAY_ORDER_AMOUNT_SENTINEL__' => '5',
 ]]), null, 'PHP-INJ-11 missing order sentinel rejected', 'helper_unit_runtime');
 
@@ -681,14 +681,14 @@ $payload = [
     'order_extra' => ['amount' => '__UPAY_ORDER_AMOUNT_SENTINEL__'],
 ];
 $raw = json_encode($payload);
-upay_assert_eq(upay_call_static('WC_Upayments', 'inject_amount_token_into_payload_json', [$raw, [
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'inject_amount_token_into_payload_json', [$raw, [
     '__UPAY_ORDER_AMOUNT_SENTINEL__' => '5',
 ]]), null, 'PHP-INJ-12 double order sentinel rejected', 'helper_unit_runtime');
 
 // Quoted-looking token => reject
 $payload = ['order' => ['id' => 'x', 'amount' => '__UPAY_ORDER_AMOUNT_SENTINEL__']];
 $raw = json_encode($payload);
-$result = upay_call_static('WC_Upayments', 'inject_amount_token_into_payload_json', [$raw, [
+$result = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'inject_amount_token_into_payload_json', [$raw, [
     '__UPAY_ORDER_AMOUNT_SENTINEL__' => '12.50"',
 ]]);
 upay_assert_eq($result, null, 'PHP-INJ-13 invalid token rejected', 'helper_unit_runtime');
@@ -696,7 +696,7 @@ upay_assert_eq($result, null, 'PHP-INJ-13 invalid token rejected', 'helper_unit_
 // MM-only sentinel provided but no MM present in payload => reject
 $payload = ['order' => ['id' => 'x', 'amount' => '__UPAY_ORDER_AMOUNT_SENTINEL__']];
 $raw = json_encode($payload);
-$result = upay_call_static('WC_Upayments', 'inject_amount_token_into_payload_json', [$raw, [
+$result = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'inject_amount_token_into_payload_json', [$raw, [
     '__UPAY_ORDER_AMOUNT_SENTINEL__' => '12.50',
     '__UPAY_MM_AMOUNT_SENTINEL__' => '12.50',
     '__UPAY_MM_KNET_CHARGE_SENTINEL__' => '1.50',
@@ -708,34 +708,34 @@ upay_assert_eq($result, null, 'PHP-INJ-14 MM token provided but no MM sentinel i
 // 8. classify_checkout_request_context (pure classifier)
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/checkout']), 'POST'), true, 'PHP-RC-1 exact Store API checkout POST', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/checkout/']), 'POST'), true, 'PHP-RC-2 trailing slash', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/shop/wp-json/wc/store/v1/checkout']), 'POST'), true, 'PHP-RC-3 subdirectory wp-json', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/cart']), 'POST'), false, 'PHP-RC-4 cart POST rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/products']), 'POST'), false, 'PHP-RC-5 products POST rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wp/v2/users']), 'GET'), false, 'PHP-RC-6 unrelated WP REST rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/checkout/']), 'POST'), false, 'PHP-RC-7 classic POST rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/checkout']), 'GET'), false, 'PHP-RC-8 GET rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(false, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/checkout']), 'POST'), false, 'PHP-RC-9 REST_REQUEST=false rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v2/checkout']), 'POST'), false, 'PHP-RC-10 v2 namespace rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['wc/store/v1/checkout']), 'POST'), false, 'PHP-RC-11 missing leading slash rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout/']), 'POST'), true, 'PHP-RC-12 wp-json trailing slash', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/index.php?rest_route=/wc/store/v1/checkout']), 'POST'), true, 'PHP-RC-13 plain permalink rest_route', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/?rest_route=%2Fwc%2Fstore%2Fv1%2Fcheckout']), 'POST'), true, 'PHP-RC-14 rest_route URL-encoded', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/foo/wc/store/v1/anything']), 'POST'), false, 'PHP-RC-15 arbitrary suffix rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::classify_checkout_request_context(true, upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout-order']), 'POST'), false, 'PHP-RC-16 similar but not checkout rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/checkout']), 'POST'), true, 'PHP-RC-1 exact Store API checkout POST', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/checkout/']), 'POST'), true, 'PHP-RC-2 trailing slash', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/shop/wp-json/wc/store/v1/checkout']), 'POST'), true, 'PHP-RC-3 subdirectory wp-json', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/cart']), 'POST'), false, 'PHP-RC-4 cart POST rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/products']), 'POST'), false, 'PHP-RC-5 products POST rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wp/v2/users']), 'GET'), false, 'PHP-RC-6 unrelated WP REST rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/checkout/']), 'POST'), false, 'PHP-RC-7 classic POST rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/checkout']), 'GET'), false, 'PHP-RC-8 GET rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(false, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/checkout']), 'POST'), false, 'PHP-RC-9 REST_REQUEST=false rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v2/checkout']), 'POST'), false, 'PHP-RC-10 v2 namespace rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['wc/store/v1/checkout']), 'POST'), false, 'PHP-RC-11 missing leading slash rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout/']), 'POST'), true, 'PHP-RC-12 wp-json trailing slash', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/index.php?rest_route=/wc/store/v1/checkout']), 'POST'), true, 'PHP-RC-13 plain permalink rest_route', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/?rest_route=%2Fwc%2Fstore%2Fv1%2Fcheckout']), 'POST'), true, 'PHP-RC-14 rest_route URL-encoded', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/foo/wc/store/v1/anything']), 'POST'), false, 'PHP-RC-15 arbitrary suffix rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(true, upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout-order']), 'POST'), false, 'PHP-RC-16 similar but not checkout rejected', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
 // 9. normalize_store_api_route
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-NSR-1 pretty permalink', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout/']), '/wc/store/v1/checkout/', 'PHP-NSR-2 trailing slash', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/shop/wp-json/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-NSR-3 subdirectory wp-json stripped (only REST route remains)', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/index.php?rest_route=/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-NSR-4 rest_route plain permalink', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/?rest_route=%2Fwc%2Fstore%2Fv1%2Fcheckout']), '/wc/store/v1/checkout', 'PHP-NSR-5 rest_route URL-encoded', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/random/route/']), '/random/route/', 'PHP-NSR-6 unrelated path passthrough', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['']), '', 'PHP-NSR-7 empty input', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-NSR-1 pretty permalink', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout/']), '/wc/store/v1/checkout/', 'PHP-NSR-2 trailing slash', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/shop/wp-json/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-NSR-3 subdirectory wp-json stripped (only REST route remains)', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/index.php?rest_route=/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-NSR-4 rest_route plain permalink', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/?rest_route=%2Fwc%2Fstore%2Fv1%2Fcheckout']), '/wc/store/v1/checkout', 'PHP-NSR-5 rest_route URL-encoded', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/random/route/']), '/random/route/', 'PHP-NSR-6 unrelated path passthrough', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['']), '', 'PHP-NSR-7 empty input', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
 // 10. classify_create_token_response
@@ -853,7 +853,8 @@ upay_set_post(['payment_method' => 'upayments']);
 upay_assert_eq($upay_vf_gateway->validate_fields(), false, 'PHP-VF-1 white-label Classic checkout without a method is rejected before order creation', 'helper_unit_runtime');
 upay_set_post(['payment_method' => 'upayments', 'upayment_payment_type' => 'knet']);
 upay_assert_eq($upay_vf_gateway->validate_fields(), true, 'PHP-VF-2 a chosen method passes', 'helper_unit_runtime');
-$upay_vf_source = (string) file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+// The gateway class moved from supcheckout.php to src/Gateway/Gateway.php (Sub-project 0a Task 3).
+$upay_vf_source = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
 $upay_vf_start = strpos($upay_vf_source, 'public function validate_fields()');
 upay_assert_eq(
     $upay_vf_start !== false
@@ -868,8 +869,8 @@ upay_assert_eq(
 
 upay_reset_state();
 $GLOBALS['__upay_test_state']['current_user_id'] = 7;
-upay_assert_eq((new WC_Upayments())->getSavedCardsForCurrentUser(null), null, 'PHP-SCR-1 null default rejected', 'helper_unit_runtime');
-upay_assert_eq((new WC_Upayments())->getSavedCardsForCurrentUser(['whitelabled' => true, 'payment' => ['cc' => 'Credit Card']]), null, 'PHP-SCR-2 missing secret => null', 'helper_unit_runtime');
+upay_assert_eq((new \Simplixi\SUPCheckout\Gateway\Gateway())->getSavedCardsForCurrentUser(null), null, 'PHP-SCR-1 null default rejected', 'helper_unit_runtime');
+upay_assert_eq((new \Simplixi\SUPCheckout\Gateway\Gateway())->getSavedCardsForCurrentUser(['whitelabled' => true, 'payment' => ['cc' => 'Credit Card']]), null, 'PHP-SCR-2 missing secret => null', 'helper_unit_runtime');
 $gw = upay_make_gateway(['saveCardEnabled' => 'no']);
 upay_assert_eq($gw->getSavedCardsForCurrentUser(['whitelabled' => true, 'payment' => ['cc' => 'Credit Card']]), null, 'PHP-SCR-3 saveCard disabled => null', 'helper_unit_runtime');
 $gw = upay_make_gateway();
@@ -887,7 +888,7 @@ $GLOBALS['__upay_test_state']['current_user_id'] = 7;
 // 12. is_valid_cached_availability — strict canonical schema validator
 // ---------------------------------------------------------------------------
 
-$gw = new WC_Upayments();
+$gw = new \Simplixi\SUPCheckout\Gateway\Gateway();
 upay_assert_eq(upay_call_instance($gw, 'is_valid_cached_availability', [['schema' => 3, 'result' => 'success', 'isWhiteLabel' => true, 'payButtons' => ['knet' => 1, 'credit_card' => 1, 'apple_pay_knet' => 0, 'apple_pay' => 0, 'samsung_pay' => 0, 'google_pay' => 0]]]), 'success', 'PHP-CACHE-1 canonical success', 'helper_unit_runtime');
 upay_assert_eq(upay_call_instance($gw, 'is_valid_cached_availability', [['schema' => 3, 'state' => 'failure']]), 'failure', 'PHP-CACHE-2 canonical failure', 'helper_unit_runtime');
 upay_assert_eq(upay_call_instance($gw, 'is_valid_cached_availability', [['schema' => 3, 'result' => 'success', 'isWhiteLabel' => true, 'payButtons' => ['knet' => 1, 'credit_card' => 1, 'apple_pay_knet' => 0, 'apple_pay' => 0, 'samsung_pay' => 0, 'google_pay' => 0], 'extra' => 'x']]), false, 'PHP-CACHE-3 extra top-level key rejected', 'helper_unit_runtime');
@@ -1290,7 +1291,9 @@ upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::SECRET_OPTION, 'upayments
 // 17. Source-level invariants — must hold in production source
 // ---------------------------------------------------------------------------
 
-$upay_source = file_get_contents($PLUGIN_FILE);
+// Production gateway source: the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$upay_source = file_get_contents($PLUGIN_FILE) . "\n" . file_get_contents($ROOT . '/src/Gateway/Gateway.php');
 $checkout_payload_source = file_get_contents($ROOT . '/src/Payment/CheckoutPayload.php');
 $checkout_orchestrator_source = file_get_contents($ROOT . '/src/Payment/CheckoutOrchestrator.php');
 $checkout_source = $upay_source . "\n" . $checkout_payload_source . "\n" . $checkout_orchestrator_source;
@@ -1355,36 +1358,36 @@ upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int
 upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('9999999999999999999', $out), false, "HUP-PSPI-19 overflow -> false", 'helper_unit_runtime');
 
 // compute_provider_unit_price_decimal — exact long division
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1.00', 8), '0.125', 'HUP-PE-1 1.00/8 = 0.125 exact', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('10.00', 3), null, 'HUP-PE-2 10.00/3 = null (non-terminating within cap)', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('0', 5), '0', 'HUP-PE-3 0/5 = 0 (zero-price line preserved)', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('0.00', 5), '0', 'HUP-PE-4 0.00/5 = 0', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1.00', 1), '1', 'HUP-PE-5 1.00/1 = 1', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1.00', 2), '0.5', 'HUP-PE-6 1.00/2 = 0.5 (trailing zero trimmed)', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1.00', 4), '0.25', 'HUP-PE-7 1.00/4 = 0.25', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1.00', 5), '0.2', 'HUP-PE-8 1.00/5 = 0.2 (trailing zero trimmed)', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('2.00', 4), '0.5', 'HUP-PE-9 2.00/4 = 0.5', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('7.00', 8), '0.875', 'HUP-PE-10 7.00/8 = 0.875', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1', 3), null, 'HUP-PE-11 1/3 = null (non-terminating)', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('100.00', 1), '100', 'HUP-PE-12 100.00/1 = 100', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal(1.5, 1), null, 'HUP-PE-13 float line_total rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1.0', 0), null, 'HUP-PE-14 qty=0 rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1.0', -1), null, 'HUP-PE-15 qty=-1 rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('', 1), null, 'HUP-PE-16 empty line_total rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal(null, 1), null, 'HUP-PE-17 null line_total rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('1e2', 1), null, 'HUP-PE-18 scientific notation rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('+1.00', 1), null, 'HUP-PE-19 sign rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::compute_provider_unit_price_decimal('01.00', 1), null, 'HUP-PE-20 leading zero rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.00', 8), '0.125', 'HUP-PE-1 1.00/8 = 0.125 exact', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('10.00', 3), null, 'HUP-PE-2 10.00/3 = null (non-terminating within cap)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('0', 5), '0', 'HUP-PE-3 0/5 = 0 (zero-price line preserved)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('0.00', 5), '0', 'HUP-PE-4 0.00/5 = 0', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.00', 1), '1', 'HUP-PE-5 1.00/1 = 1', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.00', 2), '0.5', 'HUP-PE-6 1.00/2 = 0.5 (trailing zero trimmed)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.00', 4), '0.25', 'HUP-PE-7 1.00/4 = 0.25', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.00', 5), '0.2', 'HUP-PE-8 1.00/5 = 0.2 (trailing zero trimmed)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('2.00', 4), '0.5', 'HUP-PE-9 2.00/4 = 0.5', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('7.00', 8), '0.875', 'HUP-PE-10 7.00/8 = 0.875', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1', 3), null, 'HUP-PE-11 1/3 = null (non-terminating)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('100.00', 1), '100', 'HUP-PE-12 100.00/1 = 100', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal(1.5, 1), null, 'HUP-PE-13 float line_total rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.0', 0), null, 'HUP-PE-14 qty=0 rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.0', -1), null, 'HUP-PE-15 qty=-1 rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('', 1), null, 'HUP-PE-16 empty line_total rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal(null, 1), null, 'HUP-PE-17 null line_total rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1e2', 1), null, 'HUP-PE-18 scientific notation rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('+1.00', 1), null, 'HUP-PE-19 sign rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('01.00', 1), null, 'HUP-PE-20 leading zero rejected', 'helper_unit_runtime');
 
 // digit_long_divide
-$dlq = function($n, $d) { return upay_call_static('WC_Upayments', 'digit_long_divide', [$n, $d]); };
+$dlq = function($n, $d) { return upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'digit_long_divide', [$n, $d]); };
 upay_assert_eq($dlq('100', 8), '12', 'HUP-DLD-1 100/8 = 12', 'helper_unit_runtime');
 upay_assert_eq($dlq('1000', 8), '125', 'HUP-DLD-2 1000/8 = 125', 'helper_unit_runtime');
 upay_assert_eq($dlq('1', 1), '1', 'HUP-DLD-3 1/1 = 1', 'helper_unit_runtime');
 upay_assert_eq($dlq('0', 5), '0', 'HUP-DLD-4 0/5 = 0', 'helper_unit_runtime');
 upay_assert_eq($dlq('9999999', 1), '9999999', 'HUP-DLD-5 9999999/1 = 9999999', 'helper_unit_runtime');
 upay_assert_eq($dlq('123456789', 9), '13717421', 'HUP-DLD-6 123456789/9 = 13717421', 'helper_unit_runtime');
-$dlr = function($n, $d) { return upay_call_static('WC_Upayments', 'digit_long_divide_remainder', [$n, $d]); };
+$dlr = function($n, $d) { return upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'digit_long_divide_remainder', [$n, $d]); };
 upay_assert_eq($dlr('100', 8), 4, 'HUP-DLR-1 100%8 = 4', 'helper_unit_runtime');
 upay_assert_eq($dlr('1000', 8), 0, 'HUP-DLR-2 1000%8 = 0', 'helper_unit_runtime');
 upay_assert_eq($dlr('0', 5), 0, 'HUP-DLR-3 0%5 = 0', 'helper_unit_runtime');
@@ -1392,54 +1395,54 @@ upay_assert_eq($dlr('9999999', 1), 0, 'HUP-DLR-4 9999999%1 = 0', 'helper_unit_ru
 upay_assert_eq($dlr('7', 8), 7, 'HUP-DLR-5 7%8 = 7', 'helper_unit_runtime');
 
 // canonicalize_provider_decimal_string
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('1.00'), '1.00', 'HUP-CPDS-1 "1.00" preserved', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('0'), '0', 'HUP-CPDS-2 "0" preserved', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('100'), '100', 'HUP-CPDS-3 "100" preserved', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string(1), '1', 'HUP-CPDS-4 int 1 -> "1"', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string(100), '100', 'HUP-CPDS-5 int 100 -> "100"', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('01.00'), null, "HUP-CPDS-6 '01.00' leading zero rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('1e2'), null, "HUP-CPDS-7 '1e2' scientific rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('+1.00'), null, "HUP-CPDS-8 '+1.00' sign rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('-1.00'), null, "HUP-CPDS-9 '-1.00' sign rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('1,00'), null, "HUP-CPDS-10 '1,00' comma rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string(' 1.00'), null, "HUP-CPDS-11 ' 1.00' whitespace rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('1.00 '), null, "HUP-CPDS-12 '1.00 ' trailing whitespace rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('NAN'), null, "HUP-CPDS-13 'NAN' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('INF'), null, "HUP-CPDS-14 'INF' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string(''), '', "HUP-CPDS-15 '' returns '' (canonicalize accepts empty; downstream validator rejects)", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string(null), null, 'HUP-CPDS-16 null rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string([]), null, 'HUP-CPDS-17 array rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string(new stdClass()), null, 'HUP-CPDS-18 object rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string(true), null, 'HUP-CPDS-19 true rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('1.00.00'), '1.00.00', "HUP-CPDS-20 '1.00.00' passes canonicalize (downstream validator rejects)", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('.5'), '.5', "HUP-CPDS-21 '.5' passes canonicalize (downstream validator rejects)", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('1.'), '1.', "HUP-CPDS-22 '1.' passes canonicalize (downstream validator rejects)", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string('007'), null, "HUP-CPDS-23 '007' leading zero rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::canonicalize_provider_decimal_string(0), '0', 'HUP-CPDS-24 int 0 -> "0"', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('1.00'), '1.00', 'HUP-CPDS-1 "1.00" preserved', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('0'), '0', 'HUP-CPDS-2 "0" preserved', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('100'), '100', 'HUP-CPDS-3 "100" preserved', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string(1), '1', 'HUP-CPDS-4 int 1 -> "1"', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string(100), '100', 'HUP-CPDS-5 int 100 -> "100"', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('01.00'), null, "HUP-CPDS-6 '01.00' leading zero rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('1e2'), null, "HUP-CPDS-7 '1e2' scientific rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('+1.00'), null, "HUP-CPDS-8 '+1.00' sign rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('-1.00'), null, "HUP-CPDS-9 '-1.00' sign rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('1,00'), null, "HUP-CPDS-10 '1,00' comma rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string(' 1.00'), null, "HUP-CPDS-11 ' 1.00' whitespace rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('1.00 '), null, "HUP-CPDS-12 '1.00 ' trailing whitespace rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('NAN'), null, "HUP-CPDS-13 'NAN' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('INF'), null, "HUP-CPDS-14 'INF' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string(''), '', "HUP-CPDS-15 '' returns '' (canonicalize accepts empty; downstream validator rejects)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string(null), null, 'HUP-CPDS-16 null rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string([]), null, 'HUP-CPDS-17 array rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string(new stdClass()), null, 'HUP-CPDS-18 object rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string(true), null, 'HUP-CPDS-19 true rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('1.00.00'), '1.00.00', "HUP-CPDS-20 '1.00.00' passes canonicalize (downstream validator rejects)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('.5'), '.5', "HUP-CPDS-21 '.5' passes canonicalize (downstream validator rejects)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('1.'), '1.', "HUP-CPDS-22 '1.' passes canonicalize (downstream validator rejects)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string('007'), null, "HUP-CPDS-23 '007' leading zero rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string(0), '0', 'HUP-CPDS-24 int 0 -> "0"', 'helper_unit_runtime');
 
 // validate_provider_nonnegative_decimal
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal('0'), '0', 'HUP-VND-1 "0" accepted', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal('0.00'), '0.00', 'HUP-VND-2 "0.00" accepted', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal('0.50'), '0.50', 'HUP-VND-3 "0.50" accepted', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal('1.00'), '1.00', 'HUP-VND-4 "1.00" accepted', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal('1e2'), null, "HUP-VND-5 '1e2' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal('+1.00'), null, "HUP-VND-6 '+1.00' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal('-1.00'), null, "HUP-VND-7 '-1.00' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal('abc'), null, "HUP-VND-8 'abc' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal(''), null, "HUP-VND-9 '' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_nonnegative_decimal(null), null, 'HUP-VND-10 null rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal('0'), '0', 'HUP-VND-1 "0" accepted', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal('0.00'), '0.00', 'HUP-VND-2 "0.00" accepted', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal('0.50'), '0.50', 'HUP-VND-3 "0.50" accepted', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal('1.00'), '1.00', 'HUP-VND-4 "1.00" accepted', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal('1e2'), null, "HUP-VND-5 '1e2' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal('+1.00'), null, "HUP-VND-6 '+1.00' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal('-1.00'), null, "HUP-VND-7 '-1.00' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal('abc'), null, "HUP-VND-8 'abc' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal(''), null, "HUP-VND-9 '' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_nonnegative_decimal(null), null, 'HUP-VND-10 null rejected', 'helper_unit_runtime');
 
 // validate_provider_positive_decimal
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('0'), null, 'HUP-VPD-1 "0" rejected (zero is non-positive)', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('0.00'), null, 'HUP-VPD-2 "0.00" rejected', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('0.01'), '0.01', 'HUP-VPD-3 "0.01" accepted (positive sub-unit)', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('0.50'), '0.50', 'HUP-VPD-4 "0.50" accepted', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('1.00'), '1.00', 'HUP-VPD-5 "1.00" accepted', 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('1e2'), null, "HUP-VPD-6 '1e2' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('-1.00'), null, "HUP-VPD-7 '-1.00' rejected", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('01.00'), '01.00', "HUP-VPD-8 '01.00' passes positive validator (canonicalize rejects; defense in depth upstream)", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('00.5'), '00.5', "HUP-VPD-9 '00.5' passes positive validator (canonicalize rejects; defense in depth upstream)", 'helper_unit_runtime');
-upay_assert_eq(WC_Upayments::validate_provider_positive_decimal('000'), null, "HUP-VPD-10 '000' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('0'), null, 'HUP-VPD-1 "0" rejected (zero is non-positive)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('0.00'), null, 'HUP-VPD-2 "0.00" rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('0.01'), '0.01', 'HUP-VPD-3 "0.01" accepted (positive sub-unit)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('0.50'), '0.50', 'HUP-VPD-4 "0.50" accepted', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('1.00'), '1.00', 'HUP-VPD-5 "1.00" accepted', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('1e2'), null, "HUP-VPD-6 '1e2' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('-1.00'), null, "HUP-VPD-7 '-1.00' rejected", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('01.00'), '01.00', "HUP-VPD-8 '01.00' passes positive validator (canonicalize rejects; defense in depth upstream)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('00.5'), '00.5', "HUP-VPD-9 '00.5' passes positive validator (canonicalize rejects; defense in depth upstream)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('000'), null, "HUP-VPD-10 '000' rejected", 'helper_unit_runtime');
 
 // parse_strict_nonneg_int (private via reflection)
 $psni = function($v) use (&$psni_o) { $psni_o = 0; $r = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'parse_strict_nonneg_int', [$v, &$psni_o]); return [$r, $psni_o]; };
@@ -1945,7 +1948,7 @@ function upay_inj_payload_with($order_total, $mm = null, $products = []) {
 }
 
 function upay_run_inj($raw_payload_json, $token_map, $extra_sentinels = []) {
-    return upay_call_static('WC_Upayments', 'inject_amount_token_into_payload_json', [$raw_payload_json, $token_map, $extra_sentinels]);
+    return upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'inject_amount_token_into_payload_json', [$raw_payload_json, $token_map, $extra_sentinels]);
 }
 
 $inj_scenarios = [
@@ -2055,7 +2058,7 @@ foreach ($fb_cases as $name => $case) {
         }
         if ($name === 'product_price_8ch' || $name === 'mm_amount_11ch') {
             // These are tested via the length-table short-circuit
-            $max = upay_call_static('WC_Upayments', 'get_max_length_for_sentinel', [
+            $max = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'get_max_length_for_sentinel', [
                 $name === 'product_price_8ch' ? '__UPAY_PRODUCT_PRICE_SENTINEL__' : '__UPAY_MM_AMOUNT_SENTINEL__'
             ]);
             upay_assert(is_int($max) && $max < strlen($length_test), $name . ' production max length < sample length', 'helper_unit_runtime');
@@ -2430,7 +2433,7 @@ $ps_cases = [
 ];
 
 foreach ($ps_cases as $name => $val) {
-    $r = upay_call_static('WC_Upayments', 'parse_payment_source_strict', [$val]);
+    $r = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'parse_payment_source_strict', [$val]);
     // The strict parser only rejects non-string/empty/whitespace inputs.
     // The downstream allowlist (in process_payment) rejects unknown sources.
     $expected_norm = [
@@ -2445,7 +2448,7 @@ foreach ($ps_cases as $name => $val) {
 // ---------------------------------------------------------------------------
 // SECTION CTM: Card-token parser matrix (contract exercised inline via process_payment)
 // ---------------------------------------------------------------------------
-// The card-token parser is inline in WC_Upayments::process_payment(). We
+// The card-token parser is inline in Simplixi\SUPCheckout\Gateway\Gateway::process_payment(). We
 // verify the contract via direct exercise: the strict parser rejects
 // whitespace-bearing strings, ints, floats, bools, arrays, and objects.
 // This is a manifest-only check (the inline logic is the source of truth).
@@ -2907,8 +2910,8 @@ foreach ($cv_scenarios as $name => $scenario) {
     $state['request_method']   = $scenario['method'];
     $_SERVER['REQUEST_URI']    = $scenario['uri'];
     $_SERVER['REQUEST_METHOD'] = $scenario['method'];
-    $route = upay_call_static('WC_Upayments', 'normalize_store_api_route', [$scenario['uri']]);
-    $got = \WC_Upayments::classify_checkout_request_context(
+    $route = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', [$scenario['uri']]);
+    $got = \Simplixi\SUPCheckout\Gateway\Gateway::classify_checkout_request_context(
         $scenario['is_rest'],
         $route,
         $scenario['method']
@@ -2937,7 +2940,7 @@ $sub_states = [
 ];
 foreach ($sub_states as $name => $state_def) {
     upay_reset_state();
-    $got = upay_call_static('WC_Upayments', 'is_valid_subscription_plan', [$state_def['plan']]);
+    $got = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', [$state_def['plan']]);
     upay_assert_eq(
         $got,
         $state_def['expect'],
@@ -2964,7 +2967,7 @@ $customer_constraints = [
 foreach ($customer_constraints as $name => $cc) {
     upay_reset_state();
     if ($cc['parser'] === 'decimal') {
-        $r = \WC_Upayments::canonicalize_provider_decimal_string($cc['value']);
+        $r = \Simplixi\SUPCheckout\Gateway\Gateway::canonicalize_provider_decimal_string($cc['value']);
         upay_assert_eq(
             $r,
             $cc['expect'],
@@ -2997,7 +3000,7 @@ $field_lengths = [
     'XFI-6'  => ['__UPAY_UNKNOWN_SENTINEL__', 0],
 ];
 foreach ($field_lengths as $name => $field) {
-    $r = upay_call_static('WC_Upayments', 'get_max_length_for_sentinel', [$field[0]]);
+    $r = upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'get_max_length_for_sentinel', [$field[0]]);
     upay_assert_eq(
         $r,
         $field[1],
@@ -3315,7 +3318,7 @@ foreach ($end_diversity as $name => $source) {
 // ---------------------------------------------------------------------------
 //
 // Each assertion below exercises an actual production code path through
-// WC_Upayments::process_payment() or its helpers, with real fixtures and
+// Simplixi\SUPCheckout\Gateway\Gateway::process_payment() or its helpers, with real fixtures and
 // real response shapes. No literal-true PASS, no fixture-only assertions,
 // no source-grep substitutions. Each upay_assert records the call result
 // into the semantic_runtime counter.
@@ -3368,7 +3371,7 @@ foreach ([
     [['line_total' => '2.00', 'qty' => 4], '0.5'],
     [['line_total' => '7.00', 'qty' => 8], '0.875'],
 ] as $i => $case) {
-    $actual = WC_Upayments::compute_provider_unit_price_decimal($case[0]['line_total'], $case[0]['qty']);
+    $actual = \Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal($case[0]['line_total'], $case[0]['qty']);
     upay_assert_eq($actual, $case[1], "SEM14-D-$i exact division: {$case[0]['line_total']}/{$case[0]['qty']}={$case[1]}", 'helper_unit_runtime');
 }
 
@@ -3379,13 +3382,13 @@ foreach ([
     ['line_total' => '1.00', 'qty' => 6],
     ['line_total' => '2.00', 'qty' => 6],
 ] as $i => $case) {
-    $actual = WC_Upayments::compute_provider_unit_price_decimal($case['line_total'], $case['qty']);
+    $actual = \Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal($case['line_total'], $case['qty']);
     upay_assert_eq($actual, null, "SEM14-E-$i {$case['line_total']}/{$case['qty']} fail closed", 'helper_unit_runtime');
 }
 
 // --- SEM14-F: Float line_total rejected outright ---
 foreach ([0.5, 1.0, 1.5, 2.0, 10.0] as $i => $bad) {
-    $actual = WC_Upayments::compute_provider_unit_price_decimal($bad, 1);
+    $actual = \Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal($bad, 1);
     upay_assert_eq($actual, null, "SEM14-F-$i float line_total rejected", 'helper_unit_runtime');
 }
 
@@ -3394,7 +3397,8 @@ $repo_root = dirname(__DIR__, 2); // tests/harness -> repo root
 $forbidden = ['get_scope_fingerprint', 'get_generation_id'];
 foreach ($forbidden as $fn) {
     $found = false;
-    foreach (glob($repo_root . '/*.php') as $f) {
+    // Root PHP files plus the gateway class moved out of supcheckout.php (Sub-project 0a Task 3).
+    foreach (array_merge(glob($repo_root . '/*.php'), array($repo_root . '/src/Gateway/Gateway.php')) as $f) {
         $content = file_get_contents($f);
         if (preg_match('/\b' . preg_quote($fn, '/') . '\s*\(/', $content)) {
             $found = true;
@@ -3426,7 +3430,9 @@ if (is_resource($proc)) {
 upay_assert_eq($cycle_blob, 'a1ae04e3239e05c4894781480333fd5e747cefba', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
 
 // --- SEM14-J: Production code does NOT use bccomp/BCMath/GMP ---
-$upayments_content = file_get_contents($repo_root . '/supcheckout.php');
+// Production gateway source: the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$upayments_content = file_get_contents($repo_root . '/supcheckout.php') . "\n" . file_get_contents($repo_root . '/src/Gateway/Gateway.php');
 foreach (['bccomp', 'bcadd', 'bcsub', 'bcmul', 'bcdiv', 'bcmod', 'bcpow', 'bcsqrt', 'bcscale', 'BCMath\\', 'GMP\\'] as $fn) {
     $found = strpos($upayments_content, $fn) !== false;
     upay_assert_eq($found, false, "SEM14-J no $fn in production supcheckout.php", 'static_source');
@@ -4166,11 +4172,11 @@ foreach ($invalid_sources as $i => $src) {
 
 // --- SEM14-U: 10,000,000 qty boundary proof ---
 foreach ([10000001, 100000000, PHP_INT_MAX, 9999999] as $i => $qty) {
-    $actual = WC_Upayments::compute_provider_unit_price_decimal('1.00', $qty);
+    $actual = \Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.00', $qty);
     upay_assert_eq($actual, null, "SEM14-U-$i qty=$qty fail closed", 'helper_unit_runtime');
 }
 // 1.00/10000000 = 0.0000001 exact (7 digits), valid
-$actual = WC_Upayments::compute_provider_unit_price_decimal('1.00', 10000000);
+$actual = \Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.00', 10000000);
 upay_assert_eq($actual, '0.0000001', 'SEM14-SEM14-U-10000000 1.00/10000000 = 0.0000001 exact', 'helper_unit_runtime');
 
 // --- SEM14-V: Atomic provenance write: mismatched fingerprint rejected, no new write ---
@@ -4217,12 +4223,14 @@ foreach ([-1, '00', '01', '0005', '1.0', '1e2', '+1', '-1', '', ' 1', '1 ', null
 
 // --- SEM14-Z: lint_tooling category — frozen set of binary invariants ---
 foreach (['bccomp', 'bcadd', 'bcsub', 'bcmul', 'bcdiv'] as $fn) {
-    $content = file_get_contents($repo_root . '/supcheckout.php');
+    // Production gateway source: the main file plus the gateway class it registers
+    // (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+    $content = file_get_contents($repo_root . '/supcheckout.php') . "\n" . file_get_contents($repo_root . '/src/Gateway/Gateway.php');
     $found = preg_match('/\b' . preg_quote($fn, '/') . '\s*\(/', $content) === 1;
     upay_assert_eq($found, false, "LINT-Z-1 $fn() absent from production supcheckout.php", 'lint_tooling');
 }
-$content = file_get_contents($repo_root . '/supcheckout.php');
-$has_9999 = strpos($content, '9999999.9999') !== false;
+$content = file_get_contents($repo_root . '/supcheckout.php') . "\n" . file_get_contents($repo_root . '/src/Gateway/Gateway.php');
+$has_9999 =strpos($content, '9999999.9999') !== false;
 upay_assert_eq($has_9999, false, 'LINT-Z-2 no 9999999.9999 sentinel in production supcheckout.php', 'lint_tooling');
 $has_ceiling = preg_match('/>\s*10\.000/', $content) === 1;
 upay_assert_eq($has_ceiling, false, 'LINT-Z-3 no > 10.000 runtime ceiling in production supcheckout.php', 'lint_tooling');
@@ -5123,7 +5131,7 @@ upay_assert_eq((int) ($result_sp7['order_meta_writes'] ?? 0), 0, 'SP-7 fail-clos
 // production control flow via the subprocess Store API child. Each
 // assertion targets a non-constant condition observed in actual
 // process_payment() execution. These assertions do NOT exercise stubs /
-// reflection / static-source inspection — they drive the real WC_Upayments
+// reflection / static-source inspection — they drive the real Simplixi\SUPCheckout\Gateway\Gateway
 // subclass through real process_payment() and observe its behaviour.
 // ===========================================================================
 
@@ -6252,37 +6260,37 @@ upay_assert_eq($lock_a !== $lock_d, true, 'PHP-R19-LCK-4 different user → diff
 // --- 19.8 is_valid_subscription_plan: allowlist enforcement -----------------
 // Production allowlist: {one_time, daily, weekly, monthly, quarterly, yearly}.
 // Reclassified #20: direct helper calls via reflection → helper_unit_runtime.
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['one_time']), true, 'PHP-R19-VSP-1 one_time allowed', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['weekly']), true, 'PHP-R19-VSP-2 weekly allowed', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['monthly']), true, 'PHP-R19-VSP-3 monthly allowed', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['quarterly']), true, 'PHP-R19-VSP-4 quarterly allowed', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['daily']), true, 'PHP-R19-VSP-5 daily allowed', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['yearly']), true, 'PHP-R19-VSP-6 yearly allowed', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['annual']), false, 'PHP-R19-VSP-7 annual rejected (not in allowlist)', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['semi_annual']), false, 'PHP-R19-VSP-8 semi_annual rejected (not in allowlist)', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['biweekly']), false, 'PHP-R19-VSP-9 biweekly rejected (not in allowlist)', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['onetime']), false, 'PHP-R19-VSP-10 onetime typo rejected', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['ONE_TIME']), false, 'PHP-R19-VSP-11 uppercase rejected (strict-case)', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['']), false, 'PHP-R19-VSP-12 empty rejected', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', [' one_time']), false, 'PHP-R19-VSP-13 leading-space rejected', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['one_time ']), false, 'PHP-R19-VSP-14 trailing-space rejected', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'is_valid_subscription_plan', ['semi-annual']), false, 'PHP-R19-VSP-15 hyphenated variant rejected', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['one_time']), true, 'PHP-R19-VSP-1 one_time allowed', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['weekly']), true, 'PHP-R19-VSP-2 weekly allowed', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['monthly']), true, 'PHP-R19-VSP-3 monthly allowed', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['quarterly']), true, 'PHP-R19-VSP-4 quarterly allowed', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['daily']), true, 'PHP-R19-VSP-5 daily allowed', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['yearly']), true, 'PHP-R19-VSP-6 yearly allowed', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['annual']), false, 'PHP-R19-VSP-7 annual rejected (not in allowlist)', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['semi_annual']), false, 'PHP-R19-VSP-8 semi_annual rejected (not in allowlist)', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['biweekly']), false, 'PHP-R19-VSP-9 biweekly rejected (not in allowlist)', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['onetime']), false, 'PHP-R19-VSP-10 onetime typo rejected', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['ONE_TIME']), false, 'PHP-R19-VSP-11 uppercase rejected (strict-case)', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['']), false, 'PHP-R19-VSP-12 empty rejected', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', [' one_time']), false, 'PHP-R19-VSP-13 leading-space rejected', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['one_time ']), false, 'PHP-R19-VSP-14 trailing-space rejected', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'is_valid_subscription_plan', ['semi-annual']), false, 'PHP-R19-VSP-15 hyphenated variant rejected', 'helper_unit_runtime');
 
 // --- 19.9 normalize_store_api_route: additional edge cases -------------------
 // Production behaviour: leading slash is NOT prepended to a route that
 // doesn't start with one. The function only adds a leading slash to
 // paths stripped of /index.php and /wp-json/ prefixes.
 // Reclassified #20: direct helper calls via reflection → helper_unit_runtime.
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['wc/store/v1/checkout']), 'wc/store/v1/checkout', 'PHP-R19-NSR-1 no-leading-slash passthrough', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['wc/store/v1/checkout']), 'wc/store/v1/checkout', 'PHP-R19-NSR-1 no-leading-slash passthrough', 'helper_unit_runtime');
 // Query string without rest_route= is stripped (function only extracts rest_route from query).
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/checkout?foo=bar']), '/wc/store/v1/checkout', 'PHP-R19-NSR-2 query-without-rest_route stripped', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/checkout#fragment']), '/wc/store/v1/checkout#fragment', 'PHP-R19-NSR-3 fragment passthrough', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-R19-NSR-4 wp-json prefix stripped', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/checkout/']), '/wc/store/v1/checkout/', 'PHP-R19-NSR-5 trailing-slash preserved', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v2/checkout']), '/wc/store/v2/checkout', 'PHP-R19-NSR-6 v2 namespace passthrough (not stripped)', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/wc/store/v1/checkout-order']), '/wc/store/v1/checkout-order', 'PHP-R19-NSR-7 similar-suffix passthrough', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/?rest_route=/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-R19-NSR-8 rest_route plain permalink', 'helper_unit_runtime');
-upay_assert_eq(upay_call_static('WC_Upayments', 'normalize_store_api_route', ['/index.php/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-R19-NSR-9 /index.php prefix stripped', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/checkout?foo=bar']), '/wc/store/v1/checkout', 'PHP-R19-NSR-2 query-without-rest_route stripped', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/checkout#fragment']), '/wc/store/v1/checkout#fragment', 'PHP-R19-NSR-3 fragment passthrough', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wp-json/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-R19-NSR-4 wp-json prefix stripped', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/checkout/']), '/wc/store/v1/checkout/', 'PHP-R19-NSR-5 trailing-slash preserved', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v2/checkout']), '/wc/store/v2/checkout', 'PHP-R19-NSR-6 v2 namespace passthrough (not stripped)', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/wc/store/v1/checkout-order']), '/wc/store/v1/checkout-order', 'PHP-R19-NSR-7 similar-suffix passthrough', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/?rest_route=/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-R19-NSR-8 rest_route plain permalink', 'helper_unit_runtime');
+upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normalize_store_api_route', ['/index.php/wc/store/v1/checkout']), '/wc/store/v1/checkout', 'PHP-R19-NSR-9 /index.php prefix stripped', 'helper_unit_runtime');
 
 // --- 19.10 classify_create_token_response: strict token-match enforcement ----
 // Reclassified #20: direct classifier calls → helper_unit_runtime.

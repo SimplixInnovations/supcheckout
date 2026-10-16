@@ -9,7 +9,7 @@
 require_once __DIR__ . '/bootstrap.php';
 
 /**
- * @return int Number of WC_Upayments callbacks attached to $hook for $method.
+ * @return int Number of Simplixi\SUPCheckout\Gateway\Gateway callbacks attached to $hook for $method.
  */
 function supcheckout_cert_gateway_callbacks($hook, $method) {
     global $wp_filter;
@@ -20,7 +20,7 @@ function supcheckout_cert_gateway_callbacks($hook, $method) {
     foreach ($wp_filter[$hook]->callbacks as $callbacks) {
         foreach ($callbacks as $callback) {
             $fn = $callback['function'];
-            if (is_array($fn) && $fn[0] instanceof WC_Upayments && $fn[1] === $method) {
+            if (is_array($fn) && $fn[0] instanceof \Simplixi\SUPCheckout\Gateway\Gateway && $fn[1] === $method) {
                 $count++;
             }
         }
@@ -29,7 +29,7 @@ function supcheckout_cert_gateway_callbacks($hook, $method) {
 }
 
 $registered = WC()->payment_gateways()->payment_gateways();
-supcheckout_cert_assert(isset($registered['upayments']) && $registered['upayments'] instanceof WC_Upayments, 'WooCommerce registers the SUPCheckout gateway');
+supcheckout_cert_assert(isset($registered['upayments']) && $registered['upayments'] instanceof \Simplixi\SUPCheckout\Gateway\Gateway, 'WooCommerce registers the SUPCheckout gateway');
 
 supcheckout_cert_assert(
     class_exists('WCGatewayUPaymentsBlocks'),
