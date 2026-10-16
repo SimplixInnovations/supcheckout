@@ -203,7 +203,15 @@ final class PaymentLifecycle {
             return self::outcome('unchanged', 'callback_cursor_conflict');
         }
 
-        return self::process_order_status($gateway, $order, $track_id, $source);
+        $outcome = self::process_order_status($gateway, $order, $track_id, $source);
+        if (is_array($outcome) && isset($outcome['reason']) && $outcome['reason'] === 'trusted_cursor_conflict') {
+            // Another track of this attempt became trusted between verification and
+            // the lock (for example a retry inside the same hosted session). This
+            // track may still be a capture; only CAPTURED has an effect there.
+            $current = wc_get_order((int) $order->get_id());
+            return self::process_secondary_capture($gateway, is_object($current) ? $current : $order, $track_id, $requested_order_id, $source);
+        }
+        return $outcome;
     }
 
     /**
@@ -236,6 +244,10 @@ final class PaymentLifecycle {
         if ($track_id !== null) {
             $trusted_requested = self::parse_generic_identifier($order->get_meta(self::TRUSTED_REQUESTED_META), 255);
             if ($trusted_requested === null || !hash_equals($current_requested, $trusted_requested)) {
+                if ($trusted_requested !== null) {
+                    // The customer started a new attempt; the earlier one may still capture.
+                    self::enqueue_secondary($order, $track_id, $trusted_requested);
+                }
                 self::reset_attempt_cursor_state($order);
                 self::log('reconcile_stale_trusted_attempt', 'warning');
                 return;
@@ -247,6 +259,10 @@ final class PaymentLifecycle {
                 || $unverified_requested === null
                 || !hash_equals($current_requested, $unverified_requested)
             ) {
+                if ($track_id !== null && $unverified_requested !== null) {
+                    // The customer started a new attempt; the earlier one may still capture.
+                    self::enqueue_secondary($order, $track_id, $unverified_requested);
+                }
                 if ($track_id !== null || $unverified_requested !== null) {
                     self::reset_attempt_cursor_state($order);
                 }
@@ -325,6 +341,14 @@ final class PaymentLifecycle {
             }
             if (self::is_verified_capture($fresh_order)) {
                 self::clear_reconciliation($fresh_order);
+                // Paid by another track between verification and the lock. A different
+                // verified capture is a second charge: record it for manual refund.
+                $duplicate_payment_id = self::verified_capture_payment_id($verification);
+                if ($duplicate_payment_id !== null
+                    && !hash_equals((string) $fresh_order->get_transaction_id(), $duplicate_payment_id)
+                ) {
+                    self::record_unapplied_capture($fresh_order, $duplicate_payment_id, 'duplicate_capture');
+                }
                 return self::outcome('captured', 'already_verified');
             }
             if (self::is_refunded($fresh_order)) {
@@ -601,10 +625,37 @@ final class PaymentLifecycle {
             }
         }
 
-        $order = wc_get_order($order_id);
-        if (!is_object($order)) {
-            return;
+        // Lookups can take seconds; a webhook may have queued another track meanwhile.
+        // Re-read under the order lock and keep anything not in this run's snapshot.
+        $lock_token = OrderLock::acquire($order_id);
+        try {
+            $order = wc_get_order($order_id);
+            if (!is_object($order)) {
+                return;
+            }
+            foreach (self::secondary_pending($order) as $fresh_entry) {
+                if (!self::secondary_entry_in($fresh_entry, $pending) && !self::secondary_entry_in($fresh_entry, $remaining)) {
+                    $remaining[] = $fresh_entry;
+                }
+            }
+            self::finish_secondary_run($order, $order_id, $remaining, $attempt);
+        } finally {
+            if ($lock_token !== null) {
+                OrderLock::release($order_id, $lock_token);
+            }
         }
+    }
+
+    private static function secondary_entry_in(array $entry, array $list) {
+        foreach ($list as $candidate) {
+            if (hash_equals($candidate['track'], $entry['track']) && hash_equals($candidate['requested'], $entry['requested'])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function finish_secondary_run($order, $order_id, array $remaining, $attempt) {
         if (empty($remaining) || $attempt >= self::MAX_RECONCILE_ATTEMPTS) {
             if (!empty($remaining) && method_exists($order, 'add_order_note')) {
                 // Tracks come from untrusted callbacks; WooCommerce renders notes through
@@ -733,7 +784,12 @@ final class PaymentLifecycle {
 
     private static function is_secondary_retryable($outcome) {
         $reason = is_array($outcome) && isset($outcome['reason']) ? (string) $outcome['reason'] : '';
-        return $reason === 'order_lock_contention' || self::is_retryable_verification_reason($reason);
+        // A verified capture that WooCommerce could not record (a failing or throwing
+        // payment_complete hook) is retried like a transient lookup failure.
+        return $reason === 'order_lock_contention'
+            || $reason === 'payment_complete_failed'
+            || $reason === 'lifecycle_exception'
+            || self::is_retryable_verification_reason($reason);
     }
 
     private static function secondary_pending($order) {
@@ -762,16 +818,27 @@ final class PaymentLifecycle {
         ) {
             return;
         }
-        $pending = self::secondary_pending($order);
-        foreach ($pending as $entry) {
-            if (hash_equals($entry['track'], $track_id) && hash_equals($entry['requested'], $requested_order_id)) {
+        // Read-modify-write on a fresh read under the order lock, so concurrent
+        // callbacks never overwrite each other's queued tracks. A busy lock still
+        // writes the fresh read: no worse than the unlocked path.
+        $order_id = (int) $order->get_id();
+        $lock_token = OrderLock::acquire($order_id);
+        try {
+            $fresh = wc_get_order($order_id);
+            $order = is_object($fresh) ? $fresh : $order;
+            $pending = self::secondary_pending($order);
+            if (self::secondary_entry_in(array('track' => $track_id, 'requested' => $requested_order_id), $pending)) {
                 return;
             }
+            $pending[] = array('track' => $track_id, 'requested' => $requested_order_id);
+            $order->update_meta_data(self::SECONDARY_PENDING_META, array_slice($pending, -self::MAX_SECONDARY_PENDING));
+            $order->save();
+            self::schedule_secondary($order_id, (int) $order->get_meta(self::SECONDARY_ATTEMPT_META));
+        } finally {
+            if ($lock_token !== null) {
+                OrderLock::release($order_id, $lock_token);
+            }
         }
-        $pending[] = array('track' => $track_id, 'requested' => $requested_order_id);
-        $order->update_meta_data(self::SECONDARY_PENDING_META, array_slice($pending, -self::MAX_SECONDARY_PENDING));
-        $order->save();
-        self::schedule_secondary((int) $order->get_id(), (int) $order->get_meta(self::SECONDARY_ATTEMPT_META));
     }
 
     private static function schedule_secondary($order_id, $attempt) {
@@ -915,6 +982,22 @@ final class PaymentLifecycle {
      * Record an authenticated capture that SUPCheckout must not apply, once per
      * payment ID, and tell the merchant how to resolve it.
      */
+    /**
+     * @param mixed $verification StatusVerifier::verify() result.
+     * @return string|null Payment ID of an authenticated CAPTURED result.
+     */
+    private static function verified_capture_payment_id($verification) {
+        if (!is_array($verification)
+            || !isset($verification['classification'], $verification['transaction'])
+            || $verification['classification'] !== ProviderResult::CAPTURED
+            || !is_array($verification['transaction'])
+        ) {
+            return null;
+        }
+        $payment_id = isset($verification['transaction']['payment_id']) ? $verification['transaction']['payment_id'] : null;
+        return is_scalar($payment_id) && (string) $payment_id !== '' ? self::parse_generic_identifier((string) $payment_id, 255) : null;
+    }
+
     private static function record_unapplied_capture($order, $payment_id, $reason) {
         $recorded = $order->get_meta(self::UNAPPLIED_CAPTURES_META);
         $recorded = is_array($recorded) ? array_values(array_filter($recorded, 'is_string')) : array();
