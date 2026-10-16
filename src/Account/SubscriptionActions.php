@@ -119,6 +119,7 @@ final class SubscriptionActions {
         if (class_exists('\Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler')) {
             if ($action === 'resume') {
                 \Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler::schedule_resume($order);
+            // @phpstan-ignore identical.alwaysTrue (the allowlist already narrowed $action; explicit test kept verbatim)
             } elseif ($action === 'pause' || $action === 'unsubscribe') {
                 \Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler::cancel_after_state_change($order);
             }

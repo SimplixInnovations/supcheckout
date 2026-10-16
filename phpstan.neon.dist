@@ -39,6 +39,7 @@ parameters:
         - src/Bootstrap/Requirements.php
         - src/Bootstrap/WooCommerceDeclarations.php
         - src/Blocks/PaymentMethodRegistration.php
+        - src/Account/SubscriptionActions.php
         - src/Subscription/ProductTypeHooks.php
         - src/Subscription/SchedulerBootstrap.php
         - src/Migration/MigrationSettings.php

@@ -122,4 +122,23 @@ function esc_js($value) {
     return addslashes((string) $value);
 }
 
+/**
+ * A redirect is always followed by exit in the code under test, so the stub
+ * records the location and throws instead: the test observes the redirect and
+ * the exit never runs.
+ */
+final class SUPCheckout_Test_Redirect extends RuntimeException {
+    public $location;
+
+    public function __construct($location) {
+        parent::__construct('Redirect captured');
+        $this->location = (string) $location;
+    }
+}
+
+function wp_safe_redirect($location, $status = 302, $x_redirect_by = 'WordPress') {
+    $GLOBALS['supcheckout_test_redirects'][] = (string) $location;
+    throw new SUPCheckout_Test_Redirect($location);
+}
+
 $GLOBALS['supcheckout_test_subscription_presentation_active'] = false;
