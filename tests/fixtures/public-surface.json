@@ -344,6 +344,14 @@
         "contexts": "admin cli frontend"
     },
     {
+        "kind": "admin_page",
+        "parent": "woocommerce",
+        "slug": "simplixpay-upayments-migration",
+        "capability": "manage_woocommerce",
+        "registered_in": "admin_menu",
+        "contexts": "admin"
+    },
+    {
         "kind": "blocks_payment_method",
         "name": "upayments",
         "supported_features": "products",
@@ -610,12 +618,493 @@
         "contexts": "admin cli frontend"
     },
     {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "<dynamic:'woocommerce_update_options_payment_gateways_'.$this->id>",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "<dynamic:\"woocommerce_api_\".strtolower(\"WC_UPayments\")>",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "<dynamic:\"woocommerce_thankyou_\".$this->id>",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "added_post_meta",
+        "priority": 10,
+        "accepted_args": 4,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "admin_enqueue_scripts",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "admin_footer",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "admin_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "admin_menu",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "admin_notices",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "admin_notices",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "before_woocommerce_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "plugins_loaded",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "simplixpay_upayments_reconcile_order",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "simplixpay_upayments_reconcile_secondary",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "supcheckout_process_due_parent",
+        "priority": 10,
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "supcheckout_reconciliation_sweep",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "upay_process_subscriptions",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "upayments_payment_success",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "updated_post_meta",
+        "priority": 10,
+        "accepted_args": 4,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_admin_order_data_after_billing_address",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_admin_order_data_after_order_details",
+        "priority": 10,
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_api_wc_upayments",
+        "priority": 5,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_before_account_orders",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_before_checkout_form",
+        "priority": 5,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_before_shop_loop_item_title",
+        "priority": 9,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_blocks_loaded",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_blocks_payment_method_type_registration",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_checkout_create_order",
+        "priority": 20,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_checkout_create_order_line_item",
+        "priority": 10,
+        "accepted_args": 4,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_checkout_process",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_custom_type_add_to_cart",
+        "priority": 30,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_my_account_my_orders_column_order_status",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_my_account_my_orders_column_order_type",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_order_details_after_order_table",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_order_status_completed",
+        "priority": 20,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_order_status_processing",
+        "priority": 20,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_payment_complete",
+        "priority": 20,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_process_product_meta",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_product_data_panels",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_single_product_summary",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "wp_enqueue_scripts",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "product_type_selector",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "wc_get_template",
+        "priority": 5,
+        "accepted_args": 5,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_add_to_cart_validation",
+        "priority": 10,
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_available_payment_gateways",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_checkout_fields",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_default_gateway",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_gateway_icon",
+        "priority": 10,
+        "accepted_args": 2,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_get_item_data",
+        "priority": 10,
+        "accepted_args": 2,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_get_order_item_totals",
+        "priority": 10,
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_my_account_my_orders_columns",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_my_account_my_orders_query",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_payment_complete_order_status",
+        "priority": "PHP_INT_MAX",
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_payment_gateways",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_product_class",
+        "priority": 10,
+        "accepted_args": 2,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_product_data_tabs",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_settings_api_sanitized_fields_upayments",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
         "kind": "schedule_call",
         "function": "as_schedule_recurring_action",
         "hook": "supcheckout_reconciliation_sweep",
         "group": "supcheckout",
         "interval": 3600,
-        "args": "",
+        "args": "[]",
+        "unique": false,
         "registered_in": "admin_init",
         "contexts": "admin"
     },
@@ -624,7 +1113,7 @@
         "function": "wp_schedule_event",
         "hook": "upay_process_subscriptions",
         "recurrence": "hourly",
-        "args": "",
+        "args": "[]",
         "registered_in": "woocommerce_init",
         "contexts": "admin cli frontend"
     },
@@ -633,6 +1122,7 @@
         "function": "as_has_scheduled_action",
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
+        "args": "<param:array $args>",
         "contexts": "static"
     },
     {
@@ -640,6 +1130,7 @@
         "function": "as_has_scheduled_action",
         "hook": "supcheckout_reconciliation_sweep",
         "group": "supcheckout",
+        "args": "[]",
         "contexts": "static"
     },
     {
@@ -647,6 +1138,7 @@
         "function": "as_schedule_recurring_action",
         "hook": "supcheckout_reconciliation_sweep",
         "group": "supcheckout",
+        "args": "[]",
         "contexts": "static"
     },
     {
@@ -654,6 +1146,8 @@
         "function": "as_schedule_single_action",
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
+        "args": "[parent_order_id:int,cycle_due_gmt:int,retry_attempt:int]",
+        "unique": true,
         "contexts": "static"
     },
     {
@@ -661,60 +1155,84 @@
         "function": "as_unschedule_all_actions",
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
+        "args": "[parent_order_id:int,cycle_due_gmt:int,retry_attempt:int]",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_clear_scheduled_hook",
         "hook": "upay_hourly_cron_job",
+        "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_next_scheduled",
         "hook": "simplixpay_upayments_reconcile_order",
+        "args": "[0:int]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "wp_next_scheduled",
+        "hook": "simplixpay_upayments_reconcile_order",
+        "args": "[0:int]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "wp_next_scheduled",
+        "hook": "simplixpay_upayments_reconcile_order",
+        "args": "[0:int]",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_next_scheduled",
         "hook": "simplixpay_upayments_reconcile_secondary",
+        "args": "[0:int]",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_next_scheduled",
         "hook": "upay_hourly_cron_job",
+        "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_next_scheduled",
         "hook": "upay_process_subscriptions",
+        "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_schedule_event",
         "hook": "upay_process_subscriptions",
+        "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_schedule_single_event",
         "hook": "simplixpay_upayments_reconcile_order",
+        "args": "[0:int]",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_schedule_single_event",
         "hook": "simplixpay_upayments_reconcile_secondary",
+        "args": "[0:int]",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_unschedule_event",
         "hook": "simplixpay_upayments_reconcile_order",
+        "args": "[0:int]",
         "contexts": "static"
     },
     {
