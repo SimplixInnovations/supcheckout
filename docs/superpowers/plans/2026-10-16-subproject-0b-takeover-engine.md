@@ -26,6 +26,7 @@ All code reads identities through one `Keys` registry with legacy fallback, so c
 **Namespace and storage**
 - Namespace `Simplixi\SUPCheckout\Takeover\`. Not `Switch`: it is a reserved word that PHP 7.4 rejects in namespace names.
 - New identities use the `supcheckout` and `_supcheckout_` prefixes. Every legacy → new pair comes from the inventory and lives **only** in `Keys` (Task 1).
+- **Approved migration contract.** The owner approved renaming every protected identity (decision: "option 2, fully rename") on the condition of a non-destructive, verified, reversible switch. The spec §5, this plan and the Task 12 matrix are that contract. AGENTS.md is updated in Task 12, not before, so the protected list keeps guarding the code until the matrix is green.
 - **Copy, never move.** No legacy option, meta, cron event or third-party value is deleted before `Finalize`, and `Finalize` is refused until 30 days after `Cutover` unless the owner passes `--force-after-review`.
 - **Records:**
   - every write the takeover makes to a value it did not create records `{target, path, before, after}` in the takeover journal, the option `supcheckout_takeover_journal_v1` (an append-only array, non-autoloaded);
@@ -74,21 +75,35 @@ tests/integration/Takeover*Test.php + .github/workflows/takeover-migration-matri
 
 ---
 
-### Task 1: `Keys` registry with read-with-fallback
+### Task 1: `Keys` registry, complete and machine-checked
+
+The identity audit (2026-10-16) checked the working tree against the inventory. This registry encodes its result, so nothing here is "fill in later". Task 1 also adds a coverage harness, which makes a forgotten name fail CI instead of losing data.
 
 **Files:**
 - Create: `src/Takeover/Keys.php`
+- Create: `src/Takeover/TakeoverState.php`, as a stub whose `is_cut_over()` returns `false`. Task 3 replaces it.
+- Create: `tests/harness/takeover-identity-coverage-harness.php`, wired into `quality-gates.yml` after `official-plugin-coexistence-harness.php`
 - Test: `tests/unit/Takeover/KeysTest.php`
 
 **Interfaces:**
-- Produces:
-  - `Keys::order_meta(): array<string,string>`, mapping legacy to new;
-  - `Keys::options(): array<string,string>`;
-  - `Keys::cron_hooks(): array<string,string>`;
-  - `Keys::GATEWAY_LEGACY = 'upayments'`;
-  - `Keys::GATEWAY = 'supcheckout'`;
-  - `Keys::read_order_meta(\WC_Order $order, string $new_key)`, which returns the new value, else the legacy value, else `''`;
-  - `Keys::legacy_for(string $new_key): ?string`.
+- **Constants:** `Keys::GATEWAY_LEGACY = 'upayments'`, `Keys::GATEWAY = 'supcheckout'`, `Keys::CALLBACK_ROUTE_LEGACY = 'wc_upayments'`, `Keys::CALLBACK_ROUTE = 'supcheckout'`.
+- **Copied maps.** Each returns `array<string,string>`, legacy → new, and every legacy name appears exactly once across all maps:
+  - `Keys::order_meta()`;
+  - `Keys::user_meta()`;
+  - `Keys::user_meta_prefixes()`, mapping prefixes;
+  - `Keys::product_meta()`;
+  - `Keys::options()`;
+  - `Keys::cron_hooks()`;
+  - `Keys::tables()`, without `$wpdb->prefix`.
+- **Settings sources:** `Keys::settings_sources(): list<string>`. These are the legacy settings options in precedence order, first non-empty wins, and the target is `woocommerce_supcheckout_settings`. They are kept out of `options()` because several sources feed one target (inventory hazard 3).
+- **Ephemeral prefixes:** `Keys::ephemeral_prefixes(): array<string,string>`. Locks, rate gates, caches and MySQL `GET_LOCK` names. They are **never copied**; the new name is recreated on demand.
+- **Official-only names:** `Keys::official_only(): array{options:list<string>, transients:list<string>, cron_hooks:list<string>}`. Only the official plugin writes these. Preflight reports them, Finalize clears them, and nothing copies them.
+- **Lookups:**
+  - `Keys::legacy_for(string $new): ?string`;
+  - `Keys::meta_names(string $legacy): array{0:string,1:string}`, returning `[new, legacy]` for `meta_query` OR clauses and hook key checks. It throws on an unclassified name.
+  - `Keys::read_order_meta(\WC_Order $order, string $legacy)`: the new value, else the legacy value, else `''`;
+  - `Keys::write_key(string $legacy): string`: new after cutover, else legacy;
+  - `Keys::table(string $legacy): string`: the prefixed table in use right now.
 
 - [ ] **Step 1: Write the failing test.**
 
@@ -100,27 +115,69 @@ use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
 final class KeysTest extends TestCase {
-    public function test_every_mapping_is_unique_prefixed_and_reversible(): void {
-        foreach (array(Keys::order_meta(), Keys::options(), Keys::cron_hooks()) as $map) {
-            self::assertSame(count($map), count(array_unique($map)), 'no two legacy names map to one new name');
+    /** @return list<array<string,string>> */
+    private static function copied_maps(): array {
+        return array(Keys::order_meta(), Keys::user_meta(), Keys::user_meta_prefixes(), Keys::product_meta(),
+            Keys::options(), Keys::cron_hooks(), Keys::tables());
+    }
+
+    public function test_every_copied_mapping_is_unique_prefixed_and_reversible(): void {
+        $all_legacy = array();
+        $all_new = array();
+        foreach (self::copied_maps() as $map) {
             foreach ($map as $legacy => $new) {
                 self::assertMatchesRegularExpression('/^_?supcheckout_/', $new, $new);
                 self::assertSame($legacy, Keys::legacy_for($new));
+                $all_legacy[] = $legacy;
+                $all_new[] = $new;
             }
         }
-        self::assertSame('upayments', Keys::GATEWAY_LEGACY);
-        self::assertSame('supcheckout', Keys::GATEWAY);
+        self::assertSame(count($all_legacy), count(array_unique($all_legacy)), 'a legacy name is in one map only');
+        self::assertSame(count($all_new), count(array_unique($all_new)), 'no two legacy names share a target');
     }
 
-    public function test_the_inventory_names_are_all_covered(): void {
-        $meta = Keys::order_meta();
-        foreach (array('UPayments_order_id', 'UPayments_PaymentID', 'UPayments_TrackID', 'UPayments_Result',
-            'UPayments_WHS', 'UPayments_AutoDeduction', '_upay_subscription_plan', '_upay_last_billed_at',
-            'UPayments_ParentOrderID', '_simplixpay_upayments_status_track_v1') as $legacy) {
-            self::assertArrayHasKey($legacy, $meta, $legacy);
+    public function test_audited_names_are_in_the_right_map(): void {
+        foreach (array('UPayments_order_id', 'UPayments_PaymentID', 'UPayments_WHS', 'UPayments_TranID',
+            '_upay_verified_capture', '_simplixpay_upayments_provider_result_v1',
+            '_simplixpay_upayments_reconcile_exhausted_v1', '_simplixpay_upayments_callback_lookups_v1',
+            '_simplixpay_upayments_unapplied_captures_v1', '_simplixpay_upayments_secondary_noted_v1') as $legacy) {
+            self::assertArrayHasKey($legacy, Keys::order_meta(), $legacy);
         }
-        self::assertSame('woocommerce_supcheckout_settings', Keys::options()['woocommerce_upayments_settings']);
-        self::assertSame('supcheckout_process_subscriptions', Keys::cron_hooks()['upay_process_subscriptions']);
+        // Written with update_user_meta (MigrationExecutor.php, MigrationBatch.php): user meta, not options.
+        self::assertArrayHasKey('simplixpay_upayments_migration_v1', Keys::user_meta());
+        self::assertArrayNotHasKey('simplixpay_upayments_migration_v1', Keys::options());
+        self::assertArrayHasKey('_simplixpay_upayments_migration_result_v1', Keys::user_meta());
+        self::assertArrayHasKey('_upay_customer_token_v2_b', Keys::user_meta_prefixes());
+        self::assertArrayHasKey('_upay_disable_subscription', Keys::product_meta());
+        self::assertSame('supcheckout_billing_attempts', Keys::tables()['upayments_billing_attempts']);
+        self::assertSame(array('woocommerce_upayments_settings', 'woocommerce_your_gateway_id_settings'), Keys::settings_sources());
+        self::assertArrayNotHasKey('woocommerce_upayments_settings', Keys::options());
+    }
+
+    public function test_ephemeral_and_already_canonical_names_are_never_copied(): void {
+        $copied = array_merge(...array_map('array_keys', self::copied_maps()));
+        foreach (array_keys(Keys::ephemeral_prefixes()) as $prefix) {
+            foreach ($copied as $legacy) {
+                self::assertStringStartsNotWith($prefix, $legacy, "$legacy is ephemeral");
+            }
+        }
+        foreach (array('_supcheckout_reconcile_schedule_failed_v1', 'supcheckout_reconciliation_sweep',
+            'supcheckout_process_due_parent') as $canonical) {
+            self::assertNull(Keys::legacy_for($canonical), $canonical);
+            self::assertNotContains($canonical, $copied);
+        }
+    }
+
+    public function test_no_new_prefix_shadows_another_family(): void {
+        // A LIKE 'x%' cleanup on one prefix must never match another family (audit: supcheckout_pm_* overlap).
+        $prefixes = array_merge(array_values(Keys::ephemeral_prefixes()), array('supcheckout_pm_lkg_v1_'));
+        foreach ($prefixes as $a) {
+            foreach ($prefixes as $b) {
+                if ($a !== $b) {
+                    self::assertStringStartsNotWith($a, $b, "$a shadows $b");
+                }
+            }
+        }
     }
 }
 ```
@@ -128,7 +185,7 @@ final class KeysTest extends TestCase {
 - [ ] **Step 2: Run it.**
   - Run: `vendor/bin/phpunit --filter KeysTest`
   - Expected: FAIL, with the class not found.
-- [ ] **Step 3: Implement `Keys`.** Copy every row from the inventory §2–§4 into the three maps. Example rows:
+- [ ] **Step 3: Implement `Keys`.** Every row below is evidence-backed by the audit or the inventory. Write them all.
 
 ```php
 <?php
@@ -138,10 +195,10 @@ namespace Simplixi\SUPCheckout\Takeover;
 defined('ABSPATH') || exit;
 
 /**
- * The single registry of legacy → SUPCheckout identity names (evidence:
- * docs/superpowers/specs/2026-10-16-official-plugin-data-inventory.md).
- * Code reads through read_order_meta() so a store works before, during and after
- * the takeover.
+ * The single registry of legacy → SUPCheckout persisted identity names.
+ * Evidence: docs/superpowers/specs/2026-10-16-official-plugin-data-inventory.md and the
+ * 2026-10-16 identity audit. tests/harness/takeover-identity-coverage-harness.php fails
+ * when shipped code uses a legacy-looking name that is not classified here.
  */
 final class Keys {
     public const GATEWAY_LEGACY = 'upayments';
@@ -152,6 +209,7 @@ final class Keys {
     /** @return array<string,string> */
     public static function order_meta() {
         return array(
+            // Official 2.x/3.x provider fields (UPayments_TranID/Auth/reference: official plugin only).
             'UPayments_order_id' => '_supcheckout_provider_order_id',
             'UPayments_Result' => '_supcheckout_result',
             'UPayments_PaymentID' => '_supcheckout_payment_id',
@@ -170,6 +228,7 @@ final class Keys {
             'UPayments_InvoiceID' => '_supcheckout_invoice_id',
             'UPayments_TransactionDate' => '_supcheckout_transaction_date',
             'UPayments_GatewayStatus' => '_supcheckout_gateway_status',
+            // Tokens and subscriptions.
             '_upay_credit_card_token' => '_supcheckout_card_token',
             '_upay_customer_unique_token' => '_supcheckout_customer_token',
             '_upay_customer_token_kind_v1' => '_supcheckout_customer_token_kind_v1',
@@ -183,24 +242,55 @@ final class Keys {
             '_upay_retry_count' => '_supcheckout_retry_count',
             '_upay_last_failed_reason' => '_supcheckout_last_failed_reason',
             '_upay_verified_capture' => '_supcheckout_verified_capture',
+            // Lifecycle (PaymentLifecycle.php constants).
             '_simplixpay_upayments_status_track_v1' => '_supcheckout_status_track_v1',
             '_simplixpay_upayments_status_requested_v1' => '_supcheckout_status_requested_v1',
             '_simplixpay_upayments_unverified_track_v1' => '_supcheckout_unverified_track_v1',
             '_simplixpay_upayments_unverified_requested_v1' => '_supcheckout_unverified_requested_v1',
             '_simplixpay_upayments_prior_requested_v1' => '_supcheckout_prior_requested_v1',
-            // ... every remaining _simplixpay_upayments_*_v1 constant from PaymentLifecycle.php
+            '_simplixpay_upayments_provider_result_v1' => '_supcheckout_provider_result_v1',
+            '_simplixpay_upayments_reconcile_attempt_v1' => '_supcheckout_reconcile_attempt_v1',
+            '_simplixpay_upayments_reconcile_reason_v1' => '_supcheckout_reconcile_reason_v1',
+            '_simplixpay_upayments_reconcile_exhausted_v1' => '_supcheckout_reconcile_exhausted_v1',
+            '_simplixpay_upayments_callback_lookups_v1' => '_supcheckout_callback_lookups_v1',
+            '_simplixpay_upayments_capture_apply_failed_v1' => '_supcheckout_capture_apply_failed_v1',
+            '_simplixpay_upayments_unapplied_captures_v1' => '_supcheckout_unapplied_captures_v1',
+            '_simplixpay_upayments_secondary_pending_v1' => '_supcheckout_secondary_pending_v1',
+            '_simplixpay_upayments_secondary_attempt_v1' => '_supcheckout_secondary_attempt_v1',
+            '_simplixpay_upayments_secondary_noted_v1' => '_supcheckout_secondary_noted_v1',
         );
+    }
+
+    /** @return array<string,string> */
+    public static function user_meta() {
+        return array(
+            'simplixpay_upayments_migration_v1' => 'supcheckout_migration_v1',
+            '_simplixpay_upayments_migration_result_v1' => '_supcheckout_migration_result_v1',
+        );
+    }
+
+    /** @return array<string,string> H12 provenance: _upay_customer_token_v2_b{blog}_{scope}. */
+    public static function user_meta_prefixes() {
+        return array('_upay_customer_token_v2_b' => '_supcheckout_customer_token_v2_b');
+    }
+
+    /** @return array<string,string> */
+    public static function product_meta() {
+        return array('_upay_disable_subscription' => '_supcheckout_disable_subscription');
     }
 
     /** @return array<string,string> */
     public static function options() {
         return array(
-            'woocommerce_upayments_settings' => 'woocommerce_supcheckout_settings',
             'upayments_token_identity_secret_v2' => 'supcheckout_token_identity_secret_v2',
             'upay_billing_cycle_schema_version' => 'supcheckout_billing_cycle_schema_version',
             'upay_subscription_enrollment_cursor' => 'supcheckout_subscription_enrollment_cursor',
-            'simplixpay_upayments_migration_v1' => 'supcheckout_migration_v1',
         );
+    }
+
+    /** @return list<string> First non-empty wins; target is woocommerce_supcheckout_settings. */
+    public static function settings_sources() {
+        return array('woocommerce_upayments_settings', 'woocommerce_your_gateway_id_settings');
     }
 
     /** @return array<string,string> */
@@ -212,12 +302,50 @@ final class Keys {
         );
     }
 
+    /** @return array<string,string> Table names without $wpdb->prefix. */
+    public static function tables() {
+        return array('upayments_billing_attempts' => 'supcheckout_billing_attempts');
+    }
+
+    /**
+     * Recreated, never copied. During the switch window lock helpers take BOTH names
+     * (legacy first) so a pre-cutover and a post-cutover worker still contend (Task 2).
+     *
+     * @return array<string,string>
+     */
+    public static function ephemeral_prefixes() {
+        return array(
+            'simplixpay_upay_order_lock_v1_' => 'supcheckout_order_lock_v1_',
+            'simplixpay_upay_status_v1_' => 'supcheckout_status_gate_v1_',
+            'upayments_payment_methods_rate_gate_' => 'supcheckout_pmgate_v1_',
+            'upay_pm_v3_' => 'supcheckout_pmcache_v3_',
+            'upay_pm_' => 'supcheckout_pmlock_',
+            'upay_ctk_' => 'supcheckout_ctklock_',
+        );
+    }
+
+    /** @return array{options:list<string>,transients:list<string>,cron_hooks:list<string>} */
+    public static function official_only() {
+        return array(
+            'options' => array('your_gateway_version', 'upayments_block_checkout_page_id',
+                'woocommerce_upayments_enable_block_checkout', 'external_updates-upayments-V2.2.1', 'upayments_maat'),
+            'transients' => array('upayments_cron_lock'),
+            'cron_hooks' => array('upay_hourly_cron_job', 'puc_cron_check_updates-upayments-V2.2.1'),
+        );
+    }
+
+    /** @return list<array<string,string>> */
+    private static function copied_maps() {
+        return array(self::order_meta(), self::user_meta(), self::user_meta_prefixes(), self::product_meta(),
+            self::options(), self::cron_hooks(), self::tables());
+    }
+
     /**
      * @param string $new_key SUPCheckout name.
      * @return string|null Legacy name.
      */
     public static function legacy_for($new_key) {
-        foreach (array(self::order_meta(), self::options(), self::cron_hooks()) as $map) {
+        foreach (self::copied_maps() as $map) {
             $legacy = array_search($new_key, $map, true);
             if ($legacy !== false) {
                 return (string) $legacy;
@@ -227,56 +355,106 @@ final class Keys {
     }
 
     /**
-     * @param \WC_Order $order   Order.
-     * @param string    $new_key SUPCheckout meta key.
+     * @param string $legacy Legacy meta key.
+     * @return array{0:string,1:string} [new, legacy].
+     */
+    public static function meta_names($legacy) {
+        foreach (self::copied_maps() as $map) {
+            if (isset($map[$legacy])) {
+                return array($map[$legacy], $legacy);
+            }
+        }
+        throw new \InvalidArgumentException('Unclassified persisted name: ' . $legacy);
+    }
+
+    /**
+     * @param \WC_Order $order  Order.
+     * @param string    $legacy Legacy meta key.
      * @return mixed New value, else the legacy value, else ''.
      */
-    public static function read_order_meta($order, $new_key) {
-        $value = $order->get_meta($new_key);
-        if ($value !== '' && $value !== null) {
-            return $value;
-        }
-        $legacy = self::legacy_for($new_key);
-        return $legacy === null ? '' : $order->get_meta($legacy);
+    public static function read_order_meta($order, $legacy) {
+        list($new) = self::meta_names($legacy);
+        $value = $order->get_meta($new);
+        return ($value !== '' && $value !== null) ? $value : $order->get_meta($legacy);
+    }
+
+    /**
+     * @param string $legacy Legacy name.
+     * @return string The name writes go to right now.
+     */
+    public static function write_key($legacy) {
+        return TakeoverState::is_cut_over() ? self::meta_names($legacy)[0] : $legacy;
+    }
+
+    /**
+     * @param string $legacy Legacy table name without prefix.
+     * @return string Prefixed table name in use right now.
+     */
+    public static function table($legacy) {
+        global $wpdb;
+        return $wpdb->prefix . (TakeoverState::is_cut_over() ? self::tables()[$legacy] : $legacy);
     }
 
     private function __construct() {}
 }
 ```
 
-  - The executor **must** replace the `// ...` comment by listing every remaining constant. Get them with:
-
-    `grep -n "_META = '" src/Payment/PaymentLifecycle.php src/Token/CustomerTokenIdentity.php src/Subscription/Cron/*.php`
-
-  - Then extend the second test with each one. **Done means `grep` finds no persisted name that is missing from `Keys`.**
 - [ ] **Step 4: Run it.** Expected: PASS.
-- [ ] **Step 5: Commit.** `feat(takeover): identity registry with legacy read-through`
+- [ ] **Step 5: Write the coverage harness.** `tests/harness/takeover-identity-coverage-harness.php`:
+  - Tokenize (`token_get_all`) every PHP file in `UPayments.php`/`supcheckout.php`, `src/`, `includes/` and `templates/`.
+  - Collect every `T_CONSTANT_ENCAPSED_STRING` whose unquoted value matches `/^(_?upay_|_?simplixpay_|UPayments_|upayments_|woocommerce_upayments|woocommerce_your_gateway)/`.
+  - Each value must be one of:
+    - a key in a copied map;
+    - a value starting with a `user_meta_prefixes()` or `ephemeral_prefixes()` key;
+    - in `settings_sources()` or `official_only()`;
+    - in the harness's own `$not_persisted` allowlist, where every entry carries a one-line reason (script handles, CSS classes, action names).
+  - Print every unclassified value with `file:line`, and exit 1 if any exist.
+  - Run it on the current tree and classify whatever it reports. **This replaces the earlier `_META = '` grep, which cannot see inline literals.**
+- [ ] **Step 6: Commit.** `feat(takeover): audited identity registry and coverage harness`
 
 ### Task 2: Route every runtime read and write through `Keys`
 
-**Files:**
-- Modify: every class that uses a persisted name: `PaymentLifecycle`, `CheckoutOrchestrator`, `OrderPresentation`, `CustomerTokenIdentity`, `Scheduler`, `CycleClaim`, `HistoricalEnrollment`, `PublicOrderStatus`, `Gateway`, `Presentation`, `Blocks/PaymentMethodType`.
-- Test: the existing suites plus `tests/unit/Takeover/DualReadTest.php`.
+**Files.** Modify every class the audit found touching a persisted name:
+- **Payment and provider:** `PaymentLifecycle`, `CheckoutOrchestrator`, `OrderPresentation`, `StatusVerifier`, `OrderLock`, `StatusRateGate`, `PaymentMethodAvailability`, `Gateway/Availability`.
+- **Tokens:** `CustomerTokenIdentity`, `RenewalCardAuthority`.
+- **Subscriptions:** `CycleEconomics`, `LifecycleScheduler`, `Scheduler`, `CycleClaim`, `HistoricalEnrollment`, `Subscription/Helpers/Utils`, `Subscription/Checkout/Fields`, `Subscription/Presentation`.
+- **Everything else:** `PublicOrderStatus`, `Gateway`, `Blocks/PaymentMethodType`, `Migration*`.
+
+**Tests:** the existing suites plus `tests/unit/Takeover/DualReadTest.php`.
 
 **Interfaces:**
-- Consumes: `Keys::read_order_meta()` and the maps.
-- Produces: a runtime that behaves as follows:
-  - **Reads** go new-name-first with legacy fallback.
-  - **Writes** go to the new name only after `TakeoverState::is_cut_over()` is true (Task 3); before cutover they write the legacy names exactly as today.
+- **Consumes:** everything `Keys` produces.
+- **Reads:** new-name-first with legacy fallback. Order meta goes through `read_order_meta`; user and product meta use the same rule via each class's private `meta()` helper.
+- **Queries and hook checks** use both names:
+  - a `meta_query` becomes `array('relation' => 'OR', [new …], [legacy …])`;
+  - a key comparison becomes `in_array($meta_key, Keys::meta_names($legacy), true)`.
+- **Writes** go through `write_key()`/`table()`, so they land on legacy names until `TakeoverState::is_cut_over()`. Stores that never switch see identical behavior.
+- **Locks and gates** (ephemeral prefixes):
+  - from `copying` until `finalized`, acquire the legacy name first, then the new one, and release both;
+  - before `copying`, legacy only;
+  - after `finalized`, new only.
 
-  So nothing changes for stores that never run the takeover, and nothing breaks during it.
+  So a request that started before cutover and one that started after still contend for the same lock.
+- **Last-known-good name:** `PaymentMethodAvailability::last_known_good_name()` is recomputed from the fingerprint inputs instead of slicing `transient_name()`, so renaming the transient prefix cannot orphan the stored value.
 
-- [ ] **Step 1: Write the failing dual-read test.** A fake order holds legacy `UPayments_PaymentID=pay-1` and no new key. `OrderPresentation::add_order_item_totals()` shows `pay-1`. A second order holds both, with new `pay-2` and legacy `pay-1`, and shows `pay-2`.
-- [ ] **Step 2: Run it.** Expected: FAIL. `OrderPresentation` reads only the legacy key.
-- [ ] **Step 3: Replace reads.** Change each `->get_meta('LEGACY')` to `Keys::read_order_meta($order, Keys::order_meta()['LEGACY'])`, through a private `meta($order, $legacy)` helper per class.
-- [ ] **Step 4: Replace writes.** Change each `->update_meta_data('LEGACY', $v)` to `->update_meta_data(Keys::write_key('LEGACY'), $v)`. Add `Keys::write_key(string $legacy): string`, which returns the new name when cut over and the legacy name otherwise.
-- [ ] **Step 5: Run every suite.** H12 and the lifecycle harness must be unchanged: the default state is not cut over, so every legacy write is identical.
-- [ ] **Step 6: Commit.** `refactor(takeover): all persisted identities go through Keys`
+- [ ] **Step 1: Write the failing tests** in `DualReadTest.php`.
+  - **Dual read.** An order with only legacy `UPayments_PaymentID=pay-1` shows `pay-1` in `OrderPresentation::add_order_item_totals()`. An order with new `pay-2` and legacy `pay-1` shows `pay-2`.
+  - **Dual query.** `Subscription/Presentation`'s `_upay_subscription_status` filter (Presentation.php:401) and `PaymentLifecycle::sweep_cursor_meta_query()` each find both a legacy-only order and a new-only order.
+  - **Dual hook.** `LifecycleScheduler` reacts to a status update under either key name.
+  - **Lock contention across the window.** In state `copying`, worker A holds the order lock under the legacy name only, and worker B (dual-acquire) must fail to acquire.
+  - **LKG stability.** With fixed inputs, `last_known_good_name()` is unchanged when the transient prefix changes.
+- [ ] **Step 2: Run them.** Expected: FAIL.
+- [ ] **Step 3: Replace reads, queries and hook checks** in each listed class.
+- [ ] **Step 4: Replace writes and lock names.**
+- [ ] **Step 5: Remove the dead listener.** `includes/Subscription/Manager.php` listens on `upayments_payment_success` and writes `{prefix}upay_subscriptions`. First confirm `grep -rn "upayments_payment_success" UPayments.php src includes templates assets` shows no `do_action`, then delete the file and its require. Preflight (Task 4) still reports whether an `upay_subscriptions` table exists, and leaves it alone.
+- [ ] **Step 6: Run every suite.** H12, the lifecycle harness and the coverage harness must pass unchanged. The default state is not cut over, so every legacy write is identical.
+- [ ] **Step 7: Commit.** `refactor(takeover): all persisted identities go through Keys`
 
 ### Task 3: `TakeoverState` and `Journal`
 
 **Files:**
-- Create: `src/Takeover/TakeoverState.php`, `src/Takeover/Journal.php`
+- Replace: the Task 1 stub `src/Takeover/TakeoverState.php`. Its `is_cut_over()` must stay a cheap single read of the state option, because `Keys::write_key()` calls it on every write.
+- Create: `src/Takeover/Journal.php`
 - Test: `tests/unit/Takeover/TakeoverStateTest.php`, `JournalTest.php`
 
 **Interfaces:**
@@ -339,6 +517,9 @@ public function test_only_the_documented_transitions_are_allowed(): void {
 | `third_party_references` | fact / warning | options-table scan for `upayments` outside the known names, listing option names only |
 | `callback_unreachable` | blocking | a loopback GET of the new callback URL (`?wc-api=supcheckout&supcheckout_probe=1`) is not 200 |
 | `cache_exclusion_missing` | warning | the response to that probe carries a cache-hit header (`x-litespeed-cache: hit`, `cf-cache-status: HIT`, …) |
+| `settings_source` | fact | which of `Keys::settings_sources()` holds the settings (hazard 3: 3.0.0 may have only `woocommerce_your_gateway_id_settings`) |
+| `official_only_names` | fact | which `Keys::official_only()` options, transients and cron hooks exist |
+| `upay_subscriptions_table_present` | fact | `{prefix}upay_subscriptions` exists. It is reported, never touched (its only writer was the dead `Manager` listener). |
 | `leftovers` | fact | the 3.0.0 "Checkout (Block)" page, the forced phone field, the PUC option and cron, `upayments_cron_lock` |
 
 - [ ] **Step 1: Write the failing tests.** One test per code, with a fake environment. Example for the debug log:
@@ -423,7 +604,18 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - The cursor is persisted after **each** order, so a crash re-processes at most one order, and `copy()` is idempotent.
   - When fewer than 50 remain, transition `copying → verified` only if every verify returned `ok`. Otherwise go back to `preflight_ok` with the mismatches recorded in the state.
 - [ ] **Step 4: Run it.** Expected: PASS.
-- [ ] **Step 5: Commit.** `feat(takeover): resumable Action Scheduler copy runner`
+- [ ] **Step 5: Add the non-order phases.** They run after orders, in the same runner, each with its own cursor in the state (`cursors.users`, `cursors.products`, `cursors.table`).
+  - **Users:** batches of users holding any `Keys::user_meta()` key or a `user_meta_prefixes()` key. Find them with one prepared `SELECT DISTINCT user_id … WHERE meta_key IN (…) OR meta_key LIKE %s` using `esc_like`. Copy every row to the new name.
+    - H12 provenance stays valid because the token-identity secret is copied verbatim in Task 7.
+    - Test: a copied `_upay_customer_token_v2_b1_<scope>` row verifies through `CustomerTokenIdentity` under the new prefix.
+  - **Products:** batches of products holding `_upay_disable_subscription`, through `wc_get_products` with a `meta_query`, copied with CRUD.
+  - **Billing-attempts table:**
+    - Create `{prefix}supcheckout_billing_attempts` from the **same** schema definition `CycleClaim` uses (one `dbDelta` source, never a second copy of the DDL).
+    - Copy rows in ID order with `INSERT IGNORE … SELECT … WHERE id > %d ORDER BY id LIMIT 500`.
+    - Verify the row count and a per-row checksum (`MD5(CONCAT_WS('|', …))` over every column).
+    - Record `max_copied_id` in the state for Rollback.
+  - Test: an interrupted users phase resumes without duplicates, and the table phase verifies equal counts and checksums.
+- [ ] **Step 6: Commit.** `feat(takeover): resumable Action Scheduler copy runner`
 
 ### Task 7: `SettingsCopier`, `ThirdPartyTranslator` and `Cutover`
 
@@ -434,9 +626,9 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 **Interfaces:**
 - Produces: `Cutover::run(bool $deactivate_official): array{ok:bool, steps:list<string>}`. In order:
-  1. copy the settings option;
+  1. copy settings from the first non-empty `Keys::settings_sources()` entry to `woocommerce_supcheckout_settings`, and the `Keys::options()` values verbatim (including the token-identity secret, so H12 provenance hashes stay valid);
   2. translate `woocommerce_gateway_order`, the `woocommerce_default_gateway` value, WCML gateway country/currency rules and FunnelKit gateway lists (each recorded in the `Journal`);
-  3. reschedule cron hooks to the new names (old events kept until Finalize, and their callbacks stay registered as aliases);
+  3. reschedule the `Keys::cron_hooks()` events to the new names. Old events are kept until Finalize, and their callbacks stay registered as aliases. Already-canonical hooks (`supcheckout_reconciliation_sweep`, `supcheckout_process_due_parent`) are left alone;
   4. bulk-set `payment_method=supcheckout` on copied orders, journaling the before value;
   5. transition to `cut_over`;
   6. if consented, deactivate the official plugin with `deactivate_plugins()`.
@@ -453,7 +645,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 **Files:**
 - Create: `src/Takeover/LegacyCallbackListener.php`
-- Modify: `src/Payment/PaymentLifecycle.php`. Register `woocommerce_api_supcheckout` and keep `woocommerce_api_wc_upayments`, both into the same `handle_callback`.
+- Modify: `src/Payment/PaymentLifecycle.php` and `UPayments.php`. The legacy route has **two** listeners today: `PaymentLifecycle::handle_callback` at priority 5 (PaymentLifecycle.php:20), and the gateway's `check_ipn_response` (UPayments.php:251). `LegacyCallbackListener::register()` attaches the **same pair in the same priority order** to `woocommerce_api_supcheckout` and keeps both on `woocommerce_api_wc_upayments`.
 - Test: `tests/harness/provider-payment-lifecycle-harness.php`, new scenario T1.
 
 **Interfaces:**
@@ -463,6 +655,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - A pre-switch order (legacy keys only, `payment_method=upayments`) receives a webhook on `wc_upayments` after `cut_over`.
   - The provider CAPTURED binds to the order, and the order completes once.
   - The payment ID is written under the new key, with the legacy key unchanged.
+  - **Route parity:** the same browser return and the same webhook, replayed on `wc_upayments` and on `supcheckout`, produce identical redirects, notes and order state. The parity is pinned by the existing legacy-callback-routing harness extended to both routes.
 - [ ] **Step 2: Run it.** Expected: FAIL.
 - [ ] **Step 3: Implement it.**
 - [ ] **Step 4: Run it.** Expected: PASS.
@@ -498,12 +691,19 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 **Interfaces:**
 - Produces: `Rollback::run(bool $reactivate_official): array{ok:bool, restored:int}`.
   - It replays the `Journal` in reverse: settings from the intact legacy option, third-party values, gateway order, `payment_method`, and cron.
+  - **Back-sync.** After cutover, writes went to new names only, so new data is always the latest. Rollback therefore copies new → legacy wherever the two differ:
+    - order meta on every order holding any new key;
+    - user meta, including the provenance prefix;
+    - product meta;
+    - the billing-attempts table, with prepared `REPLACE INTO {legacy} SELECT … FROM {new} WHERE id > %d ORDER BY id LIMIT 500` batches over **all** rows, so rows updated after cutover are restored too.
+  - It is batched and resumable through the same runner and cursors as Task 6, and the state stays `cut_over` until back-sync verifies.
   - It transitions to `rolled_back` and, if consented, reactivates the official plugin.
 
 - [ ] **Step 1: Write the failing test** (Review Focus 5).
   - After cutover, an order paid through SUPCheckout (new keys, `payment_method=supcheckout`, status `processing`) gets `payment_method=upayments` back on rollback.
   - It stays `processing`, and its payment ID stays readable through `Keys::read_order_meta()`. Because the payment was written under the new key only, `Rollback` **also copies new → legacy** for keys written after cutover.
   - The test asserts the legacy `UPayments_PaymentID` equals the new value.
+  - **Table back-sync:** a billing-attempt row inserted after cutover, and a pre-existing row whose status changed after cutover, both match in the legacy table after rollback.
 - [ ] **Step 2: Run it.** Expected: FAIL.
 - [ ] **Step 3: Implement it.**
 - [ ] **Step 4: Run it.** Expected: PASS.
@@ -520,7 +720,12 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - legacy order meta copies created **by the official plugin or SUPCheckout**, only where the new key verifies equal;
   - SUPCheckout-owned legacy options;
   - the official plugin's cron events and the `upayments_cron_lock` transient;
-  - the PUC option and cron.
+  - the PUC option and cron;
+  - every `Keys::official_only()` name;
+  - legacy user and product meta, under the same verified-equal rule;
+  - the legacy billing-attempts table, dropped only when the row count and per-row checksums equal the new table's.
+
+  After `finalized`, lock helpers stop dual-acquiring (Task 2).
 
   It **never** removes the legacy callback route, other plugins' data, or the 3.0.0 "Checkout (Block)" page; the page is reported only, and the merchant decides.
 
