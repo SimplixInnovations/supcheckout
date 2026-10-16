@@ -55,7 +55,7 @@
 
 These are the cases most likely to break real stores without any task's unit tests noticing. Each gets a test in the owning task.
 
-1. **A store that activated the pre-rename build** (staging and test stores only, since the plugin was never released): WordPress keeps `supcheckout/UPayments.php` in `active_plugins`. After the update, that file no longer exists, so WordPress drops the entry and shows the plugin as deactivated. No SUPCheckout code can run to warn, so the safety is procedural. → Task 9 adds a CHANGELOG entry and runbook step, plus a release-artifact assertion that the package contains no `UPayments.php`. Task 10 rehearses the reactivation on staging.
+1. **A store that activated the pre-rename build**, including the owner's staging store: WordPress keeps `supcheckout/UPayments.php` in `active_plugins`. If that file disappeared, WordPress would silently deactivate the gateway, and no SUPCheckout code could run to warn. → Task 2b ships a header-less transitional `UPayments.php` shim that moves the active entry to `supcheckout/supcheckout.php` on first load, certified by a real in-place update cell. Task 10 rehearses the update on staging with no reactivation step.
 2. **The official UPayments plugin active at the same time:** with no globals left, both plugins load. SUPCheckout must still pause, because gateway ID `upayments` collides until 0b. → Task 8, coexistence harness re-run.
 3. **Third-party code calling the public compatibility wrapper `getAPIUrlForRetreiveCards()`, or `WC()->payment_gateways()->payment_gateways()['upayments']`:** the method must still exist on the registered gateway object. → Task 3 adds a test.
 4. **Callbacks for in-flight payments arriving during and after the update:** `?wc-api=wc_upayments` must route identically, cache headers included. → Task 3 re-runs `callback-cache-http.sh` and the lifecycle harness.
@@ -381,6 +381,71 @@ final class Plugin {
 git add -A supcheckout.php src/Autoloader.php src/Plugin.php src/Release/Identity.php scripts .github tests
 git commit -m "refactor(bootstrap): rename the main file to supcheckout.php behind a PSR-4 autoloader"
 ```
+
+### Task 2b: Upgrade-safe active-basename migration (transitional shim)
+
+**Why.** Some installs are already active as `supcheckout/UPayments.php`, including the owner's staging store. When the package stops shipping that file, WordPress silently drops the entry and the plugin deactivates. No SUPCheckout code runs to warn, so the payment gateway just disappears from checkout. A changelog note can't prevent that.
+
+Task 2b therefore ships a header-less `UPayments.php` shim. It:
+- moves the active entry to `supcheckout/supcheckout.php` on its first load;
+- then loads the real main file.
+
+**Merge order.** Task 2b ships **in the same PR as Task 2**, as a second commit, so `main` never contains a package without the shim. The shim stays until Sub-project 5. There, the owner confirms every pre-rename install has loaded it once, and only then is it deleted.
+
+**Files:**
+- Create: `UPayments.php`, the shim. Its contents are exactly as written in Step 3, with **no** `Plugin Name` header, so `get_plugins()` never lists it as a second plugin.
+- Create: `src/Bootstrap/BasenameMigration.php`
+- Modify: `src/Gateway/OfficialPluginConflict.php`, which must ignore every entry inside SUPCheckout's own directory (`supcheckout/UPayments.php` is ours, not the official plugin). Its harness gains that case.
+- Modify: `.github/workflows/release-artifact.yml` and `tests/integration/UpgradeCompatibilityTest.php`. Add the in-place update cell described in Step 5.
+- Modify: `tests/harness/release-artifact-harness.php`. The package contains `supcheckout/supcheckout.php` (with a header) **and** `supcheckout/UPayments.php`, which has no `Plugin Name:` header, has at most 12 lines, and only requires `src/Bootstrap/BasenameMigration.php` and `supcheckout.php`.
+- Test: `tests/unit/Bootstrap/BasenameMigrationTest.php`
+
+**Interfaces:**
+- Produces: `Simplixi\SUPCheckout\Bootstrap\BasenameMigration::run(string $shim_file): bool`. It returns true when it changed an option. It is idempotent and makes no network calls.
+
+- [ ] **Step 1: Write the failing unit tests**, using an in-memory option store.
+  - **Single site:** `active_plugins` is `['akismet/akismet.php', 'supcheckout/UPayments.php']`. It becomes `['akismet/akismet.php', 'supcheckout/supcheckout.php']`, keeping its position and with no duplicate.
+  - **Both present.** This can happen after the WordPress upgrader reactivates the new main file. The shim entry is removed and the main entry is kept once.
+  - **Network:** in `active_sitewide_plugins`, the key `supcheckout/UPayments.php` becomes `supcheckout/supcheckout.php` with the same timestamp value.
+  - **Only our entries move.** `upayments/UPayments.php` (the official plugin) and `other/UPayments.php` stay untouched.
+  - **Idempotence:** a second run returns false and writes nothing.
+- [ ] **Step 2: Run them.**
+  - Run: `vendor/bin/phpunit --filter BasenameMigrationTest`
+  - Expected: FAIL, with the class not found.
+- [ ] **Step 3: Implement it.**
+  - `run()` derives the directory from `plugin_basename($shim_file)`, which is the directory name, so it is never hard-coded to `supcheckout`.
+  - It writes with `update_option` and `update_site_option`, only when the value changes.
+  - The shim:
+
+```php
+<?php
+// Transitional bootstrap for installs activated before the main file became supcheckout.php.
+// No plugin header on purpose: it is never listed as a second plugin. It moves this
+// install's active entry to supcheckout.php once, then loads the real main file.
+defined('ABSPATH') || exit;
+require_once __DIR__ . '/src/Bootstrap/BasenameMigration.php';
+\Simplixi\SUPCheckout\Bootstrap\BasenameMigration::run(__FILE__);
+require_once __DIR__ . '/supcheckout.php';
+```
+
+  - Loading is idempotent. WordPress loads plugins with `include_once`, and the shim uses `require_once`, so `supcheckout.php` loads once even when both entries are active in the same request.
+- [ ] **Step 4: Run every suite.**
+  - All suites pass.
+  - The Task 1 public-surface snapshot boots both main files and must report identical surfaces. That mode already exists.
+  - The coexistence harness must pass with our shim present while the official plugin is inactive (no false pause).
+- [ ] **Step 5: Add the real-WordPress in-place update cell.** In the release-artifact migration job:
+  1. Install the pre-0a package (current `main` before Task 2), active as `supcheckout/UPayments.php`, and seed merchant state with the existing `seed-existing` phase.
+  2. Overwrite it in place with the new package using `wp plugin install <zip> --force`, **without deactivating**.
+  3. Run one plain request (`wp eval '1;'`), then `wp eval` on `wp-admin/plugins.php`-equivalent validation (`validate_active_plugins()`).
+  4. Assert all of the following:
+     - `is_plugin_active('supcheckout/supcheckout.php')`;
+     - no `supcheckout/UPayments.php` in `active_plugins`;
+     - the `upayments` gateway is registered;
+     - the canonical `upay_process_subscriptions` timestamp is unchanged;
+     - settings are byte-identical and order meta is intact (the existing `verify-canonical` assertions).
+
+  Add a network-activated variant if the migration job has a multisite lane; if it has none, record that as a known gap in the PR ledger.
+- [ ] **Step 6: Commit.** `fix(bootstrap): migrate the active basename to supcheckout.php without a silent deactivation`
 
 ### Task 3: Move the gateway class out of the main file
 
@@ -731,9 +796,8 @@ git commit -m "test(coexistence): official plugin namespaces and globals never c
 
 **Files:**
 - Modify:
-  - `CHANGELOG.md` (an entry stating that builds activated before the rename must be reactivated once);
-  - `docs/project/STAGING-FROM-PRODUCTION.md` (a reactivation step);
-  - `tests/harness/release-artifact-harness.php` (the package contains `supcheckout/supcheckout.php` and no `UPayments.php`);
+  - `CHANGELOG.md` (an entry: the main file is now `supcheckout.php`, and pre-rename installs migrate automatically on their next load through the transitional shim from Task 2b);
+  - `docs/project/STAGING-FROM-PRODUCTION.md` (a check that `supcheckout/supcheckout.php` is active after the update);
   - `docs/project/NAMING-IDENTITY-STANDARD.md` ("Physical bootstrap decision" replaced by the new decision and its date);
   - `AGENTS.md` (the "First-stable bootstrap exception" section replaced; the protected-identity list unchanged in 0a);
   - `docs/project/RELEASE-ENGINEERING.md`;
@@ -743,39 +807,37 @@ git commit -m "test(coexistence): official plugin namespaces and globals never c
 **Interfaces:**
 - Consumes: the package built by `scripts/build-release.sh`.
 
-**Why there is no runtime guard:** a store still listing `supcheckout/UPayments.php` cannot load any SUPCheckout code, because that file no longer exists, so nothing could display a warning. WordPress drops the missing entry and reports the plugin as deactivated. Only staging and test installs ever ran the old name.
+**Runtime guard:** Task 2b's shim. Its package assertions live in Task 2b; this task only records the decision in the living docs and the changelog.
 
 - [ ] **Step 1: Write the failing release assertions** in `tests/harness/release-artifact-harness.php`, next to the existing package-content checks:
 
 ```php
-release_assert(in_array('supcheckout/supcheckout.php', $package_files, true), 'package main file is supcheckout/supcheckout.php');
-release_assert(!in_array('supcheckout/UPayments.php', $package_files, true), 'package never ships the pre-rename UPayments.php');
-release_assert(strpos((string) file_get_contents($root . '/CHANGELOG.md'), 'reactivate') !== false, 'CHANGELOG tells pre-rename installs to reactivate once');
+release_assert(strpos((string) file_get_contents($root . '/CHANGELOG.md'), 'supcheckout.php') !== false, 'CHANGELOG records the main-file rename and the automatic migration');
 ```
 
 `$package_files` is the list of archive entries the harness already builds. Reuse its existing variable name if it differs.
 
 - [ ] **Step 2: Run it.**
   - Run: `php tests/harness/release-artifact-harness.php`
-  - Expected: FAIL on the CHANGELOG assertion. The file assertions already pass after Task 2.
+  - Expected: FAIL on the CHANGELOG assertion.
 - [ ] **Step 3: Add the CHANGELOG entry and the runbook step.**
   - CHANGELOG, under Unreleased:
 
-    > The main file is now `supcheckout.php`. Builds activated before this change (staging and test installs) appear deactivated after updating; reactivate SUPCheckout once on the Plugins screen. No data changes.
+    > The main file is now `supcheckout.php`. Installs activated before this change keep working: on their next page load a transitional bootstrap moves the active entry to `supcheckout.php`. No reactivation, no data changes.
 
-  - `STAGING-FROM-PRODUCTION.md`: add the matching reactivation step after the upload step.
+  - `STAGING-FROM-PRODUCTION.md`: after the upload step, check that the Plugins screen shows SUPCheckout active.
 - [ ] **Step 4: Run it.** Expected: PASS.
 - [ ] **Step 5: Update the living docs.**
   - In `AGENTS.md`, replace the "First-stable bootstrap exception" section with:
 
-    > `supcheckout/supcheckout.php` is the main file since Sub-project 0a (owner decision 2026-10-16, pre-release). Builds activated as `supcheckout/UPayments.php` must be reactivated once.
+    > `supcheckout/supcheckout.php` is the main file since Sub-project 0a (owner decision 2026-10-16, pre-release). A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it.
 
   - Apply the matching edits to `NAMING-IDENTITY-STANDARD.md` and `RELEASE-ENGINEERING.md`.
 - [ ] **Step 6: Commit.**
 
 ```bash
 git add -A
-git commit -m "docs(release): record the main-file rename and the one-time reactivation"
+git commit -m "docs(release): record the main-file rename and the automatic basename migration"
 ```
 
 ### Task 10: Real-WordPress certification and staging rehearsal

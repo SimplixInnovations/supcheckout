@@ -36,7 +36,8 @@ All code reads identities through one `Keys` registry with legacy fallback, so c
 - **Payment authority:** paid state still comes only from authenticated UPayments status. The takeover never marks, unmarks or re-verifies payments.
 
 **Out of scope**
-- **Saved cards** are not copied. They live at UPayments under four phone-derived token formulas (inventory hazard 2). SUPCheckout keeps re-deriving and re-verifying them live, exactly as today.
+- **Saved cards.** The cards themselves stay at UPayments and are never copied. They live under four phone-derived token formulas (inventory hazard 2), and SUPCheckout keeps re-deriving and re-verifying them live, exactly as today. SUPCheckout's own **H12 ownership provenance** for those cards *is* migrated: the `_upay_customer_token_v2_b{blog}_{scope}` user meta and the token-identity secret (Tasks 1, 6 and 7, plus the pre-0b SUPCheckout lane in Task 12). Otherwise upgraded SUPCheckout customers would fail closed on saved-card access.
+- **Historical `payment_method` is never rewritten.** Orders created before cutover keep `payment_method=upayments` forever (inventory hazard), so reports, integrations and custom queries that select on it keep working. Runtime code recognises both identities through `Keys::is_our_gateway(string $id): bool` (true for `upayments` and `supcheckout`). Only orders created after cutover carry `supcheckout`.
 - **The official plugin's `debug.log`** is never read into, copied or included in reports beyond "present: yes/no plus a path".
 
 **Gates**
@@ -103,7 +104,8 @@ The identity audit (2026-10-16) checked the working tree against the inventory. 
   - `Keys::meta_names(string $legacy): array{0:string,1:string}`, returning `[new, legacy]` for `meta_query` OR clauses and hook key checks. It throws on an unclassified name.
   - `Keys::read_order_meta(\WC_Order $order, string $legacy)`: the new value, else the legacy value, else `''`;
   - `Keys::write_key(string $legacy): string`: new after cutover, else legacy;
-  - `Keys::table(string $legacy): string`: the prefixed table in use right now.
+  - `Keys::table(string $legacy): string`: the prefixed table in use right now;
+  - `Keys::is_our_gateway(string $id): bool`: true for `upayments` and `supcheckout`. Every order-ownership comparison uses it, because historical orders are never rewritten.
 
 - [ ] **Step 1: Write the failing test.**
 
@@ -395,6 +397,16 @@ final class Keys {
         return $wpdb->prefix . (TakeoverState::is_cut_over() ? self::tables()[$legacy] : $legacy);
     }
 
+    /**
+     * Historical orders keep payment_method 'upayments' forever; new ones get 'supcheckout'.
+     *
+     * @param string $id An order's payment_method or a gateway id.
+     * @return bool True for either SUPCheckout identity.
+     */
+    public static function is_our_gateway($id) {
+        return in_array($id, array(self::GATEWAY_LEGACY, self::GATEWAY), true);
+    }
+
     private function __construct() {}
 }
 ```
@@ -554,7 +566,7 @@ public function test_official_debug_log_is_reported_by_path_only(): void {
   - `OrderCopier::verify(\WC_Order $order): array{ok:bool, mismatches:list<string>}`.
 - Behavior:
   - legacy keys stay;
-  - `payment_method` changes from `upayments` to `supcheckout` **only in `Cutover`** (Task 7), never here.
+  - `payment_method` is never changed by the copier or by Cutover (see Global Constraints).
 
 - [ ] **Step 1: Write the failing tests.**
   - **Multi-valued `UPayments_WHS`** (Review Focus 2): two rows `failed` and `completed` result in two new rows with the same values in the same order, and `verify()` returns `ok`.
@@ -575,8 +587,9 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 - [ ] **Step 2: Run them.** Expected: FAIL.
 - [ ] **Step 3: Implement it.**
-  - Read all values per key with `$order->get_meta($legacy, false)`, which returns every row.
-  - Add each value under the new key with `add_meta_data($new, $value)`, and end with a single `$order->save()`.
+  - Read all rows per key with `$order->get_meta($legacy, false)`. On a real `WC_Order` this returns `WC_Meta_Data` objects, not values, so unwrap each with `$meta->value`. Never pass the object itself to `add_meta_data()`, because that would persist a serialized object instead of the payment identifier.
+  - Add each unwrapped value under the new key with `add_meta_data($new, $value)`, and end with a single `$order->save()`.
+  - `OrderCopierFixtures` must return `WC_Meta_Data`-shaped objects from `get_meta($key, false)`, exactly like WooCommerce. Add a test asserting the copied new-key value is the original scalar string (`'pay-1'`), not an object or a serialized blob.
   - Skip when the new key already holds an identical value list.
 - [ ] **Step 4: Run them.** Expected: PASS.
 - [ ] **Step 5: Commit.** `feat(takeover): per-order copy and verify`
@@ -629,7 +642,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   1. copy settings from the first non-empty `Keys::settings_sources()` entry to `woocommerce_supcheckout_settings`, and the `Keys::options()` values verbatim (including the token-identity secret, so H12 provenance hashes stay valid);
   2. translate `woocommerce_gateway_order`, the `woocommerce_default_gateway` value, WCML gateway country/currency rules and FunnelKit gateway lists (each recorded in the `Journal`);
   3. reschedule the `Keys::cron_hooks()` events to the new names. Old events are kept until Finalize, and their callbacks stay registered as aliases. Already-canonical hooks (`supcheckout_reconciliation_sweep`, `supcheckout_process_due_parent`) are left alone;
-  4. bulk-set `payment_method=supcheckout` on copied orders, journaling the before value;
+  4. register the gateway under `supcheckout` for new orders, and make every runtime check that compares an order's gateway use `Keys::is_our_gateway()`. This covers the callback/lifecycle ownership checks, the subscription parent and renewal selection queries (`payment_method IN ('upayments','supcheckout')`), admin presentation and the Blocks/Store API. Historical orders are **not** rewritten. Test: after cutover, a pre-switch `upayments` subscription parent still renews through SUPCheckout, and a pre-switch pending order is still paid by its callback;
   5. transition to `cut_over`;
   6. if consented, deactivate the official plugin with `deactivate_plugins()`.
 
@@ -665,6 +678,11 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 **Files:**
 - Create: `src/Takeover/Cli.php`, registered as `wp supcheckout takeover`.
+- Create: `src/Takeover/PausedBoot.php`. The takeover's primary scenario is the official plugin being active, and then SUPCheckout's bootstrap returns from `OfficialPluginConflict::pause_if_active()` before `Plugin::boot()`. So the CLI must not depend on the full runtime. On the paused branch, the main file calls `PausedBoot::boot()`, which registers only:
+  - the `wp supcheckout takeover` command, when `WP_CLI` is defined;
+  - the 0c onboarding/preflight admin entry point.
+
+  It loads only `Simplixi\SUPCheckout\Takeover\*` classes and the read-only services they need. It registers no gateway, no Blocks method, no `woocommerce_api_*` route, no cron hook and no global symbol, so it can never collide with the official plugin. `run` deactivates the official plugin, and the full runtime boots on the next request.
 - Test: `tests/integration/TakeoverCliTest.php` (real WordPress, CI).
 
 **Interfaces:**
@@ -676,7 +694,14 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - `finalize [--yes] [--force-after-review]`.
 - Exit codes: `0` ok, `2` blocked by preflight, `3` verification mismatch.
 
-- [ ] **Step 1: Write the failing integration test.** It seeds the official 3.1.1 data shape with two orders and the settings option, runs `preflight`, then `run --yes`, and asserts state `cut_over`, the new keys present and the legacy keys intact.
+- [ ] **Step 1: Write the failing integration test.** With the **official 3.1.1 plugin active**, SUPCheckout is activated and therefore paused. The test:
+  - asserts `wp supcheckout takeover preflight` is available and runs;
+  - asserts no `upayments` gateway, route or cron registration came from SUPCheckout's paused boot (the official plugin owns them);
+  - seeds two orders and the settings option;
+  - runs `run --yes --deactivate-official`;
+  - asserts state `cut_over`, the new keys present and the legacy keys intact.
+
+  Also extend `official-plugin-coexistence-harness.php`: the paused branch registers exactly the takeover CLI/admin entry point and nothing else.
 - [ ] **Step 2: Run it.** Expected: FAIL.
 - [ ] **Step 3: Implement it.**
 - [ ] **Step 4: Run it.** Expected: PASS.
@@ -690,7 +715,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 **Interfaces:**
 - Produces: `Rollback::run(bool $reactivate_official): array{ok:bool, restored:int}`.
-  - It replays the `Journal` in reverse: settings from the intact legacy option, third-party values, gateway order, `payment_method`, and cron.
+  - It replays the `Journal` in reverse: settings from the intact legacy option, third-party values, gateway order and cron. It also rewrites `payment_method` from `supcheckout` to `upayments` on post-cutover orders only.
   - **Back-sync.** After cutover, writes went to new names only, so new data is always the latest. Rollback therefore copies new → legacy wherever the two differ:
     - order meta on every order holding any new key;
     - user meta, including the provenance prefix;
@@ -700,7 +725,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - It transitions to `rolled_back` and, if consented, reactivates the official plugin.
 
 - [ ] **Step 1: Write the failing test** (Review Focus 5).
-  - After cutover, an order paid through SUPCheckout (new keys, `payment_method=supcheckout`, status `processing`) gets `payment_method=upayments` back on rollback.
+  - After cutover, an order **created** through SUPCheckout (new keys, `payment_method=supcheckout`, status `processing`) gets `payment_method=upayments` on rollback. This is the only `payment_method` write the takeover ever makes; it is journaled, and it is needed so the reactivated official plugin recognises the order. Pre-switch orders were never rewritten, so they need nothing.
   - It stays `processing`, and its payment ID stays readable through `Keys::read_order_meta()`. Because the payment was written under the new key only, `Rollback` **also copies new → legacy** for keys written after cutover.
   - The test asserts the legacy `UPayments_PaymentID` equals the new value.
   - **Table back-sync:** a billing-attempt row inserted after cutover, and a pre-existing row whose status changed after cutover, both match in the legacy table after rollback.
@@ -757,10 +782,22 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 3. activate SUPCheckout (it pauses);
 4. `wp supcheckout takeover preflight`, which must not report `blocking`;
 5. `run --yes --deactivate-official`;
-6. assert every order verifies, `payment_method=supcheckout`, the WCML restriction is under `supcheckout`, and a legacy-route webhook for the pending order pays it once;
+6. assert:
+   - every order verifies;
+   - historical orders still have `payment_method=upayments`;
+   - a new order placed after cutover has `supcheckout`;
+   - the WCML restriction is under `supcheckout`;
+   - a legacy-route webhook for the pending order pays it once;
+   - the pre-switch subscription parent renews through SUPCheckout;
 7. interrupt-and-resume: kill the runner mid-batch, re-run, and assert equality;
 8. `rollback --yes`, then assert every pre-switch value is restored byte-for-byte (journal-backed) and paid orders are still paid;
 9. `run` again, set time +31 days, `finalize --yes`, and assert the legacy keys are removed only where verified.
+
+**Plus a pre-0b SUPCheckout lane** (no official plugin). Install the last pre-0b SUPCheckout package, then:
+- seed a customer with an H12-provenanced saved card (`_upay_customer_token_v2_b1_<scope>`, created through the real `CustomerTokenIdentity` path), a subscription parent, the billing-attempts table and the migration ledgers;
+- update in place to the 0b package and run the takeover;
+- assert that saved-card access for that customer still verifies under the new names (provenance and secret copied);
+- assert the renewal still claims its cycle in `supcheckout_billing_attempts`, and that rollback and run again leave the same result.
 
 **Plus a 10,000-order cell** (legacy storage, 3.1.1) that asserts the copy completes within the CI budget and no batch exceeds 50 orders.
 
