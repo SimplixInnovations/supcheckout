@@ -6089,6 +6089,14 @@ upay_assert_eq(count($blocks_saved_cards) >= 1 ? ($blocks_saved_cards[0]['label'
 upay_assert_eq(count($blocks_saved_cards) >= 1 ? array_key_exists('number', $blocks_saved_cards[0]) : true, false, 'BLOCKS-SAN-3b raw provider number never enters Blocks settings', 'semantic_runtime');
 upay_assert_eq(count($blocks_saved_cards) >= 1 ? array_key_exists('last4', $blocks_saved_cards[0]) : true, false, 'BLOCKS-SAN-3c provider last4 source never enters Blocks settings', 'semantic_runtime');
 upay_assert_eq(count($blocks_saved_cards) >= 1 ? $blocks_saved_cards[0]['brand'] : null, 'Visa', 'BLOCKS-SAN-4 brand preserved', 'semantic_runtime');
+// The Cart block also builds payment-method data but never shows saved cards:
+// it must not pay for the blocking provider retrieval.
+$state['is_checkout'] = false;
+$blocks_cart_calls_before = $blocks_gw->saved_cards_calls;
+$blocks_cart_data = (new WCGatewayUPaymentsBlocks_Testable('', $blocks_gw))->get_payment_method_data();
+upay_assert_eq($blocks_gw->saved_cards_calls - $blocks_cart_calls_before, 0, 'BLOCKS-SAN-5 non-checkout pages (Cart block) never retrieve saved cards', 'semantic_runtime');
+upay_assert_eq($blocks_cart_data['saved_cards'] ?? null, array(), 'BLOCKS-SAN-6 non-checkout pages expose no saved cards', 'semantic_runtime');
+$state['is_checkout'] = true;
 
 // Classic presentation must render hostile provider data without exposing any
 // PAN group outside the final four. This executes the real template rather
@@ -7632,7 +7640,7 @@ $_expected_family_baseline = array(
     'SP-SAVE-CARD'        => 24,
     'SP-SELECTED'         => 20,
     'SP-MISMATCH'         => 15,
-    'BLOCKS-SAN'          => 8,
+    'BLOCKS-SAN'          => 10,
     'CLASSIC-PAN'         => 7,
     'MALFORMED-CARD'      => 56,
     'HOSTILE'             => 3,
@@ -7659,13 +7667,13 @@ $_expected_family_baseline = array(
 //   PROBE-RECOVERY (§5):     2 snapshot/restoration assertions =  2
 //                                                   TOTAL       = 21
 $_expected_categories = array(
-    'semantic_runtime'    => 377,
+    'semantic_runtime'    => 379,
     'helper_unit_runtime' => 854,
     'static_source'       => 46,
     'harness_self_test'   => 662,    // 641 baseline + 21 §4/§5/§7 probes
     'lint_tooling'        => 10,
 );
-$_expected_total_pass    = 1949;    // 377 + 854 + 46 + 662 + 10
+$_expected_total_pass    = 1951;    // 379 + 854 + 46 + 662 + 10
 $_expected_total_fail    = 0;
 $_family_mismatch        = 0;
 $_category_mismatch      = 0;

@@ -387,7 +387,7 @@ function wc_clear_notices() {}
 function wc_get_logger() { return new class { public function __call($n, $a) {} }; }
 function wc_format_decimal($value, $decimals = 2) { return number_format((float) $value, $decimals, '.', ''); }
 function wc_get_page_permalink($page) { return 'https://example.test/' . $page . '/'; }
-function is_checkout() { return true; }
+function is_checkout() { $state = upay_test_state(); return isset($state['is_checkout']) ? (bool) $state['is_checkout'] : true; }
 function is_wc_endpoint_url() { return false; }
 function get_locale() { return 'en_US'; }
 function get_woocommerce_currency() { return 'KWD'; }

@@ -192,6 +192,12 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
                 }
             }
 
+            // The Cart block builds this data too but never shows saved cards; skip the
+            // blocking provider retrieval anywhere but the checkout page.
+            if ( $can_retrieve_saved_cards && function_exists( 'is_checkout' ) && ! is_checkout() ) {
+                $can_retrieve_saved_cards = false;
+            }
+
             if ( $can_retrieve_saved_cards ) {
                 $savedCards = $this->gateway->getSavedCardsForCurrentUser( $availability );
                 if (is_array($savedCards)
