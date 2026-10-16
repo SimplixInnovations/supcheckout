@@ -74,6 +74,12 @@ if ('verify' === $phase) {
     supcheckout_cert_assert(is_array($gateways), 'WooCommerce returns a real payment gateway registry');
     supcheckout_cert_assert(isset($gateways['upayments']), 'Classic gateway ID upayments is registered');
     supcheckout_cert_assert($gateways['upayments'] instanceof \Simplixi\SUPCheckout\Gateway\Gateway, 'registered Classic gateway is the SUPCheckout gateway instance');
+    // Third parties call the public compatibility wrapper on the registered object.
+    supcheckout_cert_assert(
+        is_callable(array($gateways['upayments'], 'getAPIUrlForRetreiveCards'))
+            && substr((string) $gateways['upayments']->getAPIUrlForRetreiveCards(), -strlen('retrieve-customer-cards')) === 'retrieve-customer-cards',
+        'registered gateway keeps the public getAPIUrlForRetreiveCards() compatibility wrapper'
+    );
 
     supcheckout_cert_note('activation and Classic gateway certification complete');
     return;

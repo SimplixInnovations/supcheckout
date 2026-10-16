@@ -228,6 +228,32 @@ foreach (array('no' => $liveBase, 'yes' => $sandboxBase, '' => $liveBase) as $se
     );
 }
 
+// Third parties reach the public compatibility wrapper through WooCommerce's
+// registry: WC()->payment_gateways()->payment_gateways()['upayments']. Mirror
+// WC_Payment_Gateways::init() (instantiate each registered class name) and
+// payment_gateways() (key by gateway ID) on the real GatewayRegistration output.
+$registry = array();
+foreach (\Simplixi\SUPCheckout\Gateway\GatewayRegistration::filter_gateways(array()) as $registeredClass) {
+    $registeredGateway = is_string($registeredClass) ? new $registeredClass() : $registeredClass;
+    $registry[$registeredGateway->id] = $registeredGateway;
+}
+arch4_assert(
+    isset($registry['upayments']) && $registry['upayments'] instanceof \Simplixi\SUPCheckout\Gateway\Gateway,
+    'WooCommerce registry key upayments returns the SUPCheckout gateway object'
+);
+$wrapper = new ReflectionMethod('Simplixi\SUPCheckout\Gateway\Gateway', 'getAPIUrlForRetreiveCards');
+arch4_assert(
+    $wrapper->isPublic() && !$wrapper->isStatic(),
+    'public compatibility wrapper getAPIUrlForRetreiveCards() stays a public instance method'
+);
+if (isset($registry['upayments'])) {
+    $registry['upayments']->testMode = 'yes';
+    arch4_assert(
+        $registry['upayments']->getAPIUrlForRetreiveCards() === $sandboxBase . 'retrieve-customer-cards',
+        'registered gateway object answers getAPIUrlForRetreiveCards()'
+    );
+}
+
 $resolverSource = file_get_contents(dirname(__DIR__, 2) . '/src/Provider/EndpointResolver.php');
 // The gateway source is the main file plus the gateway class it registers
 // (src/Gateway/Gateway.php since Sub-project 0a Task 3).
