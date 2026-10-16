@@ -594,6 +594,22 @@ function woocommerceUpaymentsInit() {
         }
 
         // Frontend payment fields (must use feature flags for design)
+        /**
+         * Classic pre-check before WooCommerce creates the order.
+         */
+        public function validate_fields() {
+            // Blocks (Store API) sends the method in the JSON body; process_payment() checks it.
+            if (CheckoutPayload::is_store_api_checkout_request()) {
+                return true;
+            }
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- WooCommerce verifies the checkout nonce before calling validate_fields().
+            if (CheckoutPayload::classic_method_selected($this->getPaymentIcons(), wp_unslash($_POST))) {
+                return true;
+            }
+            wc_add_notice(__('Please choose how you would like to pay.', 'supcheckout'), 'error');
+            return false;
+        }
+
         public function payment_fields() {
             $save_card_enabled = ($this->get_option('enable_save_card') === 'yes');
             $template_args = array('gateway' => $this, 'save_card_enabled' => $save_card_enabled);

@@ -287,6 +287,52 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertSame(array(42), $GLOBALS['supcheckout_test_wc_get_order_calls']);
     }
 
+    public function test_classic_one_time_purchase_accepts_the_unfilled_interval_select(): void {
+        // The interval select posts '' until subscription-checkout.js fills it in;
+        // a delayed or blocked script must not block a one-time purchase.
+        $_POST = array('upay_subscription_plan' => 'one_time', 'upay_subscription_interval' => '');
+        $gateway = new CheckoutOrchestratorGateway();
+        $GLOBALS['supcheckout_test_status_orders'][42] = new \WC_Order(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('simple'))));
+        $charges = 0;
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route) use (&$charges) {
+                if ($route === 'charge') {
+                    $charges++;
+                }
+                return array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $orchestrator->process(42);
+
+        self::assertSame(1, $charges, 'a one-time purchase reaches the Charge request');
+        self::assertNotContains(array('Please select a valid Billing Interval.', 'error'), $GLOBALS['supcheckout_test_subscription_presentation']['notices']);
+    }
+
+    public function test_classic_subscription_plan_still_rejects_an_empty_interval(): void {
+        $_POST = array('upay_subscription_plan' => 'monthly', 'upay_subscription_interval' => '');
+        $gateway = new CheckoutOrchestratorGateway();
+        $GLOBALS['supcheckout_test_status_orders'][42] = new \WC_Order(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('custom_type', 7))));
+        $charges = 0;
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route) use (&$charges) {
+                if ($route === 'charge') {
+                    $charges++;
+                }
+                return array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        self::assertSame('failure', $orchestrator->process(42)['result']);
+        self::assertSame(0, $charges);
+    }
+
     public function test_classic_rejects_explicitly_opted_out_subscription_product_before_provider_request(): void {
         $_POST = array(
             'upay_subscription_plan' => 'monthly',

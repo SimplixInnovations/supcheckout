@@ -542,7 +542,12 @@ class CheckoutOrchestrator {
                         wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                         return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                     }
-                    $subscription_interval = CheckoutPayload::parse_interval(wp_unslash($classic_post['upay_subscription_interval']));
+                    $raw_interval = wp_unslash($classic_post['upay_subscription_interval']);
+                    // The interval select posts '' until subscription-checkout.js fills it in; for
+                    // a one-time purchase that simply means "no interval". Real plans stay strict.
+                    $subscription_interval = ($raw_interval === '' && $subscription_plan === 'one_time')
+                        ? 0
+                        : CheckoutPayload::parse_interval($raw_interval);
                 }
             }
 
