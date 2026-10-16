@@ -812,6 +812,80 @@ namespace {
     same(count($order->notes), 1, 'R2b hostile-track exhaustion adds one note');
     ok(isset($order->notes[0]) && strpos($order->notes[0], '<a') === false, 'R2b exhaustion note never carries markup from a callback track');
     ok(isset($order->notes[0]) && strpos($order->notes[0], '&lt;a/href=//evil.example&gt;') !== false, 'R2b exhaustion note shows the track as escaped text');
+
+    // R4: races between provider verification and the order lock. The mutator runs
+    // just before OrderLock's INSERT, i.e. after this callback verified its track.
+    // R4a: another track completes the order first; this second CAPTURED is a
+    // duplicate charge and must be recorded, not dropped as "already verified".
+    list($gateway, $order) = reset_fixture(610);
+    set_provider_transaction(transaction_for($order, 'CAPTURED', 'track-2', 'pay-2'));
+    \Simplixi\SUPCheckout\Payment\state()['db_query_mutator'] = function () use ($order) {
+        $order->meta['_upay_verified_capture'] = '1';
+        $order->meta['UPayments_TrackID'] = 'track-1';
+        $order->transaction_id = 'pay-1';
+        $order->status = 'processing';
+    };
+    PaymentLifecycle::route_callback($gateway, $order, 'track-2', 'merchant-order-610', 'webhook');
+    $dup_notes = array_values(array_filter($order->notes, function ($note) { return strpos($note, 'pay-2') !== false; }));
+    same(count($dup_notes), 1, 'R4a a second capture landing just after the first is recorded as a duplicate charge');
+    same($order->get_transaction_id(), 'pay-1', 'R4a the canonical transaction is unchanged');
+
+    // R4b: another track became the trusted cursor first (still pending); this
+    // track's verified CAPTURED must go to the secondary path and complete the order.
+    list($gateway, $order) = reset_fixture(611);
+    set_provider_transaction(transaction_for($order, 'CAPTURED', 'track-2', 'pay-2'));
+    \Simplixi\SUPCheckout\Payment\state()['db_query_mutator'] = function () use ($order) {
+        $order->meta['_simplixpay_upayments_status_track_v1'] = 'track-1';
+        $order->meta['_simplixpay_upayments_status_requested_v1'] = 'merchant-order-611';
+    };
+    PaymentLifecycle::route_callback($gateway, $order, 'track-2', 'merchant-order-611', 'webhook');
+    same($order->get_status(), 'processing', 'R4b a verified capture on a second track of the same attempt is not lost to a cursor conflict');
+    same($order->get_transaction_id(), 'pay-2', 'R4b the order records the captured payment');
+
+    // R5: reconciliation that finds the attempt rotated must not forget the
+    // pending verification of the earlier attempt.
+    list($gateway, $order) = reset_fixture(612);
+    $order->meta['_simplixpay_upayments_unverified_track_v1'] = 'track-a';
+    $order->meta['_simplixpay_upayments_unverified_requested_v1'] = 'merchant-order-612';
+    $rotate($order, 'merchant-order-612-b');
+    \Simplixi\SUPCheckout\Payment\state()['scheduled'] = array();
+    PaymentLifecycle::reconcile_order(612);
+    $pending = $order->get_meta('_simplixpay_upayments_secondary_pending_v1');
+    ok(is_array($pending) && count($pending) === 1 && $pending[0]['track'] === 'track-a' && $pending[0]['requested'] === 'merchant-order-612', 'R5 the rotated attempt\'s track is queued for secondary verification');
+    ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_secondary', array(612)) !== false, 'R5 secondary verification is scheduled');
+    // R6: a secondary capture WooCommerce cannot record (a payment_complete hook
+    // throws) is queued and retried, not silently dropped.
+    list($gateway, $order) = reset_fixture(613);
+    $rotate($order, 'merchant-order-613-b');
+    set_provider_transaction($prior_tx($order, 'merchant-order-613', 'CAPTURED', 'track-a', 'pay-a'));
+    \Simplixi\SUPCheckout\Payment\state()['filters']['woocommerce_payment_complete_order_status'][] = array(function () { throw new \RuntimeException('third-party hook failure'); }, 10, 1);
+    \Simplixi\SUPCheckout\Payment\state()['scheduled'] = array();
+    PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-a', 'merchant-order-613', 'webhook');
+    $pending = $order->get_meta('_simplixpay_upayments_secondary_pending_v1');
+    ok(is_array($pending) && count($pending) === 1 && $pending[0]['track'] === 'track-a', 'R6 an unrecordable secondary capture is queued for retry');
+    ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_secondary', array(613)) !== false, 'R6 the retry is scheduled');
+    \Simplixi\SUPCheckout\Payment\state()['filters'] = array();
+    \Simplixi\SUPCheckout\Payment\state()['scheduled'] = array();
+    PaymentLifecycle::reconcile_secondary(613);
+    same($order->get_status(), 'processing', 'R6 the retry completes the order once the hook recovers');
+
+    // R7: a webhook that queues another track while reconciliation is mid-run must
+    // not have its entry overwritten by the reconciliation's final write.
+    list($gateway, $order) = reset_fixture(614);
+    $rotate($order, 'merchant-order-614-b');
+    $order->meta['_simplixpay_upayments_secondary_pending_v1'] = array(array('track' => 'track-a', 'requested' => 'merchant-order-614'));
+    \Simplixi\SUPCheckout\Payment\state()['remote_response'] = array('code' => 500, 'body' => '');
+    \Simplixi\SUPCheckout\Payment\state()['db_query_mutator'] = function () use ($gateway, $order) {
+        // Disarm first: the simulated webhook makes database calls of its own.
+        \Simplixi\SUPCheckout\Payment\state()['db_query_mutator'] = null;
+        PaymentLifecycle::process_secondary_capture($gateway, $order, 'track-b', 'merchant-order-614', 'webhook');
+    };
+    \Simplixi\SUPCheckout\Payment\state()['scheduled'] = array();
+    PaymentLifecycle::reconcile_secondary(614);
+    $pending = $order->get_meta('_simplixpay_upayments_secondary_pending_v1');
+    $tracks = is_array($pending) ? array_map(function ($entry) { return $entry['track']; }, $pending) : array();
+    sort($tracks);
+    same($tracks, array('track-a', 'track-b'), 'R7 a track queued during reconciliation survives its final write');
     // R3: an authenticated capture that cannot bind to the current order economics is surfaced once.
     list($gateway, $order) = reset_fixture(596);
     $rotate($order, 'merchant-order-596-b');
