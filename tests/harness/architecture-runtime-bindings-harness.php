@@ -1094,8 +1094,10 @@ arch2_assert($gateway !== '', 'supcheckout.php is readable');
 arch2_assert(!arch2_has_namespace_declaration($gatewayTokens), 'legacy main file remains in the global namespace');
 arch2_assert(
     $pluginBoot['found']
-        && $compactBody($pluginBoot['body']) === 'if(self::$main_file!==null){return;}self::$main_file=(string)$main_file;GatewayRegistration::register();',
-    'Plugin::boot is the idempotent composition root that registers the gateway bindings'
+        && $compactBody($pluginBoot['body']) === 'if(self::$main_file!==null){return;}self::$main_file=(string)$main_file;GatewayRegistration::register();'
+            . 'Requirements::register();WooCommerceDeclarations::register();PaymentMethodRegistration::register();'
+            . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();',
+    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook'
 );
 arch2_assert(
     $registrationRegister['found']
@@ -1114,10 +1116,33 @@ arch2_assert(
         && $compactBody($registrationAvailable['body']) === 'returnAvailability::filter($gateways);',
     'availability registration callback directly delegates only to Gateway Availability'
 );
-arch2_assert(
-    strpos($subscriptionComposition, "add_action('woocommerce_process_product_meta', 'saveCustomFieldData')") !== false,
-    'subscription product-meta registration retains its legacy callback identity in the A4 composition boundary'
+// Sub-project 0a Task 4: the global saveCustomFieldData() is now the public static
+// ProductTypeHooks::saveCustomFieldData(), registered through the A4 composition boundary.
+$productTypeHooksRegister = arch2_direct_public_method(
+    arch2_class_body_tokens(arch2_tokens(arch2_read($root, 'src/Subscription/ProductTypeHooks.php')), 'ProductTypeHooks'),
+    'register'
 );
+arch2_assert(
+    strpos($subscriptionComposition, 'ProductTypeHooks::register();') !== false
+        && $productTypeHooksRegister['found']
+        && strpos($compactBody($productTypeHooksRegister['body']), 'add_action(woocommerce_process_product_meta,array(self::class,saveCustomFieldData));') !== false,
+    'subscription product-meta registration retains its saveCustomFieldData callback identity in the A4 composition boundary'
+);
+// The other former main-file bindings: each register() is exactly its direct
+// executable hook/callback pair(s), with the same hook names and argument counts.
+foreach (array(
+    array('src/Bootstrap/Requirements.php', 'Requirements', 'add_action(plugins_loaded,array(self::class,check_woocommerce));'),
+    array('src/Bootstrap/WooCommerceDeclarations.php', 'WooCommerceDeclarations', 'add_action(before_woocommerce_init,array(self::class,declare_compatibility));'),
+    array('src/Blocks/PaymentMethodRegistration.php', 'PaymentMethodRegistration', 'add_action(woocommerce_blocks_loaded,array(self::class,on_blocks_loaded));'),
+    array('src/Subscription/SchedulerBootstrap.php', 'SchedulerBootstrap', 'add_action(woocommerce_init,array(self::class,init_scheduler));'),
+    array('src/Account/SubscriptionActions.php', 'SubscriptionActions', 'add_action(init,array(self::class,handle));'),
+) as $binding) {
+    $bindingRegister = arch2_direct_public_method(arch2_class_body_tokens(arch2_tokens(arch2_read($root, $binding[0])), $binding[1]), 'register');
+    arch2_assert(
+        $bindingRegister['found'] && $compactBody($bindingRegister['body']) === $binding[2],
+        "{$binding[1]}::register() is exactly its direct executable hook/callback pair"
+    );
+}
 
 // The gateway class lives in src/Gateway/Gateway.php since Sub-project 0a Task 3.
 $gatewayClass = arch2_class_body_tokens(arch2_tokens(arch2_read($root, 'src/Gateway/Gateway.php')), 'Gateway');

@@ -353,7 +353,7 @@ namespace {
         }
 
         require_once dirname(__DIR__, 2) . '/supcheckout.php';
-        woocommerceUpaymentsInit();
+        \Simplixi\SUPCheckout\Bootstrap\Requirements::check_woocommerce();
 
         $reflection = new ReflectionClass('Simplixi\SUPCheckout\Gateway\Gateway');
         /** @var Simplixi\SUPCheckout\Gateway\Gateway $gateway */
@@ -383,7 +383,7 @@ namespace {
         }
 
         require_once dirname(__DIR__, 2) . '/supcheckout.php';
-        woocommerceUpaymentsInit();
+        \Simplixi\SUPCheckout\Bootstrap\Requirements::check_woocommerce();
 
         $reflection = new ReflectionClass('Simplixi\SUPCheckout\Gateway\Gateway');
         /** @var Simplixi\SUPCheckout\Gateway\Gateway $gateway */

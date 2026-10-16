@@ -541,7 +541,15 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // WooCommerce gateway callbacks into src/Gateway/GatewayRegistration.php, drops the
 // use imports only the class needed, and moves Plugin::boot(__FILE__) inside the
 // official-plugin pause guard (-50,771 bytes).
-$acceptedGatewayBytes = 12264;
+// Sub-project 0a Task 4 moves every remaining global function and closure into named
+// classes registered from Plugin::boot(): Bootstrap\Requirements (plugins_loaded check
+// and WooCommerce-missing notice), Bootstrap\WooCommerceDeclarations
+// (before_woocommerce_init), Blocks\PaymentMethodRegistration (woocommerce_blocks_loaded),
+// the Composition::register_presentation_hooks() call, Subscription\ProductTypeHooks (the
+// nine product-data wrappers), Subscription\SchedulerBootstrap (woocommerce_init) and
+// Account\SubscriptionActions (init). The use imports only that code needed go too
+// (-9,513 bytes).
+$acceptedGatewayBytes = 2751;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
 foreach (array('supcheckout.php', 'UPayments.php', 'includes', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;
@@ -597,7 +605,14 @@ foreach ($publicMethods as $methodName => $message) {
 }
 
 arch_assert(arch_contains($gatewayClassSource, '\\Simplixi\\SUPCheckout\\Security\\PublicOrderStatus::handle();'),'public status polling delegates to Security boundary');
-arch_assert(arch_contains($subscriptionComposition, "add_action('woocommerce_process_product_meta', 'saveCustomFieldData')"), 'subscription product-meta hook retains legacy callback identity through A4 composition');
+// Sub-project 0a Task 4: the global saveCustomFieldData() is now the public static
+// ProductTypeHooks::saveCustomFieldData(), registered through the A4 composition boundary.
+$subscriptionProductTypeHooks = arch_read($root, 'src/Subscription/ProductTypeHooks.php');
+arch_assert(
+    arch_contains($subscriptionProductTypeHooks, "add_action('woocommerce_process_product_meta', array(self::class, 'saveCustomFieldData'))")
+        && arch_contains($subscriptionComposition, 'ProductTypeHooks::register();'),
+    'subscription product-meta hook retains its saveCustomFieldData callback identity through A4 composition'
+);
 arch_assert(is_file($root . '/src/Release/Identity.php'), 'Release module exists');
 arch_assert(is_dir($root . '/src/Migration'), 'Migration module exists');
 arch_assert(is_dir($root . '/src/Payment'), 'Payment module exists');

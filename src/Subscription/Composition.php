@@ -23,16 +23,7 @@ final class Composition {
      */
     public static function register_presentation_hooks() {
         add_action('init', array(Presentation::class, 'register_product_class'));
-        add_filter('product_type_selector', 'addCustomProductType');
-        add_filter('woocommerce_product_class', 'mapCustomProductClass', 10, 2);
-        add_action('woocommerce_custom_type_add_to_cart', 'woocommerce_simple_add_to_cart', 30);
-        add_action('admin_footer', 'customProductTypes');
-        add_filter('woocommerce_product_data_tabs', 'addCustomDataTab');
-        add_action('woocommerce_product_data_panels', 'addCustomDataPanel');
-        add_action('woocommerce_process_product_meta', 'saveCustomFieldData');
-        add_action('woocommerce_single_product_summary', 'displayCustomFieldOnFrontend', 10);
-        add_filter('woocommerce_get_item_data', 'displayCustomDataInCart', 10, 2);
-        add_action('woocommerce_checkout_create_order_line_item', 'saveCustomDataToOrderItems', 10, 4);
+        ProductTypeHooks::register();
         add_action('woocommerce_order_details_after_order_table', array(Presentation::class, 'render_account_order_details'));
         add_action('woocommerce_before_account_orders', array(Presentation::class, 'render_account_orders_filter'));
         add_filter('woocommerce_my_account_my_orders_query', array(Presentation::class, 'filter_account_orders_query'));

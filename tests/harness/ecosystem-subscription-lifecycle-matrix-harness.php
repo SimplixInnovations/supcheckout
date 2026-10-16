@@ -23,7 +23,8 @@ use Simplixi\SUPCheckout\Subscription\RenewalCardAuthority;
 
 $scheduler = file_get_contents($root . '/includes/Subscription/Cron/Scheduler.php');
 $cycle = file_get_contents($root . '/includes/Subscription/Cron/CycleClaim.php');
-$up = file_get_contents($root . '/supcheckout.php');
+// The customer pause/resume/cancel handler left supcheckout.php in Sub-project 0a Task 4.
+$up = file_get_contents($root . '/src/Account/SubscriptionActions.php');
 
 // T1 surface inventory (static pin of method surface).
 foreach (array('function init', 'function process', 'process_one_order', 'handle_post_dispatch', 'getGateway', 'getNextBillingDate', 'upayShouldAttemptRetry') as $needle) {

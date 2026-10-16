@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use Simplixi\SUPCheckout\Subscription\Composition;
 use Simplixi\SUPCheckout\Subscription\Presentation;
+use Simplixi\SUPCheckout\Subscription\ProductTypeHooks;
 
 final class CompositionTest extends TestCase {
     protected function setUp(): void {
@@ -16,18 +17,19 @@ final class CompositionTest extends TestCase {
         Composition::register_presentation_hooks();
 
         $presentation = Presentation::class;
+        $product_type = ProductTypeHooks::class;
         self::assertSame(array(
             array('action', 'init', array($presentation, 'register_product_class'), 10, 1),
-            array('filter', 'product_type_selector', 'addCustomProductType', 10, 1),
-            array('filter', 'woocommerce_product_class', 'mapCustomProductClass', 10, 2),
+            array('filter', 'product_type_selector', array($product_type, 'addCustomProductType'), 10, 1),
+            array('filter', 'woocommerce_product_class', array($product_type, 'mapCustomProductClass'), 10, 2),
             array('action', 'woocommerce_custom_type_add_to_cart', 'woocommerce_simple_add_to_cart', 30, 1),
-            array('action', 'admin_footer', 'customProductTypes', 10, 1),
-            array('filter', 'woocommerce_product_data_tabs', 'addCustomDataTab', 10, 1),
-            array('action', 'woocommerce_product_data_panels', 'addCustomDataPanel', 10, 1),
-            array('action', 'woocommerce_process_product_meta', 'saveCustomFieldData', 10, 1),
-            array('action', 'woocommerce_single_product_summary', 'displayCustomFieldOnFrontend', 10, 1),
-            array('filter', 'woocommerce_get_item_data', 'displayCustomDataInCart', 10, 2),
-            array('action', 'woocommerce_checkout_create_order_line_item', 'saveCustomDataToOrderItems', 10, 4),
+            array('action', 'admin_footer', array($product_type, 'customProductTypes'), 10, 1),
+            array('filter', 'woocommerce_product_data_tabs', array($product_type, 'addCustomDataTab'), 10, 1),
+            array('action', 'woocommerce_product_data_panels', array($product_type, 'addCustomDataPanel'), 10, 1),
+            array('action', 'woocommerce_process_product_meta', array($product_type, 'saveCustomFieldData'), 10, 1),
+            array('action', 'woocommerce_single_product_summary', array($product_type, 'displayCustomFieldOnFrontend'), 10, 1),
+            array('filter', 'woocommerce_get_item_data', array($product_type, 'displayCustomDataInCart'), 10, 2),
+            array('action', 'woocommerce_checkout_create_order_line_item', array($product_type, 'saveCustomDataToOrderItems'), 10, 4),
             array('action', 'woocommerce_order_details_after_order_table', array($presentation, 'render_account_order_details'), 10, 1),
             array('action', 'woocommerce_before_account_orders', array($presentation, 'render_account_orders_filter'), 10, 1),
             array('filter', 'woocommerce_my_account_my_orders_query', array($presentation, 'filter_account_orders_query'), 10, 1),

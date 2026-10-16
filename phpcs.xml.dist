@@ -29,6 +29,12 @@
     <file>src/Autoloader.php</file>
     <file>src/Plugin.php</file>
     <file>src/Bootstrap/BasenameMigration.php</file>
+    <file>src/Bootstrap/Requirements.php</file>
+    <file>src/Bootstrap/WooCommerceDeclarations.php</file>
+    <file>src/Blocks/PaymentMethodRegistration.php</file>
+    <file>src/Account/SubscriptionActions.php</file>
+    <file>src/Subscription/ProductTypeHooks.php</file>
+    <file>src/Subscription/SchedulerBootstrap.php</file>
     <file>src/Migration/MigrationSettings.php</file>
     <file>src/Migration/MigrationBootstrap.php</file>
     <file>src/Subscription/Composition.php</file>

@@ -9,6 +9,8 @@ namespace UPayments\Subscription\Helpers {
 
 namespace UPayments\Subscription\Cron {
     class Scheduler {
+        /** @return void */
+        public static function init() {}
         /** @return \DateTime|null */
         public static function getNextBillingDate(?\DateTime $started_at, string $plan, int $interval): ?\DateTime { return null; }
     }

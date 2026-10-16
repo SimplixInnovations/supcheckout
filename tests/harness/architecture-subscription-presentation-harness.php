@@ -94,6 +94,7 @@ if (!defined('ABSPATH')) {
 
 require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Composition.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/ProductTypeHooks.php';
 
 $pass = 0;
 $fail = 0;
@@ -105,18 +106,19 @@ function a4_git_blob_sha($path) { $bytes = file_get_contents($path); return sha1
 // Exact hook topology is owned by one composition boundary.
 Composition::register_presentation_hooks();
 $p = Presentation::class;
+$t = \Simplixi\SUPCheckout\Subscription\ProductTypeHooks::class;
 $expected_hooks = array(
     array('action', 'init', array($p, 'register_product_class'), 10, 1),
-    array('filter', 'product_type_selector', 'addCustomProductType', 10, 1),
-    array('filter', 'woocommerce_product_class', 'mapCustomProductClass', 10, 2),
+    array('filter', 'product_type_selector', array($t, 'addCustomProductType'), 10, 1),
+    array('filter', 'woocommerce_product_class', array($t, 'mapCustomProductClass'), 10, 2),
     array('action', 'woocommerce_custom_type_add_to_cart', 'woocommerce_simple_add_to_cart', 30, 1),
-    array('action', 'admin_footer', 'customProductTypes', 10, 1),
-    array('filter', 'woocommerce_product_data_tabs', 'addCustomDataTab', 10, 1),
-    array('action', 'woocommerce_product_data_panels', 'addCustomDataPanel', 10, 1),
-    array('action', 'woocommerce_process_product_meta', 'saveCustomFieldData', 10, 1),
-    array('action', 'woocommerce_single_product_summary', 'displayCustomFieldOnFrontend', 10, 1),
-    array('filter', 'woocommerce_get_item_data', 'displayCustomDataInCart', 10, 2),
-    array('action', 'woocommerce_checkout_create_order_line_item', 'saveCustomDataToOrderItems', 10, 4),
+    array('action', 'admin_footer', array($t, 'customProductTypes'), 10, 1),
+    array('filter', 'woocommerce_product_data_tabs', array($t, 'addCustomDataTab'), 10, 1),
+    array('action', 'woocommerce_product_data_panels', array($t, 'addCustomDataPanel'), 10, 1),
+    array('action', 'woocommerce_process_product_meta', array($t, 'saveCustomFieldData'), 10, 1),
+    array('action', 'woocommerce_single_product_summary', array($t, 'displayCustomFieldOnFrontend'), 10, 1),
+    array('filter', 'woocommerce_get_item_data', array($t, 'displayCustomDataInCart'), 10, 2),
+    array('action', 'woocommerce_checkout_create_order_line_item', array($t, 'saveCustomDataToOrderItems'), 10, 4),
     array('action', 'woocommerce_order_details_after_order_table', array($p, 'render_account_order_details'), 10, 1),
     array('action', 'woocommerce_before_account_orders', array($p, 'render_account_orders_filter'), 10, 1),
     array('filter', 'woocommerce_my_account_my_orders_query', array($p, 'filter_account_orders_query'), 10, 1),
@@ -231,24 +233,38 @@ $root = dirname(__DIR__, 2);
 // (src/Gateway/Gateway.php since Sub-project 0a Task 3).
 $gateway = file_get_contents($root . '/supcheckout.php') . "\n" . file_get_contents($root . '/src/Gateway/Gateway.php');
 $composition =file_get_contents($root . '/src/Subscription/Composition.php');
+// Sub-project 0a Task 4: the nine product-data wrappers are public static methods of
+// Subscription\ProductTypeHooks (no global functions), the composition root
+// (src/Plugin.php) activates the composition boundary, and the scheduler bootstrap and
+// the customer mutation handler are named classes.
+$product_type_hooks = file_get_contents($root . '/src/Subscription/ProductTypeHooks.php');
+$plugin = file_get_contents($root . '/src/Plugin.php');
+$scheduler_bootstrap = file_get_contents($root . '/src/Subscription/SchedulerBootstrap.php');
+$subscription_actions = file_get_contents($root . '/src/Account/SubscriptionActions.php');
 $presentation = file_get_contents($root . '/src/Subscription/Presentation.php');
 foreach (array('initializeSubscriptionModule', 'render_subscription_summary', 'restrictMixedCartProducts', 'renderSubscriptionBadgeInProductList') as $method) {
     a4_assert((bool) preg_match('/public\s+function\s+' . preg_quote($method, '/') . '\s*\(/', $gateway), "legacy public {$method} seam remains callable");
 }
 foreach (array('addCustomProductType', 'mapCustomProductClass', 'customProductTypes', 'addCustomDataTab', 'addCustomDataPanel', 'saveCustomFieldData', 'displayCustomFieldOnFrontend', 'displayCustomDataInCart', 'saveCustomDataToOrderItems') as $function) {
-    a4_assert((bool) preg_match('/function\s+' . preg_quote($function, '/') . '\s*\(/', $gateway), "legacy global {$function} compatibility seam remains callable");
+    a4_assert((bool) preg_match('/public\s+static\s+function\s+' . preg_quote($function, '/') . '\s*\(/', $product_type_hooks), "legacy {$function} compatibility seam remains callable as a public static ProductTypeHooks method");
 }
 $compact_gateway = preg_replace('/\s+/', '', $gateway);
+$compact_product_type_hooks = preg_replace('/\s+/', '', $product_type_hooks);
+$product_type_wrappers = array(
+    'publicstaticfunctionaddCustomProductType($types){returnSubscriptionPresentation::add_custom_product_type($types);}',
+    'publicstaticfunctionmapCustomProductClass($classname,$product_type){returnSubscriptionPresentation::map_custom_product_class($classname,$product_type);}',
+    'publicstaticfunctioncustomProductTypes(){SubscriptionPresentation::custom_product_types();}',
+    'publicstaticfunctionaddCustomDataTab($tabs){returnSubscriptionPresentation::add_custom_data_tab($tabs);}',
+    'publicstaticfunctionaddCustomDataPanel(){SubscriptionPresentation::add_custom_data_panel();}',
+    'publicstaticfunctionsaveCustomFieldData($post_id){SubscriptionPresentation::save_custom_field_data($post_id);}',
+    'publicstaticfunctiondisplayCustomFieldOnFrontend(){SubscriptionPresentation::display_custom_field_on_frontend();}',
+    'publicstaticfunctiondisplayCustomDataInCart($item_data,$cart_item){returnSubscriptionPresentation::display_custom_data_in_cart($item_data,$cart_item);}',
+    'publicstaticfunctionsaveCustomDataToOrderItems($item,$cart_item_key,$values,$order){SubscriptionPresentation::save_custom_data_to_order_items($item,$cart_item_key,$values,$order);}',
+);
+foreach ($product_type_wrappers as $wrapper) {
+    a4_assert(strpos($compact_product_type_hooks, $wrapper) !== false, 'compatibility wrapper remains an exact one-call delegate: ' . substr($wrapper, 0, strpos($wrapper, '(')));
+}
 $thin_wrappers = array(
-    'functionaddCustomProductType($types){returnSubscriptionPresentation::add_custom_product_type($types);}',
-    'functionmapCustomProductClass($classname,$product_type){returnSubscriptionPresentation::map_custom_product_class($classname,$product_type);}',
-    'functioncustomProductTypes(){SubscriptionPresentation::custom_product_types();}',
-    'functionaddCustomDataTab($tabs){returnSubscriptionPresentation::add_custom_data_tab($tabs);}',
-    'functionaddCustomDataPanel(){SubscriptionPresentation::add_custom_data_panel();}',
-    'functionsaveCustomFieldData($post_id){SubscriptionPresentation::save_custom_field_data($post_id);}',
-    'functiondisplayCustomFieldOnFrontend(){SubscriptionPresentation::display_custom_field_on_frontend();}',
-    'functiondisplayCustomDataInCart($item_data,$cart_item){returnSubscriptionPresentation::display_custom_data_in_cart($item_data,$cart_item);}',
-    'functionsaveCustomDataToOrderItems($item,$cart_item_key,$values,$order){SubscriptionPresentation::save_custom_data_to_order_items($item,$cart_item_key,$values,$order);}',
     'publicfunctioninitializeSubscriptionModule(){SubscriptionComposition::initialize_legacy_modules();}',
     'publicfunctionrender_subscription_summary($order){SubscriptionPresentation::render_admin_summary($order);}',
     'publicfunctionrestrictMixedCartProducts($passed,$product_id,$quantity){returnSubscriptionPresentation::restrict_mixed_cart_products($passed,$product_id,$quantity,$this->domain);}',
@@ -257,11 +273,15 @@ $thin_wrappers = array(
 foreach ($thin_wrappers as $wrapper) {
     a4_assert(strpos($compact_gateway, $wrapper) !== false, 'compatibility wrapper remains an exact one-call delegate: ' . substr($wrapper, 0, strpos($wrapper, '(')));
 }
-a4_assert(strpos($gateway, 'SubscriptionComposition::register_presentation_hooks();') !== false, 'main bootstrap activates the subscription composition boundary');
+a4_assert(strpos($plugin, 'SubscriptionComposition::register_presentation_hooks();') !== false, 'composition root (Plugin::boot) activates the subscription composition boundary');
+a4_assert(strpos($composition, 'ProductTypeHooks::register();') !== false, 'composition boundary registers the product-type hooks at their place in the topology');
 a4_assert(strpos($gateway, 'SubscriptionComposition::initialize_legacy_modules();') !== false, 'public subscription initializer delegates legacy checkout/storage composition');
 a4_assert(strpos($gateway, 'SubscriptionPresentation::render_admin_summary($order);') !== false, 'admin summary wrapper delegates presentation');
-a4_assert(strpos($gateway, "add_action('woocommerce_init', function ()") !== false && strpos($gateway, 'Scheduler::init();') !== false, 'protected scheduler bootstrap remains outside presentation boundary');
-a4_assert(strpos($gateway, "update_meta_data('_upay_subscription_status', 'cancelled')") !== false, 'hardened customer mutation handler remains outside presentation boundary');
+a4_assert(strpos($scheduler_bootstrap, "add_action('woocommerce_init', array(self::class, 'init_scheduler'))") !== false && strpos($scheduler_bootstrap, 'Scheduler::init();') !== false, 'protected scheduler bootstrap remains outside presentation boundary');
+a4_assert(strpos($subscription_actions, "update_meta_data('_upay_subscription_status', 'cancelled')") !== false, 'hardened customer mutation handler remains outside presentation boundary');
+foreach (array('Scheduler::', "update_meta_data('_upay_subscription_status'") as $forbidden) {
+    a4_assert(strpos($composition . "\n" . $product_type_hooks, $forbidden) === false, "presentation boundary excludes {$forbidden} ownership");
+}
 foreach (array('process_payment', 'auto-deduct', 'upay_process_subscriptions', 'upayments_billing_attempts', 'CURLOPT_', "update_meta_data('_upay_subscription_status'") as $forbidden) {
     a4_assert(strpos($presentation, $forbidden) === false, "presentation module excludes {$forbidden} ownership");
 }

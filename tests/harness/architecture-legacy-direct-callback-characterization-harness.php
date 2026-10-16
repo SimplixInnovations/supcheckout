@@ -171,7 +171,7 @@ require_once __DIR__ . '/../support/t3-payment-lifecycle-stubs.php';
 require_once dirname(__DIR__, 2) . '/src/Payment/PaymentLifecycle.php';
 require_once dirname(__DIR__, 2) . '/supcheckout.php';
 
-woocommerceUpaymentsInit();
+\Simplixi\SUPCheckout\Bootstrap\Requirements::check_woocommerce();
 
 class T3LegacyGatewayProbe extends \Simplixi\SUPCheckout\Gateway\Gateway {
     protected function execute_upayments_request($route, $method, $body = null) {

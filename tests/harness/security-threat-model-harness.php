@@ -89,7 +89,17 @@ sec_assert(PublicOrderStatus::normalize_status(array('completed')) === 'wait', '
 
 // The gateway source is the main file plus the gateway class it registers
 // (src/Gateway/Gateway.php since Sub-project 0a Task 3).
-$gateway = sec_source('supcheckout.php') . "\n" . sec_source('src/Gateway/Gateway.php');
+// Sub-project 0a Task 4 moved the main file's closures into named classes; the
+// subscription action handler (SEC-02) now lives in src/Account/SubscriptionActions.php.
+$subscription_actions = sec_source('src/Account/SubscriptionActions.php');
+$gateway = sec_source('supcheckout.php') . "\n" . sec_source('src/Gateway/Gateway.php')
+    . "\n" . sec_source('src/Plugin.php')
+    . "\n" . sec_source('src/Bootstrap/Requirements.php')
+    . "\n" . sec_source('src/Bootstrap/WooCommerceDeclarations.php')
+    . "\n" . sec_source('src/Blocks/PaymentMethodRegistration.php')
+    . "\n" . sec_source('src/Subscription/ProductTypeHooks.php')
+    . "\n" . sec_source('src/Subscription/SchedulerBootstrap.php')
+    . "\n" . $subscription_actions;
 $gateway_settings_path = dirname(__DIR__, 2) . '/src/Admin/GatewaySettings.php';
 $gateway_settings = @file_get_contents($gateway_settings_path);
 $gateway_settings = is_string($gateway_settings) ? $gateway_settings : '';
@@ -119,16 +129,16 @@ sec_assert(strpos($gateway, '\\Simplixi\\SUPCheckout\\Security\\PublicOrderStatu
 sec_assert(strpos($gateway, 'get_post_meta($order_id, "UPayments_WHS"') === false, 'legacy poll no longer reads arbitrary post meta by numeric id');
 
 // SEC-02: subscription mutations must be POST + owner + nonce + subscription preflight.
-sec_assert(strpos($gateway, "\$method = isset(\$_SERVER['REQUEST_METHOD'])") !== false, 'subscription handler checks request method');
-sec_assert(strpos($gateway, "\$method !== 'POST'") !== false, 'subscription mutation rejects non-POST requests');
-sec_assert(strpos($gateway, "isset(\$_POST['upay_action'])") !== false, 'subscription mutation reads action from POST');
-sec_assert(strpos($gateway, "isset(\$_POST['order_id'])") !== false, 'subscription mutation reads order id from POST');
+sec_assert(strpos($subscription_actions, "\$method = isset(\$_SERVER['REQUEST_METHOD'])") !== false, 'subscription handler checks request method');
+sec_assert(strpos($subscription_actions, "\$method !== 'POST'") !== false, 'subscription mutation rejects non-POST requests');
+sec_assert(strpos($subscription_actions, "isset(\$_POST['upay_action'])") !== false, 'subscription mutation reads action from POST');
+sec_assert(strpos($subscription_actions, "isset(\$_POST['order_id'])") !== false, 'subscription mutation reads order id from POST');
 sec_assert(strpos($subscription_presentation, "wp_nonce_field('upay_unsubscribe_' . \$order->get_id(), '_wpnonce', false)") !== false, 'unsubscribe form emits POST nonce field');
 sec_assert(strpos($subscription_presentation, "wp_nonce_field('upay_' . \$action . '_' . \$order->get_id(), '_wpnonce', false)") !== false, 'pause/resume form emits POST nonce field');
-sec_assert(strpos($gateway, "(string) \$order->get_payment_method() !== 'upayments'") !== false, 'subscription mutation requires UPayments order');
-sec_assert(strpos($gateway, "\$order->get_meta('UPayments_AutoDeduction') === 'yes'") !== false, 'manual subscription mutation distinguishes auto-deduction orders');
-sec_assert(strpos($gateway, "get_current_user_id() !== (int) \$order->get_user_id()") !== false, 'subscription mutation enforces exact owner');
-sec_assert(strpos($gateway, 'wp_verify_nonce($nonce, $nonce_action)') !== false, 'subscription mutation verifies action-specific nonce');
+sec_assert(strpos($subscription_actions, "(string) \$order->get_payment_method() !== 'upayments'") !== false, 'subscription mutation requires UPayments order');
+sec_assert(strpos($subscription_actions, "\$order->get_meta('UPayments_AutoDeduction') === 'yes'") !== false, 'manual subscription mutation distinguishes auto-deduction orders');
+sec_assert(strpos($subscription_actions, "get_current_user_id() !== (int) \$order->get_user_id()") !== false, 'subscription mutation enforces exact owner');
+sec_assert(strpos($subscription_actions, 'wp_verify_nonce($nonce, $nonce_action)') !== false, 'subscription mutation verifies action-specific nonce');
 
 // SEC-03: checkout must not pull fonts/icons from third-party CDNs.
 sec_assert(strpos($gateway, 'fonts.googleapis.com') === false, 'checkout no longer requests Google Fonts');
