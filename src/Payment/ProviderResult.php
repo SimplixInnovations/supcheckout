@@ -38,10 +38,13 @@ final class ProviderResult {
 
             case 'NOT CAPTURED':
             case 'FAILED':
+            case 'FAILURE':
             case 'ERROR':
                 return self::FAILED;
 
+            // Both spellings, as handled by the official UPayments plugin.
             case 'CANCELED':
+            case 'CANCELLED':
                 return self::CANCELLED;
 
             case 'REFUND':
