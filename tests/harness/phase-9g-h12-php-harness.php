@@ -790,6 +790,60 @@ upay_assert_eq(
     )['reason'], 'curl_error', 'PHP-CTR-8 curl_errno != 0', 'helper_unit_runtime'
 );
 
+// UPayments returns customerUniqueToken as a JSON number (sandbox, 2026-10-16:
+// {"status":true,...,"data":{"customerUniqueToken":50588906}}) and rejects a
+// duplicate with HTTP 422 "Customer unique token already exist".
+upay_assert_eq(
+    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+        ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"message":"Customer unique token created successfully","data":{"customerUniqueToken":12345678}}'],
+        '12345678'
+    )['reason'], 'success', 'PHP-CTR-9 provider numeric token echo => success', 'helper_unit_runtime'
+);
+upay_assert_eq(
+    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+        ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"data":{"customerUniqueToken":12345679}}'],
+        '12345678'
+    )['reason'], 'token_mismatch', 'PHP-CTR-10 numeric token of a different value => token_mismatch', 'helper_unit_runtime'
+);
+upay_assert_eq(
+    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+        ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"data":{"customerUniqueToken":12345678.0}}'],
+        '12345678'
+    )['reason'], 'missing_token', 'PHP-CTR-11 non-integer numeric token => missing_token', 'helper_unit_runtime'
+);
+upay_assert_eq(
+    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+        ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"data":{"customerUniqueToken":true}}'],
+        '12345678'
+    )['reason'], 'missing_token', 'PHP-CTR-12 boolean token => missing_token', 'helper_unit_runtime'
+);
+
+$upay_establish = new ReflectionMethod(\UPayments\Token\CustomerTokenIdentity::class, 'establish_canonical_token');
+if (PHP_VERSION_ID < 80100) { $upay_establish->setAccessible(true); }
+$upay_duplicate = ['http_status' => 422, 'transport_ok' => false, 'curl_errno' => 0, 'body' => '{"message":"Customer unique token already exist","errors":{"customerUniqueToken":["Customer unique token already exist"]}}'];
+$upay_calls = [];
+$upay_result = $upay_establish->invoke(null, function ($candidate) use (&$upay_calls, $upay_duplicate) {
+    $upay_calls[] = $candidate;
+    return count($upay_calls) === 1
+        ? $upay_duplicate
+        : ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"data":{"customerUniqueToken":' . $candidate . '}}'];
+});
+upay_assert_eq($upay_result['success'], true, 'PHP-CTR-13 a provider-reported duplicate is retried with a fresh candidate', 'helper_unit_runtime');
+upay_assert_eq(count($upay_calls), 2, 'PHP-CTR-14 duplicate retry makes exactly one more create call', 'helper_unit_runtime');
+upay_assert_eq(isset($upay_calls[1]) && $upay_result['token'] === $upay_calls[1], true, 'PHP-CTR-15 the established token is the accepted candidate', 'helper_unit_runtime');
+$upay_calls = [];
+$upay_result = $upay_establish->invoke(null, function ($candidate) use (&$upay_calls, $upay_duplicate) {
+    $upay_calls[] = $candidate;
+    return $upay_duplicate;
+});
+upay_assert_eq($upay_result['success'], false, 'PHP-CTR-16 persistent duplicates fail closed', 'helper_unit_runtime');
+upay_assert_eq(count($upay_calls), 3, 'PHP-CTR-17 duplicate retries are bounded to three create calls', 'helper_unit_runtime');
+$upay_calls = [];
+$upay_establish->invoke(null, function ($candidate) use (&$upay_calls) {
+    $upay_calls[] = $candidate;
+    return ['http_status' => 500, 'transport_ok' => false, 'curl_errno' => 0, 'body' => '{}'];
+});
+upay_assert_eq(count($upay_calls), 1, 'PHP-CTR-18 non-duplicate failures are never retried', 'helper_unit_runtime');
 // ---------------------------------------------------------------------------
 // 11. getSavedCardsForCurrentUser — strict gating
 // ---------------------------------------------------------------------------
@@ -4231,17 +4285,20 @@ $transport_int_token = [
     'http_status'  => 201,
     'body'         => wp_json_encode(['status' => true, 'data' => ['customerUniqueToken' => 12345678]]),
 ];
+// Evidence (UPayments sandbox, 2026-10-16): the provider echoes the token as a JSON
+// number. An exactly equal positive integer is the provider's success shape; floats,
+// booleans and mismatches still fail closed (PHP-CTR-10..12).
 $ctr_int = $ref_ctr->invoke(null, $transport_int_token, '12345678');
 upay_assert_eq(
     $ctr_int['success'],
-    false,
-    'TT-CTR-1 provider returns int 12345678 -> success=false (no scalar coercion)',
+    true,
+    'TT-CTR-1 provider returns int 12345678 equal to the candidate -> success=true',
         'helper_unit_runtime'
 );
 upay_assert_eq(
     $ctr_int['reason'],
-    'missing_token',
-    'TT-CTR-2 provider returns int -> reason=missing_token',
+    'success',
+    'TT-CTR-2 provider returns equal int -> reason=success',
         'helper_unit_runtime'
 );
 
@@ -6235,10 +6292,10 @@ upay_assert_eq($reason_no_cut !== 'success', true, 'PHP-R19-CTR-4 empty data →
 
 $transport_nonstring_cut = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0,
-    'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => 12345678]])
+    'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => [12345678]]])
 ];
 $reason_nonstring = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_nonstring_cut, '12345678')['reason'];
-upay_assert_eq($reason_nonstring !== 'success', true, 'PHP-R19-CTR-5 non-string customerUniqueToken → not success', 'helper_unit_runtime');
+upay_assert_eq($reason_nonstring !== 'success', true, 'PHP-R19-CTR-5 non-scalar customerUniqueToken → not success', 'helper_unit_runtime');
 
 $transport_empty_body = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => ''
@@ -7585,12 +7642,12 @@ $_expected_family_baseline = array(
 //                                                   TOTAL       = 21
 $_expected_categories = array(
     'semantic_runtime'    => 377,
-    'helper_unit_runtime' => 841,
+    'helper_unit_runtime' => 851,
     'static_source'       => 46,
     'harness_self_test'   => 662,    // 641 baseline + 21 §4/§5/§7 probes
     'lint_tooling'        => 10,
 );
-$_expected_total_pass    = 1936;    // 377 + 841 + 46 + 662 + 10
+$_expected_total_pass    = 1946;    // 377 + 851 + 46 + 662 + 10
 $_expected_total_fail    = 0;
 $_family_mismatch        = 0;
 $_category_mismatch      = 0;
