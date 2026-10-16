@@ -146,6 +146,7 @@ function jquery(value) {
     }
     if (value === body) return eventCollection('body');
     if (value === 'form.checkout') return eventCollection('form');
+    if (value === '.payment_box.payment_method_upayments .upay-payment-method') return { length: 1 };
     if (value === 'button#place_order' || value === 'form.checkout button#place_order') return buttonCollection();
     if (value === 'input[name="payment_method"]:checked') {
         return { length: 1, val() { return state.selectedPaymentMethod; } };
@@ -178,7 +179,7 @@ run(subscriptionSource, 'subscription-checkout.js');
 run(paymentSource, 'new-upay.js');
 
 const paymentChange = state.handlers.filter(function (entry) {
-    return entry.target === 'form'
+    return entry.target === 'body'
         && entry.eventName === 'change.supcheckoutPaymentLifecycle'
         && entry.selector === 'input[name="payment_method"]';
 });

@@ -16,11 +16,17 @@ defined( 'ABSPATH' ) || exit;
 <div class="supcheckout form-row form-row-wide">
     <?php
         $icons = array();
-        $total = WC()->cart->get_total('');
+        // On pay-for-order the cart is empty: show the order's own total and currency.
+        $pay_order = (function_exists('is_wc_endpoint_url') && is_wc_endpoint_url('order-pay'))
+            ? wc_get_order(absint(get_query_var('order-pay')))
+            : false;
+        $total_raw = is_object($pay_order) ? $pay_order->get_total() : WC()->cart->get_total('');
+        $currency_code = is_object($pay_order) ? $pay_order->get_currency() : get_woocommerce_currency();
+        $total = wc_format_decimal($total_raw, wc_get_price_decimals());
         $language = get_locale();
-        $currency = get_woocommerce_currency_symbol();
+        $currency = get_woocommerce_currency_symbol($currency_code);
         if (strpos($language, 'en') === 0) {
-            $currency = get_woocommerce_currency();
+            $currency = $currency_code;
         }
         $whitelabled = false;
         $payment_data = $gateway->getPaymentIcons();
@@ -201,7 +207,7 @@ defined( 'ABSPATH' ) || exit;
         } elseif ($payment_data_valid && !$whitelabled) {
     ?>
         <div class="payment-buttons">
-            <button type="button" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitPaymentMethod==='function'){window.supCheckout.submitPaymentMethod('knet');}else{window.supcheckoutPendingAction={type:'payment_method',value:'knet'};}" class="upay-payment-method">
+            <button type="button" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitPaymentMethod==='function'){window.supCheckout.submitPaymentMethod('knet');}else{window.supcheckoutPendingAction={type:'payment_method',value:'knet'};}" class="upay-payment-method" aria-label="<?php echo esc_attr(sprintf(/* translators: 1: order total, 2: currency. */ __('Continue to secure payment, %1$s %2$s', 'supcheckout'), $total, wp_kses($currency, array()))); ?>">
     <?php
             foreach ($icons as $key => $value) {
                 if (!is_scalar($value)) {
@@ -223,8 +229,12 @@ defined( 'ABSPATH' ) || exit;
             </button>
         </div>
     <?php
+        } else {
+            // No valid availability: no payment buttons, and the customer is told why.
+    ?>
+        <p class="upay-unavailable" role="alert"><?php esc_html_e('Payment methods are unavailable right now. Please try again in a moment or choose another payment method.', 'supcheckout'); ?></p>
+    <?php
         }
-        // If $payment_data_valid is false, render NO payment buttons.
     ?>
         <input id="upayment_payment_type" type="hidden" name="upayment_payment_type" value="upayments"/>
         <input id="card_token" type="hidden" name="card_token" value=""/>

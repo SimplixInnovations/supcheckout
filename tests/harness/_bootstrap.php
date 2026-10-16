@@ -378,6 +378,7 @@ function wc_get_order($order_id) {
     return isset($state['orders_fixture'][$order_id]) ? $state['orders_fixture'][$order_id] : null;
 }
 function wc_get_checkout_url() { return 'https://example.test/checkout/'; }
+function wc_get_price_decimals() { return 2; }
 function wc_add_notice($message, $type = 'info') {
     $state =& upay_test_state();
     $state['notices'][] = ['type' => $type, 'message' => (string) $message];

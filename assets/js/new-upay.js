@@ -5,7 +5,10 @@
 
     function syncPlaceOrderButton() {
         const selectedPaymentMethod = $('input[name="payment_method"]:checked').val();
-        if (selectedPaymentMethod === 'upayments') {
+        // Hide the canonical button only when a UPayments method button can take its
+        // place; with no methods rendered the customer must still be able to submit.
+        const hasMethodButtons = $('.payment_box.payment_method_upayments .upay-payment-method').length > 0;
+        if (selectedPaymentMethod === 'upayments' && hasMethodButtons) {
             $('button#place_order').hide();
         } else {
             $('button#place_order').show();
@@ -31,7 +34,12 @@
     api.submitPaymentMethod = function (buttonValue) {
         $('#upayment_payment_type').val(buttonValue);
         $('#card_token').val('');
-        if (buttonValue !== 'cc') {
+        if (buttonValue === 'cc') {
+            // The visible checkbox is the consent, even if it was toggled before this
+            // script loaded (the inline fallback keeps only the last queued action).
+            const consent = document.getElementById('chkSaveCard');
+            $('#save_card').val(consent && consent.checked ? '1' : '0');
+        } else {
             $('#save_card').val('0');
             const checkbox = document.getElementById('chkSaveCard');
             if (checkbox) {
@@ -121,8 +129,9 @@
     }
 
     $(function () {
-        const $checkoutForm = $('form.checkout');
-        $checkoutForm
+        // Delegated from the body so it works on checkout and on pay-for-order
+        // (form#order_review), which never fires updated_checkout.
+        $(document.body)
             .off('change.supcheckoutPaymentLifecycle', 'input[name="payment_method"]')
             .on('change.supcheckoutPaymentLifecycle', 'input[name="payment_method"]', syncPlaceOrderButton);
         $(document.body)
