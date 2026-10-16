@@ -54,7 +54,7 @@ Technical contracts:
 - slug/text domain: `supcheckout`;
 - namespace: `Simplixi\SUPCheckout`;
 - package root: `supcheckout/`;
-- main file: `supcheckout/supcheckout.php` (builds activated as `supcheckout/UPayments.php` must be reactivated once);
+- main file: `supcheckout/supcheckout.php` (a header-less transitional `supcheckout/UPayments.php` shim moves pre-rename installs automatically);
 - gateway/payment/Blocks ID: `upayments`;
 - callback: `wc_upayments`.
 
@@ -151,7 +151,7 @@ Required:
 - checksum matches the sidecar;
 - Linux/Windows/canonical artifacts for one exact Git tree are byte-identical;
 - package has one `supcheckout/` root;
-- package contains `supcheckout/supcheckout.php` and `readme.txt`, and no `supcheckout/UPayments.php`;
+- package contains `supcheckout/supcheckout.php`, the header-less `supcheckout/UPayments.php` shim and `readme.txt`;
 - development/tests/CI/docs/tooling/secrets/local artifacts are absent.
 
 Install only into disposable/staging WordPress first.

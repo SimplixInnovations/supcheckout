@@ -72,7 +72,7 @@ Public metadata derived from this matrix:
 | Callback | `wc_upayments` preserved |
 | Historical payment/meta/token/subscription identities | preserved |
 
-The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). Builds activated as `supcheckout/UPayments.php` (staging and test installs only) must be reactivated once; no data changes.
+The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). A header-less transitional `supcheckout/UPayments.php` shim moves pre-rename installs' active entry to `supcheckout/supcheckout.php` on their next load, without reactivation or data changes. The in-place update is certified on single-site WordPress; network (multisite) activation is covered by unit tests only.
 
 Historical package-root movement remains certified for both pre-stable `simplixpay-upayments` and `sucheckout-upayments` roots moving to canonical `supcheckout`, including protected data continuity and rollback.
 

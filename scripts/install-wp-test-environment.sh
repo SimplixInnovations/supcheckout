@@ -11,7 +11,14 @@ WC_VERSION="$2"
 WP_PATH="$3"
 WP_CLI_BIN="${WP_CLI_BIN:-/tmp/wp-cli.phar}"
 PLUGIN_SLUG="${SUPCHECKOUT_PLUGIN_SLUG:-supcheckout}"
+# Pre-0a packages (the pre-rename build and the pre-stable roots) ship UPayments.php.
+PLUGIN_MAIN_FILE="${SUPCHECKOUT_PLUGIN_MAIN_FILE:-supcheckout.php}"
 SITE_URL="${SUPCHECKOUT_SITE_URL:-http://127.0.0.1:8080}"
+
+if [[ ! "$PLUGIN_MAIN_FILE" =~ ^[A-Za-z0-9._-]+\.php$ ]]; then
+  echo "Invalid plugin main file name: $PLUGIN_MAIN_FILE" >&2
+  exit 71
+fi
 
 if [[ ! -x "$WP_CLI_BIN" ]]; then
   echo "WP-CLI executable not found: $WP_CLI_BIN" >&2
@@ -76,8 +83,8 @@ if [[ -n "${SUPCHECKOUT_PLUGIN_ZIP:-}" ]]; then
     echo "Packaged plugin was not installed as a real directory: $PLUGIN_PATH" >&2
     exit 69
   }
-  [[ -f "$PLUGIN_PATH/supcheckout.php" ]] || {
-    echo "Packaged plugin is missing main file supcheckout.php" >&2
+  [[ -f "$PLUGIN_PATH/$PLUGIN_MAIN_FILE" ]] || {
+    echo "Packaged plugin is missing main file $PLUGIN_MAIN_FILE" >&2
     exit 70
   }
 else

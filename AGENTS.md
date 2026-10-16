@@ -118,7 +118,7 @@ Changing one requires an explicitly approved migration contract with old/new pre
 
 ## Main file
 
-`supcheckout/supcheckout.php` is the main file since Sub-project 0a (owner decision 2026-10-16, pre-release). Builds activated as `supcheckout/UPayments.php` must be reactivated once. The pre-rename name stays recorded as `Identity::LEGACY_MAIN_FILE`; the official UPayments plugin's own `UPayments.php` main file is unrelated and is still detected by `OfficialPluginConflict`.
+`supcheckout/supcheckout.php` is the main file since Sub-project 0a (owner decision 2026-10-16, pre-release). A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it. The pre-rename name stays recorded as `Identity::LEGACY_MAIN_FILE`; the official UPayments plugin's own `UPayments.php` main file is unrelated and is still detected by `OfficialPluginConflict`.
 
 ## Permanent quality controls
 

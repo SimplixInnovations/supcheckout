@@ -522,7 +522,7 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // composition-root call directly after the ABSPATH guard. No other byte changes.
 $acceptedGatewayBytes = 63319;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
-foreach (array('supcheckout.php', 'includes', 'src', 'templates') as $shipped) {
+foreach (array('supcheckout.php', 'UPayments.php', 'includes', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;
     $shippedFiles = is_dir($shippedPath)
         ? iterator_to_array(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($shippedPath, FilesystemIterator::SKIP_DOTS)))

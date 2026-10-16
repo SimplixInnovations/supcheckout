@@ -47,6 +47,10 @@ $plugins_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'supcheckout-coexisten
 @mkdir($plugins_dir . '/upayments', 0777, true);
 file_put_contents($plugins_dir . '/upayments/UPayments.php', "<?php
 ");
+// SUPCheckout's own transitional shim (Task 2b) is a real file inside its own directory.
+@mkdir($plugins_dir . '/supcheckout', 0777, true);
+file_put_contents($plugins_dir . '/supcheckout/UPayments.php', "<?php
+");
 putenv('SUPCHECKOUT_COEXISTENCE_PLUGIN_DIR=' . $plugins_dir);
 
 // A minimal stand-in for the official 3.1.1 main file: same global names, same constants.
@@ -104,9 +108,24 @@ coexistence_assert(strpos($traversal['out'], 'DECLARED:yes') !== false && strpos
 $unrelated = coexistence_run($root, 'unrelated', $official_stub);
 coexistence_assert(strpos($unrelated['out'], 'DECLARED:yes') !== false && strpos($unrelated['out'], 'NOTICES:0') !== false, 'unrelated active plugins never pause SUPCheckout');
 
+$own_entry = coexistence_run($root, 'own_pre_rename_entry', $official_stub);
+coexistence_assert($own_entry['code'] === 0, 'own pre-rename entry: SUPCheckout loads without error');
+coexistence_assert(strpos($own_entry['out'], 'DECLARED:yes') !== false && strpos($own_entry['out'], 'NOTICES:0') !== false, 'SUPCheckout\'s own supcheckout/UPayments.php shim entry never pauses SUPCheckout');
+
+$shim = coexistence_run($root, 'shim', $official_stub);
+coexistence_assert($shim['code'] === 0, 'loading through the shim: SUPCheckout loads without error');
+coexistence_assert(strpos($shim['out'], 'DECLARED:yes') !== false && strpos($shim['out'], 'NOTICES:0') !== false, 'loading through the shim with the official plugin inactive is never a false pause');
+coexistence_assert(strpos($shim['out'], 'ACTIVE:["supcheckout/supcheckout.php"]') !== false, 'loading through the shim moves the active entry to supcheckout/supcheckout.php');
+
+$shim_official = coexistence_run($root, 'shim_official', $official_stub);
+coexistence_assert($shim_official['code'] === 0 && strpos($shim_official['out'], 'DECLARED:no') !== false && strpos($shim_official['out'], 'NOTICES:1') !== false, 'loading through the shim while the official plugin is active still pauses SUPCheckout');
+coexistence_assert(strpos($shim_official['out'], 'ACTIVE:["supcheckout/supcheckout.php","upayments/UPayments.php"]') !== false, 'the shim moves only SUPCheckout\'s entry; the official upayments/UPayments.php entry is untouched');
+
 @unlink($official_stub);
 @unlink($plugins_dir . '/upayments/UPayments.php');
 @rmdir($plugins_dir . '/upayments');
+@unlink($plugins_dir . '/supcheckout/UPayments.php');
+@rmdir($plugins_dir . '/supcheckout');
 @rmdir($plugins_dir);
 
 echo "\nOfficial plugin coexistence: {$pass} PASS / {$fail} FAIL\n";
@@ -133,6 +152,10 @@ function coexistence_child($root, $scenario, $official_stub) {
         $active = array($own, '../upayments/UPayments.php');
     } elseif ($scenario === 'unrelated') {
         $active = array($own, 'woocommerce/woocommerce.php', 'funnel-builder/funnel-builder.php');
+    } elseif ($scenario === 'own_pre_rename_entry' || $scenario === 'shim') {
+        $active = array('supcheckout/UPayments.php');
+    } elseif ($scenario === 'shim_official') {
+        $active = array('supcheckout/UPayments.php', 'upayments/UPayments.php');
     }
     $GLOBALS['coexistence'] = array(
         'own' => $own,
@@ -148,7 +171,11 @@ function coexistence_child($root, $scenario, $official_stub) {
     if ($scenario === 'official_first') {
         require $official_stub;
     }
-    require $root . '/supcheckout.php';
+    if ($scenario === 'shim' || $scenario === 'shim_official') {
+        require $root . '/UPayments.php';
+    } else {
+        require $root . '/supcheckout.php';
+    }
     // Observed before any official stub loads, so only SUPCheckout's own declarations count.
     $declared = function_exists('woocommerceUpaymentsInit') && $scenario !== 'official_first';
     if ($scenario === 'ours_first') {
@@ -168,13 +195,16 @@ function coexistence_child($root, $scenario, $official_stub) {
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
     echo 'UP_PLUGIN_URL:' . (defined('UP_PLUGIN_URL') && strpos(UP_PLUGIN_URL, '/upayments/') !== false ? 'official' : 'other') . "\n";
     echo 'SUPCHECKOUT_VERSION:' . (defined('SUPCHECKOUT_VERSION') ? 'defined' : 'undefined') . "\n";
+    echo 'ACTIVE:' . json_encode(array_values((array) $GLOBALS['coexistence']['options']['active_plugins']), JSON_UNESCAPED_SLASHES) . "\n";
 }
 
 function coexistence_define_wordpress_stubs($root) {
     eval(<<<'PHP'
 function plugin_dir_url($file) { return 'https://merchant.example.test/wp-content/plugins/' . basename(dirname((string) $file)) . '/'; }
 function plugin_dir_path($file) { return dirname((string) $file) . DIRECTORY_SEPARATOR; }
-function plugin_basename($file) { return $GLOBALS['coexistence']['own']; }
+function plugin_basename($file) { return 'supcheckout/' . basename((string) $file); }
+function update_option($name, $value, $autoload = null) { $GLOBALS['coexistence']['options'][$name] = $value; return true; }
+function update_site_option($name, $value) { $GLOBALS['coexistence']['site_options'][$name] = $value; return true; }
 function get_option($name, $default = false) { return array_key_exists($name, $GLOBALS['coexistence']['options']) ? $GLOBALS['coexistence']['options'][$name] : $default; }
 function get_site_option($name, $default = false) { return array_key_exists($name, $GLOBALS['coexistence']['site_options']) ? $GLOBALS['coexistence']['site_options'][$name] : $default; }
 function is_multisite() { return $GLOBALS['coexistence']['multisite']; }

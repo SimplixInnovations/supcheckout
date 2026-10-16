@@ -76,7 +76,7 @@ supcheckout/UPayments.php
 
 A future physical rename to `supcheckout.php` remains separately gated.
 
-Superseded in Sub-project 0a (owner decision 2026-10-16, pre-release): the main file is now `supcheckout/supcheckout.php`, and builds activated under the old name are reactivated once.
+Superseded in Sub-project 0a (owner decision 2026-10-16, pre-release): the main file is now `supcheckout/supcheckout.php`, and a header-less transitional `UPayments.php` shim moves builds activated under the old name automatically until Sub-project 5.
 
 ### Task 8 — Enterprise Release Candidate Closeout
 

@@ -112,7 +112,7 @@ The first-stable release identity is:
 - namespace: `Simplixi\SUPCheckout`;
 - current development artifact: `supcheckout-0.1.0.zip`.
 
-The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). It was `UPayments.php` before; real-install qualification had shown that renaming an already-active main file strands WordPress's persisted plugin basename. Only staging and test installs ever activated `supcheckout/UPayments.php`; they must be reactivated once after updating. The verifier requires `supcheckout.php` in the package and `Identity::MAIN_FILE = 'supcheckout.php'`.
+The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). It was `UPayments.php` before; real-install qualification had shown that renaming an already-active main file strands WordPress's persisted plugin basename. A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it. The verifier requires `supcheckout.php` with its plugin header, the header-less `UPayments.php` shim and `src/Bootstrap/BasenameMigration.php` in the package, and `Identity::MAIN_FILE = 'supcheckout.php'`. The Release Artifact `in-place-main-file-update` cells install the pre-rename build active as `supcheckout/UPayments.php`, overwrite it in place without deactivating, and assert `supcheckout/supcheckout.php` is active with merchant state unchanged.
 
 ## Deterministic artifact contract
 

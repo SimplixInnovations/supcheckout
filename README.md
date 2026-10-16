@@ -100,7 +100,7 @@ Current engineering evidence belongs in [`docs/project/PROJECT-STATUS.md`](docs/
 | Package root | `supcheckout/` |
 | Main file | `supcheckout/supcheckout.php` |
 
-The main file was renamed from `UPayments.php` to `supcheckout.php` before the first release. A build activated under the old file name must be reactivated once on the Plugins screen; no data changes.
+The main file was renamed from `UPayments.php` to `supcheckout.php` before the first release. A build activated under the old file name keeps working: on its next load a transitional bootstrap moves the active entry to `supcheckout.php`. No reactivation, no data changes.
 
 Some UPayments-facing/persisted identities are also intentionally retained for merchant compatibility, including the gateway ID `upayments`, `woocommerce_upayments_settings`, callback identity `wc_upayments`, historical `_upay_*` metadata and related token/subscription state. See [`docs/project/NAMING-IDENTITY-STANDARD.md`](docs/project/NAMING-IDENTITY-STANDARD.md).
 

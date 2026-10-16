@@ -4,6 +4,7 @@
 /docs/project/                          @SimplixInnovationsAdmin
 /.github/                               @SimplixInnovationsAdmin
 /supcheckout.php                        @SimplixInnovationsAdmin
+/UPayments.php                          @SimplixInnovationsAdmin
 /includes/Token/                        @SimplixInnovationsAdmin
 /includes/Subscription/                 @SimplixInnovationsAdmin
 /includes/class-wc-gateway-upayments-blocks.php @SimplixInnovationsAdmin

@@ -21,7 +21,8 @@ final class IdentityTest extends TestCase {
         self::assertSame(Identity::TARGET_MAIN_FILE, Identity::MAIN_FILE);
         self::assertNotSame(Identity::LEGACY_MAIN_FILE, Identity::MAIN_FILE);
         self::assertFileExists(dirname(__DIR__, 3) . '/' . Identity::MAIN_FILE);
-        self::assertFileDoesNotExist(dirname(__DIR__, 3) . '/' . Identity::LEGACY_MAIN_FILE);
+        self::assertStringContainsString('Plugin Name:', (string) file_get_contents(dirname(__DIR__, 3) . '/' . Identity::MAIN_FILE));
+        self::assertStringNotContainsString('Plugin Name:', (string) file_get_contents(dirname(__DIR__, 3) . '/' . Identity::LEGACY_MAIN_FILE));
     }
 
     public function test_version_remains_an_independent_pre_one_release(): void {

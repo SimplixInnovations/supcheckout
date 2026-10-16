@@ -37,7 +37,7 @@ Forbidden technical form: `supcheckout-for-upayments`.
 | Plugin folder | `supcheckout/` |
 | Physical main file | `supcheckout.php` |
 | Plugin basename | `supcheckout/supcheckout.php` |
-| Pre-rename main file (legacy record only) | `UPayments.php` — `Identity::LEGACY_MAIN_FILE` |
+| Pre-rename main file | `UPayments.php` — `Identity::LEGACY_MAIN_FILE`; shipped only as a header-less transitional shim until Sub-project 5 |
 | Text domain | `supcheckout` |
 | Composer package | `simplix-innovations/supcheckout` |
 | PHP namespace root | `Simplixi\SUPCheckout` |
@@ -117,9 +117,9 @@ New REST routes use `supcheckout/v1`.
 supcheckout/supcheckout.php
 ```
 
-SUPCheckout was never released, so only staging and test installs ever activated the pre-rename `supcheckout/UPayments.php`. WordPress drops that stale `active_plugins` entry once the file is gone and shows the plugin as deactivated; such a build must be reactivated once on the Plugins screen. No data changes. The safety is procedural: no SUPCheckout code can run under the missing file name to warn. The release-artifact controls assert the package ships `supcheckout/supcheckout.php` and never `supcheckout/UPayments.php`.
+A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it. If the package stopped shipping `UPayments.php`, WordPress would drop a stored `supcheckout/UPayments.php` entry and silently deactivate the gateway, so the shim keeps that file name loadable: on its first load `BasenameMigration` swaps the entry in `active_plugins` (and the `active_sitewide_plugins` key on a network) to `supcheckout/supcheckout.php` in place, then loads the real main file. It has no `Plugin Name` header, so WordPress never lists a second plugin, and it only touches entries inside SUPCheckout's own directory. The release-artifact controls assert the package ships `supcheckout/supcheckout.php` with a header and the header-less shim, and the in-place update cell certifies the move on real WordPress.
 
-**Superseded decision (history):** the first-stable physical bootstrap was intentionally `UPayments.php`. Prior real WordPress qualification proved that deleting or renaming an already-active `UPayments.php` can strand WordPress's stored plugin basename, so the package used `supcheckout/UPayments.php` and treated `supcheckout.php` as a future target that needed its own migration. The owner accepted the one-time reactivation above instead, because no production install exists.
+**Superseded decision (history):** the first-stable physical bootstrap was intentionally `UPayments.php`. Prior real WordPress qualification proved that deleting or renaming an already-active `UPayments.php` can strand WordPress's stored plugin basename, so the package used `supcheckout/UPayments.php` and treated `supcheckout.php` as a future target that needed its own migration. The owner approved the rename with the transitional shim above, which removes the activation risk.
 
 The official UPayments plugin's own `UPayments.php` main file is a different package. `OfficialPluginConflict` still detects it by that name.
 

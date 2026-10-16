@@ -228,6 +228,22 @@ if ($version !== '') {
                 }
                 release_assert($safe, 'independent inspector sees one canonical SUPCheckout package root');
                 release_assert(in_array($prefix . 'supcheckout.php', $names, true), 'canonical package ships the supcheckout.php bootstrap');
+                release_assert(in_array($prefix . 'UPayments.php', $names, true), 'canonical package ships the transitional UPayments.php basename-migration shim');
+                release_assert(in_array($prefix . 'src/Bootstrap/BasenameMigration.php', $names, true), 'canonical package ships the basename migration the shim requires');
+                $shim = $zip->getFromName($prefix . 'UPayments.php');
+                $shim = is_string($shim) ? $shim : '';
+                release_assert($shim !== '' && stripos($shim, 'Plugin Name:') === false, 'packaged shim has no Plugin Name header, so WordPress never lists a second plugin');
+                release_assert($shim !== '' && count(preg_split('/\r\n|\n|\r/', rtrim($shim, "\r\n"))) <= 12, 'packaged shim is at most 12 lines');
+                release_assert(strpos($shim, "defined('ABSPATH') || exit;") !== false, 'packaged shim exits on direct access');
+                $shim_requires = array();
+                preg_match_all('/\b(?:require|require_once|include|include_once)\b\s*\(?\s*([^;]+);/', $shim, $shim_matches);
+                foreach ($shim_matches[1] as $shim_target) {
+                    $shim_requires[] = trim($shim_target, " \t()");
+                }
+                release_assert(
+                    $shim_requires === array("__DIR__ . '/src/Bootstrap/BasenameMigration.php'", "__DIR__ . '/supcheckout.php'"),
+                    'packaged shim requires only src/Bootstrap/BasenameMigration.php and then supcheckout.php'
+                );
                 release_assert(in_array($prefix . 'readme.txt', $names, true), 'canonical package contains WordPress.org readme');
                 release_assert(!in_array($prefix . 'composer.json', $names, true), 'canonical package excludes Composer controls');
 

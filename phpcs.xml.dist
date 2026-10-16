@@ -26,6 +26,7 @@
     <file>src/Release/Identity.php</file>
     <file>src/Autoloader.php</file>
     <file>src/Plugin.php</file>
+    <file>src/Bootstrap/BasenameMigration.php</file>
     <file>src/Migration/MigrationSettings.php</file>
     <file>src/Migration/MigrationBootstrap.php</file>
     <file>src/Subscription/Composition.php</file>

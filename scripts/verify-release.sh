@@ -93,7 +93,7 @@ with zipfile.ZipFile(zip_path, "r") as archive:
             raise SystemExit(f"Forbidden development/control path: {rel}")
 
     allowed_exact = {
-        "supcheckout.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
+        "supcheckout.php", "UPayments.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
     }
     allowed_prefixes = ("src/", "includes/", "assets/", "templates/")
     for rel in rel_names:
@@ -155,8 +155,9 @@ with zipfile.ZipFile(zip_path, "r") as archive:
             raise SystemExit(f"ZIP bytes do not match Git HEAD source: {name}")
 
     required = {
-        "supcheckout.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
+        "supcheckout.php", "UPayments.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
         "src/Release/Identity.php",
+        "src/Bootstrap/BasenameMigration.php",
         "includes/class-wc-gateway-upayments-blocks.php",
     }
     missing = sorted(required.difference(rel_names))
@@ -176,6 +177,9 @@ with zipfile.ZipFile(zip_path, "r") as archive:
         raise SystemExit("Canonical SUPCheckout text domain changed during packaging")
     if "public const MAIN_FILE = 'supcheckout.php';" not in identity_source:
         raise SystemExit("Canonical main-file identity changed during packaging")
+    shim_source = archive.read(prefix + "UPayments.php").decode("utf-8")
+    if re.search(r"^[ \t/*#@]*Plugin Name:", shim_source, re.IGNORECASE | re.MULTILINE):
+        raise SystemExit("Transitional UPayments.php shim must not carry a plugin header")
 
     parsed = {}
     for line in manifest_path.read_text(encoding="utf-8").splitlines():

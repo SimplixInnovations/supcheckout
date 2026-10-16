@@ -6,7 +6,13 @@
  * supcheckout/ while preserving merchant/payment data contracts.
  * Pre-stable packages ship the UPayments.php bootstrap; the canonical package
  * ships supcheckout/supcheckout.php since Sub-project 0a (owner decision
- * 2026-10-16, pre-release) and never the pre-rename supcheckout/UPayments.php.
+ * 2026-10-16, pre-release) plus a header-less transitional UPayments.php shim
+ * that moves a pre-rename supcheckout/UPayments.php active entry in place.
+ *
+ * Phases: seed-existing / verify-canonical / verify-legacy-rollback /
+ * verify-canonical-final / cleanup for the package-root migration, and
+ * seed-in-place / record-in-place-cron / verify-in-place for the in-place
+ * update of an active pre-rename build (SUPCHECKOUT_LEGACY_SLUG=supcheckout).
  */
 
 require_once __DIR__ . '/bootstrap.php';
@@ -100,7 +106,18 @@ function supcheckout_upgrade_assert_runtime_contract($mode, $legacy_slug, $legac
 
     supcheckout_cert_assert(file_exists($root . '/' . $main_file), $label . ' ships its ' . $main_file . ' bootstrap');
     if (!$legacy) {
-        supcheckout_cert_assert(!file_exists(WP_PLUGIN_DIR . '/' . $pre_rename_basename), 'pre-rename UPayments.php bootstrap is absent from the canonical package');
+        $shim_path = WP_PLUGIN_DIR . '/' . $pre_rename_basename;
+        supcheckout_cert_assert(is_file($shim_path), 'canonical package ships the transitional UPayments.php shim');
+        $shim_headers = get_file_data($shim_path, array('name' => 'Plugin Name'));
+        supcheckout_cert_assert(isset($shim_headers['name']) && $shim_headers['name'] === '', 'transitional UPayments.php shim carries no plugin header');
+        wp_cache_delete('plugins', 'plugins');
+        $listed = array();
+        foreach (array_keys(get_plugins()) as $plugin_basename) {
+            if (strpos($plugin_basename, 'supcheckout/') === 0) {
+                $listed[] = $plugin_basename;
+            }
+        }
+        supcheckout_cert_assert($listed === array($canonical_basename), 'WordPress lists exactly one SUPCheckout plugin: ' . $canonical_basename);
     }
     supcheckout_cert_assert(is_plugin_active($active_basename), $label . ' plugin basename is active');
     supcheckout_cert_assert(!is_plugin_active($inactive_basename), 'alternate package identity is inactive');
@@ -124,9 +141,7 @@ function supcheckout_upgrade_assert_runtime_contract($mode, $legacy_slug, $legac
     supcheckout_cert_note($label . ' translation call count=' . $translation_hits);
 }
 
-if ('seed-existing' === $phase) {
-    supcheckout_upgrade_assert_runtime_contract('legacy', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
-
+function supcheckout_upgrade_seed_merchant_state($settings_key, $settings_snapshot_key, $order_key, $product_key) {
     // Prime the negative cache to keep this fixture representative of an
     // already-running merchant installation.
     get_option($settings_key, false);
@@ -161,13 +176,55 @@ if ('seed-existing' === $phase) {
     $order->calculate_totals();
     $order->save();
     update_option($order_key, $order->get_id(), false);
+}
 
+function supcheckout_upgrade_record_cron($cron_key, $label) {
     $cron = wp_next_scheduled('upay_process_subscriptions');
-    supcheckout_cert_assert(is_int($cron) && $cron > 0, 'canonical subscription cron exists on legacy active install');
+    supcheckout_cert_assert(is_int($cron) && $cron > 0, 'canonical subscription cron exists on ' . $label);
     update_option($cron_key, $cron, false);
+}
 
+if ('seed-existing' === $phase) {
+    supcheckout_upgrade_assert_runtime_contract('legacy', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
+    supcheckout_upgrade_seed_merchant_state($settings_key, $settings_snapshot_key, $order_key, $product_key);
+    supcheckout_upgrade_record_cron($cron_key, 'legacy active install');
     supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
     supcheckout_cert_note('pre-stable installation seeded: ' . $legacy_slug);
+    return;
+}
+
+if ('seed-in-place' === $phase) {
+    // The pre-rename build is active as supcheckout/UPayments.php. Its hourly tick is
+    // scheduled on the next request once subscriptions are enabled, so the cron
+    // timestamp is recorded by record-in-place-cron after that request.
+    supcheckout_cert_assert('supcheckout/UPayments.php' === $legacy_basename, 'in-place cell runs against the pre-rename supcheckout/UPayments.php basename');
+    supcheckout_upgrade_assert_runtime_contract('legacy', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
+    supcheckout_upgrade_seed_merchant_state($settings_key, $settings_snapshot_key, $order_key, $product_key);
+    supcheckout_cert_note('pre-rename active installation seeded: ' . $legacy_basename);
+    return;
+}
+
+if ('record-in-place-cron' === $phase) {
+    supcheckout_cert_assert(is_plugin_active($legacy_basename), 'pre-rename build is still active as ' . $legacy_basename . ' before the update');
+    supcheckout_upgrade_record_cron($cron_key, 'pre-rename active install');
+    supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
+    return;
+}
+
+if ('verify-in-place' === $phase) {
+    $active = get_option('active_plugins', array());
+    supcheckout_cert_assert(is_array($active) && in_array($canonical_basename, $active, true), 'in-place update moved the active entry to ' . $canonical_basename);
+    supcheckout_cert_assert(is_array($active) && !in_array($pre_rename_basename, $active, true), 'no ' . $pre_rename_basename . ' entry remains in active_plugins');
+    supcheckout_cert_assert(is_array($active) && count(array_keys($active, $canonical_basename, true)) === 1, $canonical_basename . ' is listed once');
+
+    // The Plugins screen runs this validation and deactivates entries whose file is invalid.
+    $invalid = validate_active_plugins();
+    supcheckout_cert_assert(is_array($invalid) && $invalid === array(), 'validate_active_plugins() reports no invalid SUPCheckout entry');
+    supcheckout_cert_assert(is_plugin_active($canonical_basename), $canonical_basename . ' is active after plugin validation');
+
+    supcheckout_upgrade_assert_runtime_contract('canonical', $legacy_slug, $legacy_text_domain, $legacy_basename, $canonical_basename, $pre_rename_basename);
+    supcheckout_upgrade_verify_data($settings_key, $settings_snapshot_key, $order_key, $cron_key);
+    supcheckout_cert_note('in-place update migrated ' . $pre_rename_basename . ' to ' . $canonical_basename . ' without deactivation');
     return;
 }
 
