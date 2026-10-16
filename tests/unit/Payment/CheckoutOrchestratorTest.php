@@ -56,6 +56,114 @@ final class CheckoutOrchestratorGateway {
 #[RunTestsInSeparateProcesses]
 #[PreserveGlobalState(false)]
 final class CheckoutOrchestratorTest extends TestCase {
+    /**
+     * Order double with real meta storage, so a "fresh" database read can differ
+     * from the stale object a request loaded at its start. Declared at runtime because
+     * the WC_Order test double loads in setUp().
+     */
+    private function stateful_order(array $meta, $paid = false): \WC_Order {
+        $order = new class(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('simple')))) extends \WC_Order {
+            public $meta = array();
+            public $paid = false;
+            public function get_meta($key) { return array_key_exists($key, $this->meta) ? $this->meta[$key] : ''; }
+            public function add_meta_data($key, $value, $unique = false) { $this->meta[$key] = $value; }
+            public function update_meta_data($key, $value) { $this->meta[$key] = $value; }
+            public function delete_meta_data($key) { unset($this->meta[$key]); }
+            public function save_meta_data() {}
+            public function is_paid() { return $this->paid; }
+            public function needs_payment() { return !$this->paid; }
+        };
+        $order->meta = $meta;
+        $order->paid = $paid;
+        return $order;
+    }
+
+    private function charge_success_executor(callable $during_charge): callable {
+        return static function ($route, $method, $body) use ($during_charge) {
+            if ($route !== 'charge') {
+                return array();
+            }
+            $during_charge();
+            return array(
+                'transport_ok' => true,
+                'http_status' => 201,
+                'curl_errno' => 0,
+                'body' => json_encode(array('status' => true, 'data' => array('link' => 'https://sandbox.upayments.com/pay/attempt-a'))),
+            );
+        };
+    }
+
+    public function test_concurrent_attempt_rotation_never_drops_an_attempt(): void {
+        // The real OrderLock runs against the option-store database fake.
+        \supcheckout_test_reset_wp_options();
+        $stale = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $stale;
+        // While this request waits for UPayments, a second submit of the same order
+        // finished its own Charge and rotated the stored attempt to B.
+        $fresh = $this->stateful_order(array(
+            'UPayments_order_id' => 'attempt-b',
+            '_simplixpay_upayments_prior_requested_v1' => array('attempt-p0'),
+        ));
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            $this->charge_success_executor(static function () use ($fresh) {
+                $GLOBALS['supcheckout_test_status_orders'][42] = $fresh;
+            }),
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('success', $result['result']);
+        $current = $fresh->get_meta('UPayments_order_id');
+        self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $current);
+        // Both earlier attempts stay payable: neither P0 nor B is forgotten.
+        self::assertSame(array('attempt-p0', 'attempt-b'), $fresh->get_meta('_simplixpay_upayments_prior_requested_v1'));
+    }
+
+    public function test_a_busy_order_lock_fails_closed_without_touching_the_order(): void {
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $held = \Simplixi\SUPCheckout\Payment\OrderLock::acquire(42);
+        self::assertIsString($held);
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            $this->charge_success_executor(static function () {}),
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame('attempt-p0', $order->get_meta('UPayments_order_id'));
+        self::assertSame('', $order->get_meta('_simplixpay_upayments_prior_requested_v1'));
+    }
+
+    public function test_an_order_paid_during_charge_is_never_rotated(): void {
+        \supcheckout_test_reset_wp_options();
+        $stale = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $stale;
+        $fresh = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'), true);
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            $this->charge_success_executor(static function () use ($fresh) {
+                // A late capture for attempt P0 completed the order meanwhile.
+                $GLOBALS['supcheckout_test_status_orders'][42] = $fresh;
+            }),
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('attempt-p0', $fresh->get_meta('UPayments_order_id'));
+        self::assertSame('', $fresh->get_meta('_simplixpay_upayments_prior_requested_v1'));
+        self::assertSame('success', $result['result']);
+        self::assertStringNotContainsString('sandbox.upayments.com', $result['redirect']);
+    }
     protected function setUp(): void {
         require_once dirname(__DIR__, 2) . '/support/wordpress-payment-runtime.php';
         \supcheckout_test_reset_payment_runtime();

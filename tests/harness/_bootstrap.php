@@ -438,6 +438,7 @@ function wp_salt($scheme = 'auth') { return 'test_salt_value_for_hmac'; }
 
 class WpdbStub {
     public $usermeta = 'wp_usermeta';
+    public $options = 'wp_options';
     public $prefix = 'wp_';
     public $locks = [];
     public function esc_like($s) { return addcslashes($s, '_%\\'); }
@@ -455,6 +456,27 @@ class WpdbStub {
     }
     public function query($sql) {
         $state =& upay_test_state();
+        // OrderLock's conditional option writes (INSERT IGNORE, compare-and-swap
+        // UPDATE, compare-and-delete), with real database semantics.
+        $q = "'((?:[^']|'')*)'";
+        if (is_string($sql) && preg_match('/^\s*INSERT IGNORE INTO \S+ \(option_name, option_value, autoload\) VALUES \(' . $q . ', ' . $q . ', ' . $q . '\)/', $sql, $m)) {
+            $name = str_replace("''", "'", $m[1]);
+            if (array_key_exists($name, $state['options'])) { return 0; }
+            $state['options'][$name] = str_replace("''", "'", $m[2]);
+            return 1;
+        }
+        if (is_string($sql) && preg_match('/^\s*UPDATE \S+ SET option_value = ' . $q . ' WHERE option_name = ' . $q . ' AND option_value = ' . $q . '/', $sql, $m)) {
+            $name = str_replace("''", "'", $m[2]);
+            if (!array_key_exists($name, $state['options']) || $state['options'][$name] !== str_replace("''", "'", $m[3])) { return 0; }
+            $state['options'][$name] = str_replace("''", "'", $m[1]);
+            return 1;
+        }
+        if (is_string($sql) && preg_match('/^\s*DELETE FROM \S+ WHERE option_name = ' . $q . ' AND option_value = ' . $q . '/', $sql, $m)) {
+            $name = str_replace("''", "'", $m[1]);
+            if (!array_key_exists($name, $state['options']) || $state['options'][$name] !== str_replace("''", "'", $m[2])) { return 0; }
+            unset($state['options'][$name]);
+            return 1;
+        }
         if (is_string($sql) && stripos($sql, 'usermeta') !== false) {
             $count = 0;
             foreach ($state['usermeta'] as $uid => $keys) {
@@ -712,6 +734,10 @@ class FakeWCOrder extends \WC_Order {
         return array_key_exists('needs_payment', $this->data)
             ? (bool) $this->data['needs_payment']
             : true;
+    }
+    // Real WC_Order API: paid exactly when no longer payable in this synthetic model.
+    public function is_paid() {
+        return !$this->needs_payment();
     }
     public function get_billing_email() { return $this->data['billing']['email']; }
     public function get_billing_phone() { return $this->data['billing']['phone']; }

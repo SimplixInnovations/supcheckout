@@ -5,6 +5,10 @@ namespace Simplixi\SUPCheckout\Payment;
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
 use UPayments\Token\CustomerTokenIdentity;
 
+defined('ABSPATH') || exit;
+
+require_once __DIR__ . '/OrderLock.php';
+
 /**
  * Canonical WooCommerce checkout-to-Charge orchestration.
  *
@@ -17,6 +21,9 @@ class CheckoutOrchestrator {
     private const MAX_PRIOR_PROVIDER_ATTEMPTS = 5;
     // paymentGateway.src for non-white-label accounts (official UPayments 3.1.1 parity).
     private const NON_WHITELABEL_GATEWAY_SRC = 'knet';
+    // Bounded wait for the per-order lock after a successful Charge (about one second).
+    private const ATTEMPT_LOCK_TRIES = 5;
+    private const ATTEMPT_LOCK_WAIT_MICROSECONDS = 200000;
 
     private $gateway;
     private $requestBodyReader;
@@ -1444,36 +1451,11 @@ class CheckoutOrchestrator {
                         return ["result" => "failure", "redirect" => wc_get_checkout_url()];
                     }
 
-                    // Valid success path.
-                    if($subscription_plan && $subscription_plan !== 'one_time') {
-                        $order->delete_meta_data('_upay_subscription_plan');
-                        $order->add_meta_data('_upay_subscription_plan', $subscription_plan);
-                        $order->delete_meta_data('_upay_subscription_interval');
-                        $order->add_meta_data('_upay_subscription_interval', $subscription_interval);
-                        $order->delete_meta_data('_upay_subscription_status');
-                        $order->add_meta_data('_upay_subscription_status', 'active');
-                        $order->delete_meta_data('UPayments_AutoDeduction');
-                        $order->add_meta_data('UPayments_AutoDeduction', 'no');
-                        $order->save_meta_data();
-                    }
-
-                    $previous_order_id = $order->get_meta("UPayments_order_id");
-                    if (is_string($previous_order_id) && $previous_order_id !== '') {
-                        $prior = $order->get_meta('_simplixpay_upayments_prior_requested_v1');
-                        $prior = is_array($prior) ? array_values(array_filter($prior, 'is_string')) : array();
-                        if (!in_array($previous_order_id, $prior, true)) {
-                            $prior[] = $previous_order_id;
-                        }
-                        $order->update_meta_data(
-                            '_simplixpay_upayments_prior_requested_v1',
-                            array_slice($prior, -self::MAX_PRIOR_PROVIDER_ATTEMPTS)
-                        );
-                    }
-                    $order->delete_meta_data("UPayments_order_id");
-                    $order->add_meta_data("UPayments_order_id", $unique_order_id);
-                    $order->save_meta_data();
-
-                    return ["result" => "success", "redirect" => $redirect_url];
+                    // Valid success path. Another request (a double submit, or a callback
+                    // completing an earlier attempt) may have changed this order while the
+                    // Charge was in flight, so the attempt rotation runs under the same
+                    // per-order lock as callbacks, on a fresh read, and never on a paid order.
+                    return $this->record_new_attempt($order_id, $unique_order_id, $subscription_plan, $subscription_interval, $redirect_url);
 
             } catch (\Throwable $e) {
                 // Fail-closed: catch TypeError (PHP 8+) and Exception (PHP 7.2+).
@@ -1482,6 +1464,78 @@ class CheckoutOrchestrator {
                 WC()->session->set("refresh_totals", true);
                 wc_add_notice(__("Payment request could not be completed. Please try again.", 'supcheckout'), "error");
                 return ["result" => "failure", "redirect" => wc_get_checkout_url()];
+            }
+        }
+
+        /**
+         * Record the provider order identity of a successful Charge.
+         *
+         * @param int         $order_id              WooCommerce order ID.
+         * @param string      $unique_order_id       Provider order identity of this Charge.
+         * @param string|null $subscription_plan     Selected plan.
+         * @param mixed       $subscription_interval Selected interval.
+         * @param string      $redirect_url          Provider payment page.
+         * @return array WooCommerce process_payment result.
+         */
+        private function record_new_attempt($order_id, $unique_order_id, $subscription_plan, $subscription_interval, $redirect_url) {
+            $lock_token = null;
+            for ($try = 0; $try < self::ATTEMPT_LOCK_TRIES && $lock_token === null; $try++) {
+                if ($try > 0) {
+                    usleep(self::ATTEMPT_LOCK_WAIT_MICROSECONDS);
+                }
+                $lock_token = OrderLock::acquire($order_id);
+            }
+            if ($lock_token === null) {
+                $this->gateway->log('Charge succeeded but the order lock stayed busy; attempt not recorded.', 'warning');
+                wc_add_notice(__("Payment request could not be completed. Please try again.", 'supcheckout'), "error");
+                return ["result" => "failure", "redirect" => wc_get_checkout_url()];
+            }
+
+            try {
+                $order = wc_get_order($order_id);
+                if (!is_object($order)) {
+                    wc_add_notice(__("Payment request could not be completed. Please try again.", 'supcheckout'), "error");
+                    return ["result" => "failure", "redirect" => wc_get_checkout_url()];
+                }
+                if ($order->is_paid() || !$order->needs_payment()) {
+                    // Paid meanwhile (for example by a late capture of an earlier
+                    // attempt): never rotate a paid order or send the customer to pay again.
+                    $paid_redirect = method_exists($this->gateway, 'get_return_url')
+                        ? $this->gateway->get_return_url($order)
+                        : wc_get_checkout_url();
+                    return ["result" => "success", "redirect" => $paid_redirect];
+                }
+
+                if ($subscription_plan && $subscription_plan !== 'one_time') {
+                    $order->delete_meta_data('_upay_subscription_plan');
+                    $order->add_meta_data('_upay_subscription_plan', $subscription_plan);
+                    $order->delete_meta_data('_upay_subscription_interval');
+                    $order->add_meta_data('_upay_subscription_interval', $subscription_interval);
+                    $order->delete_meta_data('_upay_subscription_status');
+                    $order->add_meta_data('_upay_subscription_status', 'active');
+                    $order->delete_meta_data('UPayments_AutoDeduction');
+                    $order->add_meta_data('UPayments_AutoDeduction', 'no');
+                }
+
+                $previous_order_id = $order->get_meta("UPayments_order_id");
+                if (is_string($previous_order_id) && $previous_order_id !== '') {
+                    $prior = $order->get_meta('_simplixpay_upayments_prior_requested_v1');
+                    $prior = is_array($prior) ? array_values(array_filter($prior, 'is_string')) : array();
+                    if (!in_array($previous_order_id, $prior, true)) {
+                        $prior[] = $previous_order_id;
+                    }
+                    $order->update_meta_data(
+                        '_simplixpay_upayments_prior_requested_v1',
+                        array_slice($prior, -self::MAX_PRIOR_PROVIDER_ATTEMPTS)
+                    );
+                }
+                $order->delete_meta_data("UPayments_order_id");
+                $order->add_meta_data("UPayments_order_id", $unique_order_id);
+                $order->save_meta_data();
+
+                return ["result" => "success", "redirect" => $redirect_url];
+            } finally {
+                OrderLock::release($order_id, $lock_token);
             }
         }
 

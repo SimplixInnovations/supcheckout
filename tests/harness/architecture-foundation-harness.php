@@ -265,6 +265,49 @@ function arch_direct_public_method(array $classTokens, $methodName)
     return array('found' => false, 'body' => array());
 }
 
+function arch_direct_private_method(array $classTokens, $methodName)
+{
+    $tokenCount = count($classTokens);
+    $nameToken = 'name:' . $methodName;
+    $depth = 0;
+    for ($i = 0; $i < $tokenCount - 1; $i++) {
+        if ($classTokens[$i] === '{') {
+            $depth++;
+            continue;
+        }
+        if ($classTokens[$i] === '}') {
+            if ($depth > 0) {
+                $depth--;
+            }
+            continue;
+        }
+        if ($depth !== 0 || $classTokens[$i] !== 'function' || $classTokens[$i + 1] !== $nameToken) {
+            continue;
+        }
+        $isPrivate = false;
+        for ($p = $i - 1; $p >= 0; $p--) {
+            if ($classTokens[$p] === ';' || $classTokens[$p] === '{' || $classTokens[$p] === '}') {
+                break;
+            }
+            if ($classTokens[$p] === 'private') {
+                $isPrivate = true;
+            }
+        }
+        if (!$isPrivate) {
+            return array('found' => false, 'body' => array());
+        }
+        for ($j = $i + 2; $j < $tokenCount; $j++) {
+            if ($classTokens[$j] === '{') {
+                return array(
+                    'found' => true,
+                    'body' => arch_without_nested_callables(arch_extract_braced_body($classTokens, $j)),
+                );
+            }
+        }
+    }
+    return array('found' => false, 'body' => array());
+}
+
 function arch_has_token_sequence(array $tokens, array $sequence)
 {
     $sequenceCount = count($sequence);
@@ -616,9 +659,15 @@ arch_assert(
     'WC_Upayments::process_payment directly delegates to the A5 checkout orchestrator'
 );
 arch_assert($checkoutProcess['found'], 'A5 CheckoutOrchestrator process entry point is public and executable');
+// The provider-order identity is persisted by process() through its locked,
+// fresh-read attempt recorder (double-submit / paid-meanwhile safety).
+$recordNewAttempt = arch_direct_private_method($checkoutOrchestratorClassTokens, 'record_new_attempt');
 arch_assert(
-    arch_has_token_sequence($checkoutProcess['body'], $orderIdWriteSequence),
-    'UPayments_order_id remains executable CheckoutOrchestrator::process persistence from the local provider-order identity'
+    arch_has_token_sequence($checkoutProcess['body'], array('variable:$this', '->', 'name:record_new_attempt', '(', 'variable:$order_id', ',', 'variable:$unique_order_id'))
+        && $recordNewAttempt['found']
+        && arch_has_token_sequence($recordNewAttempt['body'], $orderIdWriteSequence)
+        && arch_has_token_sequence($recordNewAttempt['body'], array('name:OrderLock', '::', 'name:acquire', '(', 'variable:$order_id', ')')),
+    'UPayments_order_id remains executable CheckoutOrchestrator::process persistence from the local provider-order identity, under the order lock'
 );
 
 $inertFixture = <<<'PHP'
