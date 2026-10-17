@@ -53,7 +53,7 @@ if (!class_exists('SUPCheckout_Test_WPDB')) {
             if (strpos($statement['query'], 'UPDATE ') === 0 && count($args) === 3) {
                 list($replacement, $name, $expected) = $args;
                 if (!array_key_exists($name, $GLOBALS['supcheckout_test_options'])
-                    || $GLOBALS['supcheckout_test_options'][$name] !== $expected
+                    || !supcheckout_test_option_value_matches($statement['query'], $GLOBALS['supcheckout_test_options'][$name], $expected)
                 ) {
                     return 0;
                 }
@@ -76,7 +76,7 @@ if (!class_exists('SUPCheckout_Test_WPDB')) {
             if (strpos($statement['query'], 'DELETE ') === 0 && count($args) === 2) {
                 list($name, $expected) = $args;
                 if (!array_key_exists($name, $GLOBALS['supcheckout_test_options'])
-                    || $GLOBALS['supcheckout_test_options'][$name] !== $expected
+                    || !supcheckout_test_option_value_matches($statement['query'], $GLOBALS['supcheckout_test_options'][$name], $expected)
                 ) {
                     return 0;
                 }
@@ -87,6 +87,24 @@ if (!class_exists('SUPCheckout_Test_WPDB')) {
 
             return false;
         }
+    }
+}
+
+if (!function_exists('supcheckout_test_option_value_matches')) {
+    /**
+     * WHERE option_value comparison as MySQL performs it, for the fake.
+     *
+     * wp_options.option_value normally has a case-insensitive, PAD SPACE collation
+     * (utf8mb4_unicode_ci / utf8mb4_unicode_520_ci), so a plain `option_value = %s`
+     * matches a value that differs only in letter case or trailing spaces. Only the
+     * bytewise form `CAST(option_value AS BINARY) = CAST(%s AS BINARY)` compares
+     * exactly. Accent folding is not emulated.
+     */
+    function supcheckout_test_option_value_matches($query, $stored, $expected) {
+        if (strpos((string) $query, 'CAST(option_value AS BINARY) = CAST(%s AS BINARY)') !== false) {
+            return $stored === $expected;
+        }
+        return strtolower(rtrim((string) $stored, ' ')) === strtolower(rtrim((string) $expected, ' '));
     }
 }
 

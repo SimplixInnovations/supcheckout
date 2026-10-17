@@ -13,6 +13,11 @@ defined('ABSPATH') || exit;
  * workers can both report success. Stale recovery and release use SQL
  * compare-and-swap/delete against the exact stored scalar record so one worker can
  * never delete or replace another worker's lock.
+ *
+ * The value condition is bytewise (CAST(option_value AS BINARY) = CAST(%s AS BINARY)):
+ * option_value usually carries a case-insensitive, PAD SPACE collation, under which a
+ * plain `option_value = %s` also matches a stale value differing only in case or
+ * trailing spaces. The option_name equality stays a plain, index-friendly comparison.
  */
 final class OrderLock {
     private const PREFIX = 'simplixpay_upay_order_lock_v1_';
@@ -131,7 +136,20 @@ final class OrderLock {
         return true;
     }
 
-    private static function replace_if_current($name, $expected, $replacement) {
+    /**
+     * Compare-and-swap an option row: replace its value only if it still holds $expected.
+     *
+     * Bypasses update_option() (which reads, then writes unconditionally) and flushes
+     * the option cache after a successful swap. Fails closed (false) when the database
+     * handle is unavailable. An unchanged value (replacement === expected) reports 0
+     * affected rows on MySQL and therefore false; callers skip no-op swaps.
+     *
+     * @param mixed $name        Option name; anything but a non-empty string fails closed.
+     * @param mixed $expected    Exact stored value (compared bytewise) the swap is conditional on.
+     * @param mixed $replacement New value; anything but a string fails closed.
+     * @return bool True only for the single worker whose swap changed the row.
+     */
+    public static function replace_if_current($name, $expected, $replacement) {
         global $wpdb;
         if (!is_object($wpdb)
             || !isset($wpdb->options)
@@ -139,6 +157,8 @@ final class OrderLock {
             || $wpdb->options === ''
             || !method_exists($wpdb, 'prepare')
             || !method_exists($wpdb, 'query')
+            || !is_string($name)
+            || $name === ''
             || !is_string($expected)
             || !is_string($replacement)
         ) {
@@ -146,7 +166,7 @@ final class OrderLock {
         }
 
         $sql = $wpdb->prepare(
-            "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+            "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND CAST(option_value AS BINARY) = CAST(%s AS BINARY)",
             $replacement,
             $name,
             $expected
@@ -174,7 +194,7 @@ final class OrderLock {
         }
 
         $sql = $wpdb->prepare(
-            "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+            "DELETE FROM {$wpdb->options} WHERE option_name = %s AND CAST(option_value AS BINARY) = CAST(%s AS BINARY)",
             $name,
             $expected
         );
@@ -187,7 +207,13 @@ final class OrderLock {
         return true;
     }
 
-    private static function flush_option_cache($name) {
+    /**
+     * Drop an option's object-cache entry and its "absent" marker after a raw SQL write.
+     *
+     * @param string $name Option name.
+     * @return void
+     */
+    public static function flush_option_cache($name) {
         if (function_exists('wp_cache_delete')) {
             wp_cache_delete($name, 'options');
         }

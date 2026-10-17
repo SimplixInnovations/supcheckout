@@ -73,7 +73,7 @@ q3_assert(!q3_contains($order_lock, 'if (add_option('), 'first lock acquisition 
 q3_assert(q3_contains($order_lock, 'INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, %s)'), 'lock creation relies on the unique option_name index');
 q3_assert(q3_contains($order_lock, '(int) $inserted !== 1'), 'only the worker whose insert created the row acquires');
 q3_assert(q3_contains($order_lock, "wp_cache_get('notoptions', 'options')"), 'raw lock insert clears the cached option-absent marker');
-q3_assert(q3_contains($order_lock, 'AND option_value = %s'), 'takeover/release SQL remains exact-record compare-and-swap');
+q3_assert(q3_contains($order_lock, 'AND CAST(option_value AS BINARY) = CAST(%s AS BINARY)'), 'takeover/release SQL remains exact-record, bytewise compare-and-swap');
 q3_assert(!q3_contains($order_lock, 'delete_option($name)'), 'order lock never blindly deletes a contested lock');
 q3_assert(q3_contains($order_lock, "wp_cache_delete(\$name, 'options')"), 'successful SQL mutation flushes the option cache');
 q3_assert(substr_count($order_lock, 'phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic compare-and-set lock mutation uses freshly prepared SQL and must bypass caches.') === 2, 'only the two immediately prepared conditional queries carry exact-line atomic-lock PHPCS annotations');

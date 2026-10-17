@@ -50,6 +50,7 @@
     <file>src/Subscription/Helpers/Utils.php</file>
     <file>src/Takeover/Keys.php</file>
     <file>src/Takeover/TakeoverState.php</file>
+    <file>src/Takeover/Journal.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

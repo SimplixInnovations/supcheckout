@@ -30,9 +30,9 @@ All code reads identities through one `Keys` registry with legacy fallback, so c
 - **Approved migration contract.** The owner approved renaming every protected identity (decision: "option 2, fully rename") on the condition of a non-destructive, verified, reversible switch. The spec §5, this plan and the Task 12 matrix are that contract. AGENTS.md is updated in Task 12, not before, so the protected list keeps guarding the code until the matrix is green.
 - **Copy, never move.** No legacy option, meta, cron event or third-party value is deleted before `Finalize`, and `Finalize` is refused until 30 days after `Cutover` unless the owner passes `--force-after-review`.
 - **Records:**
-  - every write the takeover makes to a value it did not create records `{target, path, before, after}` in the takeover journal, the option `supcheckout_takeover_journal_v1` (an append-only array, non-autoloaded);
-  - `Rollback` replays that journal in reverse;
-  - the journal never contains API keys, tokens, card data or customer PII. Settings values are journaled as a SHA-256 fingerprint plus the restore source (the legacy option is kept intact for exactly this reason).
+  - every write the takeover makes to a value it did not create records `{target, path, before_fingerprint, after_fingerprint, restore_source}` in the takeover journal. That is the option `supcheckout_takeover_journal_v1` plus `_1`, `_2`, … chunk options of at most 250 entries each, append-only and non-autoloaded;
+  - `Rollback` replays that journal in reverse, but only entries whose path still holds the value the takeover wrote (`Journal::is_current_after()`). A later legitimate edit by the merchant or another plugin is reported as a conflict and kept;
+  - the journal never contains API keys, tokens, card data or customer PII. `Journal::record()` takes the before and after **values** and stores only their SHA-256 fingerprints, plus the restore source (the legacy option is kept intact for exactly this reason).
 - **Batches:** at most 50 orders per Action Scheduler action, idempotent, resumable from a persisted cursor. A failure mid-batch never leaves an order half-copied: each order's copy is one `save()`.
 - **Payment authority:** paid state still comes only from authenticated UPayments status. The takeover never marks, unmarks or re-verifies payments.
 
@@ -555,10 +555,14 @@ final class Keys {
 **Interfaces:**
 - Produces:
   - `TakeoverState::get(): array{status:string, cut_over_at:int, cursor:int, totals:array}`;
-  - `TakeoverState::transition(string $to): bool`, allowed transitions only;
-  - `TakeoverState::is_cut_over(): bool`;
-  - `Journal::record(string $target, string $path, string $before_fingerprint, string $restore_source): void`;
-  - `Journal::entries(): array`.
+  - `TakeoverState::transition(string $to, bool $force = false): bool`, allowed transitions only;
+  - `TakeoverState::is_cut_over(): bool`, one cached read per request (`TakeoverState::flush_cache()` resets it);
+  - `TakeoverState::patch(array $fields, ?string $expected_status = null): bool`, progress fields (cursors, totals, mismatches) under the same compare-and-swap;
+  - `Journal::record(string $target, string $path, mixed $before_value, mixed $after_value, string $restore_source): void`. It takes the **values** and stores only `before_fingerprint` and `after_fingerprint` (`sha256(serialize())`), so no caller can journal a raw secret;
+  - `Journal::entries(): list<array{seq, recorded_at, target, path, before_fingerprint, after_fingerprint, restore_source}>`. Every entry and the chunk layout are validated, and a malformed journal throws before anything is returned;
+  - `Journal::is_current_after(array $entry, mixed $current_value): bool`: true only while the current value is still the one the takeover wrote;
+  - `Journal::fingerprint(mixed $value): string`.
+- Storage: chunk options of at most 250 entries (`supcheckout_takeover_journal_v1`, then `_1`, `_2`, …), all non-autoloaded. Every change is an insert-if-absent or a bytewise compare-and-swap (`CAST(option_value AS BINARY) = CAST(%s AS BINARY)`, because `option_value`'s collation is case- and padding-insensitive).
 
 - [ ] **Step 1: Write the failing transition test.**
 
@@ -584,7 +588,7 @@ public function test_only_the_documented_transitions_are_allowed(): void {
   - `finalized` requires `time() - cut_over_at >= 30 * DAY_IN_SECONDS`, or the `force` flag that the CLI sets only with `--force-after-review`.
   - Write the option with `OrderLock::insert_if_absent` for the first record, then a compare-and-swap update, so two admins can't race a transition.
 - [ ] **Step 4: Run it.** Expected: PASS.
-- [ ] **Step 5: Add the `JournalTest`.** Assert that entries never contain the API key: record a settings change whose value contains `test-api-key-123`, and assert that string is absent from `json_encode(Journal::entries())`. Implement until it passes.
+- [ ] **Step 5: Add the `JournalTest`.** Assert that entries never contain the API key: record a settings change whose value contains `test-api-key-123`, and assert that string is absent from `json_encode(Journal::entries())`. Also assert that an entry's after-fingerprint differs from its before-fingerprint, that a value edited after the change fails `is_current_after()`, and that malformed chunks (`[{}]`, `[{"seq":99}]`, wrong types, a bad fingerprint, non-contiguous `seq`) throw. Implement until it passes.
 - [ ] **Step 6: Commit.** `feat(takeover): persisted state machine and change journal`
 
 ### Task 4: `Preflight` (read-only report)
@@ -723,7 +727,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 **Interfaces:**
 - Produces: `Cutover::run(bool $deactivate_official): array{ok:bool, steps:list<string>}`. In order:
   1. copy settings from the first non-empty `Keys::settings_sources()` entry to `woocommerce_supcheckout_settings`, and the `Keys::options()` values verbatim (including the token-identity secret, so H12 provenance hashes stay valid);
-  2. translate `woocommerce_gateway_order`, the `woocommerce_default_gateway` value, WCML gateway country/currency rules and FunnelKit gateway lists (each recorded in the `Journal`);
+  2. translate `woocommerce_gateway_order`, the `woocommerce_default_gateway` value, WCML gateway country/currency rules and FunnelKit gateway lists. Each is recorded in the `Journal` **before** the write, passing both the current value and the value about to be written (`Journal::record($target, $path, $before_value, $after_value, $restore_source)`). A third-party original is kept in a takeover-owned backup option named as its `restore_source`, because the journal holds fingerprints only;
   3. reschedule the `Keys::cron_hooks()` events to the new names. Old events are kept until Finalize, and their callbacks stay registered as aliases. Already-canonical hooks (`supcheckout_reconciliation_sweep`, `supcheckout_process_due_parent`) are left alone;
   4. register the gateway under `supcheckout` for new orders, and make every runtime check that compares an order's gateway use `Keys::is_our_gateway()`. This covers the callback/lifecycle ownership checks, the subscription parent and renewal selection queries (`payment_method IN ('upayments','supcheckout')`), admin presentation and the Blocks/Store API. Historical orders are **not** rewritten. Test: after cutover, a pre-switch `upayments` subscription parent still renews through SUPCheckout, and a pre-switch pending order is still paid by its callback;
   5. transition to `cut_over`;
@@ -731,7 +735,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
   **Stale sessions (added after the review of `02bf9fc`).** WooCommerce sessions, kept for up to 48 h, may still hold `chosen_payment_method=upayments` after cutover. Cutover does not rewrite `wc_sessions` rows. Instead, every runtime session comparison uses `Keys::is_our_gateway()` (Task 2), and on the first checkout request of such a session the stored value is re-pointed to `Keys::GATEWAY`. Test: after cutover, a session holding `upayments` still renders our gateway as selected and places the order under `supcheckout`.
 
-- [ ] **Step 1: Write the failing test.** The WCML gateway restriction stored under `upayments` ends up under `supcheckout` with the same countries, and the journal holds the before-fingerprint.
+- [ ] **Step 1: Write the failing test.** The WCML gateway restriction stored under `upayments` ends up under `supcheckout` with the same countries, and the journal holds the before- and after-fingerprints.
   - Do the third-party option paths first, on a real WCML/FunnelKit install in the Task 12 matrix.
   - Until a path is evidenced there, the translator only **reports** it and never writes it.
 - [ ] **Step 2: Run it.** Expected: FAIL.
@@ -799,8 +803,10 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 - Test: `tests/unit/Takeover/RollbackTest.php`
 
 **Interfaces:**
-- Produces: `Rollback::run(bool $reactivate_official): array{ok:bool, restored:int}`.
+- Produces: `Rollback::run(bool $reactivate_official): array{ok:bool, restored:int, conflicts:list<array{seq:int, target:string, path:string}>}`.
   - It replays the `Journal` in reverse: settings from the intact legacy option, third-party values, gateway order and cron. It also rewrites `payment_method` from `supcheckout` to `upayments` on post-cutover orders only.
+  - **Later edits win.** An entry is replayed only when `Journal::is_current_after($entry, $current_value)` holds, i.e. the current value's fingerprint equals the entry's `after_fingerprint`. Otherwise the merchant or another plugin changed the value during the 30 days: Rollback records a conflict `{seq, target, path}` in its result, leaves the newer value in place, and reports `ok: false` with the conflict list so the owner decides.
+  - `Journal::entries()` throws on a malformed journal, so Rollback fails before replaying anything.
   - **Back-sync.** After cutover, writes went to new names only, so new data is always the latest. Rollback therefore copies new → legacy wherever the two differ:
     - order meta on every order holding any new key;
     - user meta, including the provenance prefix;
@@ -814,6 +820,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - It stays `processing`, and its payment ID stays readable through `Keys::read_order_meta()`. Because the payment was written under the new key only, `Rollback` **also copies new → legacy** for keys written after cutover.
   - The test asserts the legacy `UPayments_PaymentID` equals the new value.
   - **Table back-sync:** a billing-attempt row inserted after cutover, and a pre-existing row whose status changed after cutover, both match in the legacy table after rollback.
+  - **Later edit kept:** the merchant reorders `woocommerce_gateway_order` after cutover. Rollback leaves that order unchanged, reports it in `conflicts`, and returns `ok: false`, while every untouched journaled value is restored.
 - [ ] **Step 2: Run it.** Expected: FAIL.
 - [ ] **Step 3: Implement it.**
 - [ ] **Step 4: Run it.** Expected: PASS.

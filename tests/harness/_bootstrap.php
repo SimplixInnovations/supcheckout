@@ -458,7 +458,8 @@ class WpdbStub {
     public function query($sql) {
         $state =& upay_test_state();
         // OrderLock's conditional option writes (INSERT IGNORE, compare-and-swap
-        // UPDATE, compare-and-delete), with real database semantics.
+        // UPDATE, compare-and-delete), with real database semantics. The value
+        // condition is bytewise (CAST ... AS BINARY), so the fake compares exactly.
         $q = "'((?:[^']|'')*)'";
         if (is_string($sql) && preg_match('/^\s*INSERT IGNORE INTO \S+ \(option_name, option_value, autoload\) VALUES \(' . $q . ', ' . $q . ', ' . $q . '\)/', $sql, $m)) {
             $name = str_replace("''", "'", $m[1]);
@@ -466,13 +467,13 @@ class WpdbStub {
             $state['options'][$name] = str_replace("''", "'", $m[2]);
             return 1;
         }
-        if (is_string($sql) && preg_match('/^\s*UPDATE \S+ SET option_value = ' . $q . ' WHERE option_name = ' . $q . ' AND option_value = ' . $q . '/', $sql, $m)) {
+        if (is_string($sql) && preg_match('/^\s*UPDATE \S+ SET option_value = ' . $q . ' WHERE option_name = ' . $q . ' AND CAST\(option_value AS BINARY\) = CAST\(' . $q . ' AS BINARY\)/', $sql, $m)) {
             $name = str_replace("''", "'", $m[2]);
             if (!array_key_exists($name, $state['options']) || $state['options'][$name] !== str_replace("''", "'", $m[3])) { return 0; }
             $state['options'][$name] = str_replace("''", "'", $m[1]);
             return 1;
         }
-        if (is_string($sql) && preg_match('/^\s*DELETE FROM \S+ WHERE option_name = ' . $q . ' AND option_value = ' . $q . '/', $sql, $m)) {
+        if (is_string($sql) && preg_match('/^\s*DELETE FROM \S+ WHERE option_name = ' . $q . ' AND CAST\(option_value AS BINARY\) = CAST\(' . $q . ' AS BINARY\)/', $sql, $m)) {
             $name = str_replace("''", "'", $m[1]);
             if (!array_key_exists($name, $state['options']) || $state['options'][$name] !== str_replace("''", "'", $m[2])) { return 0; }
             unset($state['options'][$name]);
