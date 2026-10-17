@@ -39,7 +39,13 @@ defined('ABSPATH') || exit;
  *  9. remove the new-name copies (CopyRemoval: cron back to legacy names, payment_method of
  *     orders an in-flight cut-over request still created, order/user/product meta and
  *     markers, option copies, new-table rows), persisting progress after every unit;
- * 10. record the journal floor and transition rolled_back → preflight_ok;
+ *     then settle: wait, bounded with a progress line per poll, until
+ *     CopyRemoval::SETTLE_SECONDS have passed since the transition (a late writer that read
+ *     the old state may still dual-write), and run full rescans (not cursor-bound) until one
+ *     finds nothing, at most CopyRemoval::MAX_RESCANS (`removal_unsettled`, exit 4: rerun);
+ *     abort's removal settles the same way;
+ * 10. record the journal floor (the removal complete only after a clean rescan) and
+ *     transition rolled_back → preflight_ok;
  * 11. if consented, reactivate the official install the takeover recorded as deactivated
  *     (site only, without loading it in this process; see reactivate_official()).
  *
@@ -106,6 +112,12 @@ final class Rollback {
     private $conflicts = array();
     /** @var int */
     private $restored = 0;
+    /** @var int Removal pass: 1 is the cursor pass, 2.. are full rescans. */
+    private $pass = 1;
+    /** @var int Late copies the current rescan removed. */
+    private $found = 0;
+    /** @var int System time of the transition (start of the settle barrier). */
+    private $transitioned_at = 0;
 
     /**
      * @param RollbackStore|null  $store  Store; WordPress when omitted.
@@ -379,6 +391,10 @@ final class Rollback {
             'restored' => $this->restored,
             'removal' => CopyRemoval::start(),
             'removal_pending' => true,
+            // The settle barrier counts from here (CopyRemoval::SETTLE_SECONDS).
+            'transitioned_at' => $this->system->now(),
+            'pass' => 1,
+            'found' => 0,
         );
         if (!TakeoverState::patch(array(self::PROGRESS => $progress), $from)) {
             return 'transition_refused';
@@ -450,6 +466,10 @@ final class Rollback {
             }
         }
         $removal = isset($progress['removal']) && is_array($progress['removal']) ? $progress['removal'] : CopyRemoval::start();
+        // Pass 1 is the cursor removal; passes 2.. are full rescans after the settle time.
+        $this->pass = isset($progress['pass']) ? max(1, (int) $progress['pass']) : 1;
+        $this->found = isset($progress['found']) ? (int) $progress['found'] : 0;
+        $this->transitioned_at = isset($progress['transitioned_at']) ? (int) $progress['transitioned_at'] : $this->system->now();
         $locked = 0;
         while (true) {
             $was = isset($removal['phase']) ? $removal['phase'] : CopyRemoval::PHASE_CRON;
@@ -468,19 +488,73 @@ final class Rollback {
                 return 'removal_incomplete';
             }
             $locked = 0;
+            $this->found += $this->pass > 1 ? $out['removed'] : 0;
             $removal = $out['progress'];
             if (!$this->save_progress($status, $removal, true)) {
                 return 'transition_refused';
             }
-            if ($was === CopyRemoval::PHASE_CRON) {
+            if ($was === CopyRemoval::PHASE_CRON && $this->pass === 1) {
                 $this->step('cron_restored');
             }
-            if ($out['status'] === CopyRemoval::DONE) {
+            if ($out['status'] !== CopyRemoval::DONE) {
+                continue;
+            }
+            $next = $this->end_pass($status);
+            if ($next === true) {
                 break;
             }
+            if (is_string($next)) {
+                return $next;
+            }
+            $removal = CopyRemoval::start();
         }
-        $this->step('copies_removed');
+        $this->step('removal_settled');
         return $this->save_progress($status, $removal, false) ? null : 'transition_refused';
+    }
+
+    /**
+     * After a removal pass: the cursor pass waits for the settle time; a rescan that found
+     * nothing completes the removal; one that removed late copies starts another rescan, at
+     * most CopyRemoval::MAX_RESCANS in all.
+     *
+     * @param string $status Status the progress belongs to.
+     * @return bool|string|null True when complete, an error code, or null for another pass.
+     */
+    private function end_pass($status) {
+        if ($this->pass === 1) {
+            $this->step('copies_removed');
+            if (!$this->settle()) {
+                return 'transition_refused';
+            }
+        } else {
+            $this->step('rescanned');
+            if ($this->found === 0) {
+                return true;
+            }
+            $this->report['late_copies_removed'] = $this->found;
+            if ($this->pass > CopyRemoval::MAX_RESCANS) {
+                return 'removal_unsettled';
+            }
+        }
+        ++$this->pass;
+        $this->found = 0;
+        return $this->save_progress($status, CopyRemoval::start(), true) ? null : 'transition_refused';
+    }
+
+    /**
+     * Wait, bounded, until CopyRemoval::SETTLE_SECONDS have passed since the transition, so a
+     * request that read the old state before it has ended before the final rescans.
+     *
+     * @return bool
+     */
+    private function settle() {
+        $deadline = $this->transitioned_at + CopyRemoval::SETTLE_SECONDS;
+        while ($this->system->now() < $deadline) {
+            // One progress line per poll (WP-CLI prints every step).
+            $this->step('settling');
+            $this->system->sleep(min(CopyRemoval::SETTLE_POLL, $deadline - $this->system->now()));
+        }
+        return true;
     }
 
     /**
@@ -496,6 +570,9 @@ final class Rollback {
             'restored' => $this->restored,
             'removal' => $removal,
             'removal_pending' => $pending,
+            'transitioned_at' => $this->transitioned_at,
+            'pass' => $this->pass,
+            'found' => $this->found,
         ));
         if (!$pending) {
             $fields[self::FLOOR] = count(Journal::entries());

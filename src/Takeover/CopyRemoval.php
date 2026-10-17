@@ -50,6 +50,25 @@ final class CopyRemoval {
 
     public const AUDIT = 'none:rollback_removal';
 
+    /**
+     * Seconds after the transition before a removal may be recorded complete. A request or
+     * worker that read the cut-over (or verified) state before the transition can still
+     * dual-write new names until it ends. 120 s outlasts PHP's default max_execution_time
+     * (30 s), Action Scheduler's 30 s batch time limit, WP-Cron spawn requests and typical
+     * proxy timeouts, and equals Cutover::DRAIN_TIMEOUT; Action Scheduler and the billing
+     * claims re-read the state per claim anyway. After it, full rescans run until one finds
+     * nothing (at most MAX_RESCANS). A process running longer that still writes later leaves
+     * a copy the next copy run reports by name (fail closed, never silently used).
+     */
+    public const SETTLE_SECONDS = 120;
+    /** Seconds between settle polls (each one a progress line in WP-CLI). */
+    public const SETTLE_POLL = 10;
+    /** Full rescans after the settle time before the removal reports `removal_unsettled`. */
+    public const MAX_RESCANS = 3;
+
+    /** @var int Objects, keys, options, events and rows removed by the current step. */
+    private static $removed = 0;
+
     private const ORDER = array(self::PHASE_CRON, self::PHASE_ORDERS, self::PHASE_USERS, self::PHASE_PRODUCTS, self::PHASE_OPTIONS, self::PHASE_TABLE, self::PHASE_DONE);
 
     /**
@@ -64,10 +83,11 @@ final class CopyRemoval {
      * @param RollbackSystem             $system   Cron.
      * @param array<string, mixed>       $progress {phase, cursor}.
      * @param list<string>               $keep     Option copies kept (gateway settings with a `settings_diverged` conflict).
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int}
      * @throws \RuntimeException When an audit entry cannot be stored.
      */
     public static function step(RollbackStore $store, RollbackSystem $system, array $progress, array $keep = array()) {
+        self::$removed = 0;
         $phase = isset($progress['phase']) && in_array($progress['phase'], self::ORDER, true) ? (string) $progress['phase'] : self::PHASE_CRON;
         $cursor = isset($progress['cursor']) ? $progress['cursor'] : 0;
         switch ($phase) {
@@ -90,7 +110,7 @@ final class CopyRemoval {
 
     /**
      * @param RollbackSystem $system Cron.
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int}
      */
     private static function cron(RollbackSystem $system) {
         $legacy_for = array_flip(Keys::cron_hooks());
@@ -119,6 +139,7 @@ final class CopyRemoval {
                 return self::result(self::FAILED, self::PHASE_CRON, 0);
             }
             ++$moved;
+            ++self::$removed;
         }
         $result = self::result(self::CONTINUE_RUN, self::PHASE_ORDERS, 0);
         $result['restored'] = $moved;
@@ -128,7 +149,7 @@ final class CopyRemoval {
     /**
      * @param RollbackStore $store  Store.
      * @param int           $cursor Last order done.
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int}
      */
     private static function orders(RollbackStore $store, $cursor) {
         $ids = $store->rollback_order_ids_after($cursor, CopyRunner::ORDER_BATCH);
@@ -166,7 +187,7 @@ final class CopyRemoval {
             }
             $changed = BackSync::repoint_payment_method($order);
             $changed = self::delete_keys($order, $keys) || $changed;
-            return self::save($order, $changed);
+            return self::counted(self::save($order, $changed), $changed);
         } finally {
             OrderLock::release($order_id, $token);
         }
@@ -175,7 +196,7 @@ final class CopyRemoval {
     /**
      * @param RollbackStore $store  Store.
      * @param int           $cursor Last user done.
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int}
      */
     private static function users(RollbackStore $store, $cursor) {
         $ids = $store->rollback_user_ids_after($cursor, CopyRunner::USER_BATCH);
@@ -189,6 +210,7 @@ final class CopyRemoval {
                     self::audit('users', $cursor, $done);
                     return self::result(self::FAILED, self::PHASE_USERS, $done);
                 }
+                ++self::$removed;
             }
             $done = $user_id;
         }
@@ -199,7 +221,7 @@ final class CopyRemoval {
     /**
      * @param RollbackStore $store  Store.
      * @param int           $cursor Last product done.
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int}
      */
     private static function products(RollbackStore $store, $cursor) {
         $ids = $store->rollback_product_ids_after($cursor, CopyRunner::PRODUCT_BATCH);
@@ -210,7 +232,8 @@ final class CopyRemoval {
         $keys = array_merge(array_values(Keys::product_meta()), Keys::takeover_markers());
         foreach ($ids as $product_id) {
             $product = $store->load_product($product_id);
-            if (is_object($product) && self::save($product, self::delete_keys($product, $keys)) !== BackSync::SYNCED) {
+            $changed = is_object($product) && self::delete_keys($product, $keys);
+            if (is_object($product) && self::counted(self::save($product, $changed), $changed) !== BackSync::SYNCED) {
                 self::audit('products', $cursor, $done);
                 return self::result(self::FAILED, self::PHASE_PRODUCTS, $done);
             }
@@ -227,7 +250,7 @@ final class CopyRemoval {
      * `settings_diverged`) stay.
      *
      * @param list<string> $keep Option names kept.
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int}
      */
     private static function options(array $keep) {
         $result = self::result(self::CONTINUE_RUN, self::PHASE_TABLE, '');
@@ -243,13 +266,15 @@ final class CopyRemoval {
                 return self::result(self::FAILED, self::PHASE_OPTIONS, 0);
             }
             ++$result['restored'];
+            ++self::$removed;
+            ++$result['removed'];
         }
         return $result;
     }
 
     /**
      * @param RollbackStore $store Store.
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int}
      */
     private static function table(RollbackStore $store) {
         if (!$store->table_exists(CopyStore::TABLE_NEW)) {
@@ -263,7 +288,20 @@ final class CopyRemoval {
         if (!$store->table_delete_keys(CopyStore::TABLE_NEW, $keys)) {
             return self::result(self::FAILED, self::PHASE_TABLE, '');
         }
+        self::$removed += count($keys);
         return self::result(self::CONTINUE_RUN, self::PHASE_TABLE, '');
+    }
+
+    /**
+     * @param string $status  BackSync::SYNCED or BackSync::FAILED.
+     * @param bool   $changed Something was deleted (or rewritten).
+     * @return string $status, counting one removal when the change persisted.
+     */
+    private static function counted($status, $changed) {
+        if ($status === BackSync::SYNCED && $changed) {
+            ++self::$removed;
+        }
+        return $status;
     }
 
     /**
@@ -325,10 +363,10 @@ final class CopyRemoval {
      * @param string     $status Status.
      * @param string     $phase  Next phase.
      * @param int|string $cursor Next cursor.
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int}
      */
     private static function result($status, $phase, $cursor) {
-        return array('status' => $status, 'progress' => array('phase' => $phase, 'cursor' => $cursor), 'conflicts' => array(), 'restored' => 0);
+        return array('status' => $status, 'progress' => array('phase' => $phase, 'cursor' => $cursor), 'conflicts' => array(), 'restored' => 0, 'removed' => self::$removed);
     }
 
     private function __construct() {}

@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Takeover\CopyRemoval;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
 use Simplixi\SUPCheckout\Takeover\CronRescheduler;
 use Simplixi\SUPCheckout\Takeover\Cutover;
@@ -340,6 +341,93 @@ final class RollbackTest extends TestCase {
                 }
             }
         }
+    }
+
+    public function test_a_missing_new_table_refuses_the_back_sync_without_any_write(): void {
+        $this->seed_cut_over();
+        // The authoritative (new) table is gone while legacy holds only a stale claimed row.
+        $this->store->new_table_exists = false;
+        $this->store->tables['new'] = array();
+        $this->store->tables['legacy'] = array(self::key('7') => array('cycle_key' => self::key('7'), 'parent_order_id' => 8, 'owner_token' => 'q', 'state' => 'claimed', 'payment_id' => null));
+        $legacy_before = $this->store->tables['legacy'];
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame('table_mismatch', $result['error'], (string) json_encode($result));
+        self::assertSame('new_table_missing', $result['report']['table']);
+        self::assertSame($legacy_before, $this->store->tables['legacy'], 'the stale claim is never deleted or rewritten');
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+    }
+
+    public function test_the_removal_settles_then_rescans_late_writes_before_recording_completion(): void {
+        $this->seed_cut_over();
+        $order = $GLOBALS['supcheckout_test_status_orders'][7];
+        $store = $this->store;
+        $transition = null;
+        $system = $this->system;
+        $pending_while_settling = array();
+        $this->system->on_step = static function ($step) use (&$transition, $system, $order, $store) {
+            if ($step === 'rolled_back') {
+                $transition = $system->now;
+            }
+            if ($step === 'copies_removed') {
+                // A request that read cut_over before the transition dual-writes after the cursor passed.
+                $order->external_write('_supcheckout_payment_id', array('late'));
+                $store->user_meta[3][self::NEW_SCOPE_KEY] = array('late-provenance');
+                $GLOBALS['supcheckout_test_options']['supcheckout_subscription_enrollment_cursor'] = 26;
+                $store->tables['new'][self::key('8')] = array('cycle_key' => self::key('8'), 'state' => 'resolved');
+            }
+        };
+        $this->system->on_sleep = static function () use (&$pending_while_settling) {
+            $pending_while_settling[] = Rollback::removal_pending(TakeoverState::get());
+        };
+
+        $result = $this->rollback()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertNotNull($transition);
+        self::assertGreaterThanOrEqual($transition + CopyRemoval::SETTLE_SECONDS, $this->system->now, 'completion waits for the settle time');
+        self::assertNotContains(false, $pending_while_settling, 'completion is never recorded while settling');
+        self::assertNotSame(array(), $pending_while_settling);
+        self::assertSame(array(), $order->persisted_values('_supcheckout_payment_id'), 'the late order copy is removed by the rescan');
+        self::assertArrayNotHasKey(self::NEW_SCOPE_KEY, $this->store->user_meta[3], 'the late H12 copy is removed');
+        self::assertFalse(get_option('supcheckout_subscription_enrollment_cursor', false));
+        self::assertSame(array(), $this->store->tables['new']);
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+        self::assertLessThan(array_search('removal_settled', $result['steps'], true), array_search('settling', $result['steps'], true));
+    }
+
+    public function test_late_writers_that_keep_recreating_copies_leave_the_removal_unsettled(): void {
+        $this->seed_cut_over();
+        $order = $GLOBALS['supcheckout_test_status_orders'][7];
+        $this->system->on_step = static function ($step) use ($order) {
+            if ($step === 'copies_removed' || $step === 'rescanned') {
+                $order->external_write('_supcheckout_payment_id', array('late'));
+            }
+        };
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame('removal_unsettled', $result['error'], (string) json_encode($result));
+        self::assertSame(TakeoverState::ROLLED_BACK, TakeoverState::get()['status'], 'never preflight_ok with copies still being recreated');
+        self::assertTrue(Rollback::removal_pending(TakeoverState::get()));
+    }
+
+    public function test_an_abort_also_settles_before_recording_completion(): void {
+        $order = $this->seed_verified();
+        \Simplixi\SUPCheckout\Takeover\OrderCopier::copy($order, false);
+        $start = $this->system->now;
+        $this->system->on_step = static function ($step) use ($order) {
+            if ($step === 'copies_removed') {
+                $order->external_write('_supcheckout_payment_id', array('late'));
+            }
+        };
+
+        $result = $this->rollback()->abort(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertGreaterThanOrEqual($start + CopyRemoval::SETTLE_SECONDS, $this->system->now);
+        self::assertSame(array(), $order->persisted_values('_supcheckout_payment_id'));
     }
 
     public function test_a_released_claim_still_claimed_in_legacy_is_deleted_by_the_back_sync(): void {

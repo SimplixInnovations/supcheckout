@@ -33,8 +33,12 @@ defined('ABSPATH') || exit;
  *
  * `rollback` (cut_over → rolled_back → preflight_ok) and `abort` (verified → preflight_ok)
  * run Rollback; both are rerunnable after a crash at any step. Their errors map to the
- * codes above: busy, lost lease, claims in flight or a contended order lock → 4, stale
+ * codes above: busy, lost lease, claims in flight, a contended order lock or late writers
+ * still recreating copies after the settle time (`removal_unsettled`; rerun later) → 4, stale
  * claims → 5, the wrong state → 6, a back-sync or table mismatch → 3, anything else → 1.
+ * After their transition both wait in-process for CopyRemoval::SETTLE_SECONDS (120 s, a
+ * `settling` line every 10 s) before the final rescans, so a late writer's copy is removed
+ * before completion is recorded.
  *
  * `run` is rerunnable after a crash at any step: every step resumes from persisted state.
  * idle → preflight_ok → copying (CopyRunner, cursor per object) → verified → official
@@ -86,6 +90,7 @@ final class CliCommands {
         'claims_in_flight' => self::BUSY,
         'transition_refused' => self::BUSY,
         'removal_busy' => self::BUSY,
+        'removal_unsettled' => self::BUSY,
         'official_active' => self::BLOCKED,
         'stale_claims' => self::STALE_CLAIMS,
         'not_cut_over' => self::STATE,
