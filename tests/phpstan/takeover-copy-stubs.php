@@ -99,3 +99,9 @@ function get_file_data($file, $default_headers, $context = '') {}
 
 /** wpdb result shape (0b Task 9 stale-claims store). */
 define('ARRAY_A', 'ARRAY_A');
+
+/**
+ * @param string $transient
+ * @return bool
+ */
+function delete_transient($transient) {}

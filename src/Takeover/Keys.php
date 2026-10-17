@@ -31,6 +31,11 @@ final class Keys {
      * and Finalize delete it (Keys::takeover_markers()).
      */
     public const TAKEOVER_COPY_MARKER = '_supcheckout_takeover_copy_v1';
+    /**
+     * Official 3.0.0 activation option holding the "Checkout (Block)" page ID (one of
+     * Keys::official_only()). Finalize removes the option but only reports the page.
+     */
+    public const OFFICIAL_BLOCK_CHECKOUT_PAGE_OPTION = 'upayments_block_checkout_page_id';
 
     /**
      * Both gateway identities, for wc_get_orders(array('payment_method' => ...)) queries.
@@ -171,6 +176,27 @@ final class Keys {
     }
 
     /**
+     * How each Keys::ephemeral_prefixes() family is stored, which decides how Finalize
+     * removes its legacy rows: `option` rows are deleted by name, a `transient` through
+     * delete_transient() (its `_transient_` and `_transient_timeout_` rows), and an
+     * `advisory_lock` (MySQL GET_LOCK()) has no rows at all.
+     *
+     * @return array<string,string> Legacy prefix => option|transient|advisory_lock, in
+     *                              Keys::ephemeral_prefixes() order.
+     */
+    public static function ephemeral_storage() {
+        return array(
+            'simplixpay_upay_order_lock_v1_' => 'option',
+            'simplixpay_upay_status_v1_' => 'option',
+            'upayments_payment_methods_rate_gate_' => 'option',
+            'upay_pm_v3_' => 'transient',
+            'upay_pm_' => 'advisory_lock',
+            'upay_ctk_bootstrap_b' => 'advisory_lock',
+            'upay_ctk_' => 'advisory_lock',
+        );
+    }
+
+    /**
      * Written only by the official plugin (or, for the table, by SUPCheckout's dead
      * Subscription\Manager listener, removed in 0b Task 7: nothing ever fired its hook).
      * Nothing copies them. Preflight reports them;
@@ -184,7 +210,7 @@ final class Keys {
      */
     public static function official_only() {
         return array(
-            'options' => array('your_gateway_version', 'upayments_block_checkout_page_id',
+            'options' => array('your_gateway_version', self::OFFICIAL_BLOCK_CHECKOUT_PAGE_OPTION,
                 'woocommerce_upayments_enable_block_checkout', 'upayments_maat', 'upay_subscription_settings'),
             'option_prefixes' => array('external_updates-upayments'),
             'transients' => array('upayments_cron_lock'),

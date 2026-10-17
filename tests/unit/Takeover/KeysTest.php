@@ -235,6 +235,13 @@ final class KeysTest extends TestCase {
         self::assertArrayHasKey('upay_ctk_bootstrap_b', Keys::ephemeral_prefixes(), 'bootstrap lock is its own family');
     }
 
+    public function test_every_ephemeral_family_has_one_storage_type_for_finalize(): void {
+        self::assertSame(array_keys(Keys::ephemeral_prefixes()), array_keys(Keys::ephemeral_storage()));
+        self::assertSame(array(), array_diff(Keys::ephemeral_storage(), array('option', 'transient', 'advisory_lock')));
+        self::assertSame('transient', Keys::ephemeral_storage()['upay_pm_v3_'], 'the payment-methods cache is a transient');
+        self::assertContains(Keys::OFFICIAL_BLOCK_CHECKOUT_PAGE_OPTION, Keys::official_only()['options']);
+    }
+
     public function test_customer_token_lock_names_fit_mysql_get_lock_with_the_widest_scope_and_user_id(): void {
         // get_lock_name(): PREFIX . 32-hex scope . '_' . user_id; user_id is BIGINT UNSIGNED (20 digits).
         $widest_suffix = strlen(str_repeat('f', 32) . '_' . '18446744073709551615');

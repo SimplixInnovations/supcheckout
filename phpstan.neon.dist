@@ -90,4 +90,7 @@ parameters:
         - src/Takeover/JournalReplay.php
         - src/Takeover/CopyRemoval.php
         - src/Takeover/Rollback.php
+        - src/Takeover/FinalizeStore.php
+        - src/Takeover/FinalizeRemoval.php
+        - src/Takeover/Finalize.php
     tmpDir: .cache/phpstan

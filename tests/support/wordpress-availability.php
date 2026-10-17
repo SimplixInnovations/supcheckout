@@ -88,6 +88,14 @@ if (!function_exists('set_transient')) {
     }
 }
 
+if (!function_exists('delete_transient')) {
+    function delete_transient($name) {
+        $existed = array_key_exists($name, $GLOBALS['supcheckout_test_availability']['transients']);
+        unset($GLOBALS['supcheckout_test_availability']['transients'][$name], $GLOBALS['supcheckout_test_availability']['transient_ttls'][$name]);
+        return $existed;
+    }
+}
+
 if (!function_exists('get_current_blog_id')) {
     function get_current_blog_id() {
         return 7;
