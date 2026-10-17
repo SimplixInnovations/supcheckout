@@ -89,21 +89,17 @@ final class FinalizeCommand {
     }
 
     /**
-     * The status field: days until finalize is allowed and, while cut over, the planned
-     * removal (a dry run; read-only).
+     * The status field: days until finalize is allowed. Cheap on purpose: no row is scanned;
+     * the planned removal is the dry run (`finalize --dry-run`). Once finalized, the recorded
+     * removal counts.
      *
      * @param array<string, mixed> $state TakeoverState::get().
-     * @return array{due_at:int, days_left:int, allowed:bool, forced:bool, pending:bool, planned:array<string,int>|null, kept:int}
+     * @return array{due_at:int, days_left:int, allowed:bool, forced:bool, pending:bool, planned:array<string,int>|null, kept:int, hint:string}
      */
     public function status_field(array $state) {
-        $finalize = $this->finalizer();
         $planned = null;
         $kept = 0;
-        if ($finalize !== null && $state['status'] === TakeoverState::CUT_OVER) {
-            $plan = $finalize->plan();
-            $planned = $plan['removed'];
-            $kept = count($plan['kept']);
-        } elseif ($state['status'] === TakeoverState::FINALIZED) {
+        if ($state['status'] === TakeoverState::FINALIZED) {
             $progress = Finalize::progress_of($state);
             $planned = isset($progress['removed']) && is_array($progress['removed']) ? array_map('intval', $progress['removed']) : null;
             $kept = isset($progress['kept']) && is_array($progress['kept']) ? count($progress['kept']) : 0;
@@ -117,6 +113,7 @@ final class FinalizeCommand {
             'pending' => Finalize::pending($state),
             'planned' => $planned,
             'kept' => $kept,
+            'hint' => $state['status'] === TakeoverState::CUT_OVER ? 'run `wp supcheckout takeover finalize --dry-run` for the planned removal' : '',
         );
     }
 

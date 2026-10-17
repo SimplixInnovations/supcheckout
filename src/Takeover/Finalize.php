@@ -21,10 +21,13 @@ defined('ABSPATH') || exit;
  *  4. renew the lease, persist the removal start, check holds() right before the
  *     compare-and-swap, transition cut_over → finalized, flush caches, release the lease;
  *  5. remove the legacy names (FinalizeRemoval), persisting progress after every unit;
- *  6. retire the legacy billing-attempts table under a fresh lease: drain legacy claims
- *     (bounded); keep it while any legacy row is `claimed` or `dispatching`, any legacy row
- *     was updated after the cutover's sync (cut_over_at), or its row count or any per-row
- *     checksum differs from the new table; otherwise drop it.
+ *  6. retire the legacy billing-attempts table under a fresh lease, after the transition:
+ *     drain legacy claims (bounded); keep it while any legacy row is `claimed` or
+ *     `dispatching`, any legacy row was updated after the cutover's sync (cut_over_at), or
+ *     any legacy row is missing from the new table or further along than its new row
+ *     (claimed < dispatching < held < resolved; unknown states fail closed); otherwise drop
+ *     it. While cut over only the new table is written, so the legacy table is a stale
+ *     subset and differing checksums are expected (reported for information only).
  *
  * Step order (why the transition comes first): from `finalized` on, runtime writes reach
  * the new names only, a runtime delete removes both names (Keys::delete_names()), lock
@@ -42,8 +45,11 @@ defined('ABSPATH') || exit;
  * names a straggler wrote and retries a kept table).
  *
  * Never removed: the legacy callback route (served forever by LegacyCallbackListener),
- * gateway settings sources, translated third-party values, other plugins' data, the
- * official tables and the "Checkout (Block)" page (reported only).
+ * the gateway settings sources (woocommerce_upayments_settings is a protected identity and
+ * keeping it is fail-safe: settings reads take the new option first), translated
+ * third-party values, other plugins' data, the official tables and the "Checkout (Block)"
+ * page (reported only). The takeover's own third-party backups exist only for Rollback and
+ * are removed.
  *
  * Result: {ok, removed, kept, reported, forced, error, steps, report}; `ok` only with no
  * error and nothing kept. Reports carry names, IDs and counts, never a value.
@@ -176,9 +182,9 @@ final class Finalize {
         }
         $table = 'absent';
         if ($this->store->table_exists(CopyStore::TABLE_LEGACY)) {
-            $verdict = $this->table_verdict($state);
+            list($verdict, $rows) = $this->table_verdict($state);
             $table = $verdict === null ? 'drop' : 'keep';
-            $this->retire_outcome($verdict, false);
+            $this->retire_outcome($verdict, $rows, false);
         }
         return array(
             'ok' => $refuse === array(),
@@ -399,8 +405,9 @@ final class Finalize {
         }
         try {
             $verdict = $this->drain_legacy();
+            $rows = 0;
             if ($verdict === null) {
-                $verdict = $this->table_verdict(TakeoverState::get());
+                list($verdict, $rows) = $this->table_verdict(TakeoverState::get());
             }
             if ($verdict === null && !$this->lease->holds()) {
                 $verdict = 'lease_lost';
@@ -418,7 +425,7 @@ final class Finalize {
                     return $out;
                 }
             }
-            $outcome = $this->retire_outcome($verdict, true);
+            $outcome = $this->retire_outcome($verdict, $rows, true);
             return array_merge($out, $outcome);
         } finally {
             $this->lease->release();
@@ -428,15 +435,18 @@ final class Finalize {
 
     /**
      * @param string|null $verdict Null when the table is (or would be) dropped, else why it is kept.
+     * @param int         $rows    Rows concerned by the reason (the kept group's count).
      * @param bool        $return  Return the outcome instead of absorbing it (dry run).
      * @return array{removed:array<string,int>, kept:list<array<string,mixed>>, table:string}
      */
-    private function retire_outcome($verdict, $return) {
+    private function retire_outcome($verdict, $rows, $return) {
         $outcome = array('removed' => FinalizeRemoval::no_removals(), 'kept' => array(), 'table' => $verdict === null ? 'table_retired' : 'table_kept');
         if ($verdict === null) {
             $outcome['removed']['billing_table'] = 1;
         } else {
-            $outcome['kept'][] = FinalizeRemoval::kept_group('billing_table', (string) array_keys(Keys::tables())[0], $verdict);
+            $group = FinalizeRemoval::kept_group('billing_table', (string) array_keys(Keys::tables())[0], $verdict);
+            $group['count'] = max(1, (int) $rows);
+            $outcome['kept'][] = $group;
         }
         if (!$return) {
             $this->absorb($outcome);
@@ -470,43 +480,74 @@ final class Finalize {
     }
 
     /**
-     * Whether the legacy table may be dropped (read-only).
+     * Whether the legacy table may be dropped (read-only). While cut over only the new table
+     * is written, so the legacy table is a stale subset of it: it is dropped only when no
+     * legacy row is `claimed` or `dispatching`, none was updated after cut_over_at (the
+     * cutover's final sync; a later one is a legacy-pinned straggler), and every legacy row's
+     * cycle_key exists in the new table at a state at least as far along
+     * (BillingTableCopier::covers(); an unknown state fails closed). The per-row checksum
+     * comparison is reported for information only.
      *
-     * @param array<string, mixed> $state State (cut_over_at is the cutover's final sync).
-     * @return string|null Null when droppable, else the reason it is kept.
+     * @param array<string, mixed> $state State.
+     * @return array{0:string|null, 1:int} [null when droppable, else why it is kept; rows concerned].
      */
     private function table_verdict(array $state) {
         $claimed = $this->store->table_count_state(CopyStore::TABLE_LEGACY, 'claimed');
         $dispatching = $this->store->table_count_state(CopyStore::TABLE_LEGACY, 'dispatching');
         $newer = $this->store->table_rows_updated_after(CopyStore::TABLE_LEGACY, gmdate('Y-m-d H:i:s', (int) $state['cut_over_at']));
         if ($claimed === null || $dispatching === null || $newer === null) {
-            return 'table_unreadable';
+            return array('table_unreadable', 0);
         }
         if ($claimed + $dispatching > 0) {
-            return 'legacy_claims_open';
+            return array('legacy_claims_open', $claimed + $dispatching);
         }
         if ($newer > 0) {
-            return 'legacy_newer_than_sync';
+            return array('legacy_newer_than_sync', $newer);
         }
         if (!$this->store->table_exists(CopyStore::TABLE_NEW)) {
-            return 'new_table_missing';
+            return array('new_table_missing', 0);
         }
+        $missing = 0;
+        $behind = 0;
         $cursor = '';
-        $mismatches = 0;
-        $codes = array();
+        do {
+            $keys = $this->store->table_keys_after(CopyStore::TABLE_LEGACY, $cursor, BillingTableCopier::BATCH);
+            $legacy = $this->store->table_states(CopyStore::TABLE_LEGACY, $keys);
+            $new = $this->store->table_states(CopyStore::TABLE_NEW, $keys);
+            foreach ($keys as $key) {
+                if (!isset($new[$key])) {
+                    ++$missing;
+                } elseif (!isset($legacy[$key]) || !BillingTableCopier::covers($legacy[$key], $new[$key])) {
+                    ++$behind;
+                }
+            }
+            $cursor = $keys === array() ? $cursor : (string) end($keys);
+            if ($this->lease !== null && !$this->lease->maybe_renew()) {
+                return array('lease_lost', 0);
+            }
+        } while (count($keys) === BillingTableCopier::BATCH);
+        $this->report_checksums();
+        if ($missing > 0) {
+            return array('legacy_rows_missing_in_new', $missing);
+        }
+        return $behind > 0 ? array('legacy_rows_behind_in_new', $behind) : array(null, 0);
+    }
+
+    /**
+     * Information only: how many rows differ between the two tables by per-row checksum
+     * (expected after renewals while cut over).
+     *
+     * @return void
+     */
+    private function report_checksums() {
+        $cursor = '';
+        $differing = 0;
         do {
             $step = BillingTableCopier::back_verify_batch($this->store, $cursor);
-            $mismatches += $step['mismatches'];
-            $codes = array_merge($codes, $step['codes']);
+            $differing += $step['mismatches'] - (in_array(BillingTableCopier::ROW_COUNT, $step['codes'], true) ? 1 : 0);
             $cursor = $step['cursor'];
-            if ($this->lease !== null && !$this->lease->maybe_renew()) {
-                return 'lease_lost';
-            }
         } while (!$step['done']);
-        if ($mismatches === 0) {
-            return null;
-        }
-        return in_array(BillingTableCopier::CHECKSUM, $codes, true) ? 'checksum_mismatch' : 'row_count_mismatch';
+        $this->reported['billing_table_checksums'] = array('differing_rows' => $differing);
     }
 
     /**

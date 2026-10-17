@@ -208,6 +208,21 @@ final class BillingTableCopier {
     }
 
     /**
+     * Whether a new row in $new_state is at least as far along as a legacy row in
+     * $legacy_state (claimed < dispatching < held < resolved). An unknown state on either
+     * side counts as behind (fail closed).
+     *
+     * @param string $legacy_state Legacy row state.
+     * @param string $new_state    New row state.
+     * @return bool
+     */
+    public static function covers($legacy_state, $new_state) {
+        $from = array_search((string) $legacy_state, self::STATE_ORDER, true);
+        $to = array_search((string) $new_state, self::STATE_ORDER, true);
+        return $from !== false && $to !== false && $to >= $from;
+    }
+
+    /**
      * Keys whose new row is not at least as far along as its legacy row
      * (claimed < dispatching < held < resolved); an unknown state counts as behind.
      *

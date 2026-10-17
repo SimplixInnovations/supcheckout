@@ -10,6 +10,7 @@ use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\Quiesce;
 use Simplixi\SUPCheckout\Takeover\Rollback;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
+use Simplixi\SUPCheckout\Takeover\ThirdPartyTranslator;
 
 /**
  * 0b Task 11: guarded, irreversible finalize (cut_over → finalized), on the real
@@ -259,7 +260,7 @@ final class FinalizeTest extends TestCase {
 
     public function test_a_crash_at_any_step_is_resumed_by_running_finalize_again(): void {
         $steps = array('quiesced', 'verified', 'finalized', 'caches_flushed', 'cron_removed', 'orders_removed', 'users_removed',
-            'products_removed', 'options_removed', 'official_removed', 'ephemeral_removed', 'table_retired');
+            'products_removed', 'options_removed', 'backups_removed', 'official_removed', 'ephemeral_removed', 'table_retired');
         foreach ($steps as $index => $crash_at) {
             $this->setUp();
             $order = $this->seed_cut_over();
@@ -364,19 +365,46 @@ final class FinalizeTest extends TestCase {
         self::assertSame(array(6), $kept['user_meta:simplixpay_upayments_migration_v1:unequal']['ids']);
     }
 
-    public function test_a_billing_table_that_differs_from_the_new_table_is_kept(): void {
+    public function test_a_store_with_post_cutover_renewals_drops_its_stale_legacy_table(): void {
         $this->seed_cut_over();
-        // A renewal resolved after cutover lands in the new table only.
-        $this->store->tables['new'][self::key('1')]['state'] = 'held';
+        // While cut over only the new table is written: a held cycle resolved, and new cycles.
+        $this->store->tables['legacy'][self::key('1')]['state'] = 'held';
+        $this->store->tables['new'][self::key('1')]['state'] = 'resolved';
+        $this->store->tables['new'][self::key('2')] = array('cycle_key' => self::key('2'), 'parent_order_id' => 7, 'owner_token' => 'p', 'state' => 'resolved', 'payment_id' => 'pay-r2');
+        $this->store->tables['new'][self::key('3')] = array('cycle_key' => self::key('3'), 'parent_order_id' => 7, 'owner_token' => 'q', 'state' => 'claimed', 'payment_id' => null);
 
         $result = $this->finalize()->run(true);
 
-        self::assertNull($result['error'], (string) json_encode($result));
-        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
-        self::assertTrue($this->store->table_exists('legacy'), 'kept');
-        self::assertSame(0, $this->store->drops);
-        self::assertArrayHasKey('billing_table:' . $this->legacy_table() . ':checksum_mismatch', self::kept($result));
-        self::assertSame(0, $result['removed']['billing_table']);
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertFalse($this->store->table_exists('legacy'), 'a stale subset of the new table is dropped');
+        self::assertSame(1, $result['removed']['billing_table']);
+        self::assertSame(3, $result['reported']['billing_table_checksums']['differing_rows'], 'the checksum comparison is reported for information only');
+        self::assertCount(3, $this->store->tables['new'], 'the table in use is untouched');
+    }
+
+    public function test_a_regressive_missing_or_unknown_legacy_row_keeps_the_table(): void {
+        foreach (array('regressive' => 'legacy_rows_behind_in_new', 'missing' => 'legacy_rows_missing_in_new', 'unknown' => 'legacy_rows_behind_in_new') as $case => $reason) {
+            $this->setUp();
+            $this->seed_cut_over();
+            $this->store->tables['new'][self::key('2')] = array('cycle_key' => self::key('2'), 'parent_order_id' => 7, 'owner_token' => 'p', 'state' => 'resolved', 'payment_id' => 'pay-r2');
+            if ($case === 'regressive') {
+                $this->store->tables['new'][self::key('1')]['state'] = 'held';
+            } elseif ($case === 'missing') {
+                unset($this->store->tables['new'][self::key('1')]);
+            } else {
+                $this->store->tables['legacy'][self::key('1')]['state'] = 'archived';
+            }
+
+            $result = $this->finalize()->run(true);
+
+            self::assertNull($result['error'], $case . ': ' . json_encode($result));
+            self::assertTrue($this->store->table_exists('legacy'), $case . ': kept');
+            self::assertSame(0, $this->store->drops, $case);
+            $kept = self::kept($result);
+            self::assertArrayHasKey('billing_table:' . $this->legacy_table() . ':' . $reason, $kept, $case . ': ' . json_encode($result['kept']));
+            self::assertSame(1, $kept['billing_table:' . $this->legacy_table() . ':' . $reason]['count'], $case . ': reported by count');
+            self::assertStringNotContainsString(self::key('1'), (string) json_encode($result), $case . ': never a cycle key or value');
+        }
     }
 
     public function test_a_legacy_table_with_claims_or_rows_newer_than_the_last_sync_is_kept(): void {
@@ -453,6 +481,23 @@ final class FinalizeTest extends TestCase {
         self::assertSame(array('page_id' => self::PAGE_ID, 'status' => 'publish'), $result['reported']['block_checkout_page']);
         self::assertSame(array('upay_subscriptions'), $result['reported']['official_tables']);
         self::assertSame(Keys::CALLBACK_ROUTE_LEGACY, $result['reported']['callback_route']);
+    }
+
+    public function test_the_takeover_backups_are_removed_but_the_legacy_settings_stay(): void {
+        $this->seed_cut_over();
+        $backups = array_values(array_filter(array_keys($GLOBALS['supcheckout_test_options']), static function ($name) {
+            return strpos((string) $name, ThirdPartyTranslator::BACKUP_PREFIX) === 0;
+        }));
+        self::assertCount(1, $backups, 'the cutover backed up the original gateway order');
+        $GLOBALS['supcheckout_test_options'][ThirdPartyTranslator::BACKUP_PREFIX . 'not-a-fingerprint'] = 'someone else';
+
+        $result = $this->finalize()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertArrayNotHasKey($backups[0], $GLOBALS['supcheckout_test_options'], 'content-addressed backup removed');
+        self::assertSame('someone else', get_option(ThirdPartyTranslator::BACKUP_PREFIX . 'not-a-fingerprint'), 'only the exact backup format');
+        self::assertSame(1, $result['removed']['takeover_backups']);
+        self::assertSame(array('enabled' => 'yes', 'api_key' => 'test-api-key-123'), get_option('woocommerce_upayments_settings'), 'the protected legacy settings option stays');
     }
 
     public function test_a_legacy_cron_event_without_its_new_twin_is_kept_and_reported(): void {

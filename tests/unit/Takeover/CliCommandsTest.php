@@ -759,20 +759,23 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(2, $plan['removed']['order_meta']);
     }
 
-    public function test_status_shows_the_days_until_finalize_and_the_planned_removal(): void {
+    public function test_status_shows_the_days_until_finalize_and_a_dry_run_hint_without_scanning(): void {
         $this->cut_over();
         self::age(25);
+        $this->store->selections = array();
 
         self::assertSame(CliCommands::OK, $this->cli()->status(true));
 
+        self::assertSame(array(), $this->store->selections, 'status scans no order, user, product or table rows');
         $status = json_decode($this->out[0], true);
         self::assertSame(5, $status['finalize']['days_left']);
         self::assertFalse($status['finalize']['allowed']);
-        self::assertSame(2, $status['finalize']['planned']['order_meta']);
-        self::assertSame(0, $status['finalize']['kept']);
+        self::assertNull($status['finalize']['planned'], 'the plan is the dry run, not status');
+        self::assertStringContainsString('finalize --dry-run', $status['finalize']['hint']);
 
         $this->out = array();
         self::assertSame(CliCommands::OK, $this->cli()->status(false));
         self::assertStringContainsString('finalize: ', $this->printed());
+        self::assertSame(array(), $this->store->selections);
     }
 }

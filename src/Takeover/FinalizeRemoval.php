@@ -28,6 +28,11 @@ defined('ABSPATH') || exit;
  *   Keys::takeover_markers() meta. A user key with several legacy rows (the copy runner's
  *   users_multi_row anomaly, never copied) is always kept;
  * - options: Keys::options() legacy names whose new option holds the identical value;
+ * - backups: the takeover's content-addressed backups of third-party originals
+ *   (ThirdPartyTranslator::BACKUP_PREFIX followed by exactly a 64-hex fingerprint), which
+ *   exist only for Rollback. SettingsCopier makes no backup: its restore source is the
+ *   legacy gateway settings option itself, which is a protected identity and stays (keeping
+ *   it is fail-safe; settings reads after cutover take woocommerce_supcheckout_settings first);
  * - official: every Keys::official_only() option (exact and by prefix) and transient. Its
  *   tables are reported by Finalize, never touched;
  * - ephemeral: legacy rows by storage type (Keys::ephemeral_storage()): plain options by
@@ -44,6 +49,7 @@ final class FinalizeRemoval {
     public const PHASE_USERS = 'users';
     public const PHASE_PRODUCTS = 'products';
     public const PHASE_OPTIONS = 'options';
+    public const PHASE_BACKUPS = 'backups';
     public const PHASE_OFFICIAL = 'official';
     public const PHASE_EPHEMERAL = 'ephemeral';
     public const PHASE_TABLE = 'table';
@@ -66,11 +72,11 @@ final class FinalizeRemoval {
     private const TIMEOUT_ROW = '_transient_timeout_';
 
     private const ORDER = array(self::PHASE_CRON, self::PHASE_ORDERS, self::PHASE_USERS, self::PHASE_PRODUCTS, self::PHASE_OPTIONS,
-        self::PHASE_OFFICIAL, self::PHASE_EPHEMERAL, self::PHASE_TABLE, self::PHASE_DONE);
+        self::PHASE_BACKUPS, self::PHASE_OFFICIAL, self::PHASE_EPHEMERAL, self::PHASE_TABLE, self::PHASE_DONE);
 
     /** Removal counters, in report order. */
     private const COUNTERS = array('legacy_cron', 'official_cron', 'order_meta', 'markers', 'user_meta', 'product_meta', 'options',
-        'official_options', 'official_transients', 'ephemeral_options', 'ephemeral_transients', 'billing_table');
+        'takeover_backups', 'official_options', 'official_transients', 'ephemeral_options', 'ephemeral_transients', 'billing_table');
 
     /** @return array{phase:string, cursor:int|string} */
     public static function start() {
@@ -105,6 +111,8 @@ final class FinalizeRemoval {
                 return self::products($store, (int) $cursor, $apply);
             case self::PHASE_OPTIONS:
                 return self::options($apply);
+            case self::PHASE_BACKUPS:
+                return self::backups($store, $apply);
             case self::PHASE_OFFICIAL:
                 return self::official($store, $apply);
             case self::PHASE_EPHEMERAL:
@@ -429,7 +437,7 @@ final class FinalizeRemoval {
      * @return array{status:string, progress:array{phase:string, cursor:int|string}, removed:array<string,int>, kept:list<array<string,mixed>>}
      */
     private static function options($apply) {
-        $result = self::result(self::CONTINUE_RUN, self::PHASE_OFFICIAL, '');
+        $result = self::result(self::CONTINUE_RUN, self::PHASE_BACKUPS, '');
         $missing = new \stdClass();
         foreach (Keys::options() as $legacy => $new_key) {
             $legacy_value = get_option($legacy, $missing);
@@ -447,6 +455,33 @@ final class FinalizeRemoval {
             }
             ++$result['removed']['options'];
         }
+        return $result;
+    }
+
+    /**
+     * The takeover's own third-party backups, exact format only.
+     *
+     * @param FinalizeStore $store Store.
+     * @param bool          $apply Remove.
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, removed:array<string,int>, kept:list<array<string,mixed>>}
+     */
+    private static function backups(FinalizeStore $store, $apply) {
+        $result = self::result(self::CONTINUE_RUN, self::PHASE_OFFICIAL, '');
+        $pattern = '/^' . preg_quote(ThirdPartyTranslator::BACKUP_PREFIX, '/') . '[a-f0-9]{64}$/D';
+        $after = '';
+        do {
+            $batch = $store->option_names_with_prefix(ThirdPartyTranslator::BACKUP_PREFIX, $after, self::OPTION_BATCH);
+            foreach ($batch as $name) {
+                if (preg_match($pattern, $name) !== 1) {
+                    continue;
+                }
+                if ($apply && !self::delete_option_row($name, get_option($name, null))) {
+                    return self::result(self::FAILED, self::PHASE_BACKUPS, '');
+                }
+                ++$result['removed']['takeover_backups'];
+            }
+            $after = $batch === array() ? $after : (string) end($batch);
+        } while (count($batch) === self::OPTION_BATCH);
         return $result;
     }
 

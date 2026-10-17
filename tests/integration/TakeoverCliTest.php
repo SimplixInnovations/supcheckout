@@ -350,7 +350,7 @@ if ($phase === 'finalize') {
 
     $status = json_decode(trim(supcheckout_takeover_cert_wp('supcheckout takeover status --format=json')->stdout), true);
     supcheckout_cert_assert(is_array($status) && $status['status'] === 'cut_over' && $status['finalize']['days_left'] === 30 && $status['finalize']['allowed'] === false, 'status shows 30 days until finalize is allowed: ' . wp_json_encode($status['finalize'] ?? null));
-    supcheckout_cert_assert(is_array($status['finalize']['planned']) && $status['finalize']['planned']['order_meta'] >= 2, 'status shows the planned removal');
+    supcheckout_cert_assert($status['finalize']['planned'] === null && strpos($status['finalize']['hint'], 'finalize --dry-run') !== false, 'status stays cheap and points at the dry run for the plan');
 
     $early = supcheckout_takeover_cert_wp('supcheckout takeover finalize --yes');
     supcheckout_cert_assert($early->return_code === CliCommands::STATE && strpos($early->stdout, '30 day(s)') !== false, 'finalize before 30 days exits 6: ' . $early->stdout . $early->stderr);
@@ -415,7 +415,10 @@ if ($phase === 'finalized') {
         supcheckout_cert_assert($order->get_payment_method() === 'upayments', 'order ' . $order_id . ': historical payment_method unchanged');
     }
     supcheckout_cert_assert(has_action('woocommerce_api_' . Keys::CALLBACK_ROUTE_LEGACY) !== false, 'the legacy callback route is still served');
-    supcheckout_cert_assert(is_array(get_option(Keys::SETTINGS_OPTION)) && is_array(get_option('woocommerce_upayments_settings')), 'the settings and their legacy source are kept');
+    supcheckout_cert_assert(is_array(get_option(Keys::SETTINGS_OPTION)) && is_array(get_option('woocommerce_upayments_settings')), 'the settings and their protected legacy source are kept');
+    global $wpdb;
+    $backups = (array) $wpdb->get_col($wpdb->prepare('SELECT option_name FROM %i WHERE option_name LIKE %s', $wpdb->options, $wpdb->esc_like(\Simplixi\SUPCheckout\Takeover\ThirdPartyTranslator::BACKUP_PREFIX) . '%'));
+    supcheckout_cert_assert(preg_grep('/^' . preg_quote(\Simplixi\SUPCheckout\Takeover\ThirdPartyTranslator::BACKUP_PREFIX, '/') . '[a-f0-9]{64}$/D', $backups) === array(), 'the takeover backups are removed: ' . wp_json_encode($backups));
     $crons = function_exists('_get_cron_array') ? (array) _get_cron_array() : array();
     foreach ($crons as $hooks) {
         foreach (array_keys((array) $hooks) as $hook) {
