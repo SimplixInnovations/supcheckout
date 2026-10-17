@@ -115,19 +115,96 @@ final class BillingTableCopier {
     }
 
     /**
-     * @param CopyStore $store Store.
-     * @return list<string>|string The legacy columns, or an error code.
+     * Rollback (Task 10): copy the next batch of NEW rows after $cursor back into the legacy
+     * table. While cut over the new table is the single-written one, so it is authoritative:
+     * missing and differing legacy rows are REPLACEd, and legacy rows with no new row (a claim
+     * CycleClaim::release_claimed() deleted after cutover) are deleted over the batch range,
+     * and over the open tail on the last batch. Runs over the whole table, never bounded by
+     * `max_copied_key`.
+     *
+     * @param RollbackStore $store  Store.
+     * @param string        $cursor Last new-table key synced ('' at the start).
+     * @return array{done:bool, cursor:string, rows:int, error:string|null}
      */
-    private static function columns(CopyStore $store) {
-        $legacy = $store->table_columns(CopyStore::TABLE_LEGACY);
-        $new = $store->table_columns(CopyStore::TABLE_NEW);
-        if ($legacy === array() || $new === array()) {
+    public static function back_sync_batch(RollbackStore $store, $cursor) {
+        $cursor = (string) $cursor;
+        if (!$store->table_exists(CopyStore::TABLE_NEW)) {
+            return self::copied(true, $cursor, 0, null);
+        }
+        if (!$store->table_exists(CopyStore::TABLE_LEGACY) && !$store->create_table(CopyStore::TABLE_LEGACY)) {
+            return self::copied(true, $cursor, 0, self::ERROR_CREATE);
+        }
+        $columns = self::columns($store, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY);
+        if (!is_array($columns)) {
+            return self::copied(true, $cursor, 0, $columns);
+        }
+        $keys = $store->table_keys_after(CopyStore::TABLE_NEW, $cursor, self::BATCH);
+        $done = count($keys) < self::BATCH;
+        $last = $keys === array() ? $cursor : (string) end($keys);
+        if ($keys !== array()) {
+            $stale = self::differing($store, $columns, $cursor, $last, false, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY);
+            if ($stale !== array() && !$store->table_replace_into(CopyStore::TABLE_LEGACY, $columns, $stale)) {
+                return self::copied(true, $cursor, 0, self::ERROR_READ);
+            }
+        }
+        if (!$store->table_delete_orphans_from(CopyStore::TABLE_LEGACY, $cursor, $done ? null : $last)) {
+            return self::copied(true, $cursor, 0, self::ERROR_READ);
+        }
+        return self::copied($done, $last, count($keys), null);
+    }
+
+    /**
+     * Rollback (Task 10): verify the next batch of new rows against the legacy table; the
+     * last batch also compares the row counts and covers every legacy row beyond the last
+     * new key.
+     *
+     * @param RollbackStore $store  Store.
+     * @param string        $cursor Last key verified ('' at the start).
+     * @return array{done:bool, cursor:string, mismatches:int, codes:list<string>}
+     */
+    public static function back_verify_batch(RollbackStore $store, $cursor) {
+        $cursor = (string) $cursor;
+        if (!$store->table_exists(CopyStore::TABLE_NEW)) {
+            return self::verified(true, $cursor, 0, array());
+        }
+        $columns = self::columns($store, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY);
+        if (!is_array($columns)) {
+            return self::verified(true, $cursor, 1, array($columns));
+        }
+        $keys = $store->table_keys_after(CopyStore::TABLE_NEW, $cursor, self::BATCH);
+        $done = count($keys) < self::BATCH;
+        $upto = $done ? null : (string) end($keys);
+        $differing = count(self::differing($store, $columns, $cursor, $upto, true, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY));
+        $codes = $differing > 0 ? array(self::CHECKSUM) : array();
+        $next = $keys === array() ? $cursor : (string) end($keys);
+        if (!$done) {
+            return self::verified(false, $next, $differing, $codes);
+        }
+        $new_count = $store->table_count(CopyStore::TABLE_NEW);
+        $legacy_count = $store->table_count(CopyStore::TABLE_LEGACY);
+        if ($legacy_count === null || $new_count === null || $legacy_count !== $new_count) {
+            ++$differing;
+            $codes[] = self::ROW_COUNT;
+        }
+        return self::verified(true, $next, $differing, $codes);
+    }
+
+    /**
+     * @param CopyStore $store  Store.
+     * @param string    $source Role copied from.
+     * @param string    $target Role copied into.
+     * @return list<string>|string The source columns, or an error code.
+     */
+    private static function columns(CopyStore $store, $source = CopyStore::TABLE_LEGACY, $target = CopyStore::TABLE_NEW) {
+        $from = $store->table_columns($source);
+        $into = $store->table_columns($target);
+        if ($from === array() || $into === array()) {
             return self::ERROR_READ;
         }
-        if (!in_array(self::KEY_COLUMN, $legacy, true) || array_diff($legacy, $new) !== array()) {
+        if (!in_array(self::KEY_COLUMN, $from, true) || array_diff($from, $into) !== array()) {
             return self::ERROR_SCHEMA;
         }
-        return $legacy;
+        return $from;
     }
 
     /**
@@ -135,20 +212,22 @@ final class BillingTableCopier {
      * @param list<string> $columns    Columns.
      * @param string       $after      Exclusive lower bound.
      * @param string|null  $upto       Inclusive upper bound; null for none.
-     * @param bool         $with_extra Also count new rows that have no legacy row.
+     * @param bool         $with_extra Also count target rows that have no source row.
+     * @param string       $source     Authoritative role.
+     * @param string       $target     Copy role.
      * @return list<string> Keys whose rows differ.
      */
-    private static function differing(CopyStore $store, array $columns, $after, $upto, $with_extra) {
-        $legacy = $store->table_checksums(CopyStore::TABLE_LEGACY, $columns, $after, $upto);
-        $new = $store->table_checksums(CopyStore::TABLE_NEW, $columns, $after, $upto);
+    private static function differing(CopyStore $store, array $columns, $after, $upto, $with_extra, $source = CopyStore::TABLE_LEGACY, $target = CopyStore::TABLE_NEW) {
+        $from = $store->table_checksums($source, $columns, $after, $upto);
+        $into = $store->table_checksums($target, $columns, $after, $upto);
         $keys = array();
-        foreach ($legacy as $key => $sum) {
-            if (!isset($new[$key]) || !hash_equals($sum, $new[$key])) {
+        foreach ($from as $key => $sum) {
+            if (!isset($into[$key]) || !hash_equals($sum, $into[$key])) {
                 $keys[] = (string) $key;
             }
         }
         if ($with_extra) {
-            foreach (array_keys(array_diff_key($new, $legacy)) as $key) {
+            foreach (array_keys(array_diff_key($into, $from)) as $key) {
                 $keys[] = (string) $key;
             }
         }

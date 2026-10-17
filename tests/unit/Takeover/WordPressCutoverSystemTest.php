@@ -65,6 +65,39 @@ final class WordPressCutoverSystemTest extends TestCase {
         self::assertSame('upayments-old/UPayments.php', $system->official_plugin());
     }
 
+    /**
+     * 0b Task 10: rollback reactivates the official plugin for this site only, and only an
+     * installed official plugin outside SUPCheckout's own directory counts.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_the_official_plugin_is_reactivated_for_this_site_only(): void {
+        self::boot(false);
+        $root = dirname(__DIR__, 3);
+        \supcheckout_test_reset_plugin_registry(dirname($root));
+        $own = basename($root);
+        $GLOBALS['supcheckout_test_options']['active_plugins'] = array();
+        $GLOBALS['cutover_system_installed'] = array(
+            'upayments/UPayments.php' => array(),
+            $own . '/UPayments.php' => array(),
+            $own . '/supcheckout.php' => array(),
+            'hello.php' => array(),
+        );
+        $GLOBALS['cutover_system_activations'] = array();
+        eval('function get_plugins($folder = "") { return $GLOBALS["cutover_system_installed"]; }
+        function activate_plugin($plugin, $redirect = "", $network_wide = false, $silent = false) {
+            $GLOBALS["cutover_system_activations"][] = array($plugin, $redirect, $network_wide, $silent);
+            $GLOBALS["supcheckout_test_options"]["active_plugins"][] = $plugin;
+            return null;
+        }');
+
+        $system = new WordPressCutoverSystem();
+        self::assertSame(array('upayments/UPayments.php'), $system->installed_official_plugins(), 'the own-directory shim is never the official plugin');
+        self::assertTrue($system->activate_plugin('upayments/UPayments.php'));
+        self::assertSame(array(array('upayments/UPayments.php', '', false, false)), $GLOBALS['cutover_system_activations'], 'network_wide is explicitly false');
+        self::assertSame('upayments/UPayments.php', $system->official_plugin());
+    }
+
     private static function boot(bool $network): void {
         $plugins = sys_get_temp_dir() . '/supcheckout-cutover-system-' . getmypid();
         @mkdir($plugins . '/upayments', 0777, true);

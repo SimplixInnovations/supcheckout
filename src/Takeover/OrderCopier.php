@@ -217,7 +217,7 @@ final class OrderCopier {
      * @param string $key    Meta key.
      * @return list<mixed>|null Null when a row cannot be unwrapped (fail closed).
      */
-    private static function values($object, $key) {
+    public static function values($object, $key) {
         $rows = $object->get_meta($key, false, 'edit');
         if (!is_array($rows)) {
             return null;

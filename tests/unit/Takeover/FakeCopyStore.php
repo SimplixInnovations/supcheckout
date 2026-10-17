@@ -2,8 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
-use Simplixi\SUPCheckout\Takeover\CopyStore;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\RollbackStore;
 
 /**
  * In-memory CopyStore for the copy-runner tests.
@@ -14,7 +14,10 @@ use Simplixi\SUPCheckout\Takeover\Keys;
  * every row in order and unslashes added values as add_metadata() does. The two
  * billing-attempts tables are arrays of rows keyed by cycle_key.
  */
-final class FakeCopyStore implements CopyStore {
+final class FakeCopyStore implements RollbackStore {
+    /** @var bool replace_user_meta() fails. */
+    public $fail_user_replace = false;
+
     /** @var array<int, array<string, list<mixed>>> */
     public $user_meta = array();
     /** @var array<int, FakeCrudObject> */
@@ -249,6 +252,154 @@ final class FakeCopyStore implements CopyStore {
             }
         }
         return $stale;
+    }
+
+    public function rollback_order_ids_after($after_id, $limit) {
+        $this->selections[] = array('rollback_orders', $limit);
+        $keys = array_merge(array_keys(Keys::order_meta()), array_values(Keys::order_meta()), Keys::takeover_markers());
+        $ids = array();
+        foreach ($GLOBALS['supcheckout_test_status_orders'] as $id => $order) {
+            if ($id <= $after_id || !$order instanceof FakeCrudObject) {
+                continue;
+            }
+            if (in_array($order->get_payment_method(), Keys::gateway_ids(), true) || self::holds_any($order, $keys)) {
+                $ids[] = (int) $id;
+            }
+        }
+        sort($ids);
+        return array_slice($ids, 0, $limit);
+    }
+
+    public function rollback_user_ids_after($after_id, $limit) {
+        $ids = array();
+        foreach (array_keys($this->user_meta) as $user_id) {
+            if ($user_id > $after_id && $this->new_user_meta_keys($user_id) !== array()) {
+                $ids[] = (int) $user_id;
+            }
+        }
+        sort($ids);
+        return array_slice($ids, 0, $limit);
+    }
+
+    public function new_user_meta_keys($user_id) {
+        $keys = array();
+        foreach (isset($this->user_meta[$user_id]) ? $this->user_meta[$user_id] : array() as $key => $values) {
+            if ($values === array()) {
+                continue;
+            }
+            if (in_array($key, Keys::user_meta(), true)) {
+                $keys[] = (string) $key;
+                continue;
+            }
+            foreach (Keys::user_meta_prefixes() as $prefix) {
+                if (strpos((string) $key, $prefix) === 0) {
+                    $keys[] = (string) $key;
+                }
+            }
+        }
+        return $keys;
+    }
+
+    public function replace_user_meta($user_id, $key, array $slashed_values) {
+        if ($this->fail_user_replace) {
+            return false;
+        }
+        $this->user_meta[$user_id][$key] = array_values(array_map(array(self::class, 'unslash'), $slashed_values));
+        return true;
+    }
+
+    public function delete_user_meta_key($user_id, $key) {
+        unset($this->user_meta[$user_id][$key]);
+        return true;
+    }
+
+    public function rollback_product_ids_after($after_id, $limit) {
+        $keys = array_merge(array_values(Keys::product_meta()), Keys::takeover_markers());
+        $ids = array();
+        foreach ($this->products as $id => $product) {
+            if ($id > $after_id && self::holds_any($product, $keys)) {
+                $ids[] = (int) $id;
+            }
+        }
+        sort($ids);
+        return array_slice($ids, 0, $limit);
+    }
+
+    public function create_table($which) {
+        if ($which === self::TABLE_NEW) {
+            return $this->create_new_table();
+        }
+        $this->legacy_table_exists = true;
+        return true;
+    }
+
+    public function table_replace_into($target, array $columns, array $keys) {
+        if ($this->fail_replace) {
+            return false;
+        }
+        $source = $target === self::TABLE_LEGACY ? self::TABLE_NEW : self::TABLE_LEGACY;
+        foreach ($keys as $key) {
+            if (isset($this->tables[$source][$key])) {
+                $this->tables[$target][$key] = self::project($this->tables[$source][$key], $columns);
+            }
+        }
+        return true;
+    }
+
+    public function table_delete_orphans_from($target, $after_key, $upto_key) {
+        $source = $target === self::TABLE_LEGACY ? self::TABLE_NEW : self::TABLE_LEGACY;
+        foreach (array_keys($this->tables[$target]) as $key) {
+            if ($this->in_range($key, (string) $after_key, $upto_key) && !isset($this->tables[$source][$key])) {
+                unset($this->tables[$target][$key]);
+            }
+        }
+        return true;
+    }
+
+    public function table_delete_keys($which, array $keys) {
+        foreach ($keys as $key) {
+            unset($this->tables[$which][$key]);
+        }
+        return true;
+    }
+
+    public function table_claims_open($which, $since_gmt) {
+        if (!$this->table_exists($which)) {
+            return 0;
+        }
+        $open = 0;
+        foreach ($this->tables[$which] as $row) {
+            $state = isset($row['state']) ? $row['state'] : '';
+            $updated = isset($row['updated_gmt']) ? (string) $row['updated_gmt'] : '';
+            if (in_array($state, array('claimed', 'dispatching'), true) && strcmp($updated, (string) $since_gmt) >= 0) {
+                ++$open;
+            }
+        }
+        return $open;
+    }
+
+    public function table_claims_stale($which, $before_gmt) {
+        if (!$this->table_exists($which)) {
+            return 0;
+        }
+        $stale = 0;
+        foreach ($this->tables[$which] as $row) {
+            $updated = isset($row['updated_gmt']) ? (string) $row['updated_gmt'] : '';
+            if (isset($row['state']) && $row['state'] === 'claimed' && strcmp($updated, (string) $before_gmt) < 0) {
+                ++$stale;
+            }
+        }
+        return $stale;
+    }
+
+    /** @param list<string> $keys */
+    private static function holds_any(FakeCrudObject $object, array $keys): bool {
+        foreach ($keys as $key) {
+            if ($object->persisted_values($key) !== array()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @param array<string, mixed> $row */

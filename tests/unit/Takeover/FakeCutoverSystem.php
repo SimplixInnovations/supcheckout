@@ -2,13 +2,19 @@
 
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
-use Simplixi\SUPCheckout\Takeover\CutoverSystem;
+use Simplixi\SUPCheckout\Takeover\RollbackSystem;
 
 /**
  * In-memory CutoverSystem: a WP-Cron array, the official plugin's active entry and a
  * clock that sleep() advances.
  */
-final class FakeCutoverSystem implements CutoverSystem {
+final class FakeCutoverSystem implements RollbackSystem {
+    /** @var list<string> Installed official plugins (any status). */
+    public $installed = array('upayments/UPayments.php');
+    /** @var list<string> */
+    public $activated = array();
+    /** @var bool activate_plugin() leaves the plugin inactive. */
+    public $activate_fails = false;
     /** @var int */
     public $now = 1800000000;
     /** @var list<array{timestamp:int, hook:string, args:array<mixed>, schedule:string|false}> */
@@ -74,6 +80,26 @@ final class FakeCutoverSystem implements CutoverSystem {
         if (is_callable($this->on_sleep)) {
             call_user_func($this->on_sleep);
         }
+    }
+
+    public function unschedule_event($timestamp, $hook, array $args) {
+        $this->events = array_values(array_filter($this->events, static function ($event) use ($timestamp, $hook, $args) {
+            return !($event['timestamp'] === (int) $timestamp && $event['hook'] === (string) $hook && $event['args'] === $args);
+        }));
+        return true;
+    }
+
+    public function installed_official_plugins() {
+        return $this->installed;
+    }
+
+    public function activate_plugin($basename) {
+        $this->activated[] = (string) $basename;
+        if ($this->activate_fails) {
+            return false;
+        }
+        $this->official = (string) $basename;
+        return true;
     }
 
     public function reached($step) {

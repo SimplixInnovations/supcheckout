@@ -15,7 +15,7 @@ defined('ABSPATH') || exit;
  * legacy storage, whichever is authoritative. The direct queries are deliberate: a copy
  * cursor must see the live rows, never a cached page.
  */
-final class WordPressCopyStore implements CopyStore {
+final class WordPressCopyStore implements RollbackStore {
     /** Keys::tables() legacy name of the billing-attempts journal (CycleClaim). */
     private const LEGACY_TABLE = 'upayments_billing_attempts';
     private const KEY_COLUMN = 'cycle_key';
@@ -24,8 +24,22 @@ final class WordPressCopyStore implements CopyStore {
     private const OPEN_RANGE_LIMIT = 1001;
 
     public function order_ids_after($after_id, $limit) {
+        return $this->orders_with_keys_after($after_id, $limit, array_keys(Keys::order_meta()));
+    }
+
+    public function rollback_order_ids_after($after_id, $limit) {
+        $keys = array_merge(array_keys(Keys::order_meta()), array_values(Keys::order_meta()), Keys::takeover_markers());
+        return $this->orders_with_keys_after($after_id, $limit, $keys);
+    }
+
+    /**
+     * @param int          $after_id    Exclusive lower bound.
+     * @param int          $limit       Maximum count.
+     * @param list<string> $legacy_keys Meta keys that select an order besides its payment_method.
+     * @return list<int>
+     */
+    private function orders_with_keys_after($after_id, $limit, array $legacy_keys) {
         global $wpdb;
-        $legacy_keys = array_keys(Keys::order_meta());
         $gateways = Keys::gateway_ids();
         $key_list = self::placeholders(count($legacy_keys), '%s');
         $gateway_list = self::placeholders(count($gateways), '%s');
@@ -90,9 +104,57 @@ final class WordPressCopyStore implements CopyStore {
         return add_user_meta((int) $user_id, (string) $key, $slashed_value, true) !== false;
     }
 
-    public function product_ids_after($after_id, $limit) {
+    public function rollback_user_ids_after($after_id, $limit) {
         global $wpdb;
-        $legacy_keys = array_keys(Keys::product_meta());
+        list($clause, $clause_args) = self::user_key_clause(true);
+        $sql = 'SELECT DISTINCT user_id FROM %i WHERE user_id > %d AND ' . $clause . ' ORDER BY user_id ASC LIMIT %d';
+        $args = array_merge(array($wpdb->usermeta, (int) $after_id), $clause_args, array((int) $limit));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
+        return self::ids($wpdb->prepare($sql, $args));
+    }
+
+    public function new_user_meta_keys($user_id) {
+        global $wpdb;
+        list($clause, $clause_args) = self::user_key_clause(true);
+        $sql = 'SELECT DISTINCT meta_key FROM %i WHERE user_id = %d AND ' . $clause . ' ORDER BY meta_key ASC';
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
+        $prepared = $wpdb->prepare($sql, array_merge(array($wpdb->usermeta, (int) $user_id), $clause_args));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; the rollback must see live user meta keys.
+        $keys = $wpdb->get_col($prepared);
+        return is_array($keys) ? array_values(array_map('strval', $keys)) : array();
+    }
+
+    public function replace_user_meta($user_id, $key, array $slashed_values) {
+        delete_user_meta((int) $user_id, (string) $key);
+        foreach ($slashed_values as $value) {
+            if (add_user_meta((int) $user_id, (string) $key, $value) === false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public function delete_user_meta_key($user_id, $key) {
+        delete_user_meta((int) $user_id, (string) $key);
+        return $this->user_meta($user_id, $key) === array();
+    }
+
+    public function rollback_product_ids_after($after_id, $limit) {
+        return $this->products_with_keys_after($after_id, $limit, array_merge(array_values(Keys::product_meta()), Keys::takeover_markers()));
+    }
+
+    public function product_ids_after($after_id, $limit) {
+        return $this->products_with_keys_after($after_id, $limit, array_keys(Keys::product_meta()));
+    }
+
+    /**
+     * @param int          $after_id    Exclusive lower bound.
+     * @param int          $limit       Maximum count.
+     * @param list<string> $legacy_keys Meta keys that select a product.
+     * @return list<int>
+     */
+    private function products_with_keys_after($after_id, $limit, array $legacy_keys) {
+        global $wpdb;
         $sql = 'SELECT DISTINCT m.post_id FROM %i m INNER JOIN %i p ON p.ID = m.post_id'
             . ' WHERE m.post_id > %d AND m.meta_key IN (' . self::placeholders(count($legacy_keys), '%s') . ')'
             . ' AND p.post_type IN (%s, %s) ORDER BY m.post_id ASC LIMIT %d';
@@ -115,12 +177,64 @@ final class WordPressCopyStore implements CopyStore {
     }
 
     public function create_new_table() {
+        return $this->create_table(self::TABLE_NEW);
+    }
+
+    public function create_table($which) {
         global $wpdb;
         if (!function_exists('dbDelta')) {
             require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         }
-        dbDelta(CycleClaim::schema_sql(self::table(self::TABLE_NEW), $wpdb->get_charset_collate()));
-        return $this->table_exists(self::TABLE_NEW);
+        dbDelta(CycleClaim::schema_sql(self::table($which), $wpdb->get_charset_collate()));
+        return $this->table_exists($which);
+    }
+
+    public function table_replace_into($target, array $columns, array $keys) {
+        global $wpdb;
+        if ($keys === array()) {
+            return true;
+        }
+        $list = self::placeholders(count($columns), '%i');
+        $sql = 'REPLACE INTO %i (' . $list . ') SELECT ' . $list . ' FROM %i WHERE %i IN (' . self::placeholders(count($keys), '%s') . ')';
+        $args = array_merge(
+            array(self::table($target)),
+            $columns,
+            $columns,
+            array(self::table(self::other($target)), self::KEY_COLUMN),
+            array_map('strval', $keys)
+        );
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and %i / %s placeholders.
+        $prepared = $wpdb->prepare($sql, $args);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above with a dynamic placeholder list; rollback back-syncs the plugin-owned billing tables.
+        return $wpdb->query($prepared) !== false;
+    }
+
+    public function table_delete_orphans_from($target, $after_key, $upto_key) {
+        global $wpdb;
+        $sql = 'DELETE t FROM %i t LEFT JOIN %i s ON s.cycle_key = t.cycle_key WHERE t.cycle_key > %s'
+            . ($upto_key === null ? '' : ' AND t.cycle_key <= %s')
+            . ' AND s.cycle_key IS NULL';
+        $args = array(self::table($target), self::table(self::other($target)), (string) $after_key);
+        if ($upto_key !== null) {
+            $args[] = (string) $upto_key;
+        }
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
+        $prepared = $wpdb->prepare($sql, $args);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; mirrors the plugin-owned billing tables row for row.
+        return $wpdb->query($prepared) !== false;
+    }
+
+    public function table_delete_keys($which, array $keys) {
+        global $wpdb;
+        if ($keys === array()) {
+            return true;
+        }
+        $sql = 'DELETE FROM %i WHERE %i IN (' . self::placeholders(count($keys), '%s') . ')';
+        $args = array_merge(array(self::table($which), self::KEY_COLUMN), array_map('strval', $keys));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
+        $prepared = $wpdb->prepare($sql, $args);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above with a dynamic placeholder list; removes the takeover's copies from the plugin-owned new table.
+        return $wpdb->query($prepared) !== false;
     }
 
     public function table_columns($which) {
@@ -252,13 +366,21 @@ final class WordPressCopyStore implements CopyStore {
     }
 
     public function table_open_claims($since_gmt) {
+        return $this->table_claims_open(self::TABLE_LEGACY, $since_gmt);
+    }
+
+    public function table_stale_claims($before_gmt) {
+        return $this->table_claims_stale(self::TABLE_LEGACY, $before_gmt);
+    }
+
+    public function table_claims_open($which, $since_gmt) {
         global $wpdb;
-        if (!$this->table_exists(self::TABLE_LEGACY)) {
+        if (!$this->table_exists($which)) {
             return 0;
         }
         $prepared = $wpdb->prepare(
             'SELECT COUNT(*) FROM %i WHERE state IN (%s, %s) AND updated_gmt >= %s',
-            self::table(self::TABLE_LEGACY),
+            self::table($which),
             'claimed',
             'dispatching',
             (string) $since_gmt
@@ -268,14 +390,14 @@ final class WordPressCopyStore implements CopyStore {
         return is_numeric($count) ? (int) $count : null;
     }
 
-    public function table_stale_claims($before_gmt) {
+    public function table_claims_stale($which, $before_gmt) {
         global $wpdb;
-        if (!$this->table_exists(self::TABLE_LEGACY)) {
+        if (!$this->table_exists($which)) {
             return 0;
         }
         $prepared = $wpdb->prepare(
             'SELECT COUNT(*) FROM %i WHERE state = %s AND updated_gmt < %s',
-            self::table(self::TABLE_LEGACY),
+            self::table($which),
             'claimed',
             (string) $before_gmt
         );
@@ -302,15 +424,25 @@ final class WordPressCopyStore implements CopyStore {
     }
 
     /**
-     * Legacy user meta names: Keys::user_meta() keys or anything under a legacy prefix.
+     * @param string $which CopyStore::TABLE_LEGACY or CopyStore::TABLE_NEW.
+     * @return string The other role.
+     */
+    private static function other($which) {
+        return $which === self::TABLE_LEGACY ? self::TABLE_NEW : self::TABLE_LEGACY;
+    }
+
+    /**
+     * Legacy user meta names (Keys::user_meta() keys or anything under a legacy prefix), or
+     * with $new the new names under the same rules.
      *
+     * @param bool $new New names instead of legacy ones.
      * @return array{0:string, 1:list<string>} SQL clause and its arguments.
      */
-    private static function user_key_clause() {
+    private static function user_key_clause($new = false) {
         global $wpdb;
-        $exact = array_keys(Keys::user_meta());
+        $exact = $new ? array_values(Keys::user_meta()) : array_keys(Keys::user_meta());
         $likes = array();
-        foreach (array_keys(Keys::user_meta_prefixes()) as $prefix) {
+        foreach ($new ? array_values(Keys::user_meta_prefixes()) : array_keys(Keys::user_meta_prefixes()) as $prefix) {
             $likes[] = $wpdb->esc_like($prefix) . '%';
         }
         $clause = '(meta_key IN (' . self::placeholders(count($exact), '%s') . ')' . str_repeat(' OR meta_key LIKE %s', count($likes)) . ')';

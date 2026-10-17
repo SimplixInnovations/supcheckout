@@ -166,6 +166,49 @@ final class WordPressCopyStoreTest extends TestCase {
         self::assertSame(array('wp_upayments_billing_attempts', 'claimed', '2026-10-17 00:00:00'), $statement['args']);
     }
 
+    public function test_rollback_back_sync_replaces_and_deletes_legacy_rows_from_the_new_table(): void {
+        $store = new WordPressCopyStore();
+
+        self::assertTrue($store->table_replace_into(CopyStore::TABLE_LEGACY, array('cycle_key', 'state'), array('k1')));
+        self::assertTrue($store->table_delete_orphans_from(CopyStore::TABLE_LEGACY, 'aa', null));
+        self::assertTrue($store->table_delete_keys(CopyStore::TABLE_NEW, array('k1', 'k2')));
+        self::assertTrue($store->table_delete_keys(CopyStore::TABLE_NEW, array()), 'nothing to delete sends nothing');
+
+        self::assertSame('REPLACE INTO %i (%i, %i) SELECT %i, %i FROM %i WHERE %i IN (%s)', $this->db->prepared[0]['query']);
+        self::assertSame(array('wp_upayments_billing_attempts', 'cycle_key', 'state', 'cycle_key', 'state', 'wp_supcheckout_billing_attempts', 'cycle_key', 'k1'), $this->db->prepared[0]['args'], 'into legacy, from new');
+        self::assertSame('DELETE t FROM %i t LEFT JOIN %i s ON s.cycle_key = t.cycle_key WHERE t.cycle_key > %s AND s.cycle_key IS NULL', $this->db->prepared[1]['query']);
+        self::assertSame(array('wp_upayments_billing_attempts', 'wp_supcheckout_billing_attempts', 'aa'), $this->db->prepared[1]['args']);
+        self::assertSame('DELETE FROM %i WHERE %i IN (%s, %s)', $this->db->prepared[2]['query']);
+        self::assertSame(array('wp_supcheckout_billing_attempts', 'cycle_key', 'k1', 'k2'), $this->db->prepared[2]['args']);
+        self::assertCount(3, $this->db->prepared);
+    }
+
+    public function test_rollback_selections_find_objects_holding_only_new_names(): void {
+        $store = new WordPressCopyStore();
+        $store->rollback_order_ids_after(0, 50);
+        $store->rollback_user_ids_after(0, 50);
+        $store->new_user_meta_keys(3);
+        $store->rollback_product_ids_after(0, 50);
+        $this->db->var = 'wp_supcheckout_billing_attempts';
+        $store->table_claims_open(CopyStore::TABLE_NEW, '2026-10-17 00:00:00');
+
+        $orders = $this->db->prepared[0]['args'];
+        foreach (array_merge(array_keys(Keys::order_meta()), array_values(Keys::order_meta()), array(Keys::TAKEOVER_COPY_MARKER)) as $key) {
+            self::assertContains($key, $orders);
+        }
+        foreach (array(1, 2) as $index) {
+            self::assertContains('\\_supcheckout\\_customer\\_token\\_v2\\_b%', $this->db->prepared[$index]['args']);
+            self::assertContains('supcheckout_migration_v1', $this->db->prepared[$index]['args']);
+            self::assertNotContains('\\_upay\\_customer\\_token\\_v2\\_b%', $this->db->prepared[$index]['args']);
+        }
+        self::assertSame(array('wp_postmeta', 'wp_posts', 0, '_supcheckout_disable_subscription', Keys::TAKEOVER_COPY_MARKER, 'product', 'product_variation', 50), $this->db->prepared[3]['args']);
+        $claims = end($this->db->prepared);
+        self::assertSame(array('wp_supcheckout_billing_attempts', 'claimed', 'dispatching', '2026-10-17 00:00:00'), $claims['args'], 'the drain reads the table claims are pinned to');
+        foreach ($this->db->prepared as $statement) {
+            self::assertSame(substr_count($statement['query'], '%'), count($statement['args']), 'one argument per placeholder');
+        }
+    }
+
     public function test_an_unsafe_column_name_makes_the_column_list_unreadable(): void {
         $this->db->col = array('cycle_key', 'state`; DROP');
 
