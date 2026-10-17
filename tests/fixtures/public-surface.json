@@ -372,6 +372,12 @@
         "contexts": "cli"
     },
     {
+        "kind": "cli_command",
+        "hook": "supcheckout takeover",
+        "registered_in": "load",
+        "contexts": "cli"
+    },
+    {
         "kind": "filter",
         "hook": "product_type_selector",
         "priority": 10,

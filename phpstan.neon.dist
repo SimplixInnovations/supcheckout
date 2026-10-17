@@ -80,4 +80,6 @@ parameters:
         - src/Takeover/StaleClaimStore.php
         - src/Takeover/StaleClaims.php
         - src/Takeover/WordPressStaleClaimStore.php
+        - src/Takeover/CliCommands.php
+        - src/Takeover/Cli.php
     tmpDir: .cache/phpstan

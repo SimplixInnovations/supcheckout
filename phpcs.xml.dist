@@ -71,6 +71,8 @@
     <file>src/Takeover/StaleClaimStore.php</file>
     <file>src/Takeover/StaleClaims.php</file>
     <file>src/Takeover/WordPressStaleClaimStore.php</file>
+    <file>src/Takeover/CliCommands.php</file>
+    <file>src/Takeover/Cli.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 
