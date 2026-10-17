@@ -77,6 +77,7 @@ namespace UPayments\Subscription\Cron {
 namespace {
     define("UP_PLUGIN_URL", 'https://merchant.example.test/wp-content/plugins/upayments/');
     define("UP_PLUGIN_PATH", '/srv/www/wp-content/plugins/upayments/');
+    define('UPAYMENTS_PLUGIN_FILE', '/srv/www/wp-content/plugins/upayments/UPayments.php');
     function woocommerceUpaymentsInit() {}
     function upaymentsMissingWcNotice() {}
     function addUpaymentsGatewayClass($methods) { return $methods; }
@@ -178,8 +179,8 @@ foreach (array(
 // SUPCheckout is NOT paused, because no active entry ends in UPayments.php (for example a
 // renamed or must-use copy, or the dual-load Sub-project 0b needs). With no shared global
 // functions or classes left there is no redeclaration fatal in either order, but
-// Plugin::load_runtime() still defines UP_PLUGIN_URL and UP_PLUGIN_PATH, which the official
-// plugin also defines. Whichever plugin loads second gets PHP's "already defined" warning
+// Plugin::load_runtime() still defines UP_PLUGIN_URL, UP_PLUGIN_PATH and UPAYMENTS_PLUGIN_FILE,
+// which the official plugin also defines (official 3.1.1 UPayments.php lines 21-23). Whichever plugin loads second gets PHP's "already defined" warning
 // ("will be an error in PHP 9") and the first plugin's value. Renaming these constants is a
 // Sub-project 0b decision (templates and the gateway icon read UP_PLUGIN_URL); this pins
 // the current behavior so a change is deliberate.
@@ -191,13 +192,15 @@ foreach (array('both_running_official_first', 'both_running_ours_first') as $sce
     coexistence_assert(
         strpos($result['out'], 'DIAGNOSTICS:["Constant UP_PLUGIN_URL already defined') !== false
             && strpos($result['out'], 'Constant UP_PLUGIN_PATH already defined') !== false
-            && substr_count($result['out'], 'already defined') === 2,
-        "both running ({$scenario}): characterized collision: exactly UP_PLUGIN_URL and UP_PLUGIN_PATH are defined twice"
+            && strpos($result['out'], 'Constant UPAYMENTS_PLUGIN_FILE already defined') !== false
+            && substr_count($result['out'], 'already defined') === 3,
+        "both running ({$scenario}): characterized collision: exactly UP_PLUGIN_URL, UP_PLUGIN_PATH and UPAYMENTS_PLUGIN_FILE are defined twice"
     );
     $first_wins = $scenario === 'both_running_official_first' ? 'official' : 'other';
     coexistence_assert(
-        strpos($result['out'], 'UP_PLUGIN_URL:' . $first_wins) !== false && strpos($result['out'], 'UP_PLUGIN_PATH:' . $first_wins) !== false,
-        "both running ({$scenario}): characterized collision: the first plugin to load keeps UP_PLUGIN_URL and UP_PLUGIN_PATH"
+        strpos($result['out'], 'UP_PLUGIN_URL:' . $first_wins) !== false && strpos($result['out'], 'UP_PLUGIN_PATH:' . $first_wins) !== false
+            && strpos($result['out'], 'UPAYMENTS_PLUGIN_FILE:' . $first_wins) !== false,
+        "both running ({$scenario}): characterized collision: the first plugin to load keeps UP_PLUGIN_URL, UP_PLUGIN_PATH and UPAYMENTS_PLUGIN_FILE"
     );
 }
 // The 'upayments' gateway identity is shared with the official plugin until 0b, so a
@@ -338,6 +341,7 @@ function coexistence_child($root, $scenario, $official_stub) {
     echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
     echo 'UP_PLUGIN_URL:' . (defined('UP_PLUGIN_URL') && strpos(UP_PLUGIN_URL, '/upayments/') !== false ? 'official' : 'other') . "\n";
     echo 'UP_PLUGIN_PATH:' . (defined('UP_PLUGIN_PATH') && strpos(UP_PLUGIN_PATH, '/upayments/') !== false ? 'official' : 'other') . "\n";
+    echo 'UPAYMENTS_PLUGIN_FILE:' . (defined('UPAYMENTS_PLUGIN_FILE') && strpos(UPAYMENTS_PLUGIN_FILE, '/upayments/') !== false ? 'official' : 'other') . "\n";
     echo 'SUPCHECKOUT_VERSION:' . (defined('SUPCHECKOUT_VERSION') ? 'defined' : 'undefined') . "\n";
     // Both class families resolve in one process: the official UPayments\Subscription
     // classes and SUPCheckout's own (autoloaded) Simplixi\SUPCheckout classes.
