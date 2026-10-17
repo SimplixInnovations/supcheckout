@@ -37,3 +37,23 @@ function as_has_scheduled_action($hook, $args = null, $group = '') {}
  * @return int
  */
 function as_schedule_single_action($timestamp, $hook, $args = array(), $group = '', $unique = false) {}
+
+/**
+ * Takeover cutover (0b Task 7).
+ *
+ * @param int          $timestamp
+ * @param string       $recurrence
+ * @param string       $hook
+ * @param array<mixed> $args
+ * @param bool         $wp_error
+ * @return bool|\WP_Error
+ */
+function wp_schedule_event($timestamp, $recurrence, $hook, $args = array(), $wp_error = false) {}
+
+/**
+ * @param string|string[] $plugins
+ * @param bool            $silent
+ * @param bool|null       $network_wide
+ * @return void
+ */
+function deactivate_plugins($plugins, $silent = false, $network_wide = null) {}

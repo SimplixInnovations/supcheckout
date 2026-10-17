@@ -159,4 +159,13 @@ interface CopyStore {
      * @return int|null Row count, or null when unreadable.
      */
     public function table_count($which);
+
+    /**
+     * In-flight claim holders (Cutover's drain): legacy rows in `claimed` or `dispatching`
+     * updated at or after $since_gmt. 0 when the legacy table does not exist.
+     *
+     * @param string $since_gmt MySQL DATETIME in UTC.
+     * @return int|null Count, or null when unreadable.
+     */
+    public function table_open_claims($since_gmt);
 }

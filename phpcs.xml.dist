@@ -64,6 +64,10 @@
     <file>src/Takeover/Quiesce.php</file>
     <file>src/Takeover/SettingsCopier.php</file>
     <file>src/Takeover/ThirdPartyTranslator.php</file>
+    <file>src/Takeover/CronRescheduler.php</file>
+    <file>src/Takeover/CutoverSystem.php</file>
+    <file>src/Takeover/WordPressCutoverSystem.php</file>
+    <file>src/Takeover/Cutover.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

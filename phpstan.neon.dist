@@ -73,4 +73,8 @@ parameters:
         - src/Takeover/Quiesce.php
         - src/Takeover/SettingsCopier.php
         - src/Takeover/ThirdPartyTranslator.php
+        - src/Takeover/CronRescheduler.php
+        - src/Takeover/CutoverSystem.php
+        - src/Takeover/WordPressCutoverSystem.php
+        - src/Takeover/Cutover.php
     tmpDir: .cache/phpstan
