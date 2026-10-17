@@ -31,7 +31,8 @@ defined('ABSPATH') || exit;
  * - http_get: callable(string $url): ?array{status:int, headers:array<string,string>},
  *   the loopback GET (never a body);
  * - callback_probe_url: string;
- * - plugins_dir: string, own_plugin_dir: string, active_plugins: list<string>;
+ * - plugins_dir: string, own_plugin_dir: string, active_plugins: list<string> (site and
+ *   network activations), network_active_plugins: list<string> (network activations only);
  * - object_cache_transient: callable(string $name): bool, a transient held only in an
  *   external object cache;
  * - post_status: callable(int $id): ?string;
@@ -40,7 +41,7 @@ defined('ABSPATH') || exit;
 final class Environment {
     private const FIELDS = array(
         'options', 'db', 'hpos', 'currency', 'availability', 'pending_orders', 'order_sample', 'post_meta', 'http_get',
-        'callback_probe_url', 'plugins_dir', 'own_plugin_dir', 'active_plugins',
+        'callback_probe_url', 'plugins_dir', 'own_plugin_dir', 'active_plugins', 'network_active_plugins',
         'object_cache_transient', 'post_status', 'now',
     );
     private const CALLABLE_FIELDS = array(
@@ -85,6 +86,9 @@ final class Environment {
         $fields['own_plugin_dir'] = (string) $fields['own_plugin_dir'];
         $fields['active_plugins'] = is_array($fields['active_plugins'])
             ? array_values(array_filter($fields['active_plugins'], 'is_string'))
+            : array();
+        $fields['network_active_plugins'] = is_array($fields['network_active_plugins'])
+            ? array_values(array_filter($fields['network_active_plugins'], 'is_string'))
             : array();
         $fields['now'] = (int) $fields['now'];
         $fields['db'] = self::usable_db($fields['db']);
@@ -153,6 +157,7 @@ final class Environment {
             'plugins_dir' => defined('WP_PLUGIN_DIR') ? (string) WP_PLUGIN_DIR : '',
             'own_plugin_dir' => self::own_plugin_dir_from_wordpress(),
             'active_plugins' => self::active_plugins_from_wordpress(),
+            'network_active_plugins' => self::network_active_plugins_from_wordpress(),
             'object_cache_transient' => static function ($name) {
                 return function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache()
                     && function_exists('wp_cache_get') && wp_cache_get((string) $name, 'transient') !== false;
@@ -319,6 +324,11 @@ final class Environment {
     /** @return list<string> */
     public function active_plugins() {
         return $this->fields['active_plugins'];
+    }
+
+    /** @return list<string> Network-activated plugin basenames (multisite only). */
+    public function network_active_plugins() {
+        return $this->fields['network_active_plugins'];
     }
 
     /**
@@ -543,6 +553,15 @@ final class Environment {
             }
         }
         return basename($root);
+    }
+
+    /** @return list<string> */
+    private static function network_active_plugins_from_wordpress() {
+        if (!function_exists('is_multisite') || !is_multisite() || !function_exists('get_site_option')) {
+            return array();
+        }
+        $sitewide = get_site_option('active_sitewide_plugins', array());
+        return is_array($sitewide) ? array_values(array_filter(array_keys($sitewide), 'is_string')) : array();
     }
 
     /** @return list<string> */

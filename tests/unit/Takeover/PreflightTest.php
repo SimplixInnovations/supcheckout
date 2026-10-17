@@ -33,6 +33,7 @@ final class PreflightTest extends TestCase {
     public function test_codes_and_severities_are_stable(): void {
         self::assertSame(array(
             'official_plugin_active' => 'fact',
+            'official_network_active' => 'blocking',
             'credential_unverified' => 'blocking',
             'account_mode' => 'fact',
             'currency_unsupported' => 'blocking',
@@ -79,6 +80,26 @@ final class PreflightTest extends TestCase {
 
         $inactive = Preflight::run_with(PreflightFixtures::env(array('plugins_dir' => $dir, 'active_plugins' => array())));
         self::assertNull(PreflightFixtures::find($inactive['facts'], 'official_plugin_active'));
+    }
+
+    public function test_a_network_activated_official_plugin_blocks_because_takeover_is_per_site(): void {
+        $dir = $this->plugins(array('upayments' => '3.1.1', 'supcheckout' => '0.1.0'));
+        $report = Preflight::run_with(PreflightFixtures::env(array(
+            'plugins_dir' => $dir,
+            'active_plugins' => array('upayments/UPayments.php', 'supcheckout/supcheckout.php'),
+            'network_active_plugins' => array('upayments/UPayments.php'),
+        )));
+
+        $blocking = PreflightFixtures::find($report['blocking'], 'official_network_active');
+        self::assertNotNull($blocking);
+        self::assertSame(array('upayments/UPayments.php'), $blocking['data']['plugins']);
+
+        $site_only = Preflight::run_with(PreflightFixtures::env(array(
+            'plugins_dir' => $dir,
+            'active_plugins' => array('upayments/UPayments.php'),
+            'network_active_plugins' => array('woocommerce/woocommerce.php'),
+        )));
+        self::assertNull(PreflightFixtures::find($site_only['blocking'], 'official_network_active'), 'a per-site activation does not block');
     }
 
     public function test_credential_unverified_blocks_when_the_key_is_missing_rejected_or_rate_gated(): void {

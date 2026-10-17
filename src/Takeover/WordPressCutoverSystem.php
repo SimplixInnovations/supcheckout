@@ -53,7 +53,10 @@ final class WordPressCutoverSystem implements CutoverSystem {
         if (!function_exists('deactivate_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
-        deactivate_plugins((string) $basename);
+        // This site only: the takeover is per site, and a network activation (which Preflight
+        // blocks) must never be turned off for the whole network. The post-check still sees
+        // a network activation, so that case is never reported as deactivated.
+        deactivate_plugins((string) $basename, false, false);
         return $this->official_plugin() !== (string) $basename;
     }
 
