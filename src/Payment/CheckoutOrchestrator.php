@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Payment;
 
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\TakeoverState;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 defined('ABSPATH') || exit;
@@ -51,9 +52,10 @@ class CheckoutOrchestrator {
     }
 
     /**
-     * The Store API `extensions` namespace this request posted our data under. The
-     * current namespace wins; an already-open Blocks checkout still posts under the
-     * legacy one it was rendered with.
+     * The Store API `extensions` namespace this request posted our data under. Before
+     * cutover only today's 'upayments' namespace is read (a posted 'supcheckout' key is
+     * ignored, exactly as before). After cutover the current namespace wins, then the
+     * legacy one an already-open Blocks checkout was rendered with.
      *
      * @param mixed $extensions The request's `extensions` container.
      * @return string|null
@@ -62,7 +64,10 @@ class CheckoutOrchestrator {
         if (!is_array($extensions)) {
             return null;
         }
-        foreach (array(Keys::EXTENSION_NAMESPACE, Keys::EXTENSION_NAMESPACE_LEGACY) as $namespace) {
+        $candidates = TakeoverState::is_cut_over()
+            ? array(Keys::EXTENSION_NAMESPACE, Keys::EXTENSION_NAMESPACE_LEGACY)
+            : array(Keys::EXTENSION_NAMESPACE_LEGACY);
+        foreach ($candidates as $namespace) {
             if (array_key_exists($namespace, $extensions)) {
                 return $namespace;
             }
@@ -1122,7 +1127,7 @@ class CheckoutOrchestrator {
             // Section J: Stage UPayments_Checkout_Selected AFTER cleanup/refresh/residual gate.
             if ($whitelabled) {
                 Keys::delete_order_meta($order, "UPayments_Checkout_Selected");
-                $order->add_meta_data(Keys::write_key("UPayments_Checkout_Selected"), $src);
+                Keys::add_order_meta($order, "UPayments_Checkout_Selected", $src);
             }
 
             // CASE: Selected saved card requires membership validation.
@@ -1293,7 +1298,7 @@ class CheckoutOrchestrator {
             // Section H: Unique snapshot writes.
             if ($has_selected_card) {
                 Keys::delete_order_meta($order, "_upay_credit_card_token");
-                $order->add_meta_data(Keys::write_key("_upay_credit_card_token"), $credit_card_token, true);
+                Keys::add_order_meta($order, "_upay_credit_card_token", $credit_card_token, true);
             }
 
             if (!$is_ordinary_payment) {
@@ -1301,10 +1306,10 @@ class CheckoutOrchestrator {
                 Keys::delete_order_meta($order, "_upay_customer_token_kind_v1");
                 Keys::delete_order_meta($order, "_upay_customer_token_scope_v1");
                 Keys::delete_order_meta($order, "_upay_customer_token_generation_v1");
-                $order->add_meta_data(Keys::write_key("_upay_customer_unique_token"), $canonical_token, true);
-                $order->add_meta_data(Keys::write_key("_upay_customer_token_kind_v1"), $token_kind, true);
-                $order->add_meta_data(Keys::write_key("_upay_customer_token_scope_v1"), $token_scope, true);
-                $order->add_meta_data(Keys::write_key("_upay_customer_token_generation_v1"), $token_generation, true);
+                Keys::add_order_meta($order, "_upay_customer_unique_token", $canonical_token, true);
+                Keys::add_order_meta($order, "_upay_customer_token_kind_v1", $token_kind, true);
+                Keys::add_order_meta($order, "_upay_customer_token_scope_v1", $token_scope, true);
+                Keys::add_order_meta($order, "_upay_customer_token_generation_v1", $token_generation, true);
             }
 
             $order->save_meta_data();
@@ -1563,13 +1568,13 @@ class CheckoutOrchestrator {
 
                 if ($subscription_plan && $subscription_plan !== 'one_time') {
                     Keys::delete_order_meta($order, '_upay_subscription_plan');
-                    $order->add_meta_data(Keys::write_key('_upay_subscription_plan'), $subscription_plan);
+                    Keys::add_order_meta($order, '_upay_subscription_plan', $subscription_plan);
                     Keys::delete_order_meta($order, '_upay_subscription_interval');
-                    $order->add_meta_data(Keys::write_key('_upay_subscription_interval'), $subscription_interval);
+                    Keys::add_order_meta($order, '_upay_subscription_interval', $subscription_interval);
                     Keys::delete_order_meta($order, '_upay_subscription_status');
-                    $order->add_meta_data(Keys::write_key('_upay_subscription_status'), 'active');
+                    Keys::add_order_meta($order, '_upay_subscription_status', 'active');
                     Keys::delete_order_meta($order, 'UPayments_AutoDeduction');
-                    $order->add_meta_data(Keys::write_key('UPayments_AutoDeduction'), 'no');
+                    Keys::add_order_meta($order, 'UPayments_AutoDeduction', 'no');
                 }
 
                 $previous_order_id = Keys::read_order_meta($order, "UPayments_order_id");
@@ -1579,12 +1584,12 @@ class CheckoutOrchestrator {
                     if (!in_array($previous_order_id, $prior, true)) {
                         $prior[] = $previous_order_id;
                     }
-                    $order->update_meta_data(Keys::write_key('_simplixpay_upayments_prior_requested_v1'),
+                    Keys::update_order_meta($order, '_simplixpay_upayments_prior_requested_v1',
                         array_slice($prior, -self::MAX_PRIOR_PROVIDER_ATTEMPTS)
                     );
                 }
                 Keys::delete_order_meta($order, "UPayments_order_id");
-                $order->add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id);
+                Keys::add_order_meta($order, "UPayments_order_id", $unique_order_id);
                 $order->save_meta_data();
 
                 return ["result" => "success", "redirect" => $redirect_url];

@@ -74,7 +74,7 @@ a5_assert(a5_contains($orchestrator, "execute_request('charge', 'POST', \$params
 a5_assert(substr_count($orchestrator, "execute_request('charge', 'POST', \$params)") === 1, 'orchestrator dispatches Charge exactly once');
 a5_assert(a5_contains($orchestrator, 'CustomerTokenIdentity::get_or_establish_token('), 'orchestrator owns saved-card token establishment');
 a5_assert(a5_contains($orchestrator, 'CustomerTokenIdentity::validate_token_runtime_context('), 'orchestrator preserves token runtime validation');
-a5_assert(a5_contains($orchestrator, 'add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id)'), 'orchestrator owns provider-order identity persistence');
+a5_assert(a5_contains($orchestrator, 'Keys::add_order_meta($order, "UPayments_order_id", $unique_order_id)'), 'orchestrator owns provider-order identity persistence');
 a5_assert(a5_contains($orchestrator, 'CheckoutPayload::inject_amount_token_into_payload_json('), 'orchestrator delegates numeric JSON injection');
 a5_assert(a5_contains($orchestrator, 'CheckoutPayload::normalize_upayments_redirect_url('), 'orchestrator delegates redirect validation');
 a5_assert(!a5_contains($payload, 'execute_request('), 'pure payload service excludes provider transport');

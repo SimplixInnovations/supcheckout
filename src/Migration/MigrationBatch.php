@@ -303,16 +303,21 @@ final class MigrationBatch {
             return false;
         }
 
-        $ledger_key = Keys::write_key(self::RESULT_LEDGER_KEY);
-        $written = update_user_meta($user_id, $ledger_key, $record);
-        $readback = get_user_meta($user_id, $ledger_key, true);
+        // Every name of the ledger (Keys::write_keys()), each read back exactly.
+        foreach (Keys::write_keys(self::RESULT_LEDGER_KEY) as $ledger_key) {
+            $written = update_user_meta($user_id, $ledger_key, $record);
+            $readback = get_user_meta($user_id, $ledger_key, true);
 
-        // update_user_meta() returns false when the exact value already exists;
-        // exact durable readback therefore remains the authoritative result.
-        if ($written === false && $readback !== $record) {
-            return false;
+            // update_user_meta() returns false when the exact value already exists;
+            // exact durable readback therefore remains the authoritative result.
+            if ($written === false && $readback !== $record) {
+                return false;
+            }
+            if (!is_array($readback) || $readback !== $record) {
+                return false;
+            }
         }
-        return is_array($readback) && $readback === $record;
+        return true;
     }
 
     private static function isResultLedgerRecord($record) {

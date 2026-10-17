@@ -64,7 +64,10 @@ q16_assert(q16_has($batch, "preg_match('/^[a-z0-9_]+\\z/', \$reason)"), 'durable
 q16_assert(q16_has($batch, 'operations_result_ledger_write_failed') && q16_has($batch, 'batch_checkpoint_failed'), 'checkpoint uncertainty remains fail closed');
 
 q16_assert(q16_has($executor, 'MigrationPreflight::inspect('), 'executor reuses preflight contract');
-q16_assert(q16_has($executor, 'SELECT GET_LOCK(%s, 5)') && q16_has($executor, 'SELECT RELEASE_LOCK(%s)'), 'executor lock contract remains exact');
+// 0b Task 2: the executor takes the runtime's advisory-lock helper, which owns the exact SQL.
+$q16_identity = (string) file_get_contents($root . '/src/Token/CustomerTokenIdentity.php');
+q16_assert(q16_has($executor, 'CustomerTokenIdentity::acquire_lock($lock_name)') && q16_has($executor, 'CustomerTokenIdentity::release_lock($lock_name)')
+    && q16_has($q16_identity, 'SELECT GET_LOCK(%s, 5)') && q16_has($q16_identity, 'SELECT RELEASE_LOCK(%s)'), 'executor lock contract remains exact');
 q16_assert(q16_has($executor, 'KIND_LEGACY_COMPAT') && q16_has($executor, 'SOURCE_LEGACY_VERIFIED_CAPTURE'), 'executor preserves legacy provenance contract');
 q16_assert(!q16_has($executor, 'SOURCE_CREATE_201'), 'executor cannot fabricate Create-201 provenance');
 foreach (array('wp_remote_','curl_','process_payment','add_meta_data(','save_meta_data(','delete_meta_data(','Scheduler','CycleClaim') as $needle) {
@@ -78,8 +81,8 @@ q16_assert(q16_has($fixture, 'SUPCheckout_Test_Migration_Core_WPDB'), 'fixture m
 q16_assert(q16_has($stubs, 'namespace Simplixi\\SUPCheckout\\Token'), 'stub models H12 namespace');
 q16_assert(q16_has($bootstrap, "require __DIR__ . '/support/wordpress-migration-core.php';"), 'PHPUnit bootstrap loads migration fixture');
 
-q16_assert(q16_blob($root . '/src/Subscription/Cron/Scheduler.php') === '82ee27f73ec57800199534f883d1fac0ecb37d19', 'protected Scheduler blob remains exact');
-q16_assert(q16_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '7792c89ef6f4293e962f8b029c1e9dccdabf1e12', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
+q16_assert(q16_blob($root . '/src/Subscription/Cron/Scheduler.php') === 'a8900abd30eec617a7c5c283355a67579a04c323', 'protected Scheduler blob remains exact');
+q16_assert(q16_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '8047348db6a0fc221fd5658220ee21e51d803041', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 foreach (array('phase-9i-preflight-harness.php','phase-9i-executor-harness.php','phase-9i-operations-harness.php') as $name) q16_assert(q16_has($workflow, 'tests/harness/' . $name), 'Phase 9I regression remains mandatory: ' . $name);
 q16_assert(q16_has($workflow, 'tests/harness/quality-platform-migration-core-harness.php'), 'Q16 harness is mandatory');
 q16_assert(q16_has($workflow, 'if: ${{ always() }}'), 'H12 aggregator always runs');

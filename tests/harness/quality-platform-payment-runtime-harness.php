@@ -71,7 +71,7 @@ q17_assert(!q17_has($checkout, '$order_id * time()'), 'Charge attempt identity i
 q17_assert(q17_has($checkout, 'CustomerTokenIdentity::clear_stale_attempt_metadata($order)'), 'new Charge attempt clears stale attempt state');
 q17_assert(
     q17_has($checkout, 'Keys::delete_order_meta($order, "UPayments_order_id")')
-    && q17_has($checkout, 'add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id)'),
+    && q17_has($checkout, 'Keys::add_order_meta($order, "UPayments_order_id", $unique_order_id)'),
     'successful Charge rotates provider order identity'
 );
 q17_assert(q17_has($checkout, 'Nonce ownership is upstream in Woo checkout'), 'Classic checkout nonce ownership is documented narrowly');
@@ -133,7 +133,7 @@ q17_assert(q17_has($lifecycle, "self::log('payment_complete_postcondition_failed
 $payment_complete_position = strpos($lifecycle, '$order->payment_complete($payment_id)');
 $legacy_capture_stage_position = strpos($lifecycle, "'UPayments_Result' => 'CAPTURED'");
 $postcondition_position = strpos($lifecycle, "self::log('payment_complete_postcondition_failed', 'warning')");
-$verified_capture_position = strpos($lifecycle, "\$order->update_meta_data(Keys::write_key('_upay_verified_capture'), 1)");
+$verified_capture_position = strpos($lifecycle, "Keys::update_order_meta(\$order, '_upay_verified_capture', 1)");
 q17_assert(
     $payment_complete_position !== false
     && $legacy_capture_stage_position !== false
@@ -158,11 +158,11 @@ q17_assert(
 );
 
 q17_assert(
-    q17_blob($root . '/src/Subscription/Cron/Scheduler.php') === '82ee27f73ec57800199534f883d1fac0ecb37d19',
+    q17_blob($root . '/src/Subscription/Cron/Scheduler.php') === 'a8900abd30eec617a7c5c283355a67579a04c323',
     'protected Scheduler blob remains exact'
 );
 q17_assert(
-    q17_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '7792c89ef6f4293e962f8b029c1e9dccdabf1e12',
+    q17_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '8047348db6a0fc221fd5658220ee21e51d803041',
     'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening'
 );
 

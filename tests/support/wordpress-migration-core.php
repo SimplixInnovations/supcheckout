@@ -114,6 +114,16 @@ namespace Simplixi\SUPCheckout\Token {
                 return 'simplixpay-migration-' . $scope . '-' . $user_id;
             }
 
+            // The executor takes its advisory lock through the runtime helper (0b Task 2).
+            public static function acquire_lock($lock_name) {
+                $value = $GLOBALS['wpdb']->get_var($GLOBALS['wpdb']->prepare('SELECT GET_LOCK(%s, 5)', $lock_name));
+                return $value === 1 || $value === '1';
+            }
+
+            public static function release_lock($lock_name) {
+                $GLOBALS['wpdb']->get_var($GLOBALS['wpdb']->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
+            }
+
             public static function is_valid_secret_record($record) {
                 if (!is_array($record)
                     || !isset($record['version']) || $record['version'] !== 1

@@ -133,8 +133,8 @@ class Fields
             return;
         }
 
-        $order->update_meta_data(Keys::write_key('_upay_subscription_plan'), $plan);
-        $order->update_meta_data(Keys::write_key('_upay_subscription_interval'), $interval);
+        Keys::update_order_meta($order, '_upay_subscription_plan', $plan);
+        Keys::update_order_meta($order, '_upay_subscription_interval', $interval);
     }
 
     private static function parse_interval($value): int {
@@ -161,12 +161,7 @@ class Fields
         if ($gateway->get_option('enable_subscriptions') !== 'yes') {
             return false;
         }
-        $post = self::checkout_post();
-        $selected_gateway = '';
-        if (isset($post['payment_method']) && is_scalar($post['payment_method'])) {
-            $selected_gateway = sanitize_key(wp_unslash($post['payment_method']));
-        }
-        if (!Keys::is_our_gateway($selected_gateway)) {
+        if (!self::posted_method_is_ours(self::checkout_post())) {
             return false;
         }
         if (!Utils::cartHasCustomType()) {
@@ -176,6 +171,22 @@ class Fields
             return false;
         }
         return true;
+    }
+
+    /**
+     * Whether the request-controlled Classic `payment_method` selects our gateway
+     * (Keys::is_our_gateway(): only 'upayments' before cutover).
+     *
+     * @param array $post Checkout POST payload.
+     * @return bool
+     */
+    private static function posted_method_is_ours(array $post): bool
+    {
+        $selected_gateway = '';
+        if (isset($post['payment_method']) && is_scalar($post['payment_method'])) {
+            $selected_gateway = sanitize_key(wp_unslash($post['payment_method']));
+        }
+        return Keys::is_our_gateway($selected_gateway);
     }
 
     /**

@@ -253,7 +253,7 @@ final class MigrationExecutor {
             return array('ok' => false, 'created' => false, 'reason' => 'generated_secret_invalid');
         }
 
-        $created = add_option(Keys::write_key(CustomerTokenIdentity::SECRET_OPTION), $record, '', 'no');
+        $created = Keys::add_copied_option(CustomerTokenIdentity::SECRET_OPTION, $record, 'no');
         if (!$created) {
             $readback = CustomerTokenIdentity::read_existing_secret_record();
             if (is_array($readback)
@@ -293,20 +293,26 @@ final class MigrationExecutor {
 
         // One ledger value per user. We intentionally overwrite only this new
         // Simplix-owned key; protected UPayments identity keys are never used.
-        $ledger_key = Keys::write_key(self::LEDGER_KEY);
-        $written = update_user_meta($user_id, $ledger_key, $record);
-        if ($written === false) {
-            return false;
+        // Every name of the ledger (Keys::write_keys(): the legacy name before the takeover
+        // window, both inside it), each written and read back exactly.
+        $ledger_keys = Keys::write_keys(self::LEDGER_KEY);
+        foreach ($ledger_keys as $ledger_key) {
+            $written = update_user_meta($user_id, $ledger_key, $record);
+            if ($written === false) {
+                return false;
+            }
         }
 
         if (!CustomerTokenIdentity::force_refresh_user_meta($user_id)) {
             return false;
         }
-        $all = get_user_meta($user_id, $ledger_key, false);
-        if (!is_array($all) || count($all) !== 1 || !is_array($all[0])) {
-            return false;
+        foreach ($ledger_keys as $ledger_key) {
+            $all = get_user_meta($user_id, $ledger_key, false);
+            if (!is_array($all) || count($all) !== 1 || !is_array($all[0]) || $all[0] !== $record) {
+                return false;
+            }
         }
-        return $all[0] === $record;
+        return true;
     }
 
     private static function isExactLegacyProvenance($result, $token, $scope, $generation) {
@@ -346,9 +352,9 @@ final class MigrationExecutor {
         ) {
             return false;
         }
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Migration advisory lock must observe the live database connection and cannot be cached.
-        $value = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 5)', $lock_name));
-        return $value === 1 || $value === '1';
+        // The same advisory-lock names as the runtime (Keys::advisory_lock_names()), so a
+        // migration and a checkout keep excluding each other on both sides of Finalize.
+        return CustomerTokenIdentity::acquire_lock($lock_name);
     }
 
     private static function releaseLock($lock_name) {
@@ -358,8 +364,7 @@ final class MigrationExecutor {
         ) {
             return;
         }
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Migration advisory-lock release must execute against the live connection and cannot be cached.
-        $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
+        CustomerTokenIdentity::release_lock($lock_name);
     }
 
     private static function redactPreflight($preflight) {

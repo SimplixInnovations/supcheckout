@@ -1003,39 +1003,39 @@ class Scheduler
             );
             return;
         }
-        $renewal_order->update_meta_data(Keys::write_key('UPayments_order_id'), $provider_order_identity);
-        $renewal_order->update_meta_data(Keys::write_key('UPayments_ParentOrderID'), $order->get_id());
-        $renewal_order->update_meta_data(Keys::write_key('UPayments_AutoDeduction'), 'yes');
-        $renewal_order->update_meta_data(Keys::write_key('UPayments_PaymentID'), $payment_id);
+        Keys::update_order_meta($renewal_order, 'UPayments_order_id', $provider_order_identity);
+        Keys::update_order_meta($renewal_order, 'UPayments_ParentOrderID', $order->get_id());
+        Keys::update_order_meta($renewal_order, 'UPayments_AutoDeduction', 'yes');
+        Keys::update_order_meta($renewal_order, 'UPayments_PaymentID', $payment_id);
 
         if ($track_id !== '') {
-            $renewal_order->update_meta_data(Keys::write_key('UPayments_TrackID'), $track_id);
+            Keys::update_order_meta($renewal_order, 'UPayments_TrackID', $track_id);
         }
         if ($invoice_id !== '') {
-            $renewal_order->update_meta_data(Keys::write_key('UPayments_InvoiceID'), $invoice_id);
+            Keys::update_order_meta($renewal_order, 'UPayments_InvoiceID', $invoice_id);
         }
         if ($reference_value !== '') {
-            $renewal_order->update_meta_data(Keys::write_key('UPayments_Ref'), $reference_value);
+            Keys::update_order_meta($renewal_order, 'UPayments_Ref', $reference_value);
         }
         if ($transaction_dt !== '') {
-            $renewal_order->update_meta_data(Keys::write_key('UPayments_TransactionDate'), $transaction_dt);
+            Keys::update_order_meta($renewal_order, 'UPayments_TransactionDate', $transaction_dt);
         }
         if ($payment_type !== '') {
-            $renewal_order->update_meta_data(Keys::write_key('UPayments_payment_type'), $payment_type);
+            Keys::update_order_meta($renewal_order, 'UPayments_payment_type', $payment_type);
         }
 
-        $renewal_order->update_meta_data(Keys::write_key('UPayments_Result'), 'CAPTURED');
-        $renewal_order->update_meta_data(Keys::write_key('UPayments_PostDate'), '');
+        Keys::update_order_meta($renewal_order, 'UPayments_Result', 'CAPTURED');
+        Keys::update_order_meta($renewal_order, 'UPayments_PostDate', '');
         // BLOCKER 13: Preserve UPayments_GatewayStatus compatibility.
         // The legacy code stored $result['status'] directly. Do NOT
         // intentionally normalize this metadata type in PR 8B. Phase 8C
         // will replace this only after first-party protocol evidence
         // exists.
-        $renewal_order->update_meta_data(Keys::write_key('UPayments_GatewayStatus'), $result['status']);
-        $renewal_order->update_meta_data(Keys::write_key('_upay_credit_card_token'), $credit_card_token);
-        $renewal_order->update_meta_data(Keys::write_key('_upay_customer_unique_token'), $customerUnqToken);
-        $renewal_order->update_meta_data(Keys::write_key('_upay_subscription_plan'), $subscriptionPlan);
-        $renewal_order->update_meta_data(Keys::write_key('_upay_subscription_interval'), $subscriptionInterval);
+        Keys::update_order_meta($renewal_order, 'UPayments_GatewayStatus', $result['status']);
+        Keys::update_order_meta($renewal_order, '_upay_credit_card_token', $credit_card_token);
+        Keys::update_order_meta($renewal_order, '_upay_customer_unique_token', $customerUnqToken);
+        Keys::update_order_meta($renewal_order, '_upay_subscription_plan', $subscriptionPlan);
+        Keys::update_order_meta($renewal_order, '_upay_subscription_interval', $subscriptionInterval);
 
         $renewal_order->payment_complete($payment_id);
         $renewal_order->update_status(
@@ -1125,11 +1125,11 @@ class Scheduler
         // attempt record; the legacy metadata writes below are diagnostic/
         // backward-compatibility only and do NOT carry charge authority.
         $billed_at = current_time('mysql');
-        $order->update_meta_data(Keys::write_key('_upay_last_billed_at'), $billed_at);
+        Keys::update_order_meta($order, '_upay_last_billed_at', $billed_at);
         Keys::delete_order_meta($order, '_upay_retry_count');
         Keys::delete_order_meta($order, '_upay_last_attempt_at');
         Keys::delete_order_meta($order, '_upay_last_failed_reason');
-        $order->update_meta_data(Keys::write_key('_upay_subscription_status'), 'active');
+        Keys::update_order_meta($order, '_upay_subscription_status', 'active');
         $order->save();
 
         // ---- 8. Parent persistence verification (fresh WooCommerce read) ----

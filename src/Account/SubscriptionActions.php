@@ -104,13 +104,13 @@ final class SubscriptionActions {
         }
 
         if ($action === 'unsubscribe') {
-            $order->update_meta_data(Keys::write_key('_upay_subscription_status'), 'cancelled');
+            Keys::update_order_meta($order, '_upay_subscription_status', 'cancelled');
             wc_add_notice(__('Your subscription has been cancelled.', 'supcheckout'), 'success');
         } elseif ($action === 'pause') {
-            $order->update_meta_data(Keys::write_key('_upay_subscription_status'), 'paused');
+            Keys::update_order_meta($order, '_upay_subscription_status', 'paused');
             wc_add_notice(__('Subscription paused.', 'supcheckout'), 'success');
         } elseif ($action === 'resume') {
-            $order->update_meta_data(Keys::write_key('_upay_subscription_status'), 'active');
+            Keys::update_order_meta($order, '_upay_subscription_status', 'active');
             wc_add_notice(__('Subscription resumed.', 'supcheckout'), 'success');
         }
 

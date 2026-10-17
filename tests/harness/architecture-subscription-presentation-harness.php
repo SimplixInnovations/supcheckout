@@ -280,7 +280,7 @@ a4_assert(strpos($composition, 'ProductTypeHooks::register();') !== false, 'comp
 a4_assert(strpos($gateway, 'SubscriptionComposition::initialize_legacy_modules();') !== false, 'public subscription initializer delegates legacy checkout/storage composition');
 a4_assert(strpos($gateway, 'SubscriptionPresentation::render_admin_summary($order);') !== false, 'admin summary wrapper delegates presentation');
 a4_assert(strpos($scheduler_bootstrap, "add_action('woocommerce_init', array(self::class, 'init_scheduler'))") !== false && strpos($scheduler_bootstrap, 'Scheduler::init();') !== false, 'protected scheduler bootstrap remains outside presentation boundary');
-a4_assert(strpos($subscription_actions, "update_meta_data(Keys::write_key('_upay_subscription_status'), 'cancelled')") !== false, 'hardened customer mutation handler remains outside presentation boundary');
+a4_assert(strpos($subscription_actions, "Keys::update_order_meta(\$order, '_upay_subscription_status', 'cancelled')") !== false, 'hardened customer mutation handler remains outside presentation boundary');
 foreach (array('Scheduler::', "update_meta_data('_upay_subscription_status'") as $forbidden) {
     a4_assert(strpos($composition . "\n" . $product_type_hooks, $forbidden) === false, "presentation boundary excludes {$forbidden} ownership");
 }
@@ -296,8 +296,8 @@ a4_assert(strpos($composition, 'register_presentation_hooks') !== false && strpo
 // earlier: #71 bfadff3). This harness exited silently before reaching these pins, so they
 // still named the #67 / pre-#71 blobs; they now match the pins in the H12, Q13, Q14, Q16
 // and Q17 harnesses.
-a4_same('82ee27f73ec57800199534f883d1fac0ecb37d19', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
-a4_same('7792c89ef6f4293e962f8b029c1e9dccdabf1e12', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
+a4_same('a8900abd30eec617a7c5c283355a67579a04c323', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
+a4_same('8047348db6a0fc221fd5658220ee21e51d803041', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
 
 echo "\nArchitecture Subscription Presentation: {$pass} PASS / {$fail} FAIL\n";
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";

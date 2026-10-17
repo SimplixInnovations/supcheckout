@@ -66,7 +66,7 @@ final class HistoricalEnrollment
         $stats = self::enroll_slice($orders, $complete);
         $stats['cursor'] = $complete ? 0 : $offset + $count;
         $stats['complete'] = $complete;
-        update_option(Keys::write_key(self::OPTION_CURSOR), $stats['cursor'], false);
+        Keys::update_copied_option(self::OPTION_CURSOR, $stats['cursor'], false);
 
         return $stats;
     }
@@ -127,9 +127,7 @@ final class HistoricalEnrollment
 
     public static function reset_cursor(): void
     {
-        foreach (Keys::delete_names(self::OPTION_CURSOR) as $option) {
-            delete_option($option);
-        }
+        Keys::delete_copied_option(self::OPTION_CURSOR);
     }
 
     /**

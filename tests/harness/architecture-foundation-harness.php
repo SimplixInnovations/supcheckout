@@ -417,8 +417,9 @@ $sessionGuardSequence = array(
     'variable:$wc', '&&', 'variable:$wc', '->', 'name:session',
 );
 $orderIdWriteSequence = array(
-    // 0b Task 2: written under Keys::write_key(), the legacy name until cutover.
-    'variable:$order', '->', 'name:add_meta_data', '(', 'name:Keys', '::', 'name:write_key', '(', 'string:UPayments_order_id', ')', ',',
+    // 0b Task 2: written through Keys::add_order_meta() (the legacy name before the
+    // takeover window, both names inside it; pinned in tests/unit/Takeover/DualReadTest.php).
+    'name:Keys', '::', 'name:add_order_meta', '(', 'variable:$order', ',', 'string:UPayments_order_id', ',',
     'variable:$unique_order_id', ')', ';',
 );
 $availabilityFilterSequence = array(
@@ -775,7 +776,7 @@ $inertFixture = <<<'PHP'
 <?php
 class WrongGateway {
     public function getAPIUrl() { return 'dead'; }
-    public function process_payment() { $order->add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id); }
+    public function process_payment() { Keys::add_order_meta($order, "UPayments_order_id", $unique_order_id); }
 }
 class WC_Upayments {
     // public function getAPIUrl() {}
@@ -788,9 +789,9 @@ class WC_Upayments {
     }
     protected function getAPIUrl() { return 'not-public'; }
     public function process_payment() {
-        $dead_write = '$order->add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id);';
+        $dead_write = 'Keys::add_order_meta($order, "UPayments_order_id", $unique_order_id);';
         $nested = function () use ($order, $unique_order_id) {
-            $order->add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id);
+            Keys::add_order_meta($order, "UPayments_order_id", $unique_order_id);
         };
     }
 }

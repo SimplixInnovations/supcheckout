@@ -202,10 +202,16 @@ final class Keys {
         );
     }
 
+    /** @var list<array<string,string>>|null Memoized copied maps (pure and constant per request). */
+    private static $copied_maps = null;
+
     /** @return list<array<string,string>> */
     private static function copied_maps() {
-        return array(self::order_meta(), self::user_meta(), self::user_meta_prefixes(), self::product_meta(),
-            self::options(), self::cron_hooks(), self::tables());
+        if (self::$copied_maps === null) {
+            self::$copied_maps = array(self::order_meta(), self::user_meta(), self::user_meta_prefixes(), self::product_meta(),
+                self::options(), self::cron_hooks(), self::tables());
+        }
+        return self::$copied_maps;
     }
 
     /**
@@ -401,24 +407,83 @@ final class Keys {
     }
 
     /**
+     * The primary name of a value right now: the legacy name until cutover, the new name
+     * after. For key builders and logs only; runtime writes and deletes go through
+     * Keys::write_keys() / Keys::delete_names() so they follow the window model.
+     *
      * @param string $legacy Legacy name.
-     * @return string The name writes go to right now.
+     * @return string
      */
     public static function write_key($legacy) {
         return TakeoverState::is_cut_over() ? self::meta_names($legacy)[0] : $legacy;
     }
 
     /**
-     * Names a delete must remove. Before cutover only the legacy name, as today. After
-     * cutover both, so a removed runtime marker cannot reappear through the legacy
-     * fallback read (the legacy copy is otherwise kept until Finalize).
+     * The window model: every name a runtime write or delete must reach right now.
+     *
+     * - idle, preflight_ok, rolled_back: the legacy name only (exactly today's write);
+     * - copying, verified, cut_over, and an unreadable (invalid) or unknown status: BOTH
+     *   names, legacy first, so a value written or a marker deleted after the takeover
+     *   copied an order can never be shadowed or resurrected by that copy at cutover,
+     *   and the legacy name stays current for a rollback;
+     * - finalized: the new name only.
+     *
+     * Reads stay legacy-only until is_cut_over() (Keys::read()).
+     *
+     * @param string $legacy Legacy name (exact, or a full key under a user-meta prefix).
+     * @return list<string>
+     */
+    public static function write_keys($legacy) {
+        list($new_key, $legacy) = self::meta_names($legacy);
+        $status = self::takeover_status();
+        if ($status === TakeoverState::IDLE || $status === TakeoverState::PREFLIGHT_OK
+            || $status === TakeoverState::ROLLED_BACK
+        ) {
+            return array($legacy);
+        }
+        if ($status === TakeoverState::FINALIZED) {
+            return array($new_key);
+        }
+        return array($legacy, $new_key);
+    }
+
+    /**
+     * Names a delete must remove: the same window model as writes.
      *
      * @param string $legacy Legacy name.
      * @return list<string>
      */
     public static function delete_names($legacy) {
-        list($new_key, $legacy) = self::meta_names($legacy);
-        return TakeoverState::is_cut_over() ? array($new_key, $legacy) : array($legacy);
+        return self::write_keys($legacy);
+    }
+
+    /**
+     * @param \WC_Order $order  Order.
+     * @param string    $legacy Legacy meta key.
+     * @param mixed     $value  Value.
+     * @return void
+     */
+    public static function update_order_meta($order, $legacy, $value) {
+        foreach (self::write_keys($legacy) as $name) {
+            $order->update_meta_data($name, $value);
+        }
+    }
+
+    /**
+     * @param \WC_Order $order  Order.
+     * @param string    $legacy Legacy meta key.
+     * @param mixed     $value  Value.
+     * @param bool      $unique Pass WooCommerce's unique flag.
+     * @return void
+     */
+    public static function add_order_meta($order, $legacy, $value, $unique = false) {
+        foreach (self::write_keys($legacy) as $name) {
+            if ($unique) {
+                $order->add_meta_data($name, $value, true);
+            } else {
+                $order->add_meta_data($name, $value);
+            }
+        }
     }
 
     /**
@@ -429,6 +494,72 @@ final class Keys {
     public static function delete_order_meta($order, $legacy) {
         foreach (self::delete_names($legacy) as $name) {
             $order->delete_meta_data($name);
+        }
+    }
+
+    /**
+     * update_option() on every name of a copied option (Keys::options()).
+     *
+     * @param string    $legacy   Legacy option name.
+     * @param mixed     $value    Value.
+     * @param bool|null $autoload Autoload flag, passed through.
+     * @return bool True when every write reported success.
+     */
+    public static function update_copied_option($legacy, $value, $autoload = null) {
+        self::assert_option($legacy);
+        $written = true;
+        foreach (self::write_keys($legacy) as $name) {
+            $written = update_option($name, $value, $autoload) && $written;
+        }
+        return $written;
+    }
+
+    /**
+     * add_option() on every name of a copied option. The first (legacy, before
+     * `finalized`) add decides creation exactly as one add_option() did; every other
+     * name must then be added or already hold the identical value, else the call fails
+     * closed (a conflicting copy is never overwritten).
+     *
+     * @param string $legacy   Legacy option name.
+     * @param mixed  $value    Value.
+     * @param string $autoload Autoload flag, passed through.
+     * @return bool True only when this call created the value under every name.
+     */
+    public static function add_copied_option($legacy, $value, $autoload = 'no') {
+        self::assert_option($legacy);
+        $names = self::write_keys($legacy);
+        if (!add_option($names[0], $value, '', $autoload)) {
+            return false;
+        }
+        foreach (array_slice($names, 1) as $name) {
+            if (!add_option($name, $value, '', $autoload) && get_option($name, null) !== $value) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * delete_option() on every name of a copied option.
+     *
+     * @param string $legacy Legacy option name.
+     * @return void
+     */
+    public static function delete_copied_option($legacy) {
+        self::assert_option($legacy);
+        foreach (self::delete_names($legacy) as $name) {
+            delete_option($name);
+        }
+    }
+
+    /**
+     * @param string $legacy Legacy option name.
+     * @return void
+     * @throws \InvalidArgumentException When the option is not registered.
+     */
+    private static function assert_option($legacy) {
+        if (!isset(self::options()[$legacy])) {
+            throw new \InvalidArgumentException('Unregistered option: ' . esc_html((string) $legacy));
         }
     }
 
@@ -536,8 +667,12 @@ final class Keys {
     }
 
     /**
-     * The id our gateway is registered under in a WooCommerce gateways array: the
-     * current id first, then any SUPCheckout identity.
+     * The id our gateway is registered under in a WooCommerce gateways array.
+     *
+     * Before cutover exactly today's lookup: whatever is registered at 'upayments'.
+     * After cutover the current id first, then the legacy id, and only an instance of
+     * SUPCheckout's own gateway class: the official plugin's gateway object can sit at
+     * 'upayments' and must never be mistaken for ours.
      *
      * @param mixed $gateways Gateway id => gateway.
      * @return string|null
@@ -546,20 +681,19 @@ final class Keys {
         if (!is_array($gateways)) {
             return null;
         }
-        $current = self::gateway_id();
-        if (isset($gateways[$current])) {
-            return $current;
+        if (!TakeoverState::is_cut_over()) {
+            return isset($gateways[self::GATEWAY_LEGACY]) ? self::GATEWAY_LEGACY : null;
         }
-        foreach ($gateways as $id => $gateway) {
-            if ($gateway !== null && self::is_our_gateway((string) $id)) {
-                return (string) $id;
+        foreach (array(self::GATEWAY, self::GATEWAY_LEGACY) as $id) {
+            if (isset($gateways[$id]) && $gateways[$id] instanceof \Simplixi\SUPCheckout\Gateway\Gateway) {
+                return $id;
             }
         }
         return null;
     }
 
     /**
-     * Our gateway in a WooCommerce gateways array, whichever id it is registered under.
+     * Our gateway in a WooCommerce gateways array (see Keys::find_gateway_id()).
      *
      * @param mixed $gateways Gateway id => gateway.
      * @return mixed|null The gateway, or null.
@@ -605,6 +739,31 @@ final class Keys {
     }
 
     /**
+     * MySQL GET_LOCK() names (the `upay_pm_` and `upay_ctk_` families). The legacy name
+     * until `finalized`, the new name after; never both at once.
+     *
+     * Before MySQL 5.7.5 a connection holds at most one named lock: GET_LOCK() silently
+     * releases any lock it already holds. WordPress 6.9 still accepts MySQL 5.5.5, so a
+     * second name taken during the window would drop the first. These names are never
+     * stored, so the legacy name stays authoritative through the whole window; the only
+     * gap is an in-flight request that crosses Finalize (30 days after cutover), which
+     * the stored order locks and gates still cover.
+     *
+     * @param string $legacy_name Full legacy GET_LOCK name.
+     * @return list<string>
+     */
+    public static function advisory_lock_names($legacy_name) {
+        $names = self::ephemeral_names($legacy_name);
+        return array($names[0]);
+    }
+
+    /**
+     * The billing-attempts journal in use right now: the legacy table until cutover, the
+     * new table after. Its claims are compare-and-swap SQL that cannot be mirrored into a
+     * second table atomically, so this table is NOT dual-written in the window: the
+     * plan's cutover re-syncs it (REPLACE + checksum) under a quiesce of the subscription
+     * scheduler, and Rollback back-syncs it.
+     *
      * @param string $legacy Legacy table name without prefix.
      * @return string Prefixed table name in use right now.
      * @throws \InvalidArgumentException When the table is not registered.
@@ -619,12 +778,18 @@ final class Keys {
     }
 
     /**
-     * Historical orders keep payment_method 'upayments' forever; new ones get 'supcheckout'.
+     * Historical orders keep payment_method 'upayments' forever; orders created after
+     * cutover carry 'supcheckout'. Before cutover no SUPCheckout order or session can hold
+     * 'supcheckout' (orders keep 'upayments' through the copy window), so only the legacy
+     * id is ours: a request-controlled 'supcheckout' is rejected exactly as before.
      *
-     * @param string $id An order's payment_method or a gateway id.
-     * @return bool True for either SUPCheckout identity.
+     * @param mixed $id An order's payment_method, a session value or a gateway id.
+     * @return bool
      */
     public static function is_our_gateway($id) {
+        if (!TakeoverState::is_cut_over()) {
+            return $id === self::GATEWAY_LEGACY;
+        }
         return in_array($id, array(self::GATEWAY_LEGACY, self::GATEWAY), true);
     }
 

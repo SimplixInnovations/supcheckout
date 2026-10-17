@@ -420,11 +420,11 @@ final class PaymentLifecycle {
             // Promotion to trusted occurs only after authenticated status response
             // + exact fresh-order rebound. Pair the track with provider order identity
             // so a later Charge attempt on the same Woo order can be distinguished.
-            $fresh_order->update_meta_data(Keys::write_key(self::TRUSTED_TRACK_META), $track_id);
-            $fresh_order->update_meta_data(Keys::write_key(self::TRUSTED_REQUESTED_META), $current_requested);
+            Keys::update_order_meta($fresh_order, self::TRUSTED_TRACK_META, $track_id);
+            Keys::update_order_meta($fresh_order, self::TRUSTED_REQUESTED_META, $current_requested);
             Keys::delete_order_meta($fresh_order, self::UNVERIFIED_TRACK_META);
             Keys::delete_order_meta($fresh_order, self::UNVERIFIED_REQUESTED_META);
-            $fresh_order->update_meta_data(Keys::write_key(self::PROVIDER_RESULT_META),
+            Keys::update_order_meta($fresh_order, self::PROVIDER_RESULT_META,
                 $transaction['result'] === null ? 'NULL' : (string) $transaction['result']
             );
 
@@ -586,8 +586,8 @@ final class PaymentLifecycle {
         // Unverified callback routing evidence is replaceable by a later locally
         // preflighted callback for the same current provider order identity. It can
         // never overwrite a trusted cursor for that same attempt.
-        $order->update_meta_data(Keys::write_key(self::UNVERIFIED_TRACK_META), $track_id);
-        $order->update_meta_data(Keys::write_key(self::UNVERIFIED_REQUESTED_META), $current_requested);
+        Keys::update_order_meta($order, self::UNVERIFIED_TRACK_META, $track_id);
+        Keys::update_order_meta($order, self::UNVERIFIED_REQUESTED_META, $current_requested);
         $saved = $order->save();
         if ($saved === false || $saved === null || $saved === 0) {
             return false;
@@ -698,8 +698,8 @@ final class PaymentLifecycle {
             $order->save();
             return;
         }
-        $order->update_meta_data(Keys::write_key(self::SECONDARY_PENDING_META), $remaining);
-        $order->update_meta_data(Keys::write_key(self::SECONDARY_ATTEMPT_META), $attempt);
+        Keys::update_order_meta($order, self::SECONDARY_PENDING_META, $remaining);
+        Keys::update_order_meta($order, self::SECONDARY_ATTEMPT_META, $attempt);
         $order->save();
         self::schedule_secondary($order_id, $attempt);
     }
@@ -792,9 +792,9 @@ final class PaymentLifecycle {
                 return self::outcome('unchanged', 'payment_complete_failed');
             }
             // The capturing track now owns the order's trusted cursor.
-            $fresh_order->update_meta_data(Keys::write_key(self::TRUSTED_TRACK_META), $track_id);
-            $fresh_order->update_meta_data(Keys::write_key(self::TRUSTED_REQUESTED_META), $requested_order_id);
-            $fresh_order->update_meta_data(Keys::write_key(self::PROVIDER_RESULT_META), 'CAPTURED');
+            Keys::update_order_meta($fresh_order, self::TRUSTED_TRACK_META, $track_id);
+            Keys::update_order_meta($fresh_order, self::TRUSTED_REQUESTED_META, $requested_order_id);
+            Keys::update_order_meta($fresh_order, self::PROVIDER_RESULT_META, 'CAPTURED');
             self::clear_reconciliation($fresh_order);
             self::log('secondary_captured');
             return self::outcome('captured', 'secondary_captured');
@@ -855,7 +855,7 @@ final class PaymentLifecycle {
                 return;
             }
             $pending[] = array('track' => $track_id, 'requested' => $requested_order_id);
-            $order->update_meta_data(Keys::write_key(self::SECONDARY_PENDING_META), array_slice($pending, -self::MAX_SECONDARY_PENDING));
+            Keys::update_order_meta($order, self::SECONDARY_PENDING_META, array_slice($pending, -self::MAX_SECONDARY_PENDING));
             $order->save();
             self::schedule_secondary($order_id, (int) Keys::read_order_meta($order, self::SECONDARY_ATTEMPT_META));
         } finally {
@@ -887,7 +887,7 @@ final class PaymentLifecycle {
             return;
         }
         $noted[] = (string) $track_id;
-        $order->update_meta_data(Keys::write_key(self::SECONDARY_NOTED_META), array_slice($noted, -self::MAX_SECONDARY_NOTED));
+        Keys::update_order_meta($order, self::SECONDARY_NOTED_META, array_slice($noted, -self::MAX_SECONDARY_NOTED));
         $order->add_order_note(
             sprintf(
                 /* translators: %s: UPayments track ID. */
@@ -956,7 +956,7 @@ final class PaymentLifecycle {
             self::log('callback_lookup_throttled', 'warning');
             return false;
         }
-        $order->update_meta_data(Keys::write_key(self::CALLBACK_LOOKUP_META), $bucket . ':' . ($count + 1));
+        Keys::update_order_meta($order, self::CALLBACK_LOOKUP_META, $bucket . ':' . ($count + 1));
         $order->save();
         return true;
     }
@@ -975,7 +975,7 @@ final class PaymentLifecycle {
         if ((string) Keys::read_order_meta($order, self::CAPTURE_APPLY_FAILED_META) === '1') {
             return;
         }
-        $order->update_meta_data(Keys::write_key(self::CAPTURE_APPLY_FAILED_META), 1);
+        Keys::update_order_meta($order, self::CAPTURE_APPLY_FAILED_META, 1);
         if (method_exists($order, 'add_order_note')) {
             $order->add_order_note(
                 __('UPayments confirmed a captured payment for this order, but WooCommerce could not record it. SUPCheckout for UPayments will retry; if the order stays unpaid, review it manually.', 'supcheckout')
@@ -1029,7 +1029,7 @@ final class PaymentLifecycle {
             return;
         }
         $recorded[] = $payment_id;
-        $order->update_meta_data(Keys::write_key(self::UNAPPLIED_CAPTURES_META), $recorded);
+        Keys::update_order_meta($order, self::UNAPPLIED_CAPTURES_META, $recorded);
         if (method_exists($order, 'add_order_note')) {
             if ($reason === 'gateway_changed') {
                 /* translators: %s: UPayments payment ID. */
@@ -1105,16 +1105,18 @@ final class PaymentLifecycle {
             // succeeds. If completion fails or throws, restore the exact prior
             // legacy metadata so false CAPTURED evidence cannot survive durably.
             foreach ($legacy_capture_meta as $legacy_key => $value) {
-                // Snapshot and restore exactly the name being written (the legacy name until cutover).
-                $key = Keys::write_key($legacy_key);
-                $exists = method_exists($order, 'meta_exists')
-                    ? (bool) $order->meta_exists($key)
-                    : (string) $order->get_meta($key) !== '';
-                $legacy_capture_snapshot[$key] = array(
-                    'exists' => $exists,
-                    'value' => $exists ? $order->get_meta($key) : null,
-                );
-                $order->update_meta_data($key, $value);
+                // Snapshot and restore exactly the names being written (Keys::write_keys():
+                // the legacy name before the takeover window, both names inside it).
+                foreach (Keys::write_keys($legacy_key) as $key) {
+                    $exists = method_exists($order, 'meta_exists')
+                        ? (bool) $order->meta_exists($key)
+                        : (string) $order->get_meta($key) !== '';
+                    $legacy_capture_snapshot[$key] = array(
+                        'exists' => $exists,
+                        'value' => $exists ? $order->get_meta($key) : null,
+                    );
+                    $order->update_meta_data($key, $value);
+                }
             }
 
             $force_completed = method_exists($gateway, 'getIsOrderComplete') && $gateway->getIsOrderComplete();
@@ -1166,11 +1168,11 @@ final class PaymentLifecycle {
         // Re-assert canonical legacy metadata after completion hooks, then persist
         // Simplix payment truth only after Woo confirms paid state + transaction ID.
         foreach ($legacy_capture_meta as $key => $value) {
-            $order->update_meta_data(Keys::write_key($key), $value);
+            Keys::update_order_meta($order, $key, $value);
         }
-        $order->update_meta_data(Keys::write_key('_upay_verified_capture'), 1);
-        $order->update_meta_data(Keys::write_key('UPayments_webhook_triggered'), 1);
-        $order->update_meta_data(Keys::write_key(self::PUBLIC_STATUS_META), 'completed');
+        Keys::update_order_meta($order, '_upay_verified_capture', 1);
+        Keys::update_order_meta($order, 'UPayments_webhook_triggered', 1);
+        Keys::update_order_meta($order, self::PUBLIC_STATUS_META, 'completed');
         Keys::delete_order_meta($order, self::CAPTURE_APPLY_FAILED_META);
         $order->save();
         return true;
@@ -1188,8 +1190,8 @@ final class PaymentLifecycle {
             return false;
         }
 
-        $order->update_meta_data(Keys::write_key('UPayments_Result'), (string) $provider_result);
-        $order->update_meta_data(Keys::write_key(self::PUBLIC_STATUS_META), $target_status);
+        Keys::update_order_meta($order, 'UPayments_Result', (string) $provider_result);
+        Keys::update_order_meta($order, self::PUBLIC_STATUS_META, $target_status);
         if ((string) $order->get_status() !== $target_status) {
             $note = $target_status === 'failed'
                 ? __('UPayments authenticated payment result is terminal failure.', 'supcheckout')
@@ -1238,8 +1240,8 @@ final class PaymentLifecycle {
             self::note_reconciliation_unschedulable($order);
             return false;
         }
-        $order->update_meta_data(Keys::write_key(self::RECONCILE_ATTEMPT_META), $next_attempt);
-        $order->update_meta_data(Keys::write_key(self::RECONCILE_REASON_META), self::safe_code($reason));
+        Keys::update_order_meta($order, self::RECONCILE_ATTEMPT_META, $next_attempt);
+        Keys::update_order_meta($order, self::RECONCILE_REASON_META, self::safe_code($reason));
         $order->save();
         return true;
     }
@@ -1265,8 +1267,8 @@ final class PaymentLifecycle {
         if ((string) Keys::read_order_meta($order, self::RECONCILE_EXHAUSTED_META) === '1') {
             return;
         }
-        $order->update_meta_data(Keys::write_key(self::RECONCILE_EXHAUSTED_META), 1);
-        $order->update_meta_data(Keys::write_key(self::RECONCILE_REASON_META), self::safe_code($reason));
+        Keys::update_order_meta($order, self::RECONCILE_EXHAUSTED_META, 1);
+        Keys::update_order_meta($order, self::RECONCILE_REASON_META, self::safe_code($reason));
         if (method_exists($order, 'add_order_note')) {
             $order->add_order_note(
                 __('SUPCheckout for UPayments reconciliation exhausted without authoritative terminal payment state. Manual review is required.', 'supcheckout')

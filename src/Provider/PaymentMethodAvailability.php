@@ -89,9 +89,9 @@ final class PaymentMethodAvailability {
         return 'upay_pm_' . substr(hash('sha256', $lock_input), 0, 16);
     }
 
-    /** @return list<string> Advisory-lock names in use, acquired in order. */
+    /** @return list<string> Advisory-lock name in use (Keys::advisory_lock_names()). */
     private function lock_names() {
-        return Keys::ephemeral_names($this->lock_name());
+        return Keys::advisory_lock_names($this->lock_name());
     }
 
     /** @return int 1 when every name is held, else 0 (busy) or -1 (error); nothing stays held on failure. */

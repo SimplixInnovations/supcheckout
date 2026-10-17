@@ -28,7 +28,7 @@ All code reads identities through one `Keys` registry with legacy fallback, so c
 - New identities use the `supcheckout` and `_supcheckout_` prefixes. Every legacy → new pair comes from the inventory and lives **only** in `Keys` (Task 1).
   - **One exception: the customer-token MySQL `GET_LOCK()` names** use `sup_ctk_` and `sup_ctkboot_b`. `GET_LOCK()` names are limited to 64 characters, and `CustomerTokenIdentity::get_lock_name()` builds prefix + 32-hex scope + `_` + a user ID of up to 20 digits. That leaves at most 11 characters for the prefix, and `supcheckout_ctklock_` would need 73 in total. These names are never stored in a table.
 - **Approved migration contract.** The owner approved renaming every protected identity (decision: "option 2, fully rename") on the condition of a non-destructive, verified, reversible switch. The spec §5, this plan and the Task 12 matrix are that contract. AGENTS.md is updated in Task 12, not before, so the protected list keeps guarding the code until the matrix is green.
-- **Copy, never move.** No legacy option, meta, cron event or third-party value is deleted before `Finalize`, and `Finalize` is refused until 30 days after `Cutover` unless the owner passes `--force-after-review`.
+- **Copy, never move.** No legacy option, meta, cron event or third-party value is deleted by the takeover's own operations before `Finalize`, and `Finalize` is refused until 30 days after `Cutover` unless the owner passes `--force-after-review`. Runtime writes and deletes follow the Task 2 **window model** instead (amended after the review of `401be1d`): a runtime delete inside the window removes both names, so a deleted marker can never come back through a copy.
 - **Records:**
   - every write the takeover makes to a value it did not create records `{target, path, before_fingerprint, after_fingerprint, restore_source}` in the takeover journal. That is the option `supcheckout_takeover_journal_v1` plus `_1`, `_2`, … chunk options of at most 250 entries each, append-only and non-autoloaded;
   - `Rollback` replays that journal in reverse, but only entries whose path still holds the value the takeover wrote (`Journal::is_current_after()`). A later legitimate edit by the merchant or another plugin is reported as a conflict and kept;
@@ -476,17 +476,20 @@ final class Keys {
 
 **Interfaces:**
 - **Consumes:** everything `Keys` produces.
-- **Reads:** new-name-first with legacy fallback. Order meta goes through `read_order_meta`; user and product meta use the same rule via each class's private `meta()` helper.
-- **Queries and hook checks** use both names:
-  - a `meta_query` becomes `array('relation' => 'OR', [new …], [legacy …])`;
-  - a key comparison becomes `in_array($meta_key, Keys::meta_names($legacy), true)`.
-- **Writes** go through `write_key()`/`table()`, so they land on legacy names until `TakeoverState::is_cut_over()`. Stores that never switch see identical behavior.
+- **Amended after the review of `401be1d`/`c3c73ee` (window model; supersedes the new-first read and write-key rules originally written here):**
+  - **Reads:** the legacy name only until `TakeoverState::is_cut_over()` (every write still lands there, so a copy can never shadow it), then the new name first with legacy fallback. Order meta goes through `Keys::read_order_meta()`, user and product meta through `Keys::read_user_meta()` / `read_post_meta()`, copied options through `Keys::get_option()`.
+  - **Writes and deletes** go through `Keys::write_keys()` / `Keys::delete_names()` (`update_order_meta()`, `add_order_meta()`, `delete_order_meta()`, `update_copied_option()`, `add_copied_option()`, `delete_copied_option()`), by status: `idle`, `preflight_ok`, `rolled_back` → the legacy name only; `copying`, `verified`, `cut_over` and an unreadable (`invalid`) record → **both** names; `finalized` → the new name only. A value written in `copying` after an order was copied, or a marker deleted in `verified`, is therefore correct after cutover with no final delta pass. Stores that never switch see identical behavior.
+  - **The billing-attempts table is not dual-written.** Its claims are compare-and-swap SQL that cannot be mirrored into a second table atomically. `Keys::table()` is the legacy table until cutover and the new table after; the cutover (Task 7) re-syncs it under a quiesce, and Rollback (Task 10) back-syncs it.
+  - **Queries:** before cutover a `meta_query` clause is unchanged; after cutover it becomes `OR(new …, AND(legacy …, new NOT EXISTS))`, so a stale legacy copy never matches. Order queries use `Keys::payment_method_query()`: the scalar `'upayments'` before cutover, `Keys::gateway_ids()` after.
+  - **Hook checks** accept either name: `Keys::is_meta_key($meta_key, $legacy)`.
+  - **Gateway ownership:** `Keys::is_our_gateway()` is `'upayments'` only until cutover (no SUPCheckout order or session can hold `supcheckout` yet, so a request-controlled value is rejected as before), both ids after. `Keys::find_gateway()` / `find_gateway_id()` return exactly today's `'upayments'` registration before cutover; after cutover only an instance of `Simplixi\SUPCheckout\Gateway\Gateway`, never the official plugin's object.
 - **Locks and gates** (ephemeral prefixes):
-  - from `copying` until `finalized`, acquire the legacy name first, then the new one, and release both;
+  - from `copying` until `finalized`, acquire the legacy name first, then the new one, and release both (all or nothing);
   - before `copying`, legacy only;
   - after `finalized`, new only.
 
-  So a request that started before cutover and one that started after still contend for the same lock.
+  So a request that started before cutover and one that started after still contend for the same lock. **Exception (amended): MySQL `GET_LOCK()` names** (`upay_pm_`, `upay_ctk_`, `upay_ctk_bootstrap_b`) use `Keys::advisory_lock_names()`: the legacy name until `finalized`, the new name after, never both. Before MySQL 5.7.5 a connection holds one named lock and a second `GET_LOCK()` silently releases the first, and WordPress 6.9 still accepts MySQL 5.5.5. The Phase 9I migration executor takes these names through `CustomerTokenIdentity::acquire_lock()` / `release_lock()`.
+- **Per-request cost:** one extra read of the takeover state option per request (`is_cut_over()` is cached; status reads for writes and locks hit the option cache). The identity maps are memoized.
 - **Last-known-good name:** `PaymentMethodAvailability::last_known_good_name()` is recomputed from the fingerprint inputs instead of slicing `transient_name()`, so renaming the transient prefix cannot orphan the stored value.
 - **Gateway-identity sites** (added after the review of `02bf9fc`). The coverage harness's rule-2 inventory (`$gateway_sites` in `tests/harness/takeover-identity-coverage-harness.php`) lists every one by file and category. Task 2 retargets each site and updates the inventory in the same commit. Line numbers are as of `02bf9fc`.
   - **Order queries** (`'payment_method' => 'upayments'`) use `Keys::gateway_ids()`: `MigrationPreflight.php:197,373`, `ReconciliationSweep.php:51`, `CustomerTokenIdentity.php:1179,1488`, `Scheduler.php:887`, `HistoricalEnrollment.php:49`.
@@ -504,7 +507,7 @@ final class Keys {
   - **Renewal identity:** `Scheduler.php:982` (`set_payment_method('upayments')` on a new renewal) writes the current gateway id.
   - **Session choice:** `Availability.php:54` and `Gateway.php:232` compare the WooCommerce session `chosen_payment_method` with `Keys::is_our_gateway()`. A session started before cutover holds `upayments` for up to 48 h and must still select our gateway.
   - **Default gateway:** `Gateway.php:251` returns the current id.
-  - **Extension namespace:** `CheckoutOrchestrator.php:315-318,407-413` reads `extensions[Keys::EXTENSION_NAMESPACE]`, then `extensions[Keys::EXTENSION_NAMESPACE_LEGACY]`. An already-open Blocks checkout posts under the old namespace. If both are present, the current namespace wins. `assets/js/upayments-block.js:36` posts the namespace localized by `PaymentMethodType`, and `:10` / `:468` (`getPaymentMethodData` / `registerPaymentMethod` name) use the localized current id.
+  - **Extension namespace:** `CheckoutOrchestrator.php:315-318,407-413` reads `extensions[Keys::EXTENSION_NAMESPACE]`, then `extensions[Keys::EXTENSION_NAMESPACE_LEGACY]`. An already-open Blocks checkout posts under the old namespace. If both are present, the current namespace wins. **Amended:** before cutover only `extensions[Keys::EXTENSION_NAMESPACE_LEGACY]` is read (a posted `supcheckout` key, including `supcheckout: null`, is ignored); the two-namespace order applies after cutover. `assets/js/upayments-block.js:36` posts the namespace localized by `PaymentMethodType`, and `:10` / `:468` (`getPaymentMethodData` / `registerPaymentMethod` name) use the localized current id.
   - **Settings-API names derived from the gateway id** come from the current id:
     - POST fields `woocommerce_upayments_*` (`GatewaySettings.php`);
     - the hook `woocommerce_settings_api_sanitized_fields_upayments` (`Gateway.php:237`);
@@ -524,7 +527,7 @@ final class Keys {
   - The `captured_for_check` reads (`Scheduler.php:1079`, `Fields.php:165-166`) stay, and their check sites (`Scheduler.php:1096`, `Fields.php:168`) convert under rule 2.
   - `current_id_compare` (`GatewaySettings.php:395`, the settings-screen section) stays, provided its caller passes the current gateway id.
   - Test: after cutover, a historical `payment_method=upayments` order still renders its admin payment details (`admin_order_details()`) and its customer payment rows (`add_order_item_totals()`).
-- **H12 provenance under two prefixes** (added after the review of `02bf9fc`). The legacy prefix `_upay_customer_token_v2_b` is 25 characters, and the new `_supcheckout_customer_token_v2_b` is 33.
+- **H12 provenance under two prefixes** (added after the review of `02bf9fc`). The legacy prefix `_upay_customer_token_v2_b` is 25 characters, and the new `_supcheckout_customer_token_v2_b` is 32. These H12 reads (the secret option, the exact provenance read, the presence probe, the scope scan and the Phase 9I preflight census) check **both** names in every state on purpose: a stale new-name row after a rollback, or a legacy row Finalize removed, always pushes the decision toward fail-closed (never mint; the census reports it). New provenance and a minted secret are written under the window names.
   - **Provenance-presence probe** (`CustomerTokenIdentity.php:219-238`). It decides whether a missing secret may be minted fresh. It must count rows under **both** `{prefix}{blog}_` patterns, and fail closed if either has rows. Otherwise, once Finalize deletes the legacy rows, a legacy-only probe finds nothing and mints a new secret, orphaning every saved-card provenance record.
   - **Scope scan** (`CustomerTokenIdentity.php:1632-1661`). It must select keys under both prefixes and slice each scope by the length of the prefix **that matched** (`Keys::user_meta_key_pair()`), never by one fixed `strlen($meta_prefix)`. When both forms of one scope exist, it treats them as one record and verifies that they agree.
   - **Exact key builder:** `get_user_meta_key()` (`:423`) builds the key through `Keys::write_key()`.
@@ -541,7 +544,7 @@ final class Keys {
 - [ ] **Step 2: Run them.** Expected: FAIL.
 - [ ] **Step 3: Replace reads, queries and hook checks** in each listed class.
 - [ ] **Step 4: Replace writes and lock names.**
-- [ ] **Step 5: Remove the dead listener.** `includes/Subscription/Manager.php` listens on `upayments_payment_success` and writes `{prefix}upay_subscriptions`. First confirm `grep -rn "upayments_payment_success" UPayments.php src includes templates assets` shows no `do_action`, then delete the file and its require. Preflight (Task 4) still reports whether an `upay_subscriptions` table exists, and leaves it alone.
+- [ ] **Step 5: Remove the dead listener.** **Deferred to Task 7 (accepted after the review of `401be1d`):** deleting it removes the recorded hook `upayments_payment_success` from the public-surface snapshot, which Task 7 re-records anyway. The `Keys::cron_hooks()` scheduling/registration moves to Task 7 for the same reason (the new-name listeners change the snapshot). `includes/Subscription/Manager.php` listens on `upayments_payment_success` and writes `{prefix}upay_subscriptions`. First confirm `grep -rn "upayments_payment_success" UPayments.php src includes templates assets` shows no `do_action`, then delete the file and its require. Preflight (Task 4) still reports whether an `upay_subscriptions` table exists, and leaves it alone.
 - [ ] **Step 6: Run every suite.** H12, the lifecycle harness and the coverage harness must pass unchanged. The default state is not cut over, so every legacy write is identical.
 - [ ] **Step 7: Commit.** `refactor(takeover): all persisted identities go through Keys`
 
@@ -678,6 +681,11 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - Add each unwrapped value under the new key with `add_meta_data($new, $value)`, and end with a single `$order->save()`.
   - `OrderCopierFixtures` must return `WC_Meta_Data`-shaped objects from `get_meta($key, false)`, exactly like WooCommerce. Add a test asserting the copied new-key value is the original scalar string (`'pay-1'`), not an object or a serialized blob.
   - Skip when the new key already holds an identical value list.
+  - **Amended after the review of `401be1d` (window model):**
+    - hold the per-order `OrderLock` while copying an order, so a runtime write and the copy never interleave;
+    - be idempotent and never add a second row: check existence first or use a unique add (a second H12 `add_user_meta()` row makes provenance INVALID);
+    - pass non-order meta through `wp_slash()`, because `add_metadata()` unslashes;
+    - record what was copied (a per-order snapshot hash, as a meta marker or in the journal). The copier may overwrite **its own** prior copy when the legacy value changed, but never a foreign differing value: that is a mismatch to report.
 - [ ] **Step 4: Run them.** Expected: PASS.
 - [ ] **Step 5: Commit.** `feat(takeover): per-order copy and verify`
 
@@ -701,7 +709,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 - [ ] **Step 2: Run it.** Expected: FAIL.
 - [ ] **Step 3: Implement it.**
   - Each batch takes ≤ 50 IDs `> cursor`, ordered ascending, and copies and verifies each.
-  - The cursor is persisted after **each** order, so a crash re-processes at most one order, and `copy()` is idempotent.
+  - The cursor is persisted after **each** order, so a crash re-processes at most one order, and `copy()` is idempotent (amended: under the per-order `OrderLock`, never adding a second row; see Task 5).
   - When fewer than 50 remain, transition `copying → verified` only if every verify returned `ok`. Otherwise go back to `preflight_ok` with the mismatches recorded in the state.
 - [ ] **Step 4: Run it.** Expected: PASS.
 - [ ] **Step 5: Add the non-order phases.** They run after orders, in the same runner, each with its own cursor in the state (`cursors.users`, `cursors.products`, `cursors.table`).
@@ -726,6 +734,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 **Interfaces:**
 - Produces: `Cutover::run(bool $deactivate_official): array{ok:bool, steps:list<string>}`. In order:
+  0. **(amended after the review of `401be1d`) `verified → cut_over` runs under a quiesce:** pause the subscription scheduler and the `supcheckout` Action Scheduler group, and hold a global takeover lock. Run a final verify pass over every copied order, user and option, and re-sync the billing-attempts table (`REPLACE`, then count and checksum). Any mismatch fails the cutover and leaves the state at `verified`. Options are copied last;
   1. copy settings from the first non-empty `Keys::settings_sources()` entry to `woocommerce_supcheckout_settings`, and the `Keys::options()` values verbatim (including the token-identity secret, so H12 provenance hashes stay valid);
   2. translate `woocommerce_gateway_order`, the `woocommerce_default_gateway` value, WCML gateway country/currency rules and FunnelKit gateway lists. Each is recorded in the `Journal` **before** the write, passing both the current value and the value about to be written (`Journal::record($target, $path, $before_value, $after_value, $restore_source)`). A third-party original is kept in a takeover-owned backup option named as its `restore_source`, because the journal holds fingerprints only;
   3. reschedule the `Keys::cron_hooks()` events to the new names. Old events are kept until Finalize, and their callbacks stay registered as aliases. Already-canonical hooks (`supcheckout_reconciliation_sweep`, `supcheckout_process_due_parent`) are left alone;
@@ -807,12 +816,14 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - It replays the `Journal` in reverse: settings from the intact legacy option, third-party values, gateway order and cron. It also rewrites `payment_method` from `supcheckout` to `upayments` on post-cutover orders only.
   - **Later edits win.** An entry is replayed only when `Journal::is_current_after($entry, $current_value)` holds, i.e. the current value's fingerprint equals the entry's `after_fingerprint`. Otherwise the merchant or another plugin changed the value during the 30 days: Rollback records a conflict `{seq, target, path}` in its result, leaves the newer value in place, and reports `ok: false` with the conflict list so the owner decides.
   - `Journal::entries()` throws on a malformed journal, so Rollback fails before replaying anything.
-  - **Back-sync.** After cutover, writes went to new names only, so new data is always the latest. Rollback therefore copies new → legacy wherever the two differ:
+  - **Back-sync.** After cutover, writes go to both names under the window model (amended), but the billing-attempts table and anything written outside SUPCheckout's runtime may still differ, so new data is treated as the latest. Rollback therefore copies new → legacy wherever the two differ:
     - order meta on every order holding any new key;
     - user meta, including the provenance prefix;
     - product meta;
+    - `Keys::options()` (new → legacy when the new option is present);
     - the billing-attempts table, with prepared `REPLACE INTO {legacy} SELECT … FROM {new} WHERE id > %d ORDER BY id LIMIT 500` batches over **all** rows, so rows updated after cutover are restored too.
   - It is batched and resumable through the same runner and cursors as Task 6, and the state stays `cut_over` until back-sync verifies.
+  - After back-sync verifies, Rollback removes the new-name copies (journaled), so a later run starts clean.
   - It transitions to `rolled_back` and, if consented, reactivates the official plugin.
 
 - [ ] **Step 1: Write the failing test** (Review Focus 5).

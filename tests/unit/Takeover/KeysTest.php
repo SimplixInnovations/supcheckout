@@ -122,11 +122,11 @@ final class KeysTest extends TestCase {
         self::assertSame('supcheckout', Keys::EXTENSION_NAMESPACE);
         // wc_get_orders(array('payment_method' => Keys::gateway_ids())): historical orders keep 'upayments'.
         self::assertSame(array('upayments', 'supcheckout'), Keys::gateway_ids());
-        foreach (Keys::gateway_ids() as $id) {
-            self::assertTrue(Keys::is_our_gateway($id), $id);
-        }
+        // Before cutover only the legacy id is ours: no SUPCheckout order or session can
+        // carry 'supcheckout' yet, so a request-controlled value is rejected as before.
+        // Both ids after cutover: tests/unit/Takeover/DualReadTest.php.
         self::assertTrue(Keys::is_our_gateway('upayments'));
-        self::assertTrue(Keys::is_our_gateway('supcheckout'));
+        self::assertFalse(Keys::is_our_gateway('supcheckout'));
         self::assertFalse(Keys::is_our_gateway('UPayments'));
         self::assertFalse(Keys::is_our_gateway('bacs'));
         self::assertFalse(Keys::is_our_gateway(''));

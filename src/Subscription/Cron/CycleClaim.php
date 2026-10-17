@@ -177,7 +177,7 @@ class CycleClaim
             return false;
         }
 
-        update_option(Keys::write_key(self::OPTION_KEY), self::SCHEMA_VERSION, false);
+        Keys::update_copied_option(self::OPTION_KEY, self::SCHEMA_VERSION, false);
         return true;
     }
 

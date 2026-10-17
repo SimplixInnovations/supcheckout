@@ -274,7 +274,7 @@ class CustomerTokenIdentity {
             'verifier' => $verifier,
         );
 
-        if (add_option(Keys::write_key(self::SECRET_OPTION), $record, '', 'no')) {
+        if (Keys::add_copied_option(self::SECRET_OPTION, $record, 'no')) {
             return $record;
         }
 
@@ -1023,7 +1023,64 @@ class CustomerTokenIdentity {
             return false;
         }
 
-        return true;
+        // Inside the takeover window the record is also written under its other name
+        // (Keys::write_keys()), so a copy taken earlier can never disagree with it at
+        // cutover. Before the window this adds nothing: write_keys() is the primary key.
+        return self::mirror_provenance($user_id, $blog_id, $scope_fingerprint, $meta_key, $record);
+    }
+
+    /**
+     * Add the verified record under every other window name, unique, and read each back
+     * exactly. Any failure rolls back what this call inserted (mirrors and the primary)
+     * and fails closed.
+     *
+     * @param int    $user_id  User ID.
+     * @param string $blog_id  Canonical blog ID.
+     * @param string $scope    Scope fingerprint.
+     * @param string $meta_key The primary key already written and verified.
+     * @param array  $record   The exact record written there.
+     * @return bool
+     */
+    private static function mirror_provenance($user_id, $blog_id, $scope, $meta_key, array $record) {
+        $mirrors = array();
+        foreach (Keys::write_keys(self::PROVENANCE_PREFIX . $blog_id . '_' . $scope) as $name) {
+            if ($name !== $meta_key) {
+                $mirrors[] = $name;
+            }
+        }
+        if ($mirrors === array()) {
+            return true;
+        }
+        $inserted = array();
+        $ok = true;
+        foreach ($mirrors as $name) {
+            if (add_user_meta($user_id, $name, $record, true) === false) {
+                $ok = false;
+                break;
+            }
+            $inserted[] = $name;
+        }
+        if ($ok && self::force_refresh_user_meta($user_id)) {
+            foreach ($inserted as $name) {
+                $values = get_user_meta($user_id, $name, false);
+                if (!is_array($values) || count($values) !== 1 || $values[0] !== $record) {
+                    $ok = false;
+                    break;
+                }
+            }
+        } else {
+            $ok = false;
+        }
+        if ($ok) {
+            return true;
+        }
+        foreach (array_merge($inserted, array($meta_key)) as $name) {
+            $rollback = self::rollback_provenance($user_id, $name, $record);
+            if (!$rollback['ok']) {
+                self::record_rollback_state($user_id, $name, $rollback['reason']);
+            }
+        }
+        return false;
     }
 
     // ────────────────────────────────────────────────────────
@@ -2449,13 +2506,17 @@ class CustomerTokenIdentity {
     // ────────────────────────────────────────────────────────
 
     /**
-     * Take every name of a lock (Keys::ephemeral_names(): the legacy name only until
-     * the takeover starts copying, both during the switch window, the new name after
-     * Finalize). All or nothing: a partial acquisition is released.
+     * Take a customer-token advisory lock under its current name
+     * (Keys::advisory_lock_names(): the legacy name until Finalize, the new one after;
+     * never two GET_LOCK names at once, see there). Public so the Phase 9I migration
+     * executor takes exactly the same names. All or nothing.
+     *
+     * @param string $lock_name Legacy lock name (get_lock_name() / get_bootstrap_lock_name()).
+     * @return bool
      */
-    private static function acquire_lock($lock_name) {
+    public static function acquire_lock($lock_name) {
         $acquired = array();
-        foreach (Keys::ephemeral_names($lock_name) as $name) {
+        foreach (Keys::advisory_lock_names($lock_name) as $name) {
             if (!self::acquire_one_lock($name)) {
                 foreach (array_reverse($acquired) as $held) {
                     self::release_one_lock($held);
@@ -2467,8 +2528,12 @@ class CustomerTokenIdentity {
         return true;
     }
 
-    private static function release_lock($lock_name) {
-        foreach (array_reverse(Keys::ephemeral_names($lock_name)) as $name) {
+    /**
+     * @param string $lock_name Legacy lock name passed to acquire_lock().
+     * @return void
+     */
+    public static function release_lock($lock_name) {
+        foreach (array_reverse(Keys::advisory_lock_names($lock_name)) as $name) {
             self::release_one_lock($name);
         }
     }

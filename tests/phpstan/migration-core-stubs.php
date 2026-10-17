@@ -40,6 +40,10 @@ namespace Simplixi\SUPCheckout\Token {
         /** @return string */
         public static function get_lock_name($scope, $user_id) {}
         /** @return bool */
+        public static function acquire_lock($lock_name) {}
+        /** @return void */
+        public static function release_lock($lock_name) {}
+        /** @return bool */
         public static function is_valid_secret_record($record) {}
         /** @return bool */
         public static function create_provenance($user_id, $api_key, $is_test_mode, $scope, $generation, $kind, $token, $source) {}
