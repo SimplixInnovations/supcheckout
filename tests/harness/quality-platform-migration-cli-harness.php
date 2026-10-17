@@ -81,7 +81,7 @@ q13_assert(q13_contains($stubs, 'static function line('), 'analysis stub declare
 q13_assert(q13_contains($stubs, 'static function error('), 'analysis stub declares CLI error boundary');
 
 q13_assert(q13_git_blob_sha($q13_root . '/src/Subscription/Cron/Scheduler.php') === 'a8900abd30eec617a7c5c283355a67579a04c323', 'protected Scheduler blob remains exact');
-q13_assert(q13_git_blob_sha($q13_root . '/src/Subscription/Cron/CycleClaim.php') === '53534f49346f5c485f615ef76dc1c4f870e54592', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
+q13_assert(q13_git_blob_sha($q13_root . '/src/Subscription/Cron/CycleClaim.php') === '55f30d1ad7fe6eeb1c0a16b365b08a97e9fc3f13', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q13_assert(q13_contains($workflow, 'quality-platform-migration-cli-harness.php'), 'Q13 harness is mandatory in Quality Gates');
 q13_assert(q13_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -225,6 +225,10 @@ foreach (array(
         strpos($result['out'], 'GATEWAY_HOOKS:[]') !== false,
         "paused ({$scenario}): SUPCheckout registers no woocommerce_payment_gateways, woocommerce_available_payment_gateways or woocommerce_api_wc_upayments hook"
     );
+    coexistence_assert(
+        strpos($result['out'], 'COPY_RUNNER_HOOKS:0') !== false,
+        "paused ({$scenario}): even mid-takeover (copying), SUPCheckout registers neither the copy batch hook nor its watchdog"
+    );
 }
 foreach (array(
     'alone' => $alone,
@@ -239,6 +243,7 @@ foreach (array(
         strpos($result['out'], $all_gateway_hooks) !== false,
         "running ({$scenario}): SUPCheckout registers both gateway filters and the wc_upayments route"
     );
+    coexistence_assert(strpos($result['out'], 'COPY_RUNNER_HOOKS:2') !== false, "running ({$scenario}): copying registers the copy batch hook and its watchdog exactly once each");
     coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "running ({$scenario}): no PHP warning, notice or deprecation");
 }
 
@@ -290,7 +295,12 @@ function coexistence_child($root, $scenario, $official_stub) {
     }
     $GLOBALS['coexistence'] = array(
         'own' => $own,
-        'options' => array('active_plugins' => $active),
+        // Every scenario boots mid-takeover (copying): the one state that registers the
+        // copy runner's Action Scheduler hook, so a paused boot proves it never does.
+        'options' => array(
+            'active_plugins' => $active,
+            'supcheckout_takeover_state_v1' => json_encode(array('status' => 'copying', 'cut_over_at' => 0, 'cursor' => 0, 'totals' => array())),
+        ),
         'site_options' => array('active_sitewide_plugins' => $sitewide),
         'multisite' => $scenario === 'sitewide' || $scenario === 'stale_sitewide',
         'can_manage' => $scenario !== 'notice_shopper',
@@ -329,6 +339,14 @@ function coexistence_child($root, $scenario, $official_stub) {
     }
     $gateway_hooks = array_values(array_unique($gateway_hooks));
     sort($gateway_hooks);
+    $copy_runner_hooks = 0;
+    foreach ($GLOBALS['coexistence']['actions'] as $registration) {
+        if ($registration[0] === 'supcheckout_takeover_copy_batch'
+            || ($registration[0] === 'action_scheduler_init' && $registration[1] === array('Simplixi\SUPCheckout\Takeover\CopyRunner', 'watchdog'))
+        ) {
+            $copy_runner_hooks++;
+        }
+    }
     if ($official_loads_second) {
         require $official_stub;
     }
@@ -345,6 +363,7 @@ function coexistence_child($root, $scenario, $official_stub) {
     echo "\nNOTICES:{$notices}\n";
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
     echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
+    echo 'COPY_RUNNER_HOOKS:' . $copy_runner_hooks . "\n";
     foreach (array('UP_PLUGIN_URL', 'UP_PLUGIN_PATH', 'UPAYMENTS_PLUGIN_FILE', 'SUPCHECKOUT_PLUGIN_URL', 'SUPCHECKOUT_PLUGIN_PATH') as $constant) {
         $owner = !defined($constant) ? 'undefined' : (strpos((string) constant($constant), '/upayments/') !== false ? 'official' : 'ours');
         echo $constant . ':' . $owner . "\n";

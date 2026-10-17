@@ -25,6 +25,12 @@ final class Keys {
     public const EXTENSION_NAMESPACE = 'supcheckout';
     /** The gateway settings option the switch copies into (Keys::settings_sources()). */
     public const SETTINGS_OPTION = 'woocommerce_supcheckout_settings';
+    /**
+     * Takeover-owned per-object audit marker (OrderCopier): JSON of the fingerprints of
+     * the value lists the copier copied. Not a copied identity: Rollback's copy removal
+     * and Finalize delete it (Keys::takeover_markers()).
+     */
+    public const TAKEOVER_COPY_MARKER = '_supcheckout_takeover_copy_v1';
 
     /**
      * Both gateway identities, for wc_get_orders(array('payment_method' => ...)) queries.
@@ -200,6 +206,16 @@ final class Keys {
             'chosen_payment_method' => 'WooCommerce core session key; its stored value may be upayments for up to 48 h after cutover and must still select our gateway (Keys::is_our_gateway())',
             'payment_method' => 'WooCommerce order field; historical orders keep upayments forever and are matched with Keys::gateway_ids() / Keys::is_our_gateway()',
         );
+    }
+
+    /**
+     * Meta the takeover itself writes on orders and products, never copied from a legacy
+     * name. Rollback (copy removal) and Finalize remove every one of them.
+     *
+     * @return list<string>
+     */
+    public static function takeover_markers() {
+        return array(self::TAKEOVER_COPY_MARKER);
     }
 
     /** @var list<array<string,string>>|null Memoized copied maps (pure and constant per request). */

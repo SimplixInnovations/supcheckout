@@ -3427,7 +3427,7 @@ if (is_resource($proc)) {
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($cycle_blob, '53534f49346f5c485f615ef76dc1c4f870e54592', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
+upay_assert_eq($cycle_blob, '55f30d1ad7fe6eeb1c0a16b365b08a97e9fc3f13', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
 
 // --- SEM14-J: Production code does NOT use bccomp/BCMath/GMP ---
 // Production gateway source: the main file plus the gateway class it registers

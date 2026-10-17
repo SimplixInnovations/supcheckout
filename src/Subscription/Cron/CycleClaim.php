@@ -149,7 +149,31 @@ class CycleClaim
         $table   = self::table_name();
         $charset = $wpdb->get_charset_collate();
 
-        $sql = "CREATE TABLE {$table} (
+        $sql = self::schema_sql($table, $charset);
+
+        dbDelta($sql);
+
+        // Confirm the live schema is actually ready before advancing the
+        // version coordinate. Missing columns must not produce false readiness.
+        if (!self::schema_ready()) {
+            return false;
+        }
+
+        Keys::update_copied_option(self::OPTION_KEY, self::SCHEMA_VERSION, false);
+        return true;
+    }
+
+    /**
+     * The journal's one schema definition (dbDelta() input). maybe_install() uses it for
+     * the table in use, and the takeover copier (Takeover\WordPressCopyStore) creates the
+     * new-name table from it, so there is never a second copy of this DDL.
+     *
+     * @param string $table   Prefixed table name.
+     * @param string $charset $wpdb->get_charset_collate().
+     */
+    public static function schema_sql(string $table, string $charset): string
+    {
+        return "CREATE TABLE {$table} (
             cycle_key        char(64)        NOT NULL,
             parent_order_id  bigint unsigned NOT NULL,
             owner_token      varchar(64)     NOT NULL,
@@ -169,17 +193,6 @@ class CycleClaim
             KEY idx_parent (parent_order_id),
             KEY idx_state  (state)
         ) {$charset};";
-
-        dbDelta($sql);
-
-        // Confirm the live schema is actually ready before advancing the
-        // version coordinate. Missing columns must not produce false readiness.
-        if (!self::schema_ready()) {
-            return false;
-        }
-
-        Keys::update_copied_option(self::OPTION_KEY, self::SCHEMA_VERSION, false);
-        return true;
     }
 
     /**

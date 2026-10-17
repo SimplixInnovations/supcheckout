@@ -54,6 +54,12 @@
     <file>src/Takeover/Environment.php</file>
     <file>src/Takeover/Preflight.php</file>
     <file>src/Takeover/OfficialFootprint.php</file>
+    <file>src/Takeover/OrderCopier.php</file>
+    <file>src/Takeover/CopyStore.php</file>
+    <file>src/Takeover/WordPressCopyStore.php</file>
+    <file>src/Takeover/UserMetaCopier.php</file>
+    <file>src/Takeover/BillingTableCopier.php</file>
+    <file>src/Takeover/CopyRunner.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

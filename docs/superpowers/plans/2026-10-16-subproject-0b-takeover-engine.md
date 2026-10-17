@@ -613,6 +613,8 @@ public function test_only_the_documented_transitions_are_allowed(): void {
 | `currency_unsupported` | blocking | store currency not in the gateway's supported list |
 | `pending_with_open_link` | warning | count of pending UPayments orders newer than 48 h |
 | `hpos_meta_disagreement` | warning | sample of ≤ 200 orders where `get_post_meta` and CRUD differ |
+
+**Follow-up (recorded after the review of `feafd8a`, not yet implemented):** on an HPOS-authoritative store with compatibility sync off, `shop_order` rows that exist only in `wp_posts` are never selected by the copy runner (it reads `wc_orders`). Preflight should count them, inside `hpos_meta_disagreement` or as a new fact.
 | `whs_multi_valued` | fact | orders with several `UPayments_WHS` rows |
 | `duplicate_renewals` | warning | renewal orders sharing parent and billing date (inventory hazard 6) |
 | `official_debug_log_present` | warning | `wp-content/plugins/<official>/debug.log` exists. Report **path only**, never content. Advise deleting it and rotating the key. |
@@ -686,6 +688,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
     - be idempotent and never add a second row: check existence first or use a unique add (a second H12 `add_user_meta()` row makes provenance INVALID);
     - pass non-order meta through `wp_slash()`, because `add_metadata()` unslashes;
     - record what was copied (a per-order snapshot hash, as a meta marker or in the journal). The copier may overwrite **its own** prior copy when the legacy value changed, but never a foreign differing value: that is a mismatch to report.
+  - **Amended after the review of `feafd8a`.** Only the payment lifecycle and part of checkout take the order lock; the subscription scheduler (a stale parent object written after the provider call), customer subscription actions and other writers do not. A stale object without the new key turns `update_meta_data(new)` into an extra row, and a partly saved multi-row list leaves a short one, so the ownership rule above would report a mismatch forever and `verified` would be unreachable. Therefore, **while the status is `copying`, legacy is authoritative** (reads are legacy-only until cutover and the window model mirrors every runtime write to both names): the copier sets each new key to exactly the legacy value list, in order, under the order lock, whatever the new key holds. The marker (`Keys::TAKEOVER_COPY_MARKER`, listed in `Keys::takeover_markers()`) stays as the audit record of what was copied. The ownership rule (own copy may be refreshed, a foreign value is a mismatch) applies only when the copier runs outside `copying`.
 - [ ] **Step 4: Run them.** Expected: PASS.
 - [ ] **Step 5: Commit.** `feat(takeover): per-order copy and verify`
 
@@ -723,6 +726,10 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
     - Verify the row count and a per-row checksum (`MD5(CONCAT_WS('|', …))` over every column).
     - Record `max_copied_id` in the state for Rollback.
   - Test: an interrupted users phase resumes without duplicates, and the table phase verifies equal counts and checksums.
+  - **Amended after the review of `feafd8a`.**
+    - **Orphans:** `CycleClaim::release_claimed()` deletes legacy rows, and INSERT IGNORE / REPLACE never delete, so each table batch also deletes new-table rows without a legacy row over the copied range (and over the open tail on the last batch): a prepared `DELETE n FROM {new} n LEFT JOIN {legacy} l ON l.cycle_key = n.cycle_key WHERE n.cycle_key > %s [AND n.cycle_key <= %s] AND l.cycle_key IS NULL`. The new table has no runtime writer before cutover.
+    - **The table has no `id` column** (its primary key is `cycle_key`), so batches run by `cycle_key` range and the state records `max_copied_key`, advanced only by a successful batch.
+    - **Scheduling:** `supcheckout_takeover_copy_batch` is registered only while `copying`. Each action runs steps for up to 20 s and queues its continuation at shutdown (a running action is `in-progress`, which `as_has_scheduled_action()` and the unique schedule count). A busy runner (lock held, possibly by a killed action until `LOCK_TTL`) also queues a retry. `CopyRunner::watchdog()` re-queues a chain with no pending or running action. It needs Action Scheduler initialized, which it never is in `Plugin::boot()` (SUPCheckout loads before WooCommerce), so it is registered on `action_scheduler_init`, only while `copying` (the same gate as the batch hook; approved additive surface: one static hook reference). A killed action is therefore re-queued on the next request once Action Scheduler marks it no longer running; the unique schedule never duplicates. Task 9's CLI and 0c's UI may still call `schedule()` directly.
 - [ ] **Step 6: Commit.** `feat(takeover): resumable Action Scheduler copy runner`
 
 ### Task 7: `SettingsCopier`, `ThirdPartyTranslator` and `Cutover`
@@ -734,7 +741,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 **Interfaces:**
 - Produces: `Cutover::run(bool $deactivate_official): array{ok:bool, steps:list<string>}`. In order:
-  0. **(amended after the review of `401be1d`) `verified → cut_over` runs under a quiesce:** pause the subscription scheduler and the `supcheckout` Action Scheduler group, hold a global takeover lock, and drain in-flight billing-cycle claim holders (no `claimed`/`dispatching` row may be mid-flight when the table switches). Run a final verify pass over every copied order, user and option, and re-sync the billing-attempts table (`REPLACE`, then count and checksum). Any mismatch fails the cutover and leaves the state at `verified`. Options are copied last;
+  0. **(amended after the review of `401be1d`) `verified → cut_over` runs under a quiesce:** pause the subscription scheduler and the `supcheckout` Action Scheduler group, hold a global takeover lock, and drain in-flight billing-cycle claim holders (no `claimed`/`dispatching` row may be mid-flight when the table switches). Run a final verify pass over every copied order, user and option, and re-sync the billing-attempts table (`REPLACE`, then the orphan delete of new-table rows without a legacy row — amended after the review of `feafd8a` — then count and checksum). Any mismatch fails the cutover and leaves the state at `verified`. Options are copied last;
   1. copy settings from the first non-empty `Keys::settings_sources()` entry to `woocommerce_supcheckout_settings`, and the `Keys::options()` values verbatim (including the token-identity secret, so H12 provenance hashes stay valid);
   2. translate `woocommerce_gateway_order`, the `woocommerce_default_gateway` value, WCML gateway country/currency rules and FunnelKit gateway lists. Each is recorded in the `Journal` **before** the write, passing both the current value and the value about to be written (`Journal::record($target, $path, $before_value, $after_value, $restore_source)`). A third-party original is kept in a takeover-owned backup option named as its `restore_source`, because the journal holds fingerprints only;
   3. reschedule the `Keys::cron_hooks()` events to the new names. Old events are kept until Finalize, and their callbacks stay registered as aliases. Already-canonical hooks (`supcheckout_reconciliation_sweep`, `supcheckout_process_due_parent`) are left alone;
@@ -829,6 +836,8 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
     3. back-syncs the billing-attempts table **last**, verifying count and checksum;
     4. transitions to `rolled_back` while still quiesced, then releases the quiesce.
 
+    **(amended after the review of `feafd8a`)** Rollback never uses `max_copied_key` as a deletion bound: the copy phase may have inserted rows beyond it before a failed batch, and rows are written after cutover anyway. The billing-attempts back-sync and the copy removal run over the whole table (`REPLACE` / orphan delete / count and checksum). The copy removal also deletes every `Keys::takeover_markers()` meta (`_supcheckout_takeover_copy_v1`) from orders and products, so no stale marker survives into a later run.
+
     `CycleClaim::acquire()` / `acquire_with_snapshot()` re-read the takeover state (`TakeoverState::flush_cache()`) at the start of every claim, so a long-running queue worker never claims in the table it saw before a transition (done in Task 2).
   - **(amended after the review of `d4bfad4`) Transition first, then remove the copies.** Once the state is `rolled_back`, reads are legacy-only and runtime writes stop touching new names, so stale copies are unreachable and cannot be recreated. Only then does the journaled, resumable removal of the new-name copies run. `rolled_back → preflight_ok` requires that removal to be complete, so a later run starts clean.
   - If consented, it reactivates the official plugin after the transition.
@@ -862,7 +871,10 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
     - the payment-methods cache (`upay_pm_v3_*`) is a transient, so both its `_transient_upay_pm_v3_*` and `_transient_timeout_upay_pm_v3_*` rows are deleted (or `delete_transient()` with an object cache);
     - the `upay_pm_` and `upay_ctk_` families are `GET_LOCK()` names with no rows;
   - legacy user and product meta, under the same verified-equal rule;
-  - the legacy billing-attempts table, dropped only when the row count and per-row checksums equal the new table's.
+  - the legacy billing-attempts table, dropped only when the row count and per-row checksums equal the new table's;
+  - every `Keys::takeover_markers()` meta (`_supcheckout_takeover_copy_v1`) on orders and products (amended after the review of `feafd8a`).
+
+  **(amended after the review of `feafd8a`)** User meta keys the copy runner skipped as multi-row anomalies (`anomalies.users_multi_row`) were never copied, so they are never "verified-equal": Finalize keeps their legacy rows.
 
   After `finalized`, lock helpers stop dual-acquiring (Task 2).
 

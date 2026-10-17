@@ -644,6 +644,14 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "action_scheduler_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "added_post_meta",
         "priority": 10,
         "accepted_args": 4,
@@ -757,6 +765,14 @@
         "kind": "hook_reference",
         "type": "action",
         "hook": "supcheckout_reconciliation_sweep",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "supcheckout_takeover_copy_batch",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"
@@ -1135,6 +1151,14 @@
     },
     {
         "kind": "schedule_reference",
+        "function": "as_has_scheduled_action",
+        "hook": "supcheckout_takeover_copy_batch",
+        "group": "supcheckout",
+        "args": "[]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
         "function": "as_schedule_recurring_action",
         "hook": "supcheckout_reconciliation_sweep",
         "group": "supcheckout",
@@ -1147,6 +1171,15 @@
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
         "args": "[parent_order_id:int,cycle_due_gmt:int,retry_attempt:int]",
+        "unique": true,
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_schedule_single_action",
+        "hook": "supcheckout_takeover_copy_batch",
+        "group": "supcheckout",
+        "args": "[]",
         "unique": true,
         "contexts": "static"
     },

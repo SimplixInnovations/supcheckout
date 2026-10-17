@@ -29,7 +29,7 @@ $fixture = $root . '/tests/fixtures/public-surface.json';
 $contexts = array('admin', 'cli', 'frontend', 'no_woocommerce');
 
 if (isset($argv[1]) && $argv[1] === '--child') {
-    surface_child($root, (string) $argv[2], (string) $argv[3]);
+    surface_child($root, (string) $argv[2], (string) $argv[3], isset($argv[4]) ? (string) $argv[4] : '');
     exit(0);
 }
 
@@ -88,6 +88,24 @@ if ($violations !== array()) {
     }
     exit(1);
 }
+// The takeover copy runner (0b Task 6) registers its Action Scheduler hook and its watchdog
+// (action_scheduler_init) only while the takeover is copying: every other state boots
+// without them, so idle stores add nothing at runtime. These boots are checked, never recorded.
+foreach (array('idle' => 0, 'preflight_ok' => 0, 'copying' => 2, 'verified' => 0, 'cut_over' => 0) as $takeover_status => $expected) {
+    $registered = 0;
+    foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
+        if ($entry['kind'] === 'action' && in_array($entry['hook'], array('supcheckout_takeover_copy_batch', 'action_scheduler_init'), true)) {
+            $registered++;
+        }
+    }
+    if ($registered !== $expected) {
+        echo "FAIL: a {$takeover_status} boot registers {$registered} copy runner hook(s), expected {$expected}.\n";
+        echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
+        exit(1);
+    }
+}
+echo "Takeover copy runner: batch hook and watchdog registered once each while copying, never in idle, preflight_ok, verified or cut_over boots.\n";
+
 $json = json_encode($entries, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 
 if (in_array('--record', $argv, true)) {
@@ -163,9 +181,10 @@ function surface_contains(array $entries, array $wanted) {
  * @param string $main Main file basename to boot.
  * @return array<int, array<string, mixed>>
  */
-function surface_run_child($context, $main) {
+function surface_run_child($context, $main, $takeover_status = '') {
     $command = escapeshellarg(PHP_BINARY) . ' -d error_reporting=' . E_ALL . ' -d display_errors=1 '
-        . escapeshellarg(__FILE__) . ' --child ' . escapeshellarg($context) . ' ' . escapeshellarg($main) . ' 2>&1';
+        . escapeshellarg(__FILE__) . ' --child ' . escapeshellarg($context) . ' ' . escapeshellarg($main)
+        . ($takeover_status === '' ? '' : ' ' . escapeshellarg($takeover_status)) . ' 2>&1';
     $output = array();
     $code = 0;
     exec($command, $output, $code);
@@ -264,7 +283,7 @@ function surface_multiset_diff(array $expected, array $actual) {
  * @param string $main_file Main file basename at the repository root.
  * @return void
  */
-function surface_child($root, $context, $main_file) {
+function surface_child($root, $context, $main_file, $takeover_status = '') {
     set_error_handler(static function ($errno, $message, $file, $line) {
         if (!(error_reporting() & $errno)) {
             return false;
@@ -282,6 +301,7 @@ function surface_child($root, $context, $main_file) {
         'main' => $main,
         'root' => $root,
         'phase' => 'load',
+        'takeover_status' => (string) $takeover_status,
         'entries' => array(),
         'callbacks' => array(),
         'seq' => 0,
@@ -461,6 +481,10 @@ function plugin_basename($file) { return 'supcheckout/' . basename((string) $fil
 function get_option($name, $default = false) {
     if ($name === 'active_plugins') {
         return array(plugin_basename($GLOBALS['surface']['main']));
+    }
+    // Extra boots (never recorded) seed a takeover state; the recorded boots have none (idle).
+    if ($name === 'supcheckout_takeover_state_v1' && $GLOBALS['surface']['takeover_status'] !== '') {
+        return json_encode(array('status' => $GLOBALS['surface']['takeover_status'], 'cut_over_at' => 0, 'cursor' => 0, 'totals' => array()));
     }
     // Boot a store with subscriptions enabled so the conditional hourly tick is part of the frozen surface.
     return $name === 'woocommerce_upayments_settings' ? array('enable_subscriptions' => 'yes') : $default;

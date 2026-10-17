@@ -12,6 +12,7 @@ use Simplixi\SUPCheckout\Gateway\GatewayRegistration;
 use Simplixi\SUPCheckout\Release\Identity;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\SchedulerBootstrap;
+use Simplixi\SUPCheckout\Takeover\CopyRunner;
 
 /**
  * Composition root. From Task 3 on, every WordPress hook SUPCheckout registers is
@@ -41,6 +42,7 @@ final class Plugin {
         SubscriptionComposition::register_presentation_hooks();
         SchedulerBootstrap::register();
         SubscriptionActions::register();
+        CopyRunner::register();
         self::load_runtime(self::$main_file);
     }
 

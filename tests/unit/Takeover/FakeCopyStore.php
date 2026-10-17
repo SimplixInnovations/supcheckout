@@ -1,0 +1,266 @@
+<?php
+
+namespace Simplixi\SUPCheckout\Tests\Takeover;
+
+use Simplixi\SUPCheckout\Takeover\CopyStore;
+use Simplixi\SUPCheckout\Takeover\Keys;
+
+/**
+ * In-memory CopyStore for the copy-runner tests.
+ *
+ * Orders live in the unit bootstrap's wc_get_order() store
+ * ($GLOBALS['supcheckout_test_status_orders']) as FakeCrudObject instances, so the
+ * copier's re-read under the lock sees exactly what the runner selected. User meta keeps
+ * every row in order and unslashes added values as add_metadata() does. The two
+ * billing-attempts tables are arrays of rows keyed by cycle_key.
+ */
+final class FakeCopyStore implements CopyStore {
+    /** @var array<int, array<string, list<mixed>>> */
+    public $user_meta = array();
+    /** @var array<int, FakeCrudObject> */
+    public $products = array();
+    /** @var array<string, array<string, array<string, mixed>>> */
+    public $tables = array(self::TABLE_LEGACY => array(), self::TABLE_NEW => array());
+    /** @var bool */
+    public $legacy_table_exists = true;
+    /** @var bool */
+    public $new_table_exists = false;
+    /** @var list<string> */
+    public $columns = array('cycle_key', 'parent_order_id', 'owner_token', 'state', 'payment_id');
+    /** @var list<string> */
+    public $new_columns = array('cycle_key', 'parent_order_id', 'owner_token', 'state', 'payment_id');
+    /** @var callable|null function (int $order_id): void, called before an order is loaded. */
+    public $on_load_order = null;
+    /** @var callable|null function (string $after, string $upto): void, called before an insert. */
+    public $on_table_insert = null;
+    /** @var callable|null function (int $user_id, string $key): void, called before a user meta add. */
+    public $on_add_user_meta = null;
+    /** @var callable|null Postmeta reader handed to the copier (HPOS authoritative). */
+    public $post_meta = null;
+    /** @var int */
+    public $user_meta_adds = 0;
+    /** @var list<array{0:string,1:mixed}> Calls to the selection methods: [method, limit]. */
+    public $selections = array();
+    /** @var int */
+    public $table_creates = 0;
+    /** @var bool */
+    public $fail_replace = false;
+    /** @var list<array{0:string,1:string|null}> Orphan deletions: [after, upto]. */
+    public $orphan_deletes = array();
+
+    public function order_ids_after($after_id, $limit) {
+        $this->selections[] = array('orders', $limit);
+        $ids = array();
+        foreach ($GLOBALS['supcheckout_test_status_orders'] as $id => $order) {
+            if ($id > $after_id && $this->is_candidate($order)) {
+                $ids[] = (int) $id;
+            }
+        }
+        sort($ids);
+        return array_slice($ids, 0, $limit);
+    }
+
+    public function load_order($order_id) {
+        if (is_callable($this->on_load_order)) {
+            call_user_func($this->on_load_order, $order_id);
+        }
+        return isset($GLOBALS['supcheckout_test_status_orders'][$order_id]) ? $GLOBALS['supcheckout_test_status_orders'][$order_id] : null;
+    }
+
+    public function order_post_meta_reader() {
+        return $this->post_meta;
+    }
+
+    public function user_ids_after($after_id, $limit) {
+        $this->selections[] = array('users', $limit);
+        $ids = array();
+        foreach ($this->user_meta as $user_id => $meta) {
+            if ($user_id > $after_id && $this->legacy_user_meta_keys($user_id) !== array()) {
+                $ids[] = (int) $user_id;
+            }
+        }
+        sort($ids);
+        return array_slice($ids, 0, $limit);
+    }
+
+    public function legacy_user_meta_keys($user_id) {
+        $keys = array();
+        foreach (array_keys(isset($this->user_meta[$user_id]) ? $this->user_meta[$user_id] : array()) as $key) {
+            if (array_key_exists($key, Keys::user_meta())) {
+                $keys[] = (string) $key;
+                continue;
+            }
+            foreach (array_keys(Keys::user_meta_prefixes()) as $prefix) {
+                if (strpos((string) $key, $prefix) === 0) {
+                    $keys[] = (string) $key;
+                }
+            }
+        }
+        return $keys;
+    }
+
+    public function user_meta($user_id, $key) {
+        return isset($this->user_meta[$user_id][$key]) ? $this->user_meta[$user_id][$key] : array();
+    }
+
+    public function add_unique_user_meta($user_id, $key, $slashed_value) {
+        if (is_callable($this->on_add_user_meta)) {
+            call_user_func($this->on_add_user_meta, $user_id, $key);
+        }
+        if ($this->user_meta($user_id, $key) !== array()) {
+            return false;
+        }
+        ++$this->user_meta_adds;
+        $this->user_meta[$user_id][$key][] = self::unslash($slashed_value);
+        return true;
+    }
+
+    public function product_ids_after($after_id, $limit) {
+        $this->selections[] = array('products', $limit);
+        $ids = array();
+        foreach ($this->products as $id => $product) {
+            foreach (array_keys(Keys::product_meta()) as $legacy) {
+                if ($id > $after_id && $product->persisted_values($legacy) !== array()) {
+                    $ids[] = (int) $id;
+                    break;
+                }
+            }
+        }
+        sort($ids);
+        return array_slice($ids, 0, $limit);
+    }
+
+    public function load_product($product_id) {
+        return isset($this->products[$product_id]) ? $this->products[$product_id] : null;
+    }
+
+    public function table_exists($which) {
+        return $which === self::TABLE_LEGACY ? $this->legacy_table_exists : $this->new_table_exists;
+    }
+
+    public function create_new_table() {
+        ++$this->table_creates;
+        $this->new_table_exists = true;
+        return true;
+    }
+
+    public function table_columns($which) {
+        if (!$this->table_exists($which)) {
+            return array();
+        }
+        return $which === self::TABLE_LEGACY ? $this->columns : $this->new_columns;
+    }
+
+    public function table_keys_after($which, $after_key, $limit) {
+        $this->selections[] = array('table_' . $which, $limit);
+        $keys = array();
+        foreach (array_keys($this->tables[$which]) as $key) {
+            if (strcmp((string) $key, (string) $after_key) > 0) {
+                $keys[] = (string) $key;
+            }
+        }
+        sort($keys, SORT_STRING);
+        return array_slice($keys, 0, $limit);
+    }
+
+    public function table_insert_missing(array $columns, $after_key, $upto_key) {
+        if (is_callable($this->on_table_insert)) {
+            call_user_func($this->on_table_insert, $after_key, $upto_key);
+        }
+        foreach ($this->tables[self::TABLE_LEGACY] as $key => $row) {
+            if ($this->in_range($key, $after_key, $upto_key) && !isset($this->tables[self::TABLE_NEW][$key])) {
+                $this->tables[self::TABLE_NEW][$key] = self::project($row, $columns);
+            }
+        }
+        return true;
+    }
+
+    public function table_replace(array $columns, array $keys) {
+        if ($this->fail_replace) {
+            return false;
+        }
+        foreach ($keys as $key) {
+            if (isset($this->tables[self::TABLE_LEGACY][$key])) {
+                $this->tables[self::TABLE_NEW][$key] = self::project($this->tables[self::TABLE_LEGACY][$key], $columns);
+            }
+        }
+        return true;
+    }
+
+    public function table_delete_orphans($after_key, $upto_key) {
+        $this->orphan_deletes[] = array((string) $after_key, $upto_key === null ? null : (string) $upto_key);
+        foreach (array_keys($this->tables[self::TABLE_NEW]) as $key) {
+            if ($this->in_range($key, (string) $after_key, $upto_key) && !isset($this->tables[self::TABLE_LEGACY][$key])) {
+                unset($this->tables[self::TABLE_NEW][$key]);
+            }
+        }
+        return true;
+    }
+
+    public function table_checksums($which, array $columns, $after_key, $upto_key) {
+        $sums = array();
+        foreach ($this->tables[$which] as $key => $row) {
+            if ($this->in_range($key, $after_key, $upto_key)) {
+                $parts = array();
+                foreach ($columns as $column) {
+                    $value = array_key_exists($column, $row) ? $row[$column] : null;
+                    $parts[] = $value === null ? 'N' : 'V' . bin2hex((string) $value);
+                }
+                $sums[(string) $key] = md5(implode('|', $parts));
+            }
+        }
+        ksort($sums, SORT_STRING);
+        return $sums;
+    }
+
+    public function table_count($which) {
+        return count($this->tables[$which]);
+    }
+
+    /** @param array<string, mixed> $row */
+    public function add_legacy_row(array $row): void {
+        $this->tables[self::TABLE_LEGACY][(string) $row['cycle_key']] = $row;
+    }
+
+    /** @return mixed */
+    private static function unslash($value) {
+        if (is_array($value)) {
+            return array_map(array(self::class, 'unslash'), $value);
+        }
+        return is_string($value) ? stripslashes($value) : $value;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<string>         $columns
+     * @return array<string, mixed>
+     */
+    private static function project(array $row, array $columns): array {
+        $out = array();
+        foreach ($columns as $column) {
+            $out[$column] = array_key_exists($column, $row) ? $row[$column] : null;
+        }
+        return $out;
+    }
+
+    /** @param int|string $key */
+    private function in_range($key, string $after_key, ?string $upto_key): bool {
+        return strcmp((string) $key, $after_key) > 0 && ($upto_key === null || strcmp((string) $key, $upto_key) <= 0);
+    }
+
+    /** @param mixed $order */
+    private function is_candidate($order): bool {
+        if (!$order instanceof FakeCrudObject) {
+            return false;
+        }
+        if (in_array($order->get_payment_method(), Keys::gateway_ids(), true)) {
+            return true;
+        }
+        foreach (array_keys(Keys::order_meta()) as $legacy) {
+            if ($order->persisted_values($legacy) !== array()) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
