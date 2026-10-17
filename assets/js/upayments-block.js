@@ -7,7 +7,21 @@ if ( !wc || !wp || !wc.wcBlocksRegistry || !wc.wcSettings || !wp.data || !wp.ele
 
 const { registerPaymentMethod } = wc.wcBlocksRegistry;
 
-    const settings = window.wc.wcSettings.getPaymentMethodData('upayments') || {};
+    // The server registers this method under the gateway id: the legacy id until the
+    // takeover cutover, 'supcheckout' after, when it also localizes the name and the Store
+    // API extensions namespace to use. Only one of the two is ever registered, and
+    // getPaymentMethodData() returns a truthy {} default for the other, so only a
+    // registration that carries data counts.
+    const withData = (data) => (data !== null && typeof data === 'object' && Object.keys(data).length > 0 ? data : null);
+    const settings = withData(window.wc.wcSettings.getPaymentMethodData('upayments'))
+        || withData(window.wc.wcSettings.getPaymentMethodData('supcheckout'))
+        || {};
+    const PAYMENT_METHOD_NAME = typeof settings.payment_method_name === 'string' && settings.payment_method_name !== ''
+        ? settings.payment_method_name
+        : 'upayments';
+    const NAMESPACE = typeof settings.extension_namespace === 'string' && settings.extension_namespace !== ''
+        ? settings.extension_namespace
+        : 'upayments';
     const {
         availability_valid,
         supported_currencies = [],
@@ -32,8 +46,6 @@ const { registerPaymentMethod } = wc.wcBlocksRegistry;
         const hasCustomTypeProduct = Array.isArray(liveCartItems)
             ? liveCartItems.some(product => product && product.type === 'custom_type')
             : Array.isArray(product_type) && product_type.some(product => product && product.type === 'custom_type');
-
-        const NAMESPACE = 'upayments';
 
         // Section AI: Current-store helper for event handlers.
         const getCurrentUpayData = () => {
@@ -465,7 +477,7 @@ const handleSubscriptionChange = (plan, interval) => {
     };
 
     registerPaymentMethod({
-        name: 'upayments',
+        name: PAYMENT_METHOD_NAME,
         label: 'UPayments',
 
         content: wp.element.createElement(Content),

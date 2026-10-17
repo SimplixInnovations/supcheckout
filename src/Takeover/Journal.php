@@ -143,6 +143,27 @@ final class Journal {
     }
 
     /**
+     * Whether the takeover itself wrote the value now stored at $target/$path: the most
+     * recent entry for that path exists and is_current_after() holds for $current_value.
+     * Copiers use it to refresh only their own earlier copy, never a foreign value.
+     *
+     * @param string $target        Entry target.
+     * @param string $path          Entry path.
+     * @param mixed  $current_value The value stored there now.
+     * @return bool
+     * @throws \RuntimeException When the journal is unreadable.
+     */
+    public static function wrote_current($target, $path, $current_value) {
+        $latest = null;
+        foreach (self::entries() as $entry) {
+            if ($entry['target'] === $target && $entry['path'] === $path) {
+                $latest = $entry;
+            }
+        }
+        return $latest !== null && self::is_current_after($latest, $current_value);
+    }
+
+    /**
      * @param mixed $value Any value.
      * @return string SHA-256 of the PHP-serialized value (lowercase hex).
      */

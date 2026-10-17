@@ -378,6 +378,8 @@ function h12dp_copy_store() {
         public function table_delete_orphans($after_key, $upto_key) { return false; }
         public function table_checksums($which, array $columns, $after_key, $upto_key) { return array(); }
         public function table_count($which) { return null; }
+        public function table_open_claims($since_gmt) { return 0; }
+        public function table_stale_claims($before_gmt) { return 0; }
     };
 }
 

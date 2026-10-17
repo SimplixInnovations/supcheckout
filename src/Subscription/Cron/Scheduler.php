@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription\Cron;
 
 use DateTime;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\Quiesce;
+use Simplixi\SUPCheckout\Takeover\TakeoverState;
 use WC_Order;
 use WC_DateTime;
 use DateTimeInterface;
@@ -69,14 +71,23 @@ class Scheduler
         // never enabled them carries no event (and no table checks) at all.
         $settings = Keys::get_settings(array());
         $enabled = is_array($settings) && isset($settings['enable_subscriptions']) && $settings['enable_subscriptions'] === 'yes';
+        // Takeover (0b Task 7): scheduled under the current name (the new one after
+        // cutover); from `copying` on both names run process() and a disabled store clears
+        // both, because the cutover keeps the legacy event until Finalize.
+        $hooks = Keys::cron_hook_names(self::CRON_HOOK);
+        $current_hook = Keys::cron_hook(self::CRON_HOOK);
         if (!$enabled) {
-            if (wp_next_scheduled(self::CRON_HOOK)) {
-                wp_clear_scheduled_hook(self::CRON_HOOK);
+            foreach ($hooks as $hook) {
+                if (wp_next_scheduled($hook)) {
+                    wp_clear_scheduled_hook($hook);
+                }
             }
-        } elseif (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time(), 'hourly', self::CRON_HOOK);
+        } elseif (!wp_next_scheduled($current_hook)) {
+            wp_schedule_event(time(), 'hourly', $current_hook);
         }
-        add_action(self::CRON_HOOK, [__CLASS__, 'process']);
+        foreach ($hooks as $hook) {
+            add_action($hook, [__CLASS__, 'process']);
+        }
         DueParentWorker::register();
         LifecycleScheduler::register();
     }
@@ -91,6 +102,15 @@ class Scheduler
     {
         $context = ['source' => 'upayments-cron'];
         self::$last_outcome = self::OUTCOME_NOT_ELIGIBLE;
+        // A queue runner works many actions in one process: see a cutover or rollback
+        // another process made since it started.
+        TakeoverState::refresh();
+        if (Quiesce::is_active()) {
+            // A takeover cutover or rollback is switching the billing-attempts table:
+            // defer before any work, so the worker queues its bounded retry.
+            self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
+            return self::$last_outcome;
+        }
         try {
             if (!CycleClaim::maybe_install()) {
                 self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
@@ -102,6 +122,11 @@ class Scheduler
                 return self::$last_outcome;
             }
             self::process_one_order($order, new DateTime('now', wp_timezone()), $context);
+            if (self::$last_outcome === self::OUTCOME_NOT_ELIGIBLE && Quiesce::is_active()) {
+                // A claim refused or released because a takeover lease started meanwhile
+                // (CycleClaim): nothing was sent, so this cycle is retried later.
+                self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
+            }
         } catch (\Throwable $e) {
             // Per-parent isolation: never crash the Action Scheduler runner.
             if (self::$last_outcome === self::OUTCOME_NOT_ELIGIBLE) {
@@ -126,6 +151,14 @@ class Scheduler
     {
         $logger  = wc_get_logger();
         $context = ['source' => 'upayments-cron'];
+
+        TakeoverState::refresh();
+        if (Quiesce::is_active()) {
+            // A takeover cutover or rollback holds the lease: the enrollment feeder and
+            // its cursor stay still until it is released (or expires).
+            $logger->info('Subscription tick skipped: a takeover operation holds the quiesce lease.', $context);
+            return;
+        }
 
         // Table readiness (CycleClaim::maybe_install) and ALL subsequent
         // cron work executes INSIDE the outer try so that any Throwable

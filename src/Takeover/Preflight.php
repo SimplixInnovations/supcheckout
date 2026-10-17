@@ -524,6 +524,16 @@ final class Preflight {
     }
 
     /**
+     * The same classification for ThirdPartyTranslator's cutover report.
+     *
+     * @param string $name Option name.
+     * @return bool True for a name Keys or WordPress plugin bookkeeping accounts for.
+     */
+    public static function is_known_option_name($name) {
+        return self::is_known_option((string) $name);
+    }
+
+    /**
      * @param string $name Option name.
      * @return bool True for a name Keys or WordPress plugin bookkeeping accounts for.
      */

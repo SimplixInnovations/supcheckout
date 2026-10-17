@@ -29,7 +29,7 @@ function containsClass(node, className) {
     return containsClass(node.children || [], className);
 }
 
-function createScene(overrides) {
+function createScene(overrides, cutOver) {
     const settings = Object.assign({
         availability_valid: true,
         is_whitelabled: true,
@@ -48,7 +48,8 @@ function createScene(overrides) {
     }, overrides || {});
 
     let registered = null;
-    let extensionData = { upayments: {} };
+    let extensionData = cutOver ? { supcheckout: {} } : { upayments: {} };
+    const queried = [];
 
     const wc = {
         wcBlocksRegistry: {
@@ -57,9 +58,16 @@ function createScene(overrides) {
             }
         },
         wcSettings: {
-            getPaymentMethodData(name) {
-                if (name !== 'upayments') throw new Error('Unexpected payment method: ' + name);
-                return settings;
+            getPaymentMethodData(name, defaultValue = {}) {
+                // Before the takeover cutover only 'upayments' is registered; after it only
+                // 'supcheckout', with the name and namespace localized (0b Task 7). Like
+                // WooCommerce's wcSettings, an unregistered name returns the truthy {} default.
+                queried.push(name);
+                if (name !== 'upayments' && name !== 'supcheckout') throw new Error('Unexpected payment method: ' + name);
+                if (cutOver) {
+                    return name === 'supcheckout' ? Object.assign({ payment_method_name: 'supcheckout', extension_namespace: 'supcheckout' }, settings) : defaultValue;
+                }
+                return name === 'upayments' ? settings : defaultValue;
             }
         }
     };
@@ -111,6 +119,10 @@ function createScene(overrides) {
 
     return {
         registered,
+        queried: () => queried.slice(),
+        extensionData() {
+            return extensionData;
+        },
         render(props) {
             if (!registered.content || typeof registered.content.type !== 'function') {
                 throw new Error('Registered Blocks content does not expose the component function');
@@ -159,6 +171,21 @@ console.log('Running e1-blocks-live-props-harness.js');
     const scene = createScene({ availability_valid: false });
     record(scene.registered.canMakePayment({ cartTotals: { currency_code: 'KWD' } }) === false,
         'provider availability failure remains authoritative for supported currencies');
+}
+
+{
+    const legacy = createScene();
+    record(legacy.registered.name === 'upayments', 'before cutover the Blocks method registers as upayments');
+    record(legacy.queried().join(',') === 'upayments', 'before cutover only the upayments registration is read');
+    const scene = createScene({}, true);
+    record(scene.registered.name === 'supcheckout', 'after cutover the Blocks method registers under the localized supcheckout id');
+    record(scene.queried().join(',') === 'upayments,supcheckout',
+        'after cutover the {} default for the absent upayments registration is skipped for the supcheckout data');
+    record(scene.registered.canMakePayment({ cartTotals: { currency_code: 'KWD' } }) === true,
+        'the cut-over method reads its server data from the supcheckout registration');
+    const tree = scene.render({ cartData: { cartItems: [{ type: 'custom_type' }] } });
+    record(containsClass(tree, 'upay-subscription-wrapper') && Object.keys(scene.extensionData()).join(',') === 'supcheckout',
+        'the cut-over client works against the supcheckout extensions namespace only');
 }
 
 console.log('Blocks live-props results: ' + pass + ' passed, ' + fail + ' failed.');

@@ -13,6 +13,7 @@ namespace Simplixi\SUPCheckout\Payment {
             'orders' => array(),
             'gateway' => null,
             'scheduled' => array(),
+            'schedule_calls' => array(),
             'filters' => array(),
             'actions' => array(),
             'remote_get_calls' => 0,
@@ -136,6 +137,7 @@ namespace Simplixi\SUPCheckout\Payment {
         return isset(state()['scheduled'][$key]) ? state()['scheduled'][$key] : false;
     }
     function wp_schedule_single_event($timestamp, $hook, $args = array()) {
+        state()['schedule_calls'][] = array($hook, $args);
         $key = $hook . '|' . json_encode(array_values($args));
         if (!empty(state()['schedule_fails'])) { return false; }
         if (isset(state()['scheduled'][$key])) { return false; }
@@ -938,6 +940,8 @@ namespace {
     $out = PaymentLifecycle::route_callback($gateway, $order, 'track-a', 'merchant-order-594', 'webhook');
     same($out['reason'], 'callback_rate_limited', 'R2 throttled secondary lookup deferred');
     ok(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_secondary', array(594)) !== false, 'R2 deferred secondary lookup scheduled');
+    same(\Simplixi\SUPCheckout\Takeover\TakeoverState::get()['status'], 'idle', 'R2 runs on an idle store');
+    same(\Simplixi\SUPCheckout\Payment\state()['schedule_calls'], array(array('simplixpay_upayments_reconcile_secondary', array(594))), 'R2 idle schedule_secondary schedules the legacy hook with one int order id');
     set_provider_transaction($prior_tx($order, 'merchant-order-594', 'CAPTURED', 'track-a', 'pay-a'));
     \Simplixi\SUPCheckout\Payment\state()['scheduled'] = array();
     PaymentLifecycle::reconcile_secondary(594);

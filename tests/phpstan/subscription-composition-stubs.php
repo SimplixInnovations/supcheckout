@@ -5,10 +5,3 @@ namespace {
         return true;
     }
 }
-
-namespace Simplixi\SUPCheckout\Subscription {
-    final class Manager {
-        public static function init() {
-        }
-    }
-}

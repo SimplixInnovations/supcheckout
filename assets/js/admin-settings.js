@@ -1,9 +1,14 @@
 jQuery(function ($) {
     'use strict';
 
-    const $newDesignCheckbox = $('#woocommerce_upayments_use_new_design');
-    const $saveCardCheckbox = $('#woocommerce_upayments_enable_save_card');
-    const $multiMerchantCheckbox = $('#woocommerce_upayments_enable_multimerchant');
+    // WC_Settings_API field ids are woocommerce_{gateway id}_{field}: 'supcheckout' once the
+    // takeover cut over, the legacy id before. Only one gateway's settings form is rendered.
+    const fieldPrefix = $('#woocommerce_supcheckout_use_new_design').length
+        ? '#woocommerce_supcheckout_'
+        : '#woocommerce_upayments_';
+    const $newDesignCheckbox = $(fieldPrefix + 'use_new_design');
+    const $saveCardCheckbox = $(fieldPrefix + 'enable_save_card');
+    const $multiMerchantCheckbox = $(fieldPrefix + 'enable_multimerchant');
     const $multiMerchantRow = $('.upayments-multimerchant-repeater').closest('tr');
 
     // Fail closed if this script is ever evaluated outside the exact gateway settings DOM.

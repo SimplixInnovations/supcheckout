@@ -159,4 +159,24 @@ interface CopyStore {
      * @return int|null Row count, or null when unreadable.
      */
     public function table_count($which);
+
+    /**
+     * In-flight claim holders (Cutover's drain): legacy rows in `claimed` or `dispatching`
+     * updated at or after $since_gmt. 0 when the legacy table does not exist.
+     *
+     * @param string $since_gmt MySQL DATETIME in UTC.
+     * @return int|null Count, or null when unreadable.
+     */
+    public function table_open_claims($since_gmt);
+
+    /**
+     * Stale claims (Cutover's drain): legacy rows still `claimed` and last updated before
+     * $before_gmt. Their worker may have stalled rather than died: it could still mark its
+     * legacy row dispatching after a cutover while another worker reclaims the copied
+     * row, so they block the cutover. 0 when the legacy table does not exist.
+     *
+     * @param string $before_gmt MySQL DATETIME in UTC.
+     * @return int|null Count, or null when unreadable.
+     */
+    public function table_stale_claims($before_gmt);
 }

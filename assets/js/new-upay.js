@@ -3,12 +3,22 @@
 
     const api = window.supCheckout = window.supCheckout || {};
 
+    // The gateway id WooCommerce renders the radio and payment_method_{id} box with: the
+    // localized current id after the takeover cutover, the legacy id before it.
+    function currentGatewayId() {
+        const localized = window.supCheckoutI18n;
+        return localized && typeof localized.gatewayId === 'string' && localized.gatewayId !== ''
+            ? localized.gatewayId
+            : 'upayments';
+    }
+
     function syncPlaceOrderButton() {
+        const gatewayId = currentGatewayId();
         const selectedPaymentMethod = $('input[name="payment_method"]:checked').val();
         // Hide the canonical button only when a UPayments method button can take its
         // place; with no methods rendered the customer must still be able to submit.
-        const hasMethodButtons = $('.payment_box.payment_method_upayments .upay-payment-method').length > 0;
-        if (selectedPaymentMethod === 'upayments' && hasMethodButtons) {
+        const hasMethodButtons = $('.payment_box.payment_method_' + gatewayId + ' .upay-payment-method').length > 0;
+        if (selectedPaymentMethod === gatewayId && hasMethodButtons) {
             $('button#place_order').hide();
         } else {
             $('button#place_order').show();

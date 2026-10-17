@@ -66,9 +66,10 @@ final class OrderCopier {
      *                                      get_post_meta($id, $key, false), for the HPOS
      *                                      disagreement check. Null: automatic (only when
      *                                      HPOS is authoritative). False: no check.
+     * @param bool|null          $legacy_authoritative See copy_meta().
      * @return array{status:string, copied:int, skipped:int, mismatches:list<string>, disagreements:list<string>}
      */
-    public static function copy($order, $post_meta = null) {
+    public static function copy($order, $post_meta = null, $legacy_authoritative = null) {
         $order_id = self::id_of($order);
         if ($order_id <= 0) {
             return self::result(self::MISSING);
@@ -85,7 +86,7 @@ final class OrderCopier {
             if ($post_meta === null) {
                 $post_meta = self::default_post_meta_reader();
             }
-            return self::copy_meta($fresh, Keys::order_meta(), is_callable($post_meta) ? $post_meta : null);
+            return self::copy_meta($fresh, Keys::order_meta(), is_callable($post_meta) ? $post_meta : null, $legacy_authoritative);
         } finally {
             OrderLock::release($order_id, $token);
         }
@@ -107,16 +108,21 @@ final class OrderCopier {
      * @param object                $object    WooCommerce CRUD object.
      * @param array<string, string> $map       Legacy => new key.
      * @param callable|null         $post_meta Postmeta reader for the disagreement check.
+     * @param bool|null             $legacy_authoritative Null: only while `copying`. True: the
+     *                                                    caller proves reads are still legacy-only
+     *                                                    (Cutover's quiesced final pass in `verified`).
      * @return array{status:string, copied:int, skipped:int, mismatches:list<string>, disagreements:list<string>}
      */
-    public static function copy_meta($object, array $map, $post_meta = null) {
+    public static function copy_meta($object, array $map, $post_meta = null, $legacy_authoritative = null) {
         if (!self::is_crud($object)) {
             return self::result(self::MISSING);
         }
         $object_id = self::id_of($object);
         $raw_marker = $object->get_meta(self::MARKER_META, true, 'edit');
         $marker = self::decode_marker($raw_marker);
-        $legacy_authoritative = TakeoverState::get()['status'] === TakeoverState::COPYING;
+        if ($legacy_authoritative === null) {
+            $legacy_authoritative = TakeoverState::get()['status'] === TakeoverState::COPYING;
+        }
         $next_marker = array();
         $result = self::result(self::COPIED);
         $changed = false;

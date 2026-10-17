@@ -50,6 +50,8 @@ namespace {
     if (!defined('ABSPATH')) {
         define('ABSPATH', $root . '/');
     }
+    require_once $root . '/src/Takeover/TakeoverState.php';
+    require_once $root . '/src/Takeover/Keys.php';
     require_once $root . '/src/Admin/GatewaySettings.php';
     require_once $blocks_file;
 
@@ -114,8 +116,10 @@ namespace {
     );
     q18_assert(
         is_string($js_source)
-        && strpos($js_source, "name: 'upayments'") !== false,
-        'Blocks client registration identity remains upayments'
+        && strpos($js_source, "name: PAYMENT_METHOD_NAME,") !== false
+        && strpos($js_source, "getPaymentMethodData('upayments')") !== false
+        && preg_match("/const PAYMENT_METHOD_NAME = [^;]*: 'upayments';/s", $js_source) === 1,
+        'Blocks client registration identity remains upayments until the takeover localizes supcheckout (0b Task 7)'
     );
     q18_assert(
         is_string($blocks_source)

@@ -973,27 +973,47 @@ function arch3_direct_public_method(array $classBody, $methodName)
 
 function arch3_has_direct_gateway_id_assignment(array $body)
 {
-    $expected = array(
+    $head = array(
         array(T_VARIABLE, '$this'),
         array(T_OBJECT_OPERATOR, '->'),
         array(T_STRING, 'id'),
         array(null, '='),
-        array(T_CONSTANT_ENCAPSED_STRING, 'upayments'),
-        array(null, ';'),
     );
-    $need = count($expected);
+    // 0b Task 7: the shipped constructor assigns Keys::gateway_id() (exactly 'upayments'
+    // until cutover; the public-surface harness pins the id per takeover state). The guard
+    // fixtures below keep the historical literal form, which the walker treats the same.
+    $patterns = array(
+        array_merge($head, array(array(T_CONSTANT_ENCAPSED_STRING, 'upayments'), array(null, ';'))),
+        array_merge($head, array(
+            array(T_STRING, 'Keys'),
+            array(T_DOUBLE_COLON, '::'),
+            array(T_STRING, 'gateway_id'),
+            array(null, '('),
+            array(null, ')'),
+            array(null, ';'),
+        )),
+    );
 
-    return arch3_has_direct_statement($body, static function (array $tokens, $i) use ($expected, $need) {
-        if ($i + $need > count($tokens)) {
-            return 'stop';
-        }
-        foreach ($expected as $offset => $want) {
-            $actual = $tokens[$i + $offset];
-            if ($actual['id'] !== $want[0] || $actual['text'] !== $want[1]) {
-                return false;
+    return arch3_has_direct_statement($body, static function (array $tokens, $i) use ($patterns) {
+        $room = false;
+        foreach ($patterns as $expected) {
+            if ($i + count($expected) > count($tokens)) {
+                continue;
+            }
+            $room = true;
+            $matched = true;
+            foreach ($expected as $offset => $want) {
+                $actual = $tokens[$i + $offset];
+                if ($actual['id'] !== $want[0] || $actual['text'] !== $want[1]) {
+                    $matched = false;
+                    break;
+                }
+            }
+            if ($matched) {
+                return true;
             }
         }
-        return true;
+        return $room ? false : 'stop';
     });
 }
 
@@ -1247,7 +1267,7 @@ arch3_assert($gatewayClass['found'], 'src/Gateway/Gateway.php directly and uncon
 arch3_assert($constructor['found'], 'Gateway constructor remains a direct public method');
 arch3_assert(
     $constructor['found'] && arch3_has_direct_gateway_id_assignment($constructor['body']),
-    'gateway ID upayments is an unconditional direct constructor statement'
+    'gateway ID Keys::gateway_id() (upayments until cutover) is an unconditional direct constructor statement'
 );
 
 $missingHookFixture = <<<'PHP'

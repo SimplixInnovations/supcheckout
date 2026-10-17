@@ -156,7 +156,9 @@ class Gateway extends \WC_Payment_Gateway {
 
     public function __construct() {
         // Define ID, title, description, and settings.
-        $this->id                 = 'upayments';
+        // 'upayments' until cutover, 'supcheckout' after (0b Task 7). WooCommerce derives the
+        // settings option, POST field names and payment_method_{id} classes from it.
+        $this->id                 = Keys::gateway_id();
         $this->icon = SUPCHECKOUT_PLUGIN_URL . "assets/images/upayment.png";
         $this->method_title       = __("UPayments", 'supcheckout');
         $this->method_description = __("UPayments payment integration for WooCommerce. Available payment methods depend on your UPayments account and provider configuration.
@@ -236,7 +238,7 @@ class Gateway extends \WC_Payment_Gateway {
             }
         }, 5);
         // Save Card & Subscriptions validation
-        add_filter('woocommerce_settings_api_sanitized_fields_upayments', function ($settings) {
+        add_filter('woocommerce_settings_api_sanitized_fields_' . $this->id, function ($settings) {
             $normalized = GatewaySettings::normalize_dependencies($settings);
             if ($normalized['forced_save_card']) {
                 wc_add_notice(
@@ -682,7 +684,7 @@ class Gateway extends \WC_Payment_Gateway {
     public function process_admin_options()
     {
         $this->init_settings();
-        $prepared = GatewaySettings::prepare_post_data($this->get_post_data());
+        $prepared = GatewaySettings::prepare_post_data($this->get_post_data(), $this->id);
         if ($prepared['api_key_missing'] || $prepared['multimerchant_missing']) {
             \WC_Admin_Settings::add_error($prepared['api_key_missing']
                 ? __('Please enter UPayments API Key', 'supcheckout')

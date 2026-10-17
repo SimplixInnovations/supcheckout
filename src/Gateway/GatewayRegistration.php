@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Gateway;
 
+use Simplixi\SUPCheckout\Takeover\StaleGatewayChoice;
+
 defined('ABSPATH') || exit;
 
 final class GatewayRegistration {
@@ -9,6 +11,8 @@ final class GatewayRegistration {
     public static function register() {
         add_filter('woocommerce_payment_gateways', array(self::class, 'filter_gateways'));
         add_filter('woocommerce_available_payment_gateways', array(self::class, 'filter_available'));
+        // Registers only once cut over (0b Task 7): an idle store's surface is unchanged.
+        StaleGatewayChoice::register();
     }
 
     /**

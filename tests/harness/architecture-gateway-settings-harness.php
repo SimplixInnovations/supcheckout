@@ -70,6 +70,8 @@ require_once dirname(__DIR__, 2) . '/src/Release/Identity.php';
 // GatewaySettings depends on MultiMerchantContract (PR #108); UPayments.php loads it
 // immediately before GatewaySettings.php, so the harness mirrors that order.
 require_once dirname(__DIR__, 2) . '/src/Provider/MultiMerchantContract.php';
+require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
+require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
 require_once dirname(__DIR__, 2) . '/src/Admin/GatewaySettings.php';
 
 $pass = 0;

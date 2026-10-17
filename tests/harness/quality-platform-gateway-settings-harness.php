@@ -69,7 +69,10 @@ $api_key_field_source = ($api_key_field_start !== false && $debug_field_start !=
     : '';
 q6_assert(q6_contains($api_key_field_source, "'type' => 'password'"), 'API credential is rendered through a masked password control');
 foreach (array('iban_number', 'cc_charge', 'cc_charge_type', 'knet_charge', 'knet_charge_type') as $field) {
-    q6_assert(q6_contains($settings, "'woocommerce_upayments_{$field}'"), "runtime allocation identity remains protected: {$field}");
+    // 0b Task 7: the POST name is woocommerce_<gateway id>_<field>, the legacy id by default.
+    q6_assert(q6_contains($settings, "\$prefix . '{$field}'")
+        && q6_contains($settings, "public static function prepare_post_data(array \$post_data, \$gateway_id = Keys::GATEWAY_LEGACY)")
+        && q6_contains($settings, "\$prefix = 'woocommerce_' . \$gateway_id . '_';"), "runtime allocation identity remains protected: {$field}");
     q6_assert(q6_contains($settings, "'{$field}' =>"), "sanitizer retains bounded allocation field: {$field}");
 }
 q6_assert(!q6_contains($settings, "'merchant_id' => sanitize"), 'presentation sanitizer does not retain merchant credentials');
