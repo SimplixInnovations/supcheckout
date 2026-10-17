@@ -105,3 +105,9 @@ define('ARRAY_A', 'ARRAY_A');
  * @return bool
  */
 function delete_transient($transient) {}
+
+/**
+ * @param bool|null $using
+ * @return bool
+ */
+function wp_using_ext_object_cache($using = null) {}

@@ -275,16 +275,52 @@ final class WordPressCopyStoreTest extends TestCase {
         self::assertFalse($store->table_read_failed(), 'reset by the check');
     }
 
-    public function test_transients_go_through_the_transient_api(): void {
+    public function test_transient_presence_is_read_from_its_rows_never_through_the_expiring_read(): void {
+        // get_transient() deletes an expired transient's rows: a dry run must never call it.
         \supcheckout_test_reset_availability();
         $GLOBALS['wpdb'] = $this->db;
-        set_transient('upayments_cron_lock', '1', 60);
+        $GLOBALS['supcheckout_test_ext_object_cache'] = false;
+        $this->db->var = '2';
+        $store = new WordPressCopyStore();
+
+        self::assertTrue($store->transient_exists('upayments_cron_lock'), 'an expired transient still has its rows');
+
+        self::assertSame(array(
+            'query' => 'SELECT COUNT(*) FROM %i WHERE option_name IN (%s, %s)',
+            'args' => array('wp_options', '_transient_upayments_cron_lock', '_transient_timeout_upayments_cron_lock'),
+        ), end($this->db->prepared));
+        foreach ($this->db->prepared as $statement) {
+            self::assertStringStartsWith('SELECT ', $statement['query'], 'read-only');
+        }
+        $this->db->var = '0';
+        self::assertFalse($store->transient_exists('upayments_cron_lock'));
+    }
+
+    public function test_with_an_external_object_cache_transient_presence_is_a_cache_lookup_without_deletion(): void {
+        \supcheckout_test_reset_availability();
+        $GLOBALS['wpdb'] = $this->db;
+        $GLOBALS['supcheckout_test_ext_object_cache'] = true;
+        $GLOBALS['supcheckout_test_object_cache'] = array('transient' => array('upayments_cron_lock' => '1'));
         $store = new WordPressCopyStore();
 
         self::assertTrue($store->transient_exists('upayments_cron_lock'));
-        self::assertTrue($store->delete_transient('upayments_cron_lock'));
-        self::assertFalse($store->transient_exists('upayments_cron_lock'));
-        self::assertTrue($store->delete_transient('upayments_cron_lock'), 'an absent transient counts as deleted');
+        self::assertFalse($store->transient_exists('upay_pm_v3_0123456789abcdef'));
+        self::assertSame(array(), $this->db->prepared, 'no options-table read');
+        self::assertSame(array('transient' => array('upayments_cron_lock' => '1')), $GLOBALS['supcheckout_test_object_cache'], 'nothing deleted');
+        $GLOBALS['supcheckout_test_ext_object_cache'] = false;
+    }
+
+    public function test_a_deleted_transient_is_confirmed_gone_from_its_rows(): void {
+        \supcheckout_test_reset_availability();
+        $GLOBALS['wpdb'] = $this->db;
+        $GLOBALS['supcheckout_test_ext_object_cache'] = false;
+        set_transient('upayments_cron_lock', '1', 60);
+        $this->db->var = '0';
+
+        self::assertTrue((new WordPressCopyStore())->delete_transient('upayments_cron_lock'));
+        self::assertFalse(get_transient('upayments_cron_lock'));
+        $this->db->var = '1';
+        self::assertFalse((new WordPressCopyStore())->delete_transient('upayments_cron_lock'), 'a row left behind is not deleted');
     }
 
     public function test_an_unsafe_column_name_makes_the_column_list_unreadable(): void {

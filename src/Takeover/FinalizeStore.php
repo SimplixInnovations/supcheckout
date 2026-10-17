@@ -40,8 +40,10 @@ interface FinalizeStore extends RollbackStore {
     public function option_names_with_prefix($prefix, $after_name, $limit);
 
     /**
+     * Read-only: never through get_transient(), which deletes an expired transient's rows.
+     *
      * @param string $name Transient name.
-     * @return bool True while the transient holds a value.
+     * @return bool True while the transient has a value or timeout row (or a cache entry).
      */
     public function transient_exists($name);
 

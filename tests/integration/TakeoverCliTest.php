@@ -467,7 +467,12 @@ if ($phase === 'finalize') {
         }
         return wp_json_encode(array($options, $users, $products, $meta, $tables));
     };
+    // An expired official transient: get_transient() would delete both rows, so a dry run
+    // that read it that way would write.
+    update_option('_transient_timeout_upayments_cron_lock', time() - 60, false);
+    update_option('_transient_upayments_cron_lock', '1', false);
     $before = $snapshot();
+    supcheckout_cert_assert(strpos($before, '_transient_timeout_upayments_cron_lock') !== false, 'the snapshot covers the expired official transient');
     $dry = supcheckout_takeover_cert_wp('supcheckout takeover finalize --dry-run --format=json');
     $plan = json_decode(trim($dry->stdout), true);
     supcheckout_cert_note('dry-run plan: ' . $dry->stdout . $dry->stderr);

@@ -54,7 +54,7 @@ function delete_option($name) {}
 /** @return bool */
 function wp_cache_delete($key, $group = '') {}
 /** @return mixed */
-function wp_cache_get($key, $group = '') {}
+function wp_cache_get($key, $group = '', $force = false, &$found = null) {}
 /** @return bool */
 function wp_cache_set($key, $data, $group = '', $expire = 0) {}
 function wp_remote_get($url, $args = array()) {}

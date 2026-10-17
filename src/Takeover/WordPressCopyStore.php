@@ -497,13 +497,30 @@ final class WordPressCopyStore implements FinalizeStore {
         return is_array($names) ? array_values(array_map('strval', $names)) : array();
     }
 
+    /**
+     * Read-only presence (Finalize::plan() and the removal): never get_transient(), which
+     * deletes an expired transient's rows. Without an external object cache, the value or
+     * timeout row in the options table; with one, a cache lookup (wp_cache_get() never deletes).
+     *
+     * @param string $name Transient name.
+     * @return bool
+     */
     public function transient_exists($name) {
-        return get_transient((string) $name) !== false;
+        global $wpdb;
+        if (function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache()) {
+            $found = false;
+            wp_cache_get((string) $name, 'transient', false, $found);
+            return (bool) $found;
+        }
+        $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i WHERE option_name IN (%s, %s)', $wpdb->options, '_transient_' . $name, '_transient_timeout_' . $name);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; a read-only presence check that must not expire (delete) the transient as get_transient() does.
+        $count = $wpdb->get_var($prepared);
+        return is_numeric($count) && (int) $count > 0;
     }
 
     public function delete_transient($name) {
         delete_transient((string) $name);
-        return get_transient((string) $name) === false;
+        return !$this->transient_exists($name);
     }
 
     public function named_table_exists($unprefixed) {

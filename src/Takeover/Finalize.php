@@ -10,7 +10,8 @@ defined('ABSPATH') || exit;
  *
  * run():
  *  1. only from cut_over, and only Keys/TakeoverState::FINALIZE_AFTER_DAYS after cut_over_at
- *     unless the owner forces it after review (`too_early` otherwise);
+ *     unless the owner forces it after review (`too_early` otherwise); the force never
+ *     accepts a missing or future cut_over_at (`cut_over_time_invalid`);
  *  2. take the Quiesce lease (claims and the scheduler defer) and re-read the state under it;
  *     an active official plugin refuses (`official_active`: it writes legacy names and
  *     ignores the lease, so a legacy value could change between verification and removal);
@@ -128,6 +129,19 @@ final class Finalize {
     }
 
     /**
+     * --force-after-review only bypasses the 30 days. A missing or future cut_over_at always
+     * refuses (`cut_over_time_invalid`, exit 3: the record is inconsistent, not early), because
+     * the legacy table's straggler guard compares updated_gmt with it.
+     *
+     * @param array<string, mixed> $state TakeoverState::get().
+     * @return bool Whether cut_over_at is a real past cutover time.
+     */
+    public static function cut_over_time_valid(array $state) {
+        $cut_over_at = isset($state['cut_over_at']) ? (int) $state['cut_over_at'] : 0;
+        return $cut_over_at > 0 && $cut_over_at <= time();
+    }
+
+    /**
      * @param array<string, mixed> $state TakeoverState::get().
      * @return bool A finalized store whose legacy removal has not completed.
      */
@@ -148,6 +162,9 @@ final class Finalize {
         }
         if ($state['status'] !== TakeoverState::CUT_OVER) {
             return $this->result('not_cut_over');
+        }
+        if (!self::cut_over_time_valid($state)) {
+            return $this->result('cut_over_time_invalid');
         }
         if (!$this->allowed($state, (bool) $force_after_review)) {
             return $this->result('too_early');
@@ -186,6 +203,8 @@ final class Finalize {
         $refuse = array();
         if ($state['status'] !== TakeoverState::CUT_OVER && $state['status'] !== TakeoverState::FINALIZED) {
             $refuse[] = 'not_cut_over';
+        } elseif ($state['status'] === TakeoverState::CUT_OVER && !self::cut_over_time_valid($state)) {
+            $refuse[] = 'cut_over_time_invalid';
         } elseif ($state['status'] === TakeoverState::CUT_OVER && !$this->allowed($state, false)) {
             $refuse[] = 'too_early';
         }
@@ -242,6 +261,9 @@ final class Finalize {
         $state = TakeoverState::get();
         if ($state['status'] !== TakeoverState::CUT_OVER) {
             return 'not_cut_over';
+        }
+        if (!self::cut_over_time_valid($state)) {
+            return 'cut_over_time_invalid';
         }
         if (!$this->allowed($state, $force)) {
             return 'too_early';

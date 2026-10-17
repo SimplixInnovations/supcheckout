@@ -21,8 +21,7 @@ defined('ABSPATH') || exit;
  * Phases, in order:
  * - cron: every legacy-named Keys::cron_hooks() event whose new-name twin (same arguments)
  *   exists is unscheduled (one without a twin is kept: its callback still listens on both
- *   names), and every Keys::official_only() cron event (exact hooks and the update-checker
- *   prefixes);
+ *   names);
  * - orders (under the per-order lock, one save() per order), users and products: every
  *   legacy meta key whose new key holds the identical value list (in row order), and every
  *   Keys::takeover_markers() meta. A user key with several legacy rows (the copy runner's
@@ -33,9 +32,11 @@ defined('ABSPATH') || exit;
  *   exist only for Rollback. SettingsCopier makes no backup: its restore source is the
  *   legacy gateway settings option itself, which is a protected identity and stays (keeping
  *   it is fail-safe; settings reads after cutover take woocommerce_supcheckout_settings first);
- * - official: every Keys::official_only() option (exact and by prefix) and transient, except
- *   SHARED_OPTIONS (a generic name another plugin may own; reported). Its tables are
- *   reported by Finalize, never touched;
+ * - official: everything only the official plugin owns, in one unit that Finalize starts with
+ *   a fresh official_active check: its Keys::official_only() cron events (exact hooks and the
+ *   update-checker prefixes), options (exact and by prefix, except SHARED_OPTIONS, a generic
+ *   name another plugin may own; reported) and transients (its `upayments_cron_lock` cron
+ *   mutex among them). Its tables are reported by Finalize, never touched;
  * - ephemeral: legacy rows by storage type (Keys::ephemeral_storage()): plain options by
  *   name, transients through delete_transient() plus orphaned timeout rows; GET_LOCK() names
  *   have no rows;
@@ -122,7 +123,7 @@ final class FinalizeRemoval {
             case self::PHASE_BACKUPS:
                 return self::backups($store, $apply);
             case self::PHASE_OFFICIAL:
-                return self::official($store, $apply);
+                return self::official($store, $system, $apply);
             case self::PHASE_EPHEMERAL:
                 return self::ephemeral($store, (string) $cursor, $apply);
             default:
@@ -184,17 +185,11 @@ final class FinalizeRemoval {
             $present[$event['hook'] . '#' . self::args_key($event['args'])] = true;
         }
         foreach ($events as $event) {
-            $counter = null;
-            if (isset($hooks[$event['hook']])) {
-                if (!isset($present[$hooks[$event['hook']] . '#' . self::args_key($event['args'])])) {
-                    $result['kept'] = self::merge_kept($result['kept'], array(self::kept_group('cron', $event['hook'], 'new_event_missing')));
-                    continue;
-                }
-                $counter = 'legacy_cron';
-            } elseif (self::is_official_cron($event['hook'])) {
-                $counter = 'official_cron';
+            if (!isset($hooks[$event['hook']])) {
+                continue;
             }
-            if ($counter === null) {
+            if (!isset($present[$hooks[$event['hook']] . '#' . self::args_key($event['args'])])) {
+                $result['kept'] = self::merge_kept($result['kept'], array(self::kept_group('cron', $event['hook'], 'new_event_missing')));
                 continue;
             }
             if ($apply && !self::unschedule($system, $event)) {
@@ -202,7 +197,7 @@ final class FinalizeRemoval {
                 $failed['kept'] = $result['kept'];
                 return $failed;
             }
-            ++$result['removed'][$counter];
+            ++$result['removed']['legacy_cron'];
         }
         return $result;
     }
@@ -494,12 +489,22 @@ final class FinalizeRemoval {
     }
 
     /**
-     * @param FinalizeStore $store Store.
-     * @param bool          $apply Remove.
+     * @param FinalizeStore $store  Store.
+     * @param CutoverSystem $system Cron (a RollbackSystem when $apply).
+     * @param bool          $apply  Remove.
      * @return array{status:string, progress:array{phase:string, cursor:int|string}, removed:array<string,int>, kept:list<array<string,mixed>>}
      */
-    private static function official(FinalizeStore $store, $apply) {
+    private static function official(FinalizeStore $store, CutoverSystem $system, $apply) {
         $result = self::result(self::CONTINUE_RUN, self::PHASE_EPHEMERAL, '0:');
+        foreach ($system->cron_events() as $event) {
+            if (!self::is_official_cron($event['hook'])) {
+                continue;
+            }
+            if ($apply && !self::unschedule($system, $event)) {
+                return self::result(self::FAILED, self::PHASE_OFFICIAL, '');
+            }
+            ++$result['removed']['official_cron'];
+        }
         $official = Keys::official_only();
         $missing = new \stdClass();
         $names = array();

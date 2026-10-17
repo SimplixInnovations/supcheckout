@@ -638,6 +638,44 @@ final class FinalizeTest extends TestCase {
         self::assertNotContains('quiesced', $result['steps']);
     }
 
+    public function test_an_official_plugin_activated_mid_pass_keeps_its_cron_and_mutex(): void {
+        $this->seed_cut_over();
+        $this->seed_leftovers();
+        $system = $this->system;
+        $this->store->on_load_order = static function () use ($system) {
+            // Activated while the order phase runs, before the official phase of the same pass.
+            $system->official = 'upayments/UPayments.php';
+        };
+
+        $result = $this->finalize()->run(true);
+
+        self::assertSame('official_active', $result['error'], (string) json_encode($result));
+        self::assertContains('upay_hourly_cron_job', $this->hooks(), 'its cron event survives');
+        self::assertContains('puc_cron_check_updates-upayments', $this->hooks());
+        self::assertSame('1', get_option('_transient_upayments_cron_lock'), 'its cron mutex survives');
+        self::assertSame(array('checked' => 1), get_option('external_updates-upayments'), 'its options survive');
+        self::assertSame(0, $result['removed']['official_cron']);
+    }
+
+    public function test_a_missing_or_future_cut_over_time_refuses_finalize_even_when_forced(): void {
+        foreach (array('missing' => 0, 'future' => time() + self::DAY) as $case => $cut_over_at) {
+            $this->setUp();
+            $order = $this->seed_cut_over();
+            $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+            $state['cut_over_at'] = $cut_over_at;
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+            TakeoverState::flush_cache();
+            $options = $GLOBALS['supcheckout_test_options'];
+
+            $result = $this->finalize()->run(true);
+
+            self::assertSame('cut_over_time_invalid', $result['error'], $case);
+            self::assertSame($options, $GLOBALS['supcheckout_test_options'], $case . ': no lease, state or journal write');
+            self::assertSame(array('pay-7'), $order->persisted_values('UPayments_PaymentID'), $case);
+            self::assertContains('cut_over_time_invalid', $this->finalize()->plan()['would_refuse'], $case . ': the dry run says so');
+        }
+    }
+
     public function test_a_legacy_table_read_error_keeps_the_table(): void {
         foreach (array('keys_unreadable', 'read_error') as $case) {
             $this->setUp();

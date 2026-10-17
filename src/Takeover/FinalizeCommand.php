@@ -15,7 +15,8 @@ defined('ABSPATH') || exit;
  *  2 BLOCKED    the official plugin is active (it writes legacy names, ignores the lease and
  *               holds its own cron mutex), also on a resume or a sweep of a finalized store;
  *  3 MISMATCH   verification refused before the transition: unreadable journal, disagreeing
- *               token-identity secrets, or no new billing table; nothing changed;
+ *               token-identity secrets, no new billing table, or a missing or future
+ *               cut_over_at (which --force-after-review never overrides); nothing changed;
  *  4 BUSY       the takeover lease is held or was lost, the state changed meanwhile, an
  *               order stayed locked by a payment request, or late writers still recreated
  *               legacy names after the settle time (`removal_unsettled`); rerun later (it
@@ -44,6 +45,7 @@ final class FinalizeCommand {
         'journal_unreadable' => CliCommands::MISMATCH,
         'options_mismatch' => CliCommands::MISMATCH,
         'new_table_missing' => CliCommands::MISMATCH,
+        'cut_over_time_invalid' => CliCommands::MISMATCH,
     );
 
     /** @var CopyStore */
@@ -147,6 +149,9 @@ final class FinalizeCommand {
         }
         if ($state['status'] !== TakeoverState::CUT_OVER) {
             return $this->fail(CliCommands::STATE, 'state "' . $state['status'] . '" does not allow finalize (it needs a cut-over store)');
+        }
+        if (!Finalize::cut_over_time_valid($state)) {
+            return $this->fail(CliCommands::MISMATCH, 'the recorded cutover time is missing or in the future; --force-after-review never overrides it');
         }
         $days = Finalize::days_left($state, time());
         if ($days > 0 && !$force) {

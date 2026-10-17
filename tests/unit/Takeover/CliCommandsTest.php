@@ -777,6 +777,19 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
     }
 
+    public function test_finalize_with_a_missing_cut_over_time_exits_3_even_when_forced(): void {
+        $this->cut_over();
+        $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+        $state['cut_over_at'] = 0;
+        $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+        TakeoverState::flush_cache();
+
+        self::assertSame(CliCommands::MISMATCH, $this->cli()->finalize(true, true, false));
+
+        self::assertStringContainsString('--force-after-review never overrides it', $this->printed());
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+    }
+
     public function test_finalize_dry_run_writes_nothing_and_prints_the_plan(): void {
         $this->cut_over();
         self::age(3);

@@ -197,11 +197,17 @@ final class TakeoverStateTest extends TestCase {
         self::assertFalse(self::stored()['finalize_forced']);
     }
 
-    public function test_finalize_is_refused_when_the_cut_over_time_is_missing(): void {
-        self::seed(array('status' => 'cut_over', 'cut_over_at' => 0, 'cursor' => 0, 'totals' => array()));
+    public function test_finalize_is_refused_when_the_cut_over_time_is_missing_or_in_the_future_even_when_forced(): void {
+        // --force-after-review only bypasses the 30 days: Finalize's straggler guard compares
+        // legacy rows with cut_over_at, so it must be a real past cutover time.
+        foreach (array('missing' => 0, 'future' => time() + self::DAY) as $case => $cut_over_at) {
+            \supcheckout_test_reset_wp_options();
+            self::seed(array('status' => 'cut_over', 'cut_over_at' => $cut_over_at, 'cursor' => 0, 'totals' => array()));
 
-        self::assertFalse(TakeoverState::transition('finalized'));
-        self::assertTrue(TakeoverState::transition('finalized', true));
+            self::assertFalse(TakeoverState::transition('finalized'), $case);
+            self::assertFalse(TakeoverState::transition('finalized', true), $case . ': force never unlocks it');
+            self::assertSame('cut_over', TakeoverState::get()['status'], $case);
+        }
     }
 
     public function test_the_force_flag_never_unlocks_any_other_transition(): void {
