@@ -62,4 +62,5 @@ parameters:
         - src/Takeover/Environment.php
         - src/Takeover/Preflight.php
         - src/Takeover/OfficialFootprint.php
+        - src/Takeover/OrderCopier.php
     tmpDir: .cache/phpstan

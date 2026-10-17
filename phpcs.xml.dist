@@ -54,6 +54,7 @@
     <file>src/Takeover/Environment.php</file>
     <file>src/Takeover/Preflight.php</file>
     <file>src/Takeover/OfficialFootprint.php</file>
+    <file>src/Takeover/OrderCopier.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

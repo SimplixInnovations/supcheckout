@@ -489,8 +489,12 @@ final class Environment {
         );
     }
 
-    /** @return bool */
-    private static function hpos_enabled() {
+    /**
+     * Shared with the takeover copier, which reads postmeta for the same disagreement.
+     *
+     * @return bool True when WooCommerce HPOS is the authoritative order store.
+     */
+    public static function hpos_enabled() {
         // OrderUtil exists since WooCommerce 6.9; SUPCheckout requires 10.8.
         if (!class_exists(\Automattic\WooCommerce\Utilities\OrderUtil::class)) {
             return false;
