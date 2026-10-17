@@ -49,14 +49,16 @@ a5_assert(is_file($gatewayPath) && is_file($gatewayClassPath), 'legacy gateway a
 a5_assert(is_file($payloadPath), 'CheckoutPayload service exists');
 a5_assert(is_file($orchestratorPath), 'CheckoutOrchestrator service exists');
 
-$gateway = (string) file_get_contents($gatewayPath) . "\n" . (string) file_get_contents($gatewayClassPath);
+// src/Plugin.php holds the main file's requires since Sub-project 0a Task 5.
+$gatewayPlugin = (string) file_get_contents($root . '/src/Plugin.php');
+$gateway = (string) file_get_contents($gatewayPath) . "\n" . $gatewayPlugin . "\n" . (string) file_get_contents($gatewayClassPath);
 $payload = file_get_contents($payloadPath);
 $orchestrator = file_get_contents($orchestratorPath);
 
 a5_assert(a5_contains($payload, 'namespace Simplixi\\SUPCheckout\\Payment;'), 'payload service uses Payment namespace');
 a5_assert(a5_contains($orchestrator, 'namespace Simplixi\\SUPCheckout\\Payment;'), 'orchestrator uses Payment namespace');
-a5_assert(a5_contains($gateway, "require_once __DIR__ . '/src/Payment/CheckoutPayload.php';"), 'gateway loads payload service');
-a5_assert(a5_contains($gateway, "require_once __DIR__ . '/src/Payment/CheckoutOrchestrator.php';"), 'gateway loads orchestrator service');
+a5_assert(a5_contains($gatewayPlugin, "require_once __DIR__ . '/Payment/CheckoutPayload.php';"), 'gateway loads payload service');
+a5_assert(a5_contains($gatewayPlugin, "require_once __DIR__ . '/Payment/CheckoutOrchestrator.php';"), 'gateway loads orchestrator service');
 a5_assert(a5_contains($gateway, 'new CheckoutOrchestrator('), 'legacy process entry point composes orchestrator');
 a5_assert(a5_contains($gateway, '))->process($order_id);'), 'legacy process entry point delegates the order ID');
 a5_assert(substr_count($gateway, 'new CheckoutOrchestrator(') === 1, 'gateway has one checkout orchestrator composition point');

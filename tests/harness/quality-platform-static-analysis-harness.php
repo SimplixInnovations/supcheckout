@@ -157,7 +157,9 @@ $composer = json_decode(q2_read($q2_root, 'composer.json'), true);
 $phpstan = q2_read($q2_root, 'phpstan.neon.dist');
 $tests = q2_read($q2_root, 'tests/unit/Payment/CheckoutPayloadTest.php');
 $checkout = q2_read($q2_root, 'src/Payment/CheckoutPayload.php');
-$runtime = q2_read($q2_root, 'supcheckout.php');
+// The main file's runtime requires moved into src/Plugin.php in Sub-project 0a Task 5,
+// so the no-Composer-loader rule reads both.
+$runtime = q2_read($q2_root, 'supcheckout.php') . "\n" . q2_read($q2_root, 'src/Plugin.php');
 $workflow = q2_read($q2_root, '.github/workflows/quality-gates.yml');
 $quality_record = q2_read($q2_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q2_read($q2_root, 'docs/project/PROJECT-STATUS.md');

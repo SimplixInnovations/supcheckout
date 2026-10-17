@@ -47,11 +47,16 @@ $gateway_class_source = file_get_contents($root . '/src/Gateway/Gateway.php');
 $gateway_registration_source = file_get_contents($root . '/src/Gateway/GatewayRegistration.php');
 // The My Account subscription action handler left the bootstrap in Sub-project 0a Task 4.
 $subscription_actions_source = file_get_contents($root . '/src/Account/SubscriptionActions.php');
-$runtime_source = $bootstrap . "\n" . $gateway_class_source . "\n" . $checkout_orchestrator;
+// The main file's constants and requires moved verbatim into Plugin::load_runtime()
+// in Sub-project 0a Task 5; the bootstrap rules below cover both files together.
+$plugin_source = file_get_contents($root . '/src/Plugin.php');
+$bootstrap_path_sources = $bootstrap . "\n" . $plugin_source;
+$runtime_source = $bootstrap_path_sources . "\n" . $gateway_class_source . "\n" . $checkout_orchestrator;
 $identity_source = file_get_contents($identity_path);
 $uninstall = file_get_contents($uninstall_path);
 
 p0_assert(is_string($bootstrap) && $bootstrap !== '', 'bootstrap is readable');
+p0_assert(is_string($plugin_source) && p0_contains($plugin_source, 'final class Plugin'), 'composition root src/Plugin.php is readable');
 p0_assert(is_string($identity_source) && $identity_source !== '', 'release identity source is readable');
 p0_assert(is_string($uninstall) && $uninstall !== '', 'uninstall source is readable');
 
@@ -76,16 +81,16 @@ p0_assert(p0_header_value($bootstrap, 'Text Domain') === Identity::TARGET_TEXT_D
 p0_assert(Identity::TARGET_TEXT_DOMAIN === 'supcheckout', 'target text domain remains frozen');
 
 // Bootstrap exposes canonical SUPCheckout identity without destroying legacy plugin-file API.
-p0_assert(p0_contains($bootstrap, "src/Release/Identity.php"), 'bootstrap loads canonical release identity');
-p0_assert(p0_contains($bootstrap, "SUPCHECKOUT_VERSION"), 'bootstrap defines canonical version constant');
-p0_assert(p0_contains($bootstrap, "SUPCHECKOUT_PLUGIN_FILE"), 'bootstrap defines canonical plugin-file constant');
-p0_assert(p0_contains($bootstrap, "UPAYMENTS_PLUGIN_FILE"), 'legacy plugin-file constant remains available');
+p0_assert(p0_contains($plugin_source, "require_once __DIR__ . '/Release/Identity.php';"), 'bootstrap loads canonical release identity');
+p0_assert(p0_contains($plugin_source, "define('SUPCHECKOUT_VERSION'"), 'bootstrap defines canonical version constant');
+p0_assert(p0_contains($plugin_source, "define('SUPCHECKOUT_PLUGIN_FILE'"), 'bootstrap defines canonical plugin-file constant');
+p0_assert(p0_contains($plugin_source, "define('UPAYMENTS_PLUGIN_FILE'"), 'legacy plugin-file constant remains available');
 
 // No external self-update authority may remain after Phase 0A.
 p0_assert(Identity::UPDATE_CHANNEL === 'disabled', 'release identity records disabled external update channel');
-p0_assert(!p0_contains($bootstrap, 'upaymentskwt/woocommerce'), 'upstream repository is not an update authority');
-p0_assert(!p0_contains($bootstrap, 'PucFactory'), 'bootstrap no longer instantiates Plugin Update Checker');
-p0_assert(!p0_contains($bootstrap, 'plugin-update-checker'), 'bootstrap no longer loads Plugin Update Checker');
+p0_assert(!p0_contains($bootstrap_path_sources, 'upaymentskwt/woocommerce'), 'upstream repository is not an update authority');
+p0_assert(!p0_contains($bootstrap_path_sources, 'PucFactory'), 'bootstrap no longer instantiates Plugin Update Checker');
+p0_assert(!p0_contains($bootstrap_path_sources, 'plugin-update-checker'), 'bootstrap no longer loads Plugin Update Checker');
 p0_assert(!is_dir($root . '/vendor/plugin-update-checker'), 'bundled Plugin Update Checker is removed');
 
 // Exactly one physical main file: the owner-approved supcheckout.php rename (Sub-project 0a, 2026-10-16).
@@ -102,7 +107,7 @@ p0_assert(
     'gateway class identity remains present and registered with WooCommerce'
 );
 p0_assert(p0_contains($runtime_source, 'wc_upayments'), 'legacy callback route remains present');
-p0_assert(p0_contains($bootstrap . "\n" . $subscription_actions_source, "'upayments'"), 'legacy upayments runtime identity remains present');
+p0_assert(p0_contains($bootstrap_path_sources . "\n" . $subscription_actions_source, "'upayments'"), 'legacy upayments runtime identity remains present');
 
 $token_source = file_get_contents($root . '/includes/Token/CustomerTokenIdentity.php');
 p0_assert(p0_contains($token_source, 'upayments_token_identity_secret_v2'), 'H12 identity secret key remains protected');

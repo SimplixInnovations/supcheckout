@@ -123,7 +123,7 @@ coexistence_assert(strpos($shim_official['out'], 'ACTIVE:["supcheckout/supchecko
 
 // The 'upayments' gateway identity is shared with the official plugin until 0b, so a
 // paused SUPCheckout must register no gateway, availability or wc_upayments hook
-// (Plugin::boot() runs inside the pause guard). A running one registers all three.
+// (Plugin::boot() runs only after the pause early-return). A running one registers all three.
 $all_gateway_hooks = 'GATEWAY_HOOKS:["woocommerce_api_wc_upayments","woocommerce_available_payment_gateways","woocommerce_payment_gateways"]';
 foreach (array(
     'official_first' => $official_first,

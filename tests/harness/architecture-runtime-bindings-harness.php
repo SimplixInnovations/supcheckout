@@ -1039,37 +1039,24 @@ function arch2_code_without_strings(array $tokens)
 }
 
 $gateway = arch2_read($root, 'supcheckout.php');
-// Owner-approved exception (official UPayments coexistence): the main file may wrap its
-// declarations in exactly one condition, the official-plugin pause guard, opened right
-// after the conflict class is loaded and closed by the file's final endif. Everything
-// inside is then held to the same direct, unconditional rules as before; any other
-// wrapper, or a guard anywhere else, leaves the source unchanged and fails below.
-$coexistenceGuard = "require_once __DIR__ . '/src/Gateway/OfficialPluginConflict.php';
-
-";
-$coexistenceOpen = "if ( ! \Simplixi\SUPCheckout\Gateway\OfficialPluginConflict::pause_if_active( __FILE__ ) ) :
-";
-$coexistenceClose = "
-
-endif;
-";
-$coexistenceOpenAt = strpos($gateway, $coexistenceOpen);
-$coexistenceGuardAt = strpos($gateway, $coexistenceGuard);
-$coexistenceWrapped = substr_count($gateway, $coexistenceOpen) === 1
-    && substr_count($gateway, 'OfficialPluginConflict::pause_if_active(') === 1
-    && $coexistenceGuardAt !== false
-    && $coexistenceOpenAt !== false
-    && $coexistenceGuardAt < $coexistenceOpenAt
-    && strpos(substr($gateway, $coexistenceGuardAt + strlen($coexistenceGuard), $coexistenceOpenAt - $coexistenceGuardAt - strlen($coexistenceGuard)), ';') === false
-    && substr($gateway, -strlen($coexistenceClose)) === $coexistenceClose
-    && substr_count($gateway, "
-endif;") === 1;
-arch2_assert($coexistenceWrapped, 'main file uses exactly the approved official-plugin coexistence wrapper');
-$gatewayUnwrapped = $coexistenceWrapped
-    ? substr($gateway, 0, $coexistenceOpenAt) . substr($gateway, $coexistenceOpenAt + strlen($coexistenceOpen), -strlen($coexistenceClose)) . "
-"
-    : $gateway;
-$gatewayTokens = arch2_tokens($gatewayUnwrapped);
+// Sub-project 0a Task 5: the main file declares nothing, so the PR #146 coexistence
+// wrapper exception is gone. The official-plugin pause guard is now an early return,
+// and the whole executable main file is pinned token-for-token (strings decoded, no
+// whitespace or comments): ABSPATH guard, autoloader, pause guard, then one direct,
+// unconditional Plugin::boot(__FILE__). Any other statement, wrapper or guard fails.
+$gatewayTokens = arch2_tokens($gateway);
+$gatewayExecutable = '';
+foreach ($gatewayTokens as $gatewayToken) {
+    $gatewayExecutable .= $gatewayToken['text'];
+}
+arch2_assert(
+    $gatewayExecutable === 'defined(ABSPATH)||exit;'
+        . 'require_once__DIR__./src/Autoloader.php;'
+        . '\\Simplixi\\SUPCheckout\\Autoloader::register(__DIR__./src);'
+        . 'if(\\Simplixi\\SUPCheckout\\Gateway\\OfficialPluginConflict::pause_if_active(__FILE__)){return;}'
+        . '\\Simplixi\\SUPCheckout\\Plugin::boot(__FILE__);',
+    'main file is exactly the bootstrap: ABSPATH guard, autoloader, early-return official-plugin pause guard, Plugin::boot(__FILE__)'
+);
 $subscriptionComposition = arch2_read($root, 'src/Subscription/Composition.php');
 
 // Sub-project 0a Task 3 moves the two WooCommerce gateway bindings from global
@@ -1096,8 +1083,31 @@ arch2_assert(
     $pluginBoot['found']
         && $compactBody($pluginBoot['body']) === 'if(self::$main_file!==null){return;}self::$main_file=(string)$main_file;GatewayRegistration::register();'
             . 'Requirements::register();WooCommerceDeclarations::register();PaymentMethodRegistration::register();'
-            . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();',
-    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook'
+            . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();'
+            . 'self::load_runtime(self::$main_file);',
+    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then loads the former main-file runtime'
+);
+// The former main-file runtime block (constants, ordered loads, release constants) is pinned
+// exactly: before Task 5 the main-file byte ratchet guarded it, so a dropped or reordered
+// require/define must still fail here even when no other harness checks that file.
+$loadRuntimeBody = preg_match('/private static function load_runtime\(\$main_file\)\s*\{(.*?)\n    \}/s', arch2_read($root, 'src/Plugin.php'), $loadRuntimeMatch) === 1
+    ? preg_replace('/\s+/', '', $loadRuntimeMatch[1])
+    : '';
+arch2_assert(
+    $loadRuntimeBody === 'define("UP_PLUGIN_URL",plugin_dir_url($main_file));define("UP_PLUGIN_PATH",plugin_dir_path($main_file));'
+        . "define('UPAYMENTS_PLUGIN_FILE',\$main_file);"
+        . "require_once__DIR__.'/Release/Identity.php';require_once__DIR__.'/Provider/MultiMerchantContract.php';"
+        . "require_once__DIR__.'/Admin/GatewaySettings.php';require_once__DIR__.'/Gateway/Availability.php';"
+        . "require_once__DIR__.'/Gateway/OrderPresentation.php';require_once__DIR__.'/Provider/EndpointResolver.php';"
+        . "require_once__DIR__.'/Provider/PaymentMethodAvailability.php';require_once__DIR__.'/Payment/CheckoutPayload.php';"
+        . "require_once__DIR__.'/Payment/CheckoutOrchestrator.php';require_once__DIR__.'/Payment/SavedCardSelection.php';"
+        . "require_once__DIR__.'/Payment/SavedCardPresentation.php';require_once__DIR__.'/Subscription/Presentation.php';"
+        . "require_once__DIR__.'/Subscription/Composition.php';require_once__DIR__.'/Subscription/RenewalCardAuthority.php';"
+        . "require_once__DIR__.'/Subscription/CycleEconomics.php';require_once__DIR__.'/Subscription/AutoDeductResultVerifier.php';"
+        . "require_oncedirname(__DIR__).'/includes/Token/CustomerTokenIdentity.php';require_once__DIR__.'/Migration/MigrationBootstrap.php';"
+        . "define('SUPCHECKOUT_VERSION',Identity::VERSION);define('SUPCHECKOUT_SLUG',Identity::SLUG);"
+        . "define('SUPCHECKOUT_PLUGIN_FILE',\$main_file);define('SUPCHECKOUT_UPDATE_CHANNEL',Identity::UPDATE_CHANNEL);",
+    'Plugin::load_runtime defines the former main-file constants and loads the former main-file runtime files exactly, in order'
 );
 arch2_assert(
     $registrationRegister['found']

@@ -256,10 +256,12 @@ if (isset($registry['upayments'])) {
 
 $resolverSource = file_get_contents(dirname(__DIR__, 2) . '/src/Provider/EndpointResolver.php');
 // The gateway source is the main file plus the gateway class it registers
-// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3), plus src/Plugin.php, which
+// holds the main file's requires since Sub-project 0a Task 5.
 $gatewayMain = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+$gatewayPlugin = file_get_contents(dirname(__DIR__, 2) . '/src/Plugin.php');
 $gatewayClass = file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
-$gatewaySource = is_string($gatewayMain) && is_string($gatewayClass) ? $gatewayMain . "\n" . $gatewayClass : false;
+$gatewaySource = is_string($gatewayMain) && is_string($gatewayPlugin) && is_string($gatewayClass) ? $gatewayMain . "\n" . $gatewayPlugin . "\n" . $gatewayClass : false;
 arch4_assert(is_string($resolverSource), 'provider endpoint resolver source is readable');
 arch4_assert(is_string($gatewaySource), 'gateway source is readable');
 arch4_assert(
@@ -301,7 +303,7 @@ arch4_assert(
     'gateway monolith no longer owns provider API bases'
 );
 arch4_assert(
-    strpos($gatewaySource, "require_once __DIR__ . '/src/Provider/EndpointResolver.php';") !== false,
+    strpos((string) $gatewayPlugin, "require_once __DIR__ . '/Provider/EndpointResolver.php';") !== false,
     'gateway bootstrap loads provider endpoint resolver explicitly'
 );
 arch4_assert(

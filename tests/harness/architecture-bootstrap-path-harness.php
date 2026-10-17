@@ -1151,37 +1151,15 @@ function arch3_direct_file_class(array $tokens, $className)
 }
 
 $gateway = arch3_read($root, 'supcheckout.php');
-// Owner-approved exception (official UPayments coexistence): the main file may wrap its
-// declarations in exactly one condition, the official-plugin pause guard, opened right
-// after the conflict class is loaded and closed by the file's final endif. Everything
-// inside is then held to the same direct, unconditional rules as before; any other
-// wrapper, or a guard anywhere else, leaves the source unchanged and fails below.
-$coexistenceGuard = "require_once __DIR__ . '/src/Gateway/OfficialPluginConflict.php';
-
-";
-$coexistenceOpen = "if ( ! \Simplixi\SUPCheckout\Gateway\OfficialPluginConflict::pause_if_active( __FILE__ ) ) :
-";
-$coexistenceClose = "
-
-endif;
-";
-$coexistenceOpenAt = strpos($gateway, $coexistenceOpen);
-$coexistenceGuardAt = strpos($gateway, $coexistenceGuard);
-$coexistenceWrapped = substr_count($gateway, $coexistenceOpen) === 1
-    && substr_count($gateway, 'OfficialPluginConflict::pause_if_active(') === 1
-    && $coexistenceGuardAt !== false
-    && $coexistenceOpenAt !== false
-    && $coexistenceGuardAt < $coexistenceOpenAt
-    && strpos(substr($gateway, $coexistenceGuardAt + strlen($coexistenceGuard), $coexistenceOpenAt - $coexistenceGuardAt - strlen($coexistenceGuard)), ';') === false
-    && substr($gateway, -strlen($coexistenceClose)) === $coexistenceClose
-    && substr_count($gateway, "
-endif;") === 1;
-arch3_assert($coexistenceWrapped, 'main file uses exactly the approved official-plugin coexistence wrapper');
-$gatewayUnwrapped = $coexistenceWrapped
-    ? substr($gateway, 0, $coexistenceOpenAt) . substr($gateway, $coexistenceOpenAt + strlen($coexistenceOpen), -strlen($coexistenceClose)) . "
-"
-    : $gateway;
-$gatewayTokens = arch3_tokens($gatewayUnwrapped);
+// Sub-project 0a Task 5: the main file declares nothing, so the PR #146 coexistence
+// wrapper exception is deleted. The official-plugin pause guard is an early return,
+// and the direct/unconditional rules below apply to the main file as written.
+$gatewayTokens = arch3_tokens($gateway);
+$pauseGuard = 'if(\\Simplixi\\SUPCheckout\\Gateway\\OfficialPluginConflict::pause_if_active(__FILE__)){return;}';
+$gatewayCompact = '';
+foreach ($gatewayTokens as $gatewayToken) {
+    $gatewayCompact .= $gatewayToken['text'];
+}
 
 // Sub-project 0a Task 4: the global plugins_loaded callback woocommerceUpaymentsInit()
 // is now Bootstrap\Requirements::check_woocommerce(). The same rule (registered by a
@@ -1237,17 +1215,17 @@ arch3_assert(
     'main file directly and unconditionally calls Plugin::boot(__FILE__)'
 );
 // Plugin::boot() registers the 'upayments' gateway, which the official plugin also
-// owns until 0b: the call must sit inside the official-plugin pause guard, once.
+// owns until 0b: the call must come once, after the official-plugin pause guard's early
+// return, as the main file's final statement (so it never runs while paused).
 $bootCall = '\\Simplixi\\SUPCheckout\\Plugin::boot(__FILE__);';
-$bootAt = strpos($gateway, $bootCall);
-$guardCloseAt = strlen($gateway) - strlen($coexistenceClose);
+$pauseGuardAt = strpos($gatewayCompact, $pauseGuard);
 arch3_assert(
-    $coexistenceWrapped
-        && substr_count($gateway, $bootCall) === 1
-        && $bootAt !== false
-        && $bootAt > $coexistenceOpenAt + strlen($coexistenceOpen)
-        && $bootAt < $guardCloseAt,
-    'Plugin::boot(__FILE__) is called exactly once, inside the official-plugin pause guard'
+    substr_count($gatewayCompact, $pauseGuard) === 1
+        && substr_count($gatewayCompact, 'OfficialPluginConflict::pause_if_active(') === 1
+        && substr_count($gatewayCompact, $bootCall) === 1
+        && $pauseGuardAt !== false
+        && substr($gatewayCompact, $pauseGuardAt) === $pauseGuard . $bootCall,
+    'Plugin::boot(__FILE__) is called exactly once, directly after the official-plugin pause guard returns early'
 );
 arch3_assert(
     $pluginBoot['found'] && arch3_has_direct_statement_text($pluginBoot['body'], 'GatewayRegistration::register();'),
