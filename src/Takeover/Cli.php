@@ -9,14 +9,14 @@ defined('ABSPATH') || exit;
  *
  * Registered as `wp supcheckout takeover` from Plugin::boot() and, while the official
  * plugin is active and SUPCheckout is paused, from PausedBoot::boot(). The behaviour and
- * the exit codes live in CliCommands; this class only binds them to WP-CLI. `finalize`
- * arrives with Sub-project 0b Task 11.
+ * the exit codes live in CliCommands; this class only binds them to WP-CLI.
  *
- * Exit codes: 0 ok, 1 error or declined, 2 blocked by preflight, 3 verification
- * mismatch, 4 busy (retry later), 5 stale billing claims, 6 state does not allow it,
- * 7 already cut over but the official plugin is active again, 8 rolled back or aborted
- * with later edits kept (conflicts), 9 rolled back or aborted but the official plugin was
- * not reactivated.
+ * Exit codes: 0 ok, 1 error or declined, 2 blocked by preflight or an active official
+ * plugin, 3 verification mismatch or refusal, 4 busy (retry later), 5 stale billing claims,
+ * 6 state does not allow it (finalize: too early without --force-after-review), 7 already
+ * cut over but the official plugin is active again, 8 rolled back or aborted with later
+ * edits kept, or finalized with unequal legacy values kept (conflicts), 9 rolled back or
+ * aborted but the official plugin was not reactivated.
  */
 final class Cli {
     public const COMMAND = 'supcheckout takeover';
@@ -156,6 +156,42 @@ final class Cli {
      */
     public function abort($args, $assoc_args) {
         self::finish(self::commands()->abort(isset($assoc_args['yes']), isset($assoc_args['reactivate-official'])));
+    }
+
+    /**
+     * Finalize a cut-over store. IRREVERSIBLE: rollback is no longer possible afterwards.
+     * Removes legacy UPayments names only where the SUPCheckout copy verifies equal (values
+     * that differ are kept and reported, exit 8), the official plugin's leftovers and the
+     * legacy billing table once it matches the new one. Never the legacy callback route,
+     * other plugins' data or the official "Checkout (Block)" page. Allowed 30 days after the
+     * cutover. Rerunnable.
+     *
+     * ## OPTIONS
+     *
+     * [--yes]
+     * : Do not ask for confirmation.
+     *
+     * [--force-after-review]
+     * : Finalize before the 30 days have passed (review `--dry-run` first).
+     *
+     * [--dry-run]
+     * : Print what would be removed, kept and reported; write nothing.
+     *
+     * [--format=<format>]
+     * : Dry-run output format.
+     * ---
+     * default: table
+     * options:
+     *   - table
+     *   - json
+     * ---
+     *
+     * @param array<int, string>    $args       Positional arguments.
+     * @param array<string, string> $assoc_args Options.
+     * @return void
+     */
+    public function finalize($args, $assoc_args) {
+        self::finish(self::commands()->finalize(isset($assoc_args['yes']), isset($assoc_args['force-after-review']), isset($assoc_args['dry-run']), self::is_json($assoc_args)));
     }
 
     /** @return CliCommands */
