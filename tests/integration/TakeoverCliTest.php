@@ -108,9 +108,11 @@ function supcheckout_takeover_cert_steps($stdout, $command) {
  */
 function supcheckout_takeover_cert_equal_order_meta() {
     $values = static function ($order, $key) {
-        return array_map(static function ($meta) {
+        // get_meta() keys the list by its position in the order's meta array, so compare
+        // the ordered values only.
+        return array_values(array_map(static function ($meta) {
             return $meta->value;
-        }, $order->get_meta($key, false, 'edit'));
+        }, $order->get_meta($key, false, 'edit')));
     };
     $count = 0;
     foreach (wc_get_orders(array('limit' => -1, 'return' => 'ids', 'type' => 'shop_order')) as $order_id) {
