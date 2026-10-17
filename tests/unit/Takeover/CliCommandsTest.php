@@ -34,6 +34,8 @@ final class CliCommandsTest extends TestCase {
     private $answer = true;
     /** @var list<string> Cutover steps reached. */
     private $steps = array();
+    /** @var callable|null Copy step override (function (): string, a CopyRunner status). */
+    private $copy_step = null;
 
     protected function setUp(): void {
         \supcheckout_test_reset_wp_options();
@@ -70,7 +72,8 @@ final class CliCommandsTest extends TestCase {
             function ($question) {
                 $this->questions[] = (string) $question;
                 return $this->answer;
-            }
+            },
+            $this->copy_step
         );
     }
 
@@ -366,6 +369,51 @@ final class CliCommandsTest extends TestCase {
         self::assertGreaterThan(0, $this->system->sleeps);
         self::assertLessThanOrEqual(1800000000 + CliCommands::MAX_WAIT + CliCommands::WAIT_POLL, $this->system->now, 'the wait is bounded');
         self::assertSame(TakeoverState::COPYING, TakeoverState::get()['status'], 'resumable');
+    }
+
+    public function test_a_runner_that_keeps_stopping_without_progress_backs_off_then_exits_1(): void {
+        $this->seed();
+        CutoverTest::state('copying');
+        $calls = 0;
+        $this->copy_step = static function () use (&$calls) {
+            ++$calls;
+            if ($calls > 50) {
+                throw new \RuntimeException('hot loop');
+            }
+            return CopyRunner::STOPPED;
+        };
+
+        self::assertSame(CliCommands::ERROR, $this->cli()->run(true, true));
+
+        self::assertSame(CliCommands::MAX_STOPPED, $calls, 'capped at consecutive stops without progress');
+        self::assertSame(CliCommands::MAX_STOPPED - 1, $this->system->sleeps, 'it backs off between stops');
+        self::assertSame(TakeoverState::COPYING, TakeoverState::get()['status'], 'resumable');
+        self::assertSame(array(), $this->system->deactivated);
+        self::assertStringContainsString('stopped', $this->printed());
+    }
+
+    public function test_the_busy_wait_budget_resets_whenever_the_copy_makes_progress(): void {
+        $this->seed();
+        CutoverTest::state('copying');
+        $stall = (int) (CliCommands::MAX_WAIT / CliCommands::WAIT_POLL);
+        $script = array_merge(
+            array_fill(0, $stall, CopyRunner::BUSY),
+            array(CopyRunner::CONTINUE_RUN),
+            array_fill(0, $stall, CopyRunner::RETRY),
+            array(CopyRunner::CONTINUE_RUN, CopyRunner::STOPPED, CopyRunner::CONTINUE_RUN, CopyRunner::STOPPED, CopyRunner::STOPPED),
+            array('verify')
+        );
+        $this->copy_step = static function () use (&$script) {
+            $next = array_shift($script);
+            if ($next === 'verify' || $next === null) {
+                CutoverTest::state('verified', false);
+                return CopyRunner::VERIFIED;
+            }
+            return $next;
+        };
+
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true), $this->printed());
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
     }
 
     public function test_states_run_cannot_continue_from_exit_6(): void {

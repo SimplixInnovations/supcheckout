@@ -65,8 +65,10 @@ final class CliCommands {
 
     /** Seconds between retries while another process holds the copy-runner lock. */
     public const WAIT_POLL = 5;
-    /** Seconds `run` waits for a busy copy runner in total before exiting BUSY. */
+    /** Seconds `run` waits per stall (no progress) for a busy copy runner before exiting BUSY. */
     public const MAX_WAIT = 300;
+    /** Consecutive STOPPED steps with the state still `copying` before `run` exits ERROR. */
+    public const MAX_STOPPED = 3;
 
     /** Cutover error code => exit code. Anything unlisted is ERROR. */
     private const CUTOVER_EXIT = array(
@@ -96,6 +98,8 @@ final class CliCommands {
     private $out;
     /** @var callable */
     private $confirm;
+    /** @var callable|null */
+    private $copy_step;
 
     /**
      * @param callable        $preflight function (): array, Preflight::run()'s report.
@@ -104,14 +108,17 @@ final class CliCommands {
      * @param StaleClaimStore $claims    Billing-attempts table in use.
      * @param callable        $out       function (string $line): void.
      * @param callable        $confirm   function (string $question): bool.
+     * @param callable|null   $copy_step function (): string, one copy step returning a CopyRunner
+     *                                   status; a CopyRunner over $store when omitted.
      */
-    public function __construct($preflight, CopyStore $store, CutoverSystem $system, StaleClaimStore $claims, $out, $confirm) {
+    public function __construct($preflight, CopyStore $store, CutoverSystem $system, StaleClaimStore $claims, $out, $confirm, $copy_step = null) {
         $this->preflight = $preflight;
         $this->store = $store;
         $this->system = $system;
         $this->claims = $claims;
         $this->out = $out;
         $this->confirm = $confirm;
+        $this->copy_step = is_callable($copy_step) ? $copy_step : null;
     }
 
     /**
@@ -296,8 +303,10 @@ final class CliCommands {
      * @return int Exit code.
      */
     private function drive_copy() {
-        $runner = new CopyRunner($this->store, array($this->system, 'now'));
+        $runner = $this->copy_step !== null ? $this->copy_step : array(new CopyRunner($this->store, array($this->system, 'now')), 'run');
+        // Both budgets are per stall: any progress resets them.
         $waited = 0;
+        $stopped = 0;
         while (true) {
             TakeoverState::refresh();
             $state = TakeoverState::get();
@@ -308,19 +317,31 @@ final class CliCommands {
             if ($state['status'] !== TakeoverState::COPYING) {
                 return $this->copy_ended($state);
             }
-            $result = $runner->run();
+            $result = call_user_func($runner);
             if ($result === CopyRunner::CONTINUE_RUN) {
+                $waited = 0;
+                $stopped = 0;
                 $this->print_progress();
                 continue;
             }
-            if ($result === CopyRunner::BUSY || $result === CopyRunner::RETRY) {
-                if ($waited >= self::MAX_WAIT) {
-                    return $this->fail(self::BUSY, 'the copy runner stayed busy (another process holds it or an order stayed locked); rerun to resume');
+            if ($result === CopyRunner::STOPPED) {
+                TakeoverState::refresh();
+                if (TakeoverState::get()['status'] !== TakeoverState::COPYING) {
+                    continue; // Another process moved the state: resolved on the next pass.
                 }
-                $this->system->sleep(self::WAIT_POLL);
-                $waited += self::WAIT_POLL;
+                // Still copying, so the runner could not persist its progress (a failing
+                // save or state patch). Back off; give up after MAX_STOPPED in a row.
+                if (++$stopped >= self::MAX_STOPPED) {
+                    return $this->fail(self::ERROR, 'the copy runner stopped ' . $stopped . ' times in a row without progress (its progress could not be saved); check the database and rerun to resume');
+                }
+            } elseif ($result !== CopyRunner::BUSY && $result !== CopyRunner::RETRY) {
+                continue; // VERIFIED, MISMATCH and IDLE are resolved from the state on the next pass.
             }
-            // VERIFIED, MISMATCH, STOPPED and IDLE are resolved from the state on the next pass.
+            if ($waited >= self::MAX_WAIT) {
+                return $this->fail(self::BUSY, 'the copy runner stayed busy (another process holds it or an order stayed locked); rerun to resume');
+            }
+            $this->system->sleep(self::WAIT_POLL);
+            $waited += self::WAIT_POLL;
         }
     }
 
