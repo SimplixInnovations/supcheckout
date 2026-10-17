@@ -356,6 +356,18 @@ final class CutoverTest extends TestCase {
         self::assertFalse(Quiesce::is_active(1800000000));
     }
 
+    public function test_an_official_plugin_that_stays_active_is_a_warning_not_a_plain_success(): void {
+        $this->seed_store();
+        $this->system->deactivate_fails = true;
+
+        $result = $this->cutover()->run(true);
+
+        self::assertTrue($result['ok'], 'the store is cut over regardless');
+        self::assertSame(array('official_still_active'), $result['warnings']);
+        self::assertSame(array('official_still_active'), $result['report']['warnings']);
+        self::assertSame(array(), $this->cutover()->run(false)['warnings'], 'a clean run has no warnings');
+    }
+
     public function test_the_final_verify_converges_a_stale_new_row_because_legacy_is_authoritative_before_cutover(): void {
         $order = $this->seed_store();
         // An unlocked writer left an extra new-name row during `verified`.

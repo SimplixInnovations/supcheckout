@@ -73,6 +73,8 @@ final class Cutover {
     private $steps = array();
     /** @var array<string, mixed> */
     private $report = array();
+    /** @var list<string> Conditions an `ok` run still needs the owner to act on. */
+    private $warnings = array();
 
     /**
      * @param CopyStore|null     $store  Store; WordPress when omitted.
@@ -85,7 +87,7 @@ final class Cutover {
 
     /**
      * @param bool $deactivate_official Deactivate the official plugin once cut over (owner consent).
-     * @return array{ok:bool, steps:list<string>, error:string|null, report:array<string, mixed>}
+     * @return array{ok:bool, steps:list<string>, error:string|null, warnings:list<string>, report:array<string, mixed>}
      */
     public function run($deactivate_official) {
         TakeoverState::refresh();
@@ -429,7 +431,7 @@ final class Cutover {
      * Step 11 (and the whole run for a store already cut over).
      *
      * @param bool $deactivate_official Consent.
-     * @return array{ok:bool, steps:list<string>, error:string|null, report:array<string, mixed>}
+     * @return array{ok:bool, steps:list<string>, error:string|null, warnings:list<string>, report:array<string, mixed>}
      */
     private function finish_tail($deactivate_official) {
         if ($deactivate_official) {
@@ -439,8 +441,11 @@ final class Cutover {
             } elseif ($this->system->deactivate_plugin($official)) {
                 $this->step('official_deactivated');
             } else {
-                // Cut over regardless; SUPCheckout stays paused until the owner deactivates it.
+                // Cut over regardless; SUPCheckout stays paused until the owner deactivates it,
+                // so the caller must not report a plain success.
                 $this->step('official_still_active');
+                $this->warnings[] = 'official_still_active';
+                $this->report['warnings'] = $this->warnings;
             }
         }
         return $this->result(null);
@@ -457,9 +462,9 @@ final class Cutover {
 
     /**
      * @param string|null $error Error code, null on success.
-     * @return array{ok:bool, steps:list<string>, error:string|null, report:array<string, mixed>}
+     * @return array{ok:bool, steps:list<string>, error:string|null, warnings:list<string>, report:array<string, mixed>}
      */
     private function result($error) {
-        return array('ok' => $error === null, 'steps' => $this->steps, 'error' => $error, 'report' => $this->report);
+        return array('ok' => $error === null, 'steps' => $this->steps, 'error' => $error, 'warnings' => $this->warnings, 'report' => $this->report);
     }
 }

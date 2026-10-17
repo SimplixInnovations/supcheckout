@@ -19,6 +19,8 @@ final class FakeCutoverSystem implements CutoverSystem {
     public $deactivated = array();
     /** @var int */
     public $sleeps = 0;
+    /** @var bool deactivate_plugin() leaves the plugin active. */
+    public $deactivate_fails = false;
     /** @var callable|null function (array $event): void, called before an event is scheduled. */
     public $on_schedule = null;
     /** @var callable|null function (): void, called on each sleep. */
@@ -47,6 +49,9 @@ final class FakeCutoverSystem implements CutoverSystem {
 
     public function deactivate_plugin($basename) {
         $this->deactivated[] = (string) $basename;
+        if ($this->deactivate_fails) {
+            return false;
+        }
         $this->official = null;
         return true;
     }
