@@ -130,7 +130,7 @@ defined( 'ABSPATH' ) || exit;
                     ?>
 
                         <button type="button" value="<?php echo esc_attr($card_selection); ?>" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitSavedCard==='function'){window.supCheckout.submitSavedCard(this);}else{window.supcheckoutPendingAction={type:'saved_card',value:this.value};}" class="upay-payment-method">
-                        <span class="payment-method-icon"><img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/cc.png'); ?>" alt=""/></span>
+                        <span class="payment-method-icon"><img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/cc.png'); ?>" alt=""/></span>
                         <span class="payment-method-label"><?php echo esc_html($card_display_label); ?></span>
                         <span class="payment-method-price"><?php echo esc_html($total); ?> <?php echo wp_kses($currency, array()); ?></span>
                         <span class="payment-method-icon2"><span class="upay-chevron" aria-hidden="true">&#8250;</span></span>
@@ -164,17 +164,17 @@ defined( 'ABSPATH' ) || exit;
                         <?php
                             if ($key_string == 'apple-pay-knet') {
                                 ?>
-                                <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png'); ?>" alt=""/>
-                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/knet.png'); ?>" alt=""/>
+                                <img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/apple-pay.png'); ?>" alt=""/>
+                                    <img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/knet.png'); ?>" alt=""/>
                                 <?php
                             } elseif ($key_string == 'apple-pay') {
                                 ?>
-                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/apple-pay.png'); ?>" alt=""/>
-                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/cc.png'); ?>" alt=""/>
+                                    <img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/apple-pay.png'); ?>" alt=""/>
+                                    <img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/cc.png'); ?>" alt=""/>
                                 <?php
                             } else {
                                 ?>
-                                    <img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt=""/>
+                                    <img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt=""/>
                                 <?php
                             }
                         ?>
@@ -219,7 +219,7 @@ defined( 'ABSPATH' ) || exit;
                     $key_attr = esc_attr($key_string);
                     $value_attr = esc_attr($value_string);
     ?>
-                <span class="payment-method-icon" style="margin-right: 5px;" id="upay-button-<?php echo esc_attr($key_string); ?>"><img src="<?php echo esc_url(UP_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt=""/></span>
+                <span class="payment-method-icon" style="margin-right: 5px;" id="upay-button-<?php echo esc_attr($key_string); ?>"><img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt=""/></span>
     <?php
                 }
             }

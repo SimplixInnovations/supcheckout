@@ -192,6 +192,8 @@ namespace {
         $order = new T1Order(42, 'merchant-order-42');
         $GLOBALS['t1_orders'][42] = $order;
 
+        require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
+        require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
         require_once dirname(__DIR__, 2) . '/src/Payment/PaymentLifecycle.php';
 
         \Simplixi\SUPCheckout\Payment\PaymentLifecycle::bootstrap();

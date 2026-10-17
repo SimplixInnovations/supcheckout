@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Payment;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Small database-atomic rate gate for authenticated payment-status queries.
  *
@@ -49,11 +51,28 @@ final class StatusRateGate {
 
         $scope = substr(hash_hmac('sha256', $mode . '|' . $gateway->apiKey, $salt), 0, 16);
         $bucket = gmdate('YmdHi');
-        $marker_name = self::PREFIX . $scope . '_bucket';
+        $usable = $source === 'reconcile' ? self::LIMIT_PER_MINUTE : self::CALLBACK_SLOTS_PER_MINUTE;
+
+        // One slot under every gate prefix (Keys::ephemeral_names(): only the legacy
+        // prefix until the takeover starts copying, both during the switch window, only
+        // the new one after Finalize), so workers on either side of cutover share one
+        // provider budget. A slot claimed under the first prefix is never returned:
+        // over-counting only slows status queries, it never exceeds the provider limit.
+        foreach (Keys::ephemeral_names(self::PREFIX) as $prefix) {
+            if (!self::acquire_slot($prefix, $scope, $bucket, $usable)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function acquire_slot($prefix, $scope, $bucket, $usable) {
+        $marker_name = $prefix . $scope . '_bucket';
         $previous_bucket = get_option($marker_name, '');
 
         if (is_string($previous_bucket) && $previous_bucket !== '' && $previous_bucket !== $bucket) {
-            self::delete_bucket($scope, $previous_bucket);
+            self::delete_bucket($prefix, $scope, $previous_bucket);
         }
 
         if ($previous_bucket !== $bucket) {
@@ -63,9 +82,8 @@ final class StatusRateGate {
             update_option($marker_name, $bucket, false);
         }
 
-        $usable = $source === 'reconcile' ? self::LIMIT_PER_MINUTE : self::CALLBACK_SLOTS_PER_MINUTE;
         for ($slot = 0; $slot < $usable; $slot++) {
-            $option_name = self::slot_name($scope, $bucket, $slot);
+            $option_name = self::slot_name($prefix, $scope, $bucket, $slot);
             if (OrderLock::insert_if_absent($option_name, (string) time())) {
                 return true;
             }
@@ -84,7 +102,7 @@ final class StatusRateGate {
         return self::LIMIT_PER_MINUTE;
     }
 
-    private static function delete_bucket($scope, $bucket) {
+    private static function delete_bucket($prefix, $scope, $bucket) {
         if (!is_string($scope) || !preg_match('/^[a-f0-9]{16}$/', $scope)) {
             return;
         }
@@ -100,19 +118,19 @@ final class StatusRateGate {
         ) {
             $sql = $wpdb->prepare(
                 "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-                $wpdb->esc_like(self::PREFIX . $scope . '_' . $bucket . '_') . '%'
+                $wpdb->esc_like($prefix . $scope . '_' . $bucket . '_') . '%'
             );
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Scoped rate-gate slot cleanup uses freshly prepared SQL; the slots never enter the option cache.
             $wpdb->query($sql);
             return;
         }
         for ($slot = 0; $slot < self::LIMIT_PER_MINUTE; $slot++) {
-            delete_option(self::slot_name($scope, $bucket, $slot));
+            delete_option(self::slot_name($prefix, $scope, $bucket, $slot));
         }
     }
 
-    private static function slot_name($scope, $bucket, $slot) {
-        return self::PREFIX . $scope . '_' . $bucket . '_' . (int) $slot;
+    private static function slot_name($prefix, $scope, $bucket, $slot) {
+        return $prefix . $scope . '_' . $bucket . '_' . (int) $slot;
     }
 
     private function __construct() {

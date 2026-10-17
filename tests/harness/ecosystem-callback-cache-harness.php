@@ -328,6 +328,8 @@ namespace {
             exit(64);
         }
 
+        require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
+        require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
         require_once dirname(__DIR__, 2) . '/src/Payment/PaymentLifecycle.php';
         \Simplixi\SUPCheckout\Payment\PaymentLifecycle::bootstrap();
         \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_callback();

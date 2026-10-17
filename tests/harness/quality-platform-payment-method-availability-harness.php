@@ -59,7 +59,7 @@ foreach (array(
     q5_assert(q5_contains($availability, "'{$button}'"), "known payment button remains explicit: {$button}");
 }
 q5_assert(q5_contains($availability, "hash_hmac('sha256', \$mode . '|' . \$this->api_key, wp_salt('auth'))"), 'credential cache identity remains HMAC-derived');
-q5_assert(q5_contains($availability, "'upay_pm_v3_' . substr(\$fingerprint, 0, 16)"), 'cache prefix and fingerprint width remain frozen');
+q5_assert(q5_contains($availability, "'upay_pm_v3_' . \$this->fingerprint()") && q5_contains($availability, 'return substr($fingerprint, 0, 16);'), 'cache prefix and fingerprint width remain frozen');
 q5_assert(q5_contains($availability, "\$db_name . '|' . \$wpdb->prefix . '|' . (string) get_current_blog_id() . '|' . \$mode"), 'advisory lock remains database/site/mode scoped');
 q5_assert(q5_contains($availability, "'upay_pm_' . substr(hash('sha256', \$lock_input), 0, 16)"), 'advisory lock name remains hashed and bounded');
 q5_assert(q5_contains($availability, "'SELECT GET_LOCK(%s, 0)'"), 'availability lock acquisition remains non-blocking');

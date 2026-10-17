@@ -4,12 +4,14 @@ namespace Simplixi\SUPCheckout\Subscription\Helpers;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 class Utils
 {
     public static function isSubscriptionOrder($order)
     {
         return in_array(
-            $order->get_meta('_upay_subscription_plan'),
+            Keys::read_order_meta($order, '_upay_subscription_plan'),
             ['daily', 'weekly', 'monthly', 'yearly'],
             true
         );
@@ -25,7 +27,7 @@ class Utils
             $product_id = $item['product_id'];
 
             // Product-level restriction
-            if (get_post_meta($product_id, '_upay_disable_subscription', true) === 'yes') {
+            if (Keys::read_post_meta($product_id, '_upay_disable_subscription') === 'yes') {
                 return true;
             }
 

@@ -83,6 +83,8 @@ namespace Simplixi\SUPCheckout\Migration {
 
 namespace {
     $root = realpath(__DIR__ . '/../..');
+    require_once $root . '/src/Takeover/TakeoverState.php';
+    require_once $root . '/src/Takeover/Keys.php';
     require_once $root . '/src/Migration/MigrationSettings.php';
     require_once $root . '/src/Migration/MigrationBatch.php';
     require_once $root . '/src/Migration/MigrationCliCommand.php';

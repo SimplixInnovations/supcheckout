@@ -101,6 +101,8 @@ function get_option($name, $default = false) {
 }
 PHP
     );
+    require_once $root . '/src/Takeover/TakeoverState.php';
+    require_once $root . '/src/Takeover/Keys.php';
     require $root . '/src/Subscription/Cron/Scheduler.php';
     \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::init();
 }

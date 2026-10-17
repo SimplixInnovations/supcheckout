@@ -4,6 +4,9 @@ namespace Simplixi\SUPCheckout\Subscription\Cron;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\TakeoverState;
+
 /**
  * Per-billing-cycle atomic attempt journal.
  *
@@ -135,7 +138,7 @@ class CycleClaim
      */
     public static function maybe_install(): bool
     {
-        $current = (string) get_option(self::OPTION_KEY, '');
+        $current = (string) Keys::get_option(self::OPTION_KEY, '');
         if ($current === self::SCHEMA_VERSION && self::schema_ready()) {
             return true;
         }
@@ -175,7 +178,7 @@ class CycleClaim
             return false;
         }
 
-        update_option(self::OPTION_KEY, self::SCHEMA_VERSION, false);
+        Keys::update_copied_option(self::OPTION_KEY, self::SCHEMA_VERSION, false);
         return true;
     }
 
@@ -201,8 +204,8 @@ class CycleClaim
 
     public static function table_name(): string
     {
-        global $wpdb;
-        return $wpdb->prefix . 'upayments_billing_attempts';
+        // The table in use right now (the legacy table until cutover).
+        return Keys::table('upayments_billing_attempts');
     }
 
     /**
@@ -249,6 +252,9 @@ class CycleClaim
         string $cycle_due_gmt
     ): bool {
         global $wpdb;
+        // A claim starts a cycle: re-read the takeover state so a long-running queue
+        // worker never claims in the table it saw before a cutover or rollback.
+        TakeoverState::flush_cache();
         $table = self::table_name();
 
         $now_gmt = current_time('mysql', true);
@@ -301,6 +307,9 @@ class CycleClaim
         string $expected_currency
     ): bool {
         global $wpdb;
+        // A claim starts a cycle: re-read the takeover state so a long-running queue
+        // worker never claims in the table it saw before a cutover or rollback.
+        TakeoverState::flush_cache();
         $table = self::table_name();
 
         if ($parent_order_id <= 0

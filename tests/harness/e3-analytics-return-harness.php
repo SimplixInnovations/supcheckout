@@ -182,6 +182,8 @@ namespace {
             echo 'SHUTDOWN:TRACK:' . (string) $order->get_meta('_simplixpay_upayments_status_track_v1') . "\n";
         });
 
+        require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
+        require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
         require_once dirname(__DIR__, 2) . '/src/Payment/PaymentLifecycle.php';
         \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_callback();
 

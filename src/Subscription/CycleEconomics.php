@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Subscription;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Decimal-safe billing-cycle economics.
  *
@@ -25,8 +27,8 @@ final class CycleEconomics
 
         $amount = self::canonical_decimal($order->get_total());
         $currency = self::canonical_currency($order->get_currency());
-        $plan = $order->get_meta('_upay_subscription_plan');
-        $interval = (int) $order->get_meta('_upay_subscription_interval');
+        $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
+        $interval = (int) Keys::read_order_meta($order, '_upay_subscription_interval');
 
         if ($amount === null || $currency === null || !is_string($plan) || $plan === '' || $interval < 1) {
             return null;

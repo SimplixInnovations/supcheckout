@@ -99,8 +99,8 @@ remove_all_filters('wc_get_template');
 supcheckout_cert_store_option_raw($settings_key, $settings_before_probe);
 unset($GLOBALS['supcheckout_payment_fields_probe']);
 
-$new_template_path = UP_PLUGIN_PATH . 'templates/new-design-form.php';
-$old_template_path = UP_PLUGIN_PATH . 'templates/old-design-form.php';
+$new_template_path = SUPCHECKOUT_PLUGIN_PATH . 'templates/new-design-form.php';
+$old_template_path = SUPCHECKOUT_PLUGIN_PATH . 'templates/old-design-form.php';
 $new_template = is_file($new_template_path) ? file_get_contents($new_template_path) : false;
 $old_template = is_file($old_template_path) ? file_get_contents($old_template_path) : false;
 

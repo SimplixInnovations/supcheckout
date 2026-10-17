@@ -3,6 +3,8 @@ namespace Simplixi\SUPCheckout\Migration;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Read-only resolver for the existing WooCommerce UPayments settings.
  *
@@ -14,7 +16,7 @@ final class MigrationSettings {
     const OPTION_KEY = 'woocommerce_upayments_settings';
 
     public static function resolve() {
-        $settings = get_option(self::OPTION_KEY, null);
+        $settings = Keys::get_settings(null);
         if (!is_array($settings)) {
             return self::failure('settings_missing');
         }

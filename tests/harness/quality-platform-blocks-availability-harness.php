@@ -109,7 +109,7 @@ namespace {
     $js_source = file_get_contents($blocks_js);
     q18_assert(
         is_string($blocks_source)
-        && strpos($blocks_source, "get_option( 'woocommerce_upayments_settings', [] )") !== false,
+        && strpos($blocks_source, "Keys::get_settings( [] )") !== false,
         'canonical WooCommerce settings option identity remains exact'
     );
     q18_assert(

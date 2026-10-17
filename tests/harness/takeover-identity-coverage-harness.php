@@ -133,13 +133,15 @@ $gateway_categories = array(
     'gateway_declaration' => 'gateway / Blocks registration identity; becomes Keys::GATEWAY at cutover',
     'order_query' => "wc_get_orders 'payment_method' filter; use Keys::gateway_ids()",
     'gateway_lookup' => 'available/registered gateways array lookup; look up the registered gateway under its current id',
-    'ownership_check' => 'order / selected / filtered gateway comparison; use Keys::is_our_gateway()',
+    'ownership_check' => 'order / selected / filtered gateway comparison; use Keys::is_our_gateway() (client scripts: the localized current id, Task 7)',
     'renewal_identity' => 'payment method written on a NEW renewal order; use the current gateway id',
     'session_choice' => 'WC session chosen_payment_method comparison; Keys::is_our_gateway() (stale sessions hold upayments for up to 48 h)',
     'default_gateway' => 'woocommerce_default_gateway value; the current gateway id',
-    'extension_namespace' => 'Store API extensions namespace; PHP reads Keys::EXTENSION_NAMESPACE then _LEGACY, JS posts the current namespace from localized data',
+    'extension_namespace' => 'Store API extensions namespace; PHP reads Keys::EXTENSION_NAMESPACE then _LEGACY, JS posts the current namespace from localized data (Task 7, with the gateway id)',
     'callback_route' => 'callback route / hook; new Charges use Keys::CALLBACK_ROUTE, the LegacyCallbackListener (Task 8) keeps wc_upayments forever',
     'settings_option' => 'gateway settings option read; Keys::settings_sources() precedence into woocommerce_supcheckout_settings',
+    'compat_constant' => 'historical option-name constant kept for compatibility and its pins; the runtime read goes through Keys::get_settings()',
+    'snapshot_hook' => 'hook name derived from the gateway id and frozen in the public-surface snapshot; derived from the current id at cutover (Task 7), when the gateway id and the snapshot change together',
     'settings_field' => 'WC_Settings_API name derived from the gateway id (POST field, sanitize hook, admin selector); derive from the current id',
     'css_class' => 'WooCommerce payment_method_{id} class; derive from the current id',
     'provider_host' => 'UPayments API host name (provider terminology); never changes',
@@ -154,7 +156,14 @@ $gateway_categories = array(
  * @var array<string, array<string, list<string>>>
  */
 $gateway_sites = array(
-    'src/Account/SubscriptionActions.php' => array('upayments' => array('ownership_check')),
+    // Task 2 routed every order query (Keys::payment_method_query()), gateway lookup
+    // (Keys::find_gateway()), ownership/session comparison (Keys::is_our_gateway()),
+    // renewal identity and default gateway (Keys::gateway_id()), settings read
+    // (Keys::get_settings()), Store API namespace read and new-Charge callback route
+    // (Keys::callback_route()) through Keys, so those sites no longer hold the literal.
+    // What remains is either permanent or derives from the gateway id itself, which
+    // switches at cutover (Task 7): the gateway declarations, the Settings-API names and
+    // classes, and the client scripts that post or compare that id.
     'src/Admin/GatewaySettings.php' => array(
         'woocommerce_upayments_api_key' => array_fill(0, 2, 'settings_field'),
         'woocommerce_upayments_enable_multimerchant' => array('settings_field'),
@@ -165,28 +174,17 @@ $gateway_sites = array(
         'woocommerce_upayments_knet_charge_type' => array_fill(0, 5, 'settings_field'),
     ),
     'src/Blocks/PaymentMethodType.php' => array(
-        'upayments' => array('gateway_declaration', 'gateway_declaration', 'logger_source', 'gateway_lookup', 'gateway_lookup', 'gateway_lookup'),
-        'woocommerce_upayments_settings' => array('settings_option'),
-    ),
-    'src/Gateway/Availability.php' => array(
-        'upayments' => array('gateway_lookup', 'gateway_lookup', 'gateway_lookup', 'gateway_lookup', 'gateway_lookup', 'session_choice'),
-        'woocommerce_upayments_settings' => array('settings_option'),
+        'upayments' => array('gateway_declaration', 'gateway_declaration', 'logger_source'),
     ),
     'src/Gateway/Gateway.php' => array(
-        'upayments' => array('legacy_text_domain', 'gateway_declaration', 'gateway_lookup', 'gateway_lookup', 'session_choice', 'default_gateway', 'ownership_check', 'logger_source'),
-        'woocommerce_upayments_settings' => array('settings_option'),
-        'woocommerce_settings_api_sanitized_fields_upayments' => array('settings_field'),
-        'wc_upayments' => array('callback_route'),
+        'upayments' => array('legacy_text_domain', 'gateway_declaration', 'logger_source'),
+        'woocommerce_settings_api_sanitized_fields_upayments' => array('snapshot_hook'),
     ),
-    'src/Migration/MigrationPreflight.php' => array('upayments' => array('order_query', 'order_query')),
-    'src/Migration/MigrationSettings.php' => array('woocommerce_upayments_settings' => array('settings_option')),
-    'src/Payment/CheckoutOrchestrator.php' => array('upayments' => array_fill(0, 6, 'extension_namespace')),
+    'src/Migration/MigrationSettings.php' => array('woocommerce_upayments_settings' => array('compat_constant')),
     'src/Payment/CheckoutPayload.php' => array('upayments' => array('payment_type_sentinel')),
     'src/Payment/PaymentLifecycle.php' => array(
         'woocommerce_api_wc_upayments' => array('callback_route'),
-        'upayments' => array('ownership_check', 'ownership_check', 'gateway_lookup', 'gateway_lookup'),
     ),
-    'src/Payment/ReconciliationSweep.php' => array('upayments' => array('order_query')),
     'src/Payment/StatusVerifier.php' => array('upayments' => array('provider_host', 'provider_host')),
     'src/Provider/EndpointResolver.php' => array('upayments' => array('provider_host', 'provider_host')),
     'src/Release/Identity.php' => array(
@@ -194,14 +192,6 @@ $gateway_sites = array(
         'woocommerce_upayments_settings' => array('registry'),
         'wc_upayments' => array('registry'),
     ),
-    'src/Security/PublicOrderStatus.php' => array('upayments' => array('ownership_check')),
-    'src/Subscription/Checkout/Fields.php' => array('upayments' => array('ownership_check', 'gateway_lookup')),
-    'src/Subscription/Cron/Scheduler.php' => array(
-        'woocommerce_upayments_settings' => array('settings_option'),
-        'upayments' => array('order_query', 'renewal_identity', 'ownership_check', 'ownership_check', 'gateway_lookup'),
-    ),
-    'src/Subscription/Scheduling/HistoricalEnrollment.php' => array('upayments' => array('order_query', 'ownership_check')),
-    'src/Token/CustomerTokenIdentity.php' => array('upayments' => array('order_query', 'order_query')),
     'templates/new-design-form.php' => array('upayments' => array('payment_type_sentinel')),
     'assets/js/admin-settings.js' => array(
         'woocommerce_upayments_use_new_design' => array('settings_field'),
@@ -234,22 +224,13 @@ $ownership_categories = array(
  * @var array<string, array<string, list<string>>>
  */
 $ownership_sites = array(
-    'src/Account/SubscriptionActions.php' => array('get_payment_method()' => array('ownership_compare_task2')),
+    // Task 2 converted every ownership_compare_task2 site to Keys::is_our_gateway()
+    // (SubscriptionActions, Gateway::admin_order_details() and the icon filter,
+    // OrderPresentation, PaymentLifecycle x2, PublicOrderStatus, Scheduler,
+    // HistoricalEnrollment); the harness exempts reads inside those calls.
     'src/Admin/GatewaySettings.php' => array('$gateway_id' => array('current_id_compare')),
-    'src/Gateway/Gateway.php' => array(
-        'get_payment_method()' => array('ownership_compare_task2'),
-        '->id' => array('ownership_compare_task2'),
-        '$gateway_id' => array('ownership_compare_task2'),
-    ),
-    'src/Gateway/OrderPresentation.php' => array(
-        'get_payment_method()' => array('ownership_compare_task2'),
-        '$gateway_id' => array('ownership_compare_task2'),
-    ),
-    'src/Payment/PaymentLifecycle.php' => array('get_payment_method()' => array('ownership_compare_task2', 'ownership_compare_task2')),
-    'src/Security/PublicOrderStatus.php' => array('get_payment_method()' => array('ownership_compare_task2')),
     'src/Subscription/Checkout/Fields.php' => array("['payment_method']" => array_fill(0, 3, 'captured_for_check')),
-    'src/Subscription/Cron/Scheduler.php' => array('get_payment_method()' => array('captured_for_check', 'ownership_compare_task2')),
-    'src/Subscription/Scheduling/HistoricalEnrollment.php' => array('get_payment_method()' => array('ownership_compare_task2')),
+    'src/Subscription/Cron/Scheduler.php' => array('get_payment_method()' => array('captured_for_check')),
 );
 
 /**

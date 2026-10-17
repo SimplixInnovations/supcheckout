@@ -13,6 +13,16 @@ function r3t_assert($c, $l) {
     echo "FAIL: {$l}\n"; $fail++;
 }
 
+// The Takeover registry is guarded by ABSPATH like every runtime class.
+
+if (!defined('ABSPATH')) {
+
+    define('ABSPATH', dirname(__DIR__, 2) . '/');
+
+}
+
+require_once $root . '/src/Takeover/TakeoverState.php';
+require_once $root . '/src/Takeover/Keys.php';
 require_once $root . '/src/Subscription/RenewalCardAuthority.php';
 require_once $root . '/src/Subscription/CycleEconomics.php';
 require_once $root . '/src/Subscription/AutoDeductResultVerifier.php';

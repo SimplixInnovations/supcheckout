@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Subscription;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Explicit renewal card authority.
  *
@@ -27,12 +29,12 @@ final class RenewalCardAuthority
             return array('state' => self::STATE_MALFORMED, 'token' => null);
         }
 
-        $stored = $order->get_meta('_upay_credit_card_token');
+        $stored = Keys::read_order_meta($order, '_upay_credit_card_token');
         if (!is_string($stored) || $stored === '' || preg_match('/\s/', $stored)) {
             return array('state' => self::STATE_MISSING, 'token' => null);
         }
 
-        $customer_token = $order->get_meta('_upay_customer_unique_token');
+        $customer_token = Keys::read_order_meta($order, '_upay_customer_unique_token');
         if (!is_string($customer_token) || $customer_token === '') {
             // Explicit token without a bound customer token cannot be safely
             // attributed to this renewal attempt.

@@ -121,6 +121,16 @@ final class A2Wpdb {
 
 $GLOBALS['wpdb'] = new A2Wpdb();
 
+// The Takeover registry is guarded by ABSPATH like every runtime class.
+
+if (!defined('ABSPATH')) {
+
+    define('ABSPATH', dirname(__DIR__, 2) . '/');
+
+}
+
+require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
+require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
 require_once dirname(__DIR__, 2) . '/src/Provider/PaymentMethodAvailability.php';
 
 $pass = 0;

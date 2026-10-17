@@ -40,6 +40,8 @@ function get_post_meta($product_id, $key, $single = false) {
         : '';
 }
 
+require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
+require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Helpers/Utils.php';
 
 $pass = 0;

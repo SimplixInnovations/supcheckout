@@ -37,7 +37,8 @@ q9_assert(!q9_contains($phpstan, 'baseline'), 'Q9 remains baseline-free');
 q9_assert(!q9_contains($phpstan, 'ignoreErrors'), 'Q9 introduces no ignored analyzer errors');
 
 q9_assert(q9_contains($source, "OPTION_KEY = 'woocommerce_upayments_settings'"), 'resolver retains the historical Woo gateway option');
-q9_assert(q9_contains($source, 'get_option(self::OPTION_KEY, null)'), 'resolver reads only its exact option with a null default');
+// 0b Task 2: Keys::get_settings(null) reads exactly OPTION_KEY with a null default before cutover.
+q9_assert(q9_contains($source, 'Keys::get_settings(null)'), 'resolver reads only its exact option with a null default');
 q9_assert(!q9_contains($source, 'update_option('), 'resolver never updates settings');
 q9_assert(!q9_contains($source, 'add_option('), 'resolver never creates settings');
 q9_assert(!q9_contains($source, 'delete_option('), 'resolver never deletes settings');

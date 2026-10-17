@@ -86,6 +86,36 @@ final class SubscriptionActionsTest extends TestCase {
         self::assertSame(array(), $order->writes);
     }
 
+    public function test_before_cutover_a_supcheckout_order_is_not_a_manual_subscription_order(): void {
+        // 0b Task 2: Keys::is_our_gateway() accepts only 'upayments' until cutover.
+        $order = new class() {
+            /** @var array<int, array<int, mixed>> */
+            public $writes = array();
+            public function get_user_id() { return 7; }
+            public function get_payment_method() { return 'supcheckout'; }
+            public function get_meta($key) {
+                $meta = array('_upay_subscription_plan' => 'monthly', '_upay_subscription_interval' => '1');
+                return isset($meta[$key]) ? $meta[$key] : '';
+            }
+            public function update_meta_data($key, $value) { $this->writes[] = array('update_meta_data', $key, $value); }
+            public function save() { $this->writes[] = array('save'); }
+        };
+        $GLOBALS['supcheckout_test_status_orders'][46] = $order;
+        $GLOBALS['supcheckout_test_status_logged_in'] = true;
+        $GLOBALS['supcheckout_test_status_user_id'] = 7;
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = array('upay_action' => 'pause', 'order_id' => '46', '_wpnonce' => 'n');
+        try {
+            SubscriptionActions::handle();
+            self::fail('a supcheckout order must be rejected before cutover');
+        } catch (\SUPCheckout_Test_Redirect $redirect) {
+            self::assertSame('https://example.test/account/orders/', $redirect->location);
+        }
+        self::assertSame(array(array('Invalid subscription request.', 'error')), $GLOBALS['supcheckout_test_subscription_presentation']['notices']);
+        self::assertSame(array(), $order->writes);
+    }
+
     /**
      * @param int $order_id
      * @param int $user_id

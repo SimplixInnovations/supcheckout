@@ -3417,7 +3417,7 @@ if (is_resource($proc)) {
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($scheduler_blob, '1f220334fdbd3c33649f770c992a0b982ec1f4b1', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
+upay_assert_eq($scheduler_blob, 'a8900abd30eec617a7c5c283355a67579a04c323', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
 
 // --- SEM14-I: CycleClaim.php reviewed protected blob ---
 $cycle_blob = '';
@@ -3427,7 +3427,7 @@ if (is_resource($proc)) {
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($cycle_blob, '3263231dfcbea4dcc3ddfc2e05866740eb6fcd3a', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
+upay_assert_eq($cycle_blob, '53534f49346f5c485f615ef76dc1c4f870e54592', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
 
 // --- SEM14-J: Production code does NOT use bccomp/BCMath/GMP ---
 // Production gateway source: the main file plus the gateway class it registers

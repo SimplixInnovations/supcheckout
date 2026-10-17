@@ -7,6 +7,7 @@ defined('ABSPATH') || exit;
 // Use the necessary Blocks Interfaces
 use Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType;
 use Simplixi\SUPCheckout\Admin\GatewaySettings;
+use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
  * UPayments Blocks Integration Class
@@ -29,7 +30,7 @@ class PaymentMethodType extends AbstractPaymentMethodType {
     }
 
     public function initialize() {
-        $this->settings = get_option( 'woocommerce_upayments_settings', [] );
+        $this->settings = Keys::get_settings( [] );
         // Reuse WooCommerce's registered gateway. The gateway registers its hooks in its
         // constructor, so a second instance would render the admin payment box, the
         // thank-you section and the order-totals rows twice.
@@ -63,10 +64,8 @@ class PaymentMethodType extends AbstractPaymentMethodType {
         if ( ! is_object( $registry ) || ! method_exists( $registry, 'payment_gateways' ) ) {
             return null;
         }
-        $gateways = $registry->payment_gateways();
-        return ( is_array( $gateways ) && isset( $gateways['upayments'] ) && $gateways['upayments'] instanceof \Simplixi\SUPCheckout\Gateway\Gateway )
-            ? $gateways['upayments']
-            : null;
+        $gateway = Keys::find_gateway( $registry->payment_gateways() );
+        return $gateway instanceof \Simplixi\SUPCheckout\Gateway\Gateway ? $gateway : null;
     }
 
     public function is_active() {

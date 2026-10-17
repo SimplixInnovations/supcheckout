@@ -1,6 +1,7 @@
 <?php
 namespace Simplixi\SUPCheckout\Migration;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 defined('ABSPATH') || exit;
@@ -194,7 +195,7 @@ final class MigrationPreflight {
                 $query = wc_get_orders(array(
                     'type' => 'shop_order',
                     'customer_id' => $user_id,
-                    'payment_method' => 'upayments',
+                    'payment_method' => Keys::payment_method_query(),
                     'limit' => self::PAGE_SIZE,
                     'paged' => $page,
                     'orderby' => 'ID',
@@ -370,18 +371,18 @@ final class MigrationPreflight {
             try {
                 $query = wc_get_orders(array(
                     'type' => 'shop_order',
-                    'payment_method' => 'upayments',
+                    'payment_method' => Keys::payment_method_query(),
                     'limit' => self::PAGE_SIZE,
                     'paged' => $page,
                     'orderby' => 'ID',
                     'order' => 'DESC',
                     'return' => 'ids',
                     'paginate' => true,
-                    'meta_query' => array(array(
+                    'meta_query' => array(Keys::meta_clause_any(array(
                         'key' => '_upay_customer_unique_token',
                         'value' => $token,
                         'compare' => '=',
-                    )),
+                    ))),
                 ));
             } catch (\Throwable $e) {
                 return array('status' => self::INDETERMINATE, 'reason' => 'cross_user_order_query_exception');
@@ -458,15 +459,16 @@ final class MigrationPreflight {
             return array('status' => self::INDETERMINATE, 'reason' => 'provenance_db_unavailable');
         }
 
-        $prefix = '_upay_customer_token_v2_b' . (string) get_current_blog_id() . '_';
-        $key_like = $wpdb->esc_like($prefix) . '%';
+        // H12 provenance lives under the legacy or the new prefix; both are scanned in every state.
+        list($new_like, $legacy_like) = self::provenance_key_likes($wpdb);
         $token_like = '%' . $wpdb->esc_like($token) . '%';
         $limit = self::GLOBAL_PROVENANCE_LIMIT + 1;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Cross-user provenance scan is a bounded migration safety probe that must read current usermeta.
         $rows = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT user_id, meta_key, meta_value FROM {$wpdb->usermeta} WHERE meta_key LIKE %s AND meta_value LIKE %s LIMIT %d",
-                $key_like,
+                "SELECT user_id, meta_key, meta_value FROM {$wpdb->usermeta} WHERE (meta_key LIKE %s OR meta_key LIKE %s) AND meta_value LIKE %s LIMIT %d",
+                $legacy_like,
+                $new_like,
                 $token_like,
                 $limit
             )
@@ -514,19 +516,35 @@ final class MigrationPreflight {
         ) {
             return array('state' => self::INDETERMINATE, 'reason' => 'provenance_db_unavailable', 'exists' => false);
         }
-        $prefix = '_upay_customer_token_v2_b' . (string) get_current_blog_id() . '_';
-        $like = $wpdb->esc_like($prefix) . '%';
+        // Either prefix holding a row means provenance exists (never conclude "absent" from one).
+        list($new_like, $legacy_like) = self::provenance_key_likes($wpdb);
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Global provenance existence is a migration safety invariant and must not be served from cache.
         $value = $wpdb->get_var(
             $wpdb->prepare(
-                "SELECT meta_key FROM {$wpdb->usermeta} WHERE meta_key LIKE %s LIMIT 1",
-                $like
+                "SELECT meta_key FROM {$wpdb->usermeta} WHERE meta_key LIKE %s OR meta_key LIKE %s LIMIT 1",
+                $legacy_like,
+                $new_like
             )
         );
         if ($value === false) {
             return array('state' => self::INDETERMINATE, 'reason' => 'provenance_query_failed', 'exists' => false);
         }
         return array('state' => self::CLEAN, 'reason' => 'provenance_census_complete', 'exists' => ($value !== null));
+    }
+
+    /**
+     * LIKE patterns for this blog's H12 provenance keys under both prefixes.
+     *
+     * @param object $wpdb WordPress database handle.
+     * @return array{0:string,1:string} [new, legacy].
+     */
+    private static function provenance_key_likes($wpdb) {
+        $suffix = (string) get_current_blog_id() . '_';
+        list($new_prefix, $legacy_prefix) = Keys::meta_names('_upay_customer_token_v2_b');
+        return array(
+            $wpdb->esc_like($new_prefix . $suffix) . '%',
+            $wpdb->esc_like($legacy_prefix . $suffix) . '%',
+        );
     }
 
     private static function validatePaginationResult($query, $page, $already_seen, $expected_total, $expected_pages) {

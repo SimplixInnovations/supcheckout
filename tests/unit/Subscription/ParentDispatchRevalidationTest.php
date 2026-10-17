@@ -244,6 +244,19 @@ final class ParentDispatchRevalidationTest extends TestCase
         );
     }
 
+    public function test_before_cutover_a_supcheckout_parent_is_not_ours(): void
+    {
+        // 0b Task 2: before cutover no SUPCheckout order carries 'supcheckout'
+        // (Keys::is_our_gateway() is legacy-only until is_cut_over()).
+        $attrs = $this->eligible_attrs();
+        $attrs['payment_method'] = 'supcheckout';
+        $order = $this->make_order($attrs);
+        self::assertFalse(
+            $this->invoke($order, '10.000', 'KWD', 'cust-token-1', 'card-A'),
+            'a supcheckout parent must fail final revalidation before cutover'
+        );
+    }
+
     public function test_paused_subscription_state_loses_authorization(): void
     {
         $attrs = $this->eligible_attrs();

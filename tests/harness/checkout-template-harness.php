@@ -58,7 +58,7 @@ exit($fail === 0 ? 0 : 1);
 
 function template_child($root, $scenario) {
     define('ABSPATH', __DIR__ . '/');
-    define('UP_PLUGIN_URL', 'https://merchant.example.test/wp-content/plugins/supcheckout/');
+    define('SUPCHECKOUT_PLUGIN_URL', 'https://merchant.example.test/wp-content/plugins/supcheckout/');
     $GLOBALS['template_scenario'] = $scenario;
     eval(<<<'PHP'
 function __($text, $domain = 'default') { return $text; }

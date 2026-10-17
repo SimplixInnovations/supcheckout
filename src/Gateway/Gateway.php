@@ -14,6 +14,7 @@ use Simplixi\SUPCheckout\Payment\CheckoutPayload;
 use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
+use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 /**
@@ -149,13 +150,13 @@ class Gateway extends \WC_Payment_Gateway {
     }
 
     public function is_available() {
-        return parent::is_available() && GatewaySettings::is_runtime_eligible(get_option('woocommerce_upayments_settings'), get_woocommerce_currency());
+        return parent::is_available() && GatewaySettings::is_runtime_eligible(Keys::get_settings(), get_woocommerce_currency());
     }
 
     public function __construct() {
         // Define ID, title, description, and settings.
         $this->id                 = 'upayments';
-        $this->icon = UP_PLUGIN_URL . "assets/images/upayment.png";
+        $this->icon = SUPCHECKOUT_PLUGIN_URL . "assets/images/upayment.png";
         $this->method_title       = __("UPayments", 'supcheckout');
         $this->method_description = __("UPayments payment integration for WooCommerce. Available payment methods depend on your UPayments account and provider configuration.
             Supports Classic and Block Checkout. Subscription auto-deduction requires separately validated provider setup.", 'supcheckout');
@@ -223,13 +224,12 @@ class Gateway extends \WC_Payment_Gateway {
 
             $gateways = WC()->payment_gateways()->get_available_payment_gateways();
 
-            if (!isset($gateways['upayments'])) {
+            $upay = Keys::find_gateway($gateways);
+            if ($upay === null) {
                 return;
             }
 
-            $upay = $gateways['upayments'];
-
-            if (WC()->session->get('chosen_payment_method') === 'upayments' && $upay->get_option('make_default_gateway') === 'no') {
+            if (Keys::is_our_gateway(WC()->session->get('chosen_payment_method')) && $upay->get_option('make_default_gateway') === 'no') {
                 WC()->session->set('chosen_payment_method', null);
             }
         }, 5);
@@ -248,7 +248,7 @@ class Gateway extends \WC_Payment_Gateway {
 
         add_filter('woocommerce_default_gateway', function ($default) {
             if ($this->get_option('make_default_gateway') === 'yes') {
-                return 'upayments';
+                return Keys::gateway_id();
             }
 
             return $default;
@@ -525,7 +525,7 @@ class Gateway extends \WC_Payment_Gateway {
                 return null;
             }
 
-            $url = $woocommerce->api_request_url('wc_upayments');
+            $url = $woocommerce->api_request_url(Keys::callback_route());
             return is_string($url) ? $url : null;
         };
 
@@ -626,12 +626,15 @@ class Gateway extends \WC_Payment_Gateway {
 
     public function admin_order_details($order)
     {
-        if ($order->get_payment_method() === $this->id)
+        if (Keys::is_our_gateway($order->get_payment_method()))
         {
-            $payment_status_raw = $order->get_meta('UPayments_Result', true);
+            $read_single = function ($key) use ($order) {
+                return $order->get_meta($key, true);
+            };
+            $payment_status_raw = Keys::read($read_single, 'UPayments_Result');
             $payment_status = is_scalar($payment_status_raw) ? (string) $payment_status_raw : '';
 
-            $upayment_id_raw = $order->get_meta('UPayments_PaymentID', true);
+            $upayment_id_raw = Keys::read($read_single, 'UPayments_PaymentID');
             $upayment_id = is_scalar($upayment_id_raw) ? (string) $upayment_id_raw : '';
 
             if ($payment_status !== '' || $upayment_id !== '') { ?>
@@ -665,8 +668,8 @@ class Gateway extends \WC_Payment_Gateway {
 
     public function custom_payment_gateway_icons($icon, $gateway_id)
     {
-        if ($gateway_id == "upayments"){
-            $icon = '<span>' . esc_html__('Pay securely with', 'supcheckout') . ' <img src="' . esc_url(UP_PLUGIN_URL . 'assets/images/upayment.png') . '" alt="" style="height: 24px !important; padding-left:4px;"/></span>';
+        if (Keys::is_our_gateway($gateway_id)){
+            $icon = '<span>' . esc_html__('Pay securely with', 'supcheckout') . ' <img src="' . esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/upayment.png') . '" alt="" style="height: 24px !important; padding-left:4px;"/></span>';
         }
         return $icon;
     }
@@ -1120,11 +1123,11 @@ class Gateway extends \WC_Payment_Gateway {
             ],
         ];
 
-        $plan = $order->get_meta('_upay_subscription_plan');
+        $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
 
         if ($plan && $plan !== 'one_time') {
 
-            $interval = (int) $order->get_meta('_upay_subscription_interval');
+            $interval = (int) Keys::read_order_meta($order, '_upay_subscription_interval');
 
             $payload['subscription'] = [
                 'enabled'            => true,

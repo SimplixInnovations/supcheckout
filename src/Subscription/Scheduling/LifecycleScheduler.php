@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription\Scheduling;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Explicit customer lifecycle scheduling for the plugin-owned transition handler.
  *
@@ -83,7 +85,7 @@ final class LifecycleScheduler
      */
     public static function maybe_cancel_on_status_meta($meta_id, $object_id, $meta_key, $meta_value): void
     {
-        if ((string) $meta_key !== '_upay_subscription_status') {
+        if (!Keys::is_meta_key($meta_key, '_upay_subscription_status')) {
             return;
         }
         if (!in_array((string) $meta_value, array('paused', 'cancelled'), true)) {

@@ -3,6 +3,8 @@ namespace Simplixi\SUPCheckout\Migration;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Bounded, resumable Phase 9I batch orchestration.
  *
@@ -93,7 +95,7 @@ final class MigrationBatch {
 
         $total = count($user_ids);
         for ($position = 0; $position < $total; $position++) {
-            $record = get_user_meta($user_ids[$position], self::RESULT_LEDGER_KEY, true);
+            $record = Keys::read_user_meta($user_ids[$position], self::RESULT_LEDGER_KEY);
             if (!self::isResultLedgerRecord($record)
                 || !hash_equals($digest, $record['batch_digest'])
                 || $record['position'] !== $position
@@ -301,15 +303,21 @@ final class MigrationBatch {
             return false;
         }
 
-        $written = update_user_meta($user_id, self::RESULT_LEDGER_KEY, $record);
-        $readback = get_user_meta($user_id, self::RESULT_LEDGER_KEY, true);
+        // Every name of the ledger (Keys::write_keys()), each read back exactly.
+        foreach (Keys::write_keys(self::RESULT_LEDGER_KEY) as $ledger_key) {
+            $written = update_user_meta($user_id, $ledger_key, $record);
+            $readback = get_user_meta($user_id, $ledger_key, true);
 
-        // update_user_meta() returns false when the exact value already exists;
-        // exact durable readback therefore remains the authoritative result.
-        if ($written === false && $readback !== $record) {
-            return false;
+            // update_user_meta() returns false when the exact value already exists;
+            // exact durable readback therefore remains the authoritative result.
+            if ($written === false && $readback !== $record) {
+                return false;
+            }
+            if (!is_array($readback) || $readback !== $record) {
+                return false;
+            }
         }
-        return is_array($readback) && $readback === $record;
+        return true;
     }
 
     private static function isResultLedgerRecord($record) {

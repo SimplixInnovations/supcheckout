@@ -82,6 +82,8 @@ Third-party `remove_action()` / `remove_filter()` calls that name these function
 
 The gateway object no longer has the unused public methods `encrypt()`, `decrypt()` and `getApiKey()` (Sub-project 0a Task 7). The public compatibility wrapper `getAPIUrlForRetreiveCards()` is unchanged.
 
+SUPCheckout no longer defines the constants `UP_PLUGIN_URL`, `UP_PLUGIN_PATH` and `UPAYMENTS_PLUGIN_FILE` (Sub-project 0b Task 2); the official UPayments plugin defines the same names. Its own are `SUPCHECKOUT_PLUGIN_URL`, `SUPCHECKOUT_PLUGIN_PATH` and `SUPCHECKOUT_PLUGIN_FILE`. Theme overrides of `templates/new-design-form.php` or `templates/old-design-form.php` that print `UP_PLUGIN_URL` must switch to `SUPCHECKOUT_PLUGIN_URL`. The gateway, settings, Blocks and callback identities in the table above are unchanged until the store runs the takeover's cutover.
+
 Historical package-root movement remains certified for both pre-stable `simplixpay-upayments` and `sucheckout-upayments` roots moving to canonical `supcheckout`, including protected data continuity and rollback.
 
 ## Capability matrix

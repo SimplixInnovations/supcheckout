@@ -1094,8 +1094,9 @@ $loadRuntimeBody = preg_match('/private static function load_runtime\(\$main_fil
     ? preg_replace('/\s+/', '', $loadRuntimeMatch[1])
     : '';
 arch2_assert(
-    $loadRuntimeBody === 'define("UP_PLUGIN_URL",plugin_dir_url($main_file));define("UP_PLUGIN_PATH",plugin_dir_path($main_file));'
-        . "define('UPAYMENTS_PLUGIN_FILE',\$main_file);"
+    // 0b Task 2: SUPCheckout-owned asset constants; UPAYMENTS_PLUGIN_FILE is no longer defined
+    // (SUPCHECKOUT_PLUGIN_FILE, pinned below, replaces it).
+    $loadRuntimeBody === "define('SUPCHECKOUT_PLUGIN_URL',plugin_dir_url(\$main_file));define('SUPCHECKOUT_PLUGIN_PATH',plugin_dir_path(\$main_file));"
         . "require_once__DIR__.'/Release/Identity.php';require_once__DIR__.'/Provider/MultiMerchantContract.php';"
         . "require_once__DIR__.'/Admin/GatewaySettings.php';require_once__DIR__.'/Gateway/Availability.php';"
         . "require_once__DIR__.'/Gateway/OrderPresentation.php';require_once__DIR__.'/Provider/EndpointResolver.php';"

@@ -5,6 +5,7 @@ namespace Simplixi\SUPCheckout\Payment;
 defined('ABSPATH') || exit;
 
 use Simplixi\SUPCheckout\Security\PublicOrderStatus;
+use Simplixi\SUPCheckout\Takeover\Keys;
 
 require_once dirname(__DIR__) . '/Security/PublicOrderStatus.php';
 require_once __DIR__ . '/ProviderResult.php';
@@ -68,8 +69,8 @@ final class PaymentLifecycle {
     public static function sweep_cursor_meta_query() {
         return array(
             'relation' => 'OR',
-            array('key' => self::UNVERIFIED_TRACK_META, 'compare' => 'EXISTS'),
-            array('key' => self::TRUSTED_TRACK_META, 'compare' => 'EXISTS'),
+            Keys::meta_clause_any(array('key' => self::UNVERIFIED_TRACK_META, 'compare' => 'EXISTS')),
+            Keys::meta_clause_any(array('key' => self::TRUSTED_TRACK_META, 'compare' => 'EXISTS')),
         );
     }
 
@@ -204,7 +205,7 @@ final class PaymentLifecycle {
         // never touches the paid order's cursors.
         if (self::is_verified_capture($order)) {
             foreach (array('UPayments_TrackID', self::TRUSTED_TRACK_META) as $paid_track_key) {
-                $paid_track = $order->get_meta($paid_track_key);
+                $paid_track = Keys::read_order_meta($order, $paid_track_key);
                 if (is_string($paid_track) && $paid_track !== '' && hash_equals($paid_track, (string) $track_id)) {
                     return self::outcome('captured', 'already_verified');
                 }
@@ -259,14 +260,14 @@ final class PaymentLifecycle {
             return;
         }
 
-        $current_requested = self::parse_generic_identifier($order->get_meta('UPayments_order_id'), 255);
+        $current_requested = self::parse_generic_identifier(Keys::read_order_meta($order, 'UPayments_order_id'), 255);
         if ($current_requested === null) {
             return;
         }
 
-        $track_id = self::parse_track_id($order->get_meta(self::TRUSTED_TRACK_META));
+        $track_id = self::parse_track_id(Keys::read_order_meta($order, self::TRUSTED_TRACK_META));
         if ($track_id !== null) {
-            $trusted_requested = self::parse_generic_identifier($order->get_meta(self::TRUSTED_REQUESTED_META), 255);
+            $trusted_requested = self::parse_generic_identifier(Keys::read_order_meta($order, self::TRUSTED_REQUESTED_META), 255);
             if ($trusted_requested === null || !hash_equals($current_requested, $trusted_requested)) {
                 if ($trusted_requested !== null) {
                     // The customer started a new attempt; the earlier one may still capture.
@@ -277,8 +278,8 @@ final class PaymentLifecycle {
                 return;
             }
         } else {
-            $track_id = self::parse_track_id($order->get_meta(self::UNVERIFIED_TRACK_META));
-            $unverified_requested = self::parse_generic_identifier($order->get_meta(self::UNVERIFIED_REQUESTED_META), 255);
+            $track_id = self::parse_track_id(Keys::read_order_meta($order, self::UNVERIFIED_TRACK_META));
+            $unverified_requested = self::parse_generic_identifier(Keys::read_order_meta($order, self::UNVERIFIED_REQUESTED_META), 255);
             if ($track_id === null
                 || $unverified_requested === null
                 || !hash_equals($current_requested, $unverified_requested)
@@ -390,12 +391,12 @@ final class PaymentLifecycle {
                 return self::outcome('unchanged', 'binding_changed_under_lock');
             }
 
-            $current_requested = self::parse_generic_identifier($fresh_order->get_meta('UPayments_order_id'), 255);
+            $current_requested = self::parse_generic_identifier(Keys::read_order_meta($fresh_order, 'UPayments_order_id'), 255);
             if ($current_requested === null) {
                 return self::outcome('unchanged', 'fresh_requested_order_invalid');
             }
-            $existing_track = $fresh_order->get_meta(self::TRUSTED_TRACK_META);
-            $existing_requested = $fresh_order->get_meta(self::TRUSTED_REQUESTED_META);
+            $existing_track = Keys::read_order_meta($fresh_order, self::TRUSTED_TRACK_META);
+            $existing_requested = Keys::read_order_meta($fresh_order, self::TRUSTED_REQUESTED_META);
             if (is_string($existing_track) && $existing_track !== '') {
                 if (!is_string($existing_requested) || $existing_requested === '') {
                     self::log('trusted_cursor_requested_missing', 'warning');
@@ -419,12 +420,11 @@ final class PaymentLifecycle {
             // Promotion to trusted occurs only after authenticated status response
             // + exact fresh-order rebound. Pair the track with provider order identity
             // so a later Charge attempt on the same Woo order can be distinguished.
-            $fresh_order->update_meta_data(self::TRUSTED_TRACK_META, $track_id);
-            $fresh_order->update_meta_data(self::TRUSTED_REQUESTED_META, $current_requested);
-            $fresh_order->delete_meta_data(self::UNVERIFIED_TRACK_META);
-            $fresh_order->delete_meta_data(self::UNVERIFIED_REQUESTED_META);
-            $fresh_order->update_meta_data(
-                self::PROVIDER_RESULT_META,
+            Keys::update_order_meta($fresh_order, self::TRUSTED_TRACK_META, $track_id);
+            Keys::update_order_meta($fresh_order, self::TRUSTED_REQUESTED_META, $current_requested);
+            Keys::delete_order_meta($fresh_order, self::UNVERIFIED_TRACK_META);
+            Keys::delete_order_meta($fresh_order, self::UNVERIFIED_REQUESTED_META);
+            Keys::update_order_meta($fresh_order, self::PROVIDER_RESULT_META,
                 $transaction['result'] === null ? 'NULL' : (string) $transaction['result']
             );
 
@@ -521,7 +521,7 @@ final class PaymentLifecycle {
         if (!is_string($requested_order_id) || $requested_order_id === '') {
             return false;
         }
-        $local_requested = $order->get_meta('UPayments_order_id');
+        $local_requested = Keys::read_order_meta($order, 'UPayments_order_id');
         return is_string($local_requested)
             && $local_requested !== ''
             && hash_equals($local_requested, $requested_order_id);
@@ -536,10 +536,10 @@ final class PaymentLifecycle {
         ) {
             return false;
         }
-        if ((string) $order->get_payment_method() !== 'upayments') {
+        if (!Keys::is_our_gateway((string) $order->get_payment_method())) {
             return false;
         }
-        $local_requested = $order->get_meta('UPayments_order_id');
+        $local_requested = Keys::read_order_meta($order, 'UPayments_order_id');
         return is_string($local_requested) && $local_requested !== '';
     }
 
@@ -554,16 +554,16 @@ final class PaymentLifecycle {
         }
         $track_id = self::parse_track_id($track_id);
         $requested_order_id = self::parse_generic_identifier($requested_order_id, 255);
-        $current_requested = self::parse_generic_identifier($order->get_meta('UPayments_order_id'), 255);
+        $current_requested = self::parse_generic_identifier(Keys::read_order_meta($order, 'UPayments_order_id'), 255);
         if ($track_id === null || $requested_order_id === null || $current_requested === null
             || !hash_equals($current_requested, $requested_order_id)
         ) {
             return false;
         }
 
-        $trusted = $order->get_meta(self::TRUSTED_TRACK_META);
+        $trusted = Keys::read_order_meta($order, self::TRUSTED_TRACK_META);
         if (is_string($trusted) && $trusted !== '') {
-            $trusted_requested = $order->get_meta(self::TRUSTED_REQUESTED_META);
+            $trusted_requested = Keys::read_order_meta($order, self::TRUSTED_REQUESTED_META);
             if (!is_string($trusted_requested) || $trusted_requested === '') {
                 return false;
             }
@@ -575,7 +575,7 @@ final class PaymentLifecycle {
             // trusted cursor was authoritative only for that prior unpaid attempt.
             self::reset_attempt_cursor_state($order);
         } else {
-            $unverified_requested = $order->get_meta(self::UNVERIFIED_REQUESTED_META);
+            $unverified_requested = Keys::read_order_meta($order, self::UNVERIFIED_REQUESTED_META);
             if (is_string($unverified_requested) && $unverified_requested !== ''
                 && !hash_equals($unverified_requested, $current_requested)
             ) {
@@ -586,14 +586,14 @@ final class PaymentLifecycle {
         // Unverified callback routing evidence is replaceable by a later locally
         // preflighted callback for the same current provider order identity. It can
         // never overwrite a trusted cursor for that same attempt.
-        $order->update_meta_data(self::UNVERIFIED_TRACK_META, $track_id);
-        $order->update_meta_data(self::UNVERIFIED_REQUESTED_META, $current_requested);
+        Keys::update_order_meta($order, self::UNVERIFIED_TRACK_META, $track_id);
+        Keys::update_order_meta($order, self::UNVERIFIED_REQUESTED_META, $current_requested);
         $saved = $order->save();
         if ($saved === false || $saved === null || $saved === 0) {
             return false;
         }
-        $readback_track = $order->get_meta(self::UNVERIFIED_TRACK_META);
-        $readback_requested = $order->get_meta(self::UNVERIFIED_REQUESTED_META);
+        $readback_track = Keys::read_order_meta($order, self::UNVERIFIED_TRACK_META);
+        $readback_requested = Keys::read_order_meta($order, self::UNVERIFIED_REQUESTED_META);
         return is_string($readback_track)
             && is_string($readback_requested)
             && hash_equals($readback_track, $track_id)
@@ -639,7 +639,7 @@ final class PaymentLifecycle {
             return;
         }
 
-        $attempt = (int) $order->get_meta(self::SECONDARY_ATTEMPT_META) + 1;
+        $attempt = (int) Keys::read_order_meta($order, self::SECONDARY_ATTEMPT_META) + 1;
         $remaining = array();
         foreach ($pending as $entry) {
             $current = wc_get_order($order_id);
@@ -693,13 +693,13 @@ final class PaymentLifecycle {
                     )
                 );
             }
-            $order->delete_meta_data(self::SECONDARY_PENDING_META);
-            $order->delete_meta_data(self::SECONDARY_ATTEMPT_META);
+            Keys::delete_order_meta($order, self::SECONDARY_PENDING_META);
+            Keys::delete_order_meta($order, self::SECONDARY_ATTEMPT_META);
             $order->save();
             return;
         }
-        $order->update_meta_data(self::SECONDARY_PENDING_META, $remaining);
-        $order->update_meta_data(self::SECONDARY_ATTEMPT_META, $attempt);
+        Keys::update_order_meta($order, self::SECONDARY_PENDING_META, $remaining);
+        Keys::update_order_meta($order, self::SECONDARY_ATTEMPT_META, $attempt);
         $order->save();
         self::schedule_secondary($order_id, $attempt);
     }
@@ -792,9 +792,9 @@ final class PaymentLifecycle {
                 return self::outcome('unchanged', 'payment_complete_failed');
             }
             // The capturing track now owns the order's trusted cursor.
-            $fresh_order->update_meta_data(self::TRUSTED_TRACK_META, $track_id);
-            $fresh_order->update_meta_data(self::TRUSTED_REQUESTED_META, $requested_order_id);
-            $fresh_order->update_meta_data(self::PROVIDER_RESULT_META, 'CAPTURED');
+            Keys::update_order_meta($fresh_order, self::TRUSTED_TRACK_META, $track_id);
+            Keys::update_order_meta($fresh_order, self::TRUSTED_REQUESTED_META, $requested_order_id);
+            Keys::update_order_meta($fresh_order, self::PROVIDER_RESULT_META, 'CAPTURED');
             self::clear_reconciliation($fresh_order);
             self::log('secondary_captured');
             return self::outcome('captured', 'secondary_captured');
@@ -817,7 +817,7 @@ final class PaymentLifecycle {
     }
 
     private static function secondary_pending($order) {
-        $raw = $order->get_meta(self::SECONDARY_PENDING_META);
+        $raw = Keys::read_order_meta($order, self::SECONDARY_PENDING_META);
         $pending = array();
         if (!is_array($raw)) {
             return $pending;
@@ -855,9 +855,9 @@ final class PaymentLifecycle {
                 return;
             }
             $pending[] = array('track' => $track_id, 'requested' => $requested_order_id);
-            $order->update_meta_data(self::SECONDARY_PENDING_META, array_slice($pending, -self::MAX_SECONDARY_PENDING));
+            Keys::update_order_meta($order, self::SECONDARY_PENDING_META, array_slice($pending, -self::MAX_SECONDARY_PENDING));
             $order->save();
-            self::schedule_secondary($order_id, (int) $order->get_meta(self::SECONDARY_ATTEMPT_META));
+            self::schedule_secondary($order_id, (int) Keys::read_order_meta($order, self::SECONDARY_ATTEMPT_META));
         } finally {
             if ($lock_token !== null) {
                 OrderLock::release($order_id, $lock_token);
@@ -881,13 +881,13 @@ final class PaymentLifecycle {
         if (!is_object($order) || !method_exists($order, 'update_meta_data') || !method_exists($order, 'add_order_note')) {
             return;
         }
-        $noted = $order->get_meta(self::SECONDARY_NOTED_META);
+        $noted = Keys::read_order_meta($order, self::SECONDARY_NOTED_META);
         $noted = is_array($noted) ? array_values(array_filter($noted, 'is_string')) : array();
         if (in_array((string) $track_id, $noted, true)) {
             return;
         }
         $noted[] = (string) $track_id;
-        $order->update_meta_data(self::SECONDARY_NOTED_META, array_slice($noted, -self::MAX_SECONDARY_NOTED));
+        Keys::update_order_meta($order, self::SECONDARY_NOTED_META, array_slice($noted, -self::MAX_SECONDARY_NOTED));
         $order->add_order_note(
             sprintf(
                 /* translators: %s: UPayments track ID. */
@@ -912,7 +912,7 @@ final class PaymentLifecycle {
     }
 
     private static function prior_attempts($order) {
-        $prior = $order->get_meta(self::PRIOR_REQUESTED_META);
+        $prior = Keys::read_order_meta($order, self::PRIOR_REQUESTED_META);
         return is_array($prior) ? array_values(array_filter($prior, 'is_string')) : array();
     }
 
@@ -929,7 +929,7 @@ final class PaymentLifecycle {
     }
 
     private static function is_known_attempt($order, $requested_order_id) {
-        $current = $order->get_meta('UPayments_order_id');
+        $current = Keys::read_order_meta($order, 'UPayments_order_id');
         if (is_string($current) && $current !== '' && is_string($requested_order_id)
             && hash_equals($current, $requested_order_id)
         ) {
@@ -948,7 +948,7 @@ final class PaymentLifecycle {
         }
         $bucket = gmdate('YmdHi');
         $count = 0;
-        $raw = $order->get_meta(self::CALLBACK_LOOKUP_META);
+        $raw = Keys::read_order_meta($order, self::CALLBACK_LOOKUP_META);
         if (is_string($raw) && preg_match('/^([0-9]{12}):([0-9]{1,4})$/', $raw, $m) && $m[1] === $bucket) {
             $count = (int) $m[2];
         }
@@ -956,7 +956,7 @@ final class PaymentLifecycle {
             self::log('callback_lookup_throttled', 'warning');
             return false;
         }
-        $order->update_meta_data(self::CALLBACK_LOOKUP_META, $bucket . ':' . ($count + 1));
+        Keys::update_order_meta($order, self::CALLBACK_LOOKUP_META, $bucket . ':' . ($count + 1));
         $order->save();
         return true;
     }
@@ -972,10 +972,10 @@ final class PaymentLifecycle {
         if ($track_id !== '') {
             self::schedule_reconciliation($order, 'capture_apply_failed', $track_id);
         }
-        if ((string) $order->get_meta(self::CAPTURE_APPLY_FAILED_META) === '1') {
+        if ((string) Keys::read_order_meta($order, self::CAPTURE_APPLY_FAILED_META) === '1') {
             return;
         }
-        $order->update_meta_data(self::CAPTURE_APPLY_FAILED_META, 1);
+        Keys::update_order_meta($order, self::CAPTURE_APPLY_FAILED_META, 1);
         if (method_exists($order, 'add_order_note')) {
             $order->add_order_note(
                 __('UPayments confirmed a captured payment for this order, but WooCommerce could not record it. SUPCheckout for UPayments will retry; if the order stays unpaid, review it manually.', 'supcheckout')
@@ -994,11 +994,11 @@ final class PaymentLifecycle {
             || !method_exists($order, 'get_payment_method')
             || !method_exists($order, 'get_meta')
             || !is_object($gateway)
-            || (string) $order->get_payment_method() === 'upayments'
+            || Keys::is_our_gateway((string) $order->get_payment_method())
         ) {
             return false;
         }
-        $requested = $order->get_meta('UPayments_order_id');
+        $requested = Keys::read_order_meta($order, 'UPayments_order_id');
         return is_string($requested) && $requested !== '';
     }
 
@@ -1023,13 +1023,13 @@ final class PaymentLifecycle {
     }
 
     private static function record_unapplied_capture($order, $payment_id, $reason) {
-        $recorded = $order->get_meta(self::UNAPPLIED_CAPTURES_META);
+        $recorded = Keys::read_order_meta($order, self::UNAPPLIED_CAPTURES_META);
         $recorded = is_array($recorded) ? array_values(array_filter($recorded, 'is_string')) : array();
         if (in_array($payment_id, $recorded, true)) {
             return;
         }
         $recorded[] = $payment_id;
-        $order->update_meta_data(self::UNAPPLIED_CAPTURES_META, $recorded);
+        Keys::update_order_meta($order, self::UNAPPLIED_CAPTURES_META, $recorded);
         if (method_exists($order, 'add_order_note')) {
             if ($reason === 'gateway_changed') {
                 /* translators: %s: UPayments payment ID. */
@@ -1104,15 +1104,19 @@ final class PaymentLifecycle {
             // Simplix verified-capture truth until the Woo paid-state postcondition
             // succeeds. If completion fails or throws, restore the exact prior
             // legacy metadata so false CAPTURED evidence cannot survive durably.
-            foreach ($legacy_capture_meta as $key => $value) {
-                $exists = method_exists($order, 'meta_exists')
-                    ? (bool) $order->meta_exists($key)
-                    : (string) $order->get_meta($key) !== '';
-                $legacy_capture_snapshot[$key] = array(
-                    'exists' => $exists,
-                    'value' => $exists ? $order->get_meta($key) : null,
-                );
-                $order->update_meta_data($key, $value);
+            foreach ($legacy_capture_meta as $legacy_key => $value) {
+                // Snapshot and restore exactly the names being written (Keys::write_keys():
+                // the legacy name before the takeover window, both names inside it).
+                foreach (Keys::write_keys($legacy_key) as $key) {
+                    $exists = method_exists($order, 'meta_exists')
+                        ? (bool) $order->meta_exists($key)
+                        : (string) $order->get_meta($key) !== '';
+                    $legacy_capture_snapshot[$key] = array(
+                        'exists' => $exists,
+                        'value' => $exists ? $order->get_meta($key) : null,
+                    );
+                    $order->update_meta_data($key, $value);
+                }
             }
 
             $force_completed = method_exists($gateway, 'getIsOrderComplete') && $gateway->getIsOrderComplete();
@@ -1164,12 +1168,12 @@ final class PaymentLifecycle {
         // Re-assert canonical legacy metadata after completion hooks, then persist
         // Simplix payment truth only after Woo confirms paid state + transaction ID.
         foreach ($legacy_capture_meta as $key => $value) {
-            $order->update_meta_data($key, $value);
+            Keys::update_order_meta($order, $key, $value);
         }
-        $order->update_meta_data('_upay_verified_capture', 1);
-        $order->update_meta_data('UPayments_webhook_triggered', 1);
-        $order->update_meta_data(self::PUBLIC_STATUS_META, 'completed');
-        $order->delete_meta_data(self::CAPTURE_APPLY_FAILED_META);
+        Keys::update_order_meta($order, '_upay_verified_capture', 1);
+        Keys::update_order_meta($order, 'UPayments_webhook_triggered', 1);
+        Keys::update_order_meta($order, self::PUBLIC_STATUS_META, 'completed');
+        Keys::delete_order_meta($order, self::CAPTURE_APPLY_FAILED_META);
         $order->save();
         return true;
     }
@@ -1186,8 +1190,8 @@ final class PaymentLifecycle {
             return false;
         }
 
-        $order->update_meta_data('UPayments_Result', (string) $provider_result);
-        $order->update_meta_data(self::PUBLIC_STATUS_META, $target_status);
+        Keys::update_order_meta($order, 'UPayments_Result', (string) $provider_result);
+        Keys::update_order_meta($order, self::PUBLIC_STATUS_META, $target_status);
         if ((string) $order->get_status() !== $target_status) {
             $note = $target_status === 'failed'
                 ? __('UPayments authenticated payment result is terminal failure.', 'supcheckout')
@@ -1219,7 +1223,7 @@ final class PaymentLifecycle {
             return true;
         }
 
-        $attempt = (int) $order->get_meta(self::RECONCILE_ATTEMPT_META);
+        $attempt = (int) Keys::read_order_meta($order, self::RECONCILE_ATTEMPT_META);
         if ($attempt >= self::MAX_RECONCILE_ATTEMPTS) {
             self::mark_reconciliation_exhausted($order, $reason);
             return false;
@@ -1236,8 +1240,8 @@ final class PaymentLifecycle {
             self::note_reconciliation_unschedulable($order);
             return false;
         }
-        $order->update_meta_data(self::RECONCILE_ATTEMPT_META, $next_attempt);
-        $order->update_meta_data(self::RECONCILE_REASON_META, self::safe_code($reason));
+        Keys::update_order_meta($order, self::RECONCILE_ATTEMPT_META, $next_attempt);
+        Keys::update_order_meta($order, self::RECONCILE_REASON_META, self::safe_code($reason));
         $order->save();
         return true;
     }
@@ -1260,11 +1264,11 @@ final class PaymentLifecycle {
     }
 
     private static function mark_reconciliation_exhausted($order, $reason) {
-        if ((string) $order->get_meta(self::RECONCILE_EXHAUSTED_META) === '1') {
+        if ((string) Keys::read_order_meta($order, self::RECONCILE_EXHAUSTED_META) === '1') {
             return;
         }
-        $order->update_meta_data(self::RECONCILE_EXHAUSTED_META, 1);
-        $order->update_meta_data(self::RECONCILE_REASON_META, self::safe_code($reason));
+        Keys::update_order_meta($order, self::RECONCILE_EXHAUSTED_META, 1);
+        Keys::update_order_meta($order, self::RECONCILE_REASON_META, self::safe_code($reason));
         if (method_exists($order, 'add_order_note')) {
             $order->add_order_note(
                 __('SUPCheckout for UPayments reconciliation exhausted without authoritative terminal payment state. Manual review is required.', 'supcheckout')
@@ -1279,11 +1283,11 @@ final class PaymentLifecycle {
         }
         self::unschedule_reconciliation($order);
         if (method_exists($order, 'delete_meta_data')) {
-            $order->delete_meta_data(self::UNVERIFIED_TRACK_META);
-            $order->delete_meta_data(self::UNVERIFIED_REQUESTED_META);
-            $order->delete_meta_data(self::RECONCILE_ATTEMPT_META);
-            $order->delete_meta_data(self::RECONCILE_REASON_META);
-            $order->delete_meta_data(self::RECONCILE_EXHAUSTED_META);
+            Keys::delete_order_meta($order, self::UNVERIFIED_TRACK_META);
+            Keys::delete_order_meta($order, self::UNVERIFIED_REQUESTED_META);
+            Keys::delete_order_meta($order, self::RECONCILE_ATTEMPT_META);
+            Keys::delete_order_meta($order, self::RECONCILE_REASON_META);
+            Keys::delete_order_meta($order, self::RECONCILE_EXHAUSTED_META);
             $order->save();
         }
     }
@@ -1293,14 +1297,14 @@ final class PaymentLifecycle {
             return;
         }
         self::unschedule_reconciliation($order);
-        $order->delete_meta_data(self::TRUSTED_TRACK_META);
-        $order->delete_meta_data(self::TRUSTED_REQUESTED_META);
-        $order->delete_meta_data(self::UNVERIFIED_TRACK_META);
-        $order->delete_meta_data(self::UNVERIFIED_REQUESTED_META);
-        $order->delete_meta_data(self::PROVIDER_RESULT_META);
-        $order->delete_meta_data(self::RECONCILE_ATTEMPT_META);
-        $order->delete_meta_data(self::RECONCILE_REASON_META);
-        $order->delete_meta_data(self::RECONCILE_EXHAUSTED_META);
+        Keys::delete_order_meta($order, self::TRUSTED_TRACK_META);
+        Keys::delete_order_meta($order, self::TRUSTED_REQUESTED_META);
+        Keys::delete_order_meta($order, self::UNVERIFIED_TRACK_META);
+        Keys::delete_order_meta($order, self::UNVERIFIED_REQUESTED_META);
+        Keys::delete_order_meta($order, self::PROVIDER_RESULT_META);
+        Keys::delete_order_meta($order, self::RECONCILE_ATTEMPT_META);
+        Keys::delete_order_meta($order, self::RECONCILE_REASON_META);
+        Keys::delete_order_meta($order, self::RECONCILE_EXHAUSTED_META);
         $order->save();
     }
 
@@ -1319,7 +1323,7 @@ final class PaymentLifecycle {
         if (!is_object($order) || !method_exists($order, 'get_meta')) {
             return false;
         }
-        $trusted = $order->get_meta(self::TRUSTED_TRACK_META);
+        $trusted = Keys::read_order_meta($order, self::TRUSTED_TRACK_META);
         return is_string($trusted) && self::parse_track_id($trusted) !== null;
     }
 
@@ -1328,9 +1332,9 @@ final class PaymentLifecycle {
         if ($track_id === null || !is_object($order) || !method_exists($order, 'get_meta')) {
             return false;
         }
-        $trusted = $order->get_meta(self::TRUSTED_TRACK_META);
-        $trusted_requested = self::parse_generic_identifier($order->get_meta(self::TRUSTED_REQUESTED_META), 255);
-        $current_requested = self::parse_generic_identifier($order->get_meta('UPayments_order_id'), 255);
+        $trusted = Keys::read_order_meta($order, self::TRUSTED_TRACK_META);
+        $trusted_requested = self::parse_generic_identifier(Keys::read_order_meta($order, self::TRUSTED_REQUESTED_META), 255);
+        $current_requested = self::parse_generic_identifier(Keys::read_order_meta($order, 'UPayments_order_id'), 255);
         return is_string($trusted)
             && $trusted !== ''
             && $trusted_requested !== null
@@ -1344,9 +1348,9 @@ final class PaymentLifecycle {
         if ($track_id === null || !is_object($order) || !method_exists($order, 'get_meta')) {
             return false;
         }
-        $unverified = $order->get_meta(self::UNVERIFIED_TRACK_META);
-        $unverified_requested = self::parse_generic_identifier($order->get_meta(self::UNVERIFIED_REQUESTED_META), 255);
-        $current_requested = self::parse_generic_identifier($order->get_meta('UPayments_order_id'), 255);
+        $unverified = Keys::read_order_meta($order, self::UNVERIFIED_TRACK_META);
+        $unverified_requested = self::parse_generic_identifier(Keys::read_order_meta($order, self::UNVERIFIED_REQUESTED_META), 255);
+        $current_requested = self::parse_generic_identifier(Keys::read_order_meta($order, 'UPayments_order_id'), 255);
         return is_string($unverified)
             && $unverified !== ''
             && $unverified_requested !== null
@@ -1385,7 +1389,7 @@ final class PaymentLifecycle {
     private static function is_verified_capture($order) {
         return is_object($order)
             && method_exists($order, 'get_meta')
-            && (string) $order->get_meta('_upay_verified_capture') === '1';
+            && (string) Keys::read_order_meta($order, '_upay_verified_capture') === '1';
     }
 
     private static function is_refunded($order) {
@@ -1446,7 +1450,7 @@ final class PaymentLifecycle {
             return null;
         }
         $gateways = $registry->payment_gateways();
-        return is_array($gateways) && isset($gateways['upayments']) ? $gateways['upayments'] : null;
+        return Keys::find_gateway($gateways);
     }
 
     /**
