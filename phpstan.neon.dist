@@ -13,6 +13,7 @@ parameters:
         - tests/phpstan/blocks-availability-stubs.php
         - tests/phpstan/gateway-availability-stubs.php
         - tests/phpstan/gateway-order-presentation-stubs.php
+        - tests/phpstan/takeover-preflight-stubs.php
     paths:
         - src/Payment/CheckoutPayload.php
         - src/Payment/OrderLock.php
@@ -58,4 +59,7 @@ parameters:
         - src/Takeover/Keys.php
         - src/Takeover/TakeoverState.php
         - src/Takeover/Journal.php
+        - src/Takeover/Environment.php
+        - src/Takeover/Preflight.php
+        - src/Takeover/OfficialFootprint.php
     tmpDir: .cache/phpstan

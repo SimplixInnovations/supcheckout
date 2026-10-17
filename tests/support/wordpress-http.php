@@ -44,6 +44,17 @@ if (!function_exists('wp_remote_get')) {
     }
 }
 
+if (!function_exists('wp_remote_request')) {
+    function wp_remote_request($url, $args = array()) {
+        $GLOBALS['supcheckout_test_http_calls'][] = array(
+            'url'  => $url,
+            'args' => $args,
+        );
+
+        return $GLOBALS['supcheckout_test_http_response'];
+    }
+}
+
 if (!function_exists('is_wp_error')) {
     function is_wp_error($value) {
         return $value instanceof SUPCheckout_Test_WP_Error;

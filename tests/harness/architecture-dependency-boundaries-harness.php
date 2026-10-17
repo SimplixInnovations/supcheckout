@@ -168,12 +168,16 @@ $expected_egress = array(
     'src/Gateway/Gateway.php:wp_remote_request',
     'src/Subscription/Cron/Scheduler.php:wp_remote_request',
     'src/Payment/StatusVerifier.php:wp_remote_get',
+    // 0b Task 4: Preflight's loopback GET of the site's OWN new callback URL (no cookies,
+    // no redirects, body discarded). Not provider egress: Preflight's provider check
+    // reuses Gateway::execute_upayments_request() above.
+    'src/Takeover/Environment.php:wp_remote_get',
 );
 sort($expected_egress);
 t1_dep_same(
     $egress,
     $expected_egress,
-    'provider HTTP egress set remains exactly the accepted three implementations'
+    'HTTP egress set remains exactly the accepted three provider implementations plus the Preflight loopback probe'
 );
 
 // Pin the real callback/bootstrap topology without line-number coupling.
