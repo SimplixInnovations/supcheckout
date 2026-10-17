@@ -17,7 +17,7 @@
  *   rollback      `rollback --yes --reactivate-official` (step 8);
  *   rolled_back   pre-switch values restored byte for byte, paid orders still paid;
  *   rerun         `run` again (step 9); rerun_verify: the same result, in a fresh process;
- *   finalize      (guarded: only when the build has `finalize`, 0b Task 11) the irreversible
+ *   finalize      (guarded: only when src/Takeover/Finalize.php exists, 0b Task 11) the irreversible
  *                 finalize forced after review, with one legacy value made to differ;
  *   finalized     legacy names removed only where they verified equal.
  * Pre-0b SUPCheckout lane: pre0b_seed, pre0b_switch, pre0b_rollback, pre0b_rerun.
@@ -408,13 +408,27 @@ if ($phase === 'rerun_verify') {
     return;
 }
 
+/**
+ * Step 9 runs exactly when this checkout ships Finalize (Sub-project 0b Task 11). The guard
+ * is the source file, never the CLI's answer: a renamed command, a boot failure or a help
+ * quirk must fail the step, not skip it.
+ *
+ * @return bool
+ */
+function supcheckout_matrix_has_finalize() {
+    $has = is_file(dirname(__DIR__, 2) . '/src/Takeover/Finalize.php');
+    if (!$has) {
+        supcheckout_cert_note('this checkout has no src/Takeover/Finalize.php (Sub-project 0b Task 11 not merged): step 9 finalize is skipped');
+    }
+    return $has;
+}
+
 if ($phase === 'finalize') {
-    $help = supcheckout_matrix_wp('help supcheckout takeover finalize');
-    if ($help->return_code !== 0) {
-        supcheckout_cert_note('this build has no `finalize` (Sub-project 0b Task 11): step 9 finalize is skipped');
-        update_option('supcheckout_matrix_finalize_skipped', 1, false);
+    if (!supcheckout_matrix_has_finalize()) {
         return;
     }
+    $help = supcheckout_matrix_wp('help supcheckout takeover finalize');
+    supcheckout_cert_assert($help->return_code === 0 && strpos($help->stdout, '--force-after-review') !== false, 'the build ships Finalize, so `wp supcheckout takeover finalize` is registered with --force-after-review: ' . $help->stdout . $help->stderr);
     $manifest = supcheckout_matrix_manifest();
     $early = supcheckout_matrix_wp('supcheckout takeover finalize --yes');
     supcheckout_cert_assert($early->return_code === CliCommands::STATE, 'finalize inside the 30 days without --force-after-review exits 6: ' . $early->stdout);
@@ -435,8 +449,7 @@ if ($phase === 'finalize') {
 }
 
 if ($phase === 'finalized') {
-    if (get_option('supcheckout_matrix_finalize_skipped')) {
-        supcheckout_cert_note('finalize skipped on this build');
+    if (!supcheckout_matrix_has_finalize()) {
         return;
     }
     $manifest = supcheckout_matrix_manifest();
