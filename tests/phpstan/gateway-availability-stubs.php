@@ -14,20 +14,14 @@ class SUPCheckoutPhpstanWooContainer {
     public $session;
 }
 
-/**
- * Shared development-only model of the protected Classic gateway identity.
- *
- * Keep one WC_Upayments stub across the bounded PHPStan scan so gateway,
- * subscription and presentation analysis cannot silently disagree about its
- * public runtime surface.
+/*
+ * No stub models the Classic gateway. Since Sub-project 0a Task 3 it is the real
+ * Simplixi\SUPCheckout\Gateway\Gateway (src/Gateway/Gateway.php), which PHPStan
+ * resolves through the Composer PSR-4 map, so gateway, subscription and
+ * presentation analysis cannot disagree with its public runtime surface. The
+ * former WC_Upayments stub is gone so no analysed code can reference a class that
+ * no longer exists at runtime.
  */
-class WC_Upayments {
-    /** @var string */
-    public $autoDeduction;
-
-    /** @return void */
-    public function render_subscription_summary($order) {}
-}
 
 /** @return bool */
 function is_admin() {}

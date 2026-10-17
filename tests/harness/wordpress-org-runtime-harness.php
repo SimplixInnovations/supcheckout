@@ -26,7 +26,9 @@ function wporgr_read($root, $path) {
     return is_string($value) ? $value : '';
 }
 
-$gateway = wporgr_read($root, 'supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gateway = wporgr_read($root, 'supcheckout.php') . "\n" . wporgr_read($root, 'src/Gateway/Gateway.php');
 $scheduler = wporgr_read($root, 'includes/Subscription/Cron/Scheduler.php');
 $status = wporgr_read($root, 'src/Payment/StatusVerifier.php');
 $payload = wporgr_read($root, 'src/Payment/CheckoutPayload.php');

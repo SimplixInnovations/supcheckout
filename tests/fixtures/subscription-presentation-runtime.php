@@ -65,8 +65,12 @@ namespace {
         public function add_meta_data($key, $value) { $this->writes[] = array($key, $value); }
         public function get_product() { return $this->product; }
     }
+}
 
-    class WC_Upayments {
+// Stands in for the real gateway class (each PresentationTest runs in its own
+// process) and counts constructions: presentation must never build a second one.
+namespace Simplixi\SUPCheckout\Gateway {
+    class Gateway {
         public static $summary_orders = array();
         public static $constructed = 0;
 

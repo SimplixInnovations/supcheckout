@@ -355,8 +355,8 @@ namespace {
         require_once dirname(__DIR__, 2) . '/supcheckout.php';
         woocommerceUpaymentsInit();
 
-        $reflection = new ReflectionClass('WC_Upayments');
-        /** @var WC_Upayments $gateway */
+        $reflection = new ReflectionClass('Simplixi\SUPCheckout\Gateway\Gateway');
+        /** @var Simplixi\SUPCheckout\Gateway\Gateway $gateway */
         $gateway = $reflection->newInstanceWithoutConstructor();
         $gateway->id = 'upayments';
         $gateway->return_from_upayments();
@@ -385,8 +385,8 @@ namespace {
         require_once dirname(__DIR__, 2) . '/supcheckout.php';
         woocommerceUpaymentsInit();
 
-        $reflection = new ReflectionClass('WC_Upayments');
-        /** @var WC_Upayments $gateway */
+        $reflection = new ReflectionClass('Simplixi\SUPCheckout\Gateway\Gateway');
+        /** @var Simplixi\SUPCheckout\Gateway\Gateway $gateway */
         $gateway = $reflection->newInstanceWithoutConstructor();
         $gateway->id = 'upayments';
         $gateway->web_hook_handler();

@@ -216,9 +216,9 @@ if (in_array($phase, array('deactivated', 'reactivated', 'uninstalled', 'final')
     );
 
     if ('deactivated' === $phase || 'uninstalled' === $phase) {
-        supcheckout_cert_assert(!class_exists('WC_Upayments'), 'SUPCheckout runtime class is absent while plugin is inactive');
+        supcheckout_cert_assert(!class_exists('Simplixi\SUPCheckout\Gateway\Gateway'), 'SUPCheckout runtime class is absent while plugin is inactive');
     } else {
-        supcheckout_cert_assert(class_exists('WC_Upayments'), 'SUPCheckout runtime class is present after reactivation');
+        supcheckout_cert_assert(class_exists('Simplixi\SUPCheckout\Gateway\Gateway'), 'SUPCheckout runtime class is present after reactivation');
     }
 
     if ('final' === $phase) {

@@ -111,13 +111,17 @@ try {
     );
 
     $orchestrator_source = file_get_contents(dirname(__DIR__, 2) . '/src/Payment/CheckoutOrchestrator.php');
-    $adapter_source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+    // The platform adapter is the main file plus the gateway class it registers
+    // (moved to src/Gateway/Gateway.php in Sub-project 0a Task 3).
+    $main_source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+    $gateway_source = file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
+    $adapter_source = is_string($main_source) && is_string($gateway_source) ? $main_source . "\n" . $gateway_source : false;
     supcheckout_cert_assert(is_string($orchestrator_source), 'CheckoutOrchestrator source is readable');
-    supcheckout_cert_assert(is_string($adapter_source), 'WC_Upayments adapter source is readable');
+    supcheckout_cert_assert(is_string($adapter_source), 'gateway adapter source is readable');
     supcheckout_cert_assert(
-        strpos($adapter_source, "api_request_url('wc_upayments')") !== false
-        || strpos($adapter_source, 'api_request_url("wc_upayments")') !== false,
-        'WC_Upayments platform adapter owns WooCommerce api_request_url'
+        strpos($gateway_source, "api_request_url('wc_upayments')") !== false
+        || strpos($gateway_source, 'api_request_url("wc_upayments")') !== false,
+        'gateway platform adapter owns WooCommerce api_request_url'
     );
     supcheckout_cert_assert(
         strpos($orchestrator_source, 'api_request_url') === false,
@@ -134,7 +138,7 @@ try {
         );
         supcheckout_cert_assert(
             strpos($adapter_source, $header_token) === false,
-            'WC_Upayments adapter does not read raw forwarded/host header ' . $header_token
+            'gateway adapter does not read raw forwarded/host header ' . $header_token
         );
     }
     supcheckout_cert_assert(

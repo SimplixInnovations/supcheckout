@@ -40,7 +40,7 @@ foreach ($cases as $label => $case) {
     }
 
     supcheckout_cert_store_option_raw('woocommerce_upayments_settings', $settings);
-    $gateway = new WC_Upayments();
+    $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 
     supcheckout_cert_assert(
         $gateway->getIsOrderComplete() === $case['complete'],

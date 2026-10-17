@@ -209,7 +209,7 @@ foreach (array(false => $liveBase, true => $sandboxBase) as $mode => $base) {
 
 require_once __DIR__ . '/_bootstrap.php';
 
-$gateway = new WC_Upayments();
+$gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 foreach (array('no' => $liveBase, 'yes' => $sandboxBase, '' => $liveBase) as $setting => $base) {
     $gateway->testMode = $setting;
     arch4_assert($gateway->getAPIUrl() === $base, "gateway {$setting} mode preserves empty-route URL");
@@ -228,8 +228,38 @@ foreach (array('no' => $liveBase, 'yes' => $sandboxBase, '' => $liveBase) as $se
     );
 }
 
+// Third parties reach the public compatibility wrapper through WooCommerce's
+// registry: WC()->payment_gateways()->payment_gateways()['upayments']. Mirror
+// WC_Payment_Gateways::init() (instantiate each registered class name) and
+// payment_gateways() (key by gateway ID) on the real GatewayRegistration output.
+$registry = array();
+foreach (\Simplixi\SUPCheckout\Gateway\GatewayRegistration::filter_gateways(array()) as $registeredClass) {
+    $registeredGateway = is_string($registeredClass) ? new $registeredClass() : $registeredClass;
+    $registry[$registeredGateway->id] = $registeredGateway;
+}
+arch4_assert(
+    isset($registry['upayments']) && $registry['upayments'] instanceof \Simplixi\SUPCheckout\Gateway\Gateway,
+    'WooCommerce registry key upayments returns the SUPCheckout gateway object'
+);
+$wrapper = new ReflectionMethod('Simplixi\SUPCheckout\Gateway\Gateway', 'getAPIUrlForRetreiveCards');
+arch4_assert(
+    $wrapper->isPublic() && !$wrapper->isStatic(),
+    'public compatibility wrapper getAPIUrlForRetreiveCards() stays a public instance method'
+);
+if (isset($registry['upayments'])) {
+    $registry['upayments']->testMode = 'yes';
+    arch4_assert(
+        $registry['upayments']->getAPIUrlForRetreiveCards() === $sandboxBase . 'retrieve-customer-cards',
+        'registered gateway object answers getAPIUrlForRetreiveCards()'
+    );
+}
+
 $resolverSource = file_get_contents(dirname(__DIR__, 2) . '/src/Provider/EndpointResolver.php');
-$gatewaySource = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gatewayMain = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+$gatewayClass = file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
+$gatewaySource = is_string($gatewayMain) && is_string($gatewayClass) ? $gatewayMain . "\n" . $gatewayClass : false;
 arch4_assert(is_string($resolverSource), 'provider endpoint resolver source is readable');
 arch4_assert(is_string($gatewaySource), 'gateway source is readable');
 arch4_assert(

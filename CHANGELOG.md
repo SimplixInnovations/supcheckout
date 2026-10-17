@@ -6,6 +6,19 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Clean core: the gateway class is namespaced (Sub-project 0a Task 3)
+
+- The payment gateway class is now `Simplixi\SUPCheckout\Gateway\Gateway`. The global class `WC_Upayments` and the global callbacks `addUpaymentsGatewayClass()` and `enableUpaymentsGateway()` no longer exist. There is no alias, because the official UPayments plugin declares a `WC_Upayments` of its own.
+- Customizations must change if they use `instanceof WC_Upayments` or `class_exists('WC_Upayments')`, extend `WC_Upayments`, or call `remove_filter(..., 'addUpaymentsGatewayClass')` or `remove_filter(..., 'enableUpaymentsGateway')`.
+- Unchanged:
+  - the gateway ID `upayments`;
+  - the `woocommerce_upayments_settings` settings;
+  - order metadata;
+  - the `wc_upayments` callback route;
+  - `WC()->payment_gateways()->payment_gateways()['upayments']`;
+  - the public `getAPIUrlForRetreiveCards()` method.
+- Gateway settings links: WooCommerce matches the `section` query argument against the gateway ID or `sanitize_title( get_class( $gateway ) )`. This was checked in `WC_Settings_Payment_Gateways` in WooCommerce trunk source. `section=upayments` therefore keeps working. A saved legacy link using `section=wc_upayments`, the old class-name form, no longer opens the gateway settings.
+
 ### Non-white-label Charge fix (release-blocking, not owner accepted)
 
 - Non-white-label Charges now send `paymentGateway.src = "knet"`, as official UPayments 3.1.1 does. A production merchant account rejected the previous request (no `paymentGateway`) with HTTP 422, so every checkout on a non-white-label account would have failed. The defect dates back to the Simplix baseline; the H12 assertion that pinned it is corrected.

@@ -611,8 +611,8 @@ if (!class_exists('Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractP
     }');
 }
 
-if (!class_exists('WC_Upayments')) {
-    fwrite(STDERR, "FATAL: WC_Upayments class missing\n");
+if (!class_exists('Simplixi\SUPCheckout\Gateway\Gateway')) {
+    fwrite(STDERR, "FATAL: Simplixi\SUPCheckout\Gateway\Gateway class missing\n");
     exit(1);
 }
 
@@ -800,7 +800,7 @@ class FakeWCOrder extends \WC_Order {
 }
 }
 if (!class_exists('WC_Upayments_Testable', false)) {
-class WC_Upayments_Testable extends WC_Upayments {
+class WC_Upayments_Testable extends \Simplixi\SUPCheckout\Gateway\Gateway {
     public function get_option($key, $default = false) {
         // Read from settings array if available, otherwise fall back to property map.
         $state =& upay_test_state();

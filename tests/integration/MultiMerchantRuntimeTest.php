@@ -37,7 +37,7 @@ function supcheckout_cert_mm_order() {
 }
 
 function supcheckout_cert_mm_gateway($iban) {
-    $gateway = new WC_Upayments();
+    $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
     $gateway->domain = 'upayments';
     $gateway->apiKey = 'certification-api-key';
     $gateway->testMode = 'yes';
@@ -162,7 +162,7 @@ $stable_settings = array(
 );
 supcheckout_cert_store_option_raw($settings_key, $stable_settings);
 
-$admin_gateway = new WC_Upayments();
+$admin_gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
 $invalid_post = array(
     'woocommerce_upayments_enabled'              => '1',
     'woocommerce_upayments_title'                => 'MUTATED TITLE MUST NOT PERSIST',

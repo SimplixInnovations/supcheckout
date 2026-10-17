@@ -27,7 +27,7 @@ function wp_remote_retrieve_body($response) {
 
 require __DIR__ . '/_bootstrap.php';
 
-class SUPCheckout_Production_Transport_Testable extends WC_Upayments {
+class SUPCheckout_Production_Transport_Testable extends \Simplixi\SUPCheckout\Gateway\Gateway {
     public function __construct() {}
     public function call_transport($route, $method, $body = null) {
         return parent::execute_upayments_request($route, $method, $body);
@@ -53,7 +53,11 @@ function sut_assert($condition, $message) {
     echo "FAIL: {$message}\n";
 }
 
-$gateway_source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gateway_main = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+$gateway_class = file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
+$gateway_source = is_string($gateway_main) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_class : false;
 sut_assert(
     is_string($gateway_source)
         && strpos($gateway_source, 'wp_remote_request(') !== false

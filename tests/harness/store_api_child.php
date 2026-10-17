@@ -560,7 +560,7 @@ if (is_array($identity_setup_decoded) && ($identity_setup_decoded['setup_mode'] 
 // private; use reflection from the child.
 $debug_is_store_api = null;
 try {
-    $ref = new ReflectionMethod('WC_Upayments', 'is_store_api_checkout_request');
+    $ref = new ReflectionMethod('Simplixi\SUPCheckout\Gateway\Gateway', 'is_store_api_checkout_request');
     $ref->setAccessible(true);
     $debug_is_store_api = (bool) $ref->invoke(null);
 } catch (Throwable $e) {
@@ -700,7 +700,7 @@ $out = [
     'provenance_generation'          => $provenance_generation,
     'notices'                        => $final['notices'],
     'pid'                            => getmypid(),
-    'wc_loaded'                      => class_exists('WC_Upayments'),
+    'wc_loaded'                      => class_exists('Simplixi\SUPCheckout\Gateway\Gateway'),
 ];
 
 echo json_encode($out) . "\n";

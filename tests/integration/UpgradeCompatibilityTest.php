@@ -127,11 +127,14 @@ function supcheckout_upgrade_assert_runtime_contract($mode, $legacy_slug, $legac
     }
     supcheckout_cert_assert(is_plugin_active($active_basename), $label . ' plugin basename is active');
     supcheckout_cert_assert(!is_plugin_active($inactive_basename), 'alternate package identity is inactive');
-    supcheckout_cert_assert(class_exists('WC_Upayments'), $label . ' gateway runtime loads');
+    // The legacy (pre-stable and pre-rename) packages are built from commits before
+    // Sub-project 0a Task 3 and still declare the global WC_Upayments class.
+    $gateway_class = $legacy ? 'WC_Upayments' : 'Simplixi\SUPCheckout\Gateway\Gateway';
+    supcheckout_cert_assert(class_exists($gateway_class), $label . ' gateway runtime loads');
 
     $gateways = WC()->payment_gateways()->payment_gateways();
     supcheckout_cert_assert(
-        isset($gateways['upayments']) && $gateways['upayments'] instanceof WC_Upayments,
+        isset($gateways['upayments']) && $gateways['upayments'] instanceof $gateway_class,
         'WooCommerce gateway ID upayments remains registered'
     );
     supcheckout_cert_assert(false !== has_action('woocommerce_api_wc_upayments'), 'historical WooCommerce API callback hook remains registered');

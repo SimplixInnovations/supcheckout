@@ -79,7 +79,7 @@ function supcheckout_cert_degrade_product_descriptor($order, $product_id) {
 }
 
 function supcheckout_cert_subscription_gateway() {
-    $gateway = new WC_Upayments();
+    $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
     $gateway->domain = 'upayments';
     $gateway->apiKey = 'certification-api-key';
     $gateway->testMode = 'yes';

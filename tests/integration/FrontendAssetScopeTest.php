@@ -15,9 +15,9 @@ require_once __DIR__ . '/bootstrap.php';
 
 use Simplixi\SUPCheckout\Subscription\Presentation;
 
-supcheckout_cert_assert(class_exists('WC_Upayments'), 'SUPCheckout Classic gateway class is available for asset-scope certification');
+supcheckout_cert_assert(class_exists('Simplixi\SUPCheckout\Gateway\Gateway'), 'SUPCheckout Classic gateway class is available for asset-scope certification');
 
-class SUPCheckout_FrontendAssetScopeProbe extends WC_Upayments {
+class SUPCheckout_FrontendAssetScopeProbe extends \Simplixi\SUPCheckout\Gateway\Gateway {
     public $availability_checks = 0;
     public $available = true;
 

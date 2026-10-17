@@ -59,7 +59,7 @@ final class Composition {
     /**
      * Register the two inherited gateway-instance presentation hooks.
      *
-     * @param object $gateway WC_Upayments instance.
+     * @param object $gateway \Simplixi\SUPCheckout\Gateway\Gateway instance.
      * @return void
      */
     public static function register_gateway_hooks($gateway) {

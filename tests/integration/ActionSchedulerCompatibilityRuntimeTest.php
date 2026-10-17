@@ -14,7 +14,7 @@ use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge as ASBrid
 
 // --- 0. Force-load WooCommerce-bundled Action Scheduler under wp-cli ---
 // Do not re-fire plugins_loaded/init: that re-enters plugin bootstrap and can
-// redeclare WC_Upayments. Only initialize the Action Scheduler library itself.
+// redeclare Simplixi\SUPCheckout\Gateway\Gateway. Only initialize the Action Scheduler library itself.
 if (!class_exists('Action_Scheduler') && !class_exists('ActionScheduler') && class_exists('ActionScheduler_Versions')) {
     \ActionScheduler_Versions::instance()->initialize_latest_version();
 }

@@ -2,7 +2,7 @@
 /**
  * Approach 3 T3 characterization of direct historical callback methods.
  *
- * Runtime-neutral: this harness executes the real WC_Upayments legacy verifier,
+ * Runtime-neutral: this harness executes the real Simplixi\SUPCheckout\Gateway\Gateway legacy verifier,
  * browser-return and webhook methods against deterministic WordPress/WooCommerce
  * doubles. It intentionally records existing behavior; it does not prescribe the
  * next implementation.
@@ -173,7 +173,7 @@ require_once dirname(__DIR__, 2) . '/supcheckout.php';
 
 woocommerceUpaymentsInit();
 
-class T3LegacyGatewayProbe extends WC_Upayments {
+class T3LegacyGatewayProbe extends \Simplixi\SUPCheckout\Gateway\Gateway {
     protected function execute_upayments_request($route, $method, $body = null) {
         $GLOBALS['t3_transport_calls'][] = array('route' => $route, 'method' => $method, 'body' => $body);
         echo 'TRANSPORT:' . $method . ':' . $route . "\n";
@@ -353,7 +353,11 @@ t3_reset();
 $r = t3_verify(null, null, 'track-abc');
 t3_assert($r['reason'] === 'retired' && $r['verified'] === false, 'legacy verifier retired; financial authority is PaymentLifecycle');
 
-$source = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$source_main = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+$source_class = file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
+$source = is_string($source_main) && is_string($source_class) ? $source_main . "\n" . $source_class : false;
 t3_assert(is_string($source), 'gateway source readable');
 if (is_string($source)) {
     t3_assert(!t3_contains($source, 'function verify_payment_status'), 'legacy private verifier is retired');

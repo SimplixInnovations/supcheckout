@@ -87,7 +87,9 @@ sec_assert(PublicOrderStatus::normalize_status('cancelled') === 'cancelled', 'st
 sec_assert(PublicOrderStatus::normalize_status('<script>') === 'wait', 'unknown persisted status fails closed to wait');
 sec_assert(PublicOrderStatus::normalize_status(array('completed')) === 'wait', 'non-scalar persisted status fails closed');
 
-$gateway = sec_source('supcheckout.php');
+// The gateway source is the main file plus the gateway class it registers
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+$gateway = sec_source('supcheckout.php') . "\n" . sec_source('src/Gateway/Gateway.php');
 $gateway_settings_path = dirname(__DIR__, 2) . '/src/Admin/GatewaySettings.php';
 $gateway_settings = @file_get_contents($gateway_settings_path);
 $gateway_settings = is_string($gateway_settings) ? $gateway_settings : '';

@@ -2,9 +2,9 @@
 /**
  * Payment form template for the Old Design (V2.0.8 Look).
  *
- * This file is included in WC_Upayments::payment_fields().
+ * This file is included in \Simplixi\SUPCheckout\Gateway\Gateway::payment_fields().
  *
- * @var WC_Upayments $gateway           The gateway instance.
+ * @var \Simplixi\SUPCheckout\Gateway\Gateway $gateway The gateway instance.
  * @var bool                    $save_card_enabled Flag indicating if save card is enabled (unused in this design).
  */
 

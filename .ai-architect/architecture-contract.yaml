@@ -34,7 +34,7 @@ baselines:
 
 boundaries:
   platform_edges:
-    - UPayments.php bootstrap and WC_Upayments compatibility gateway
+    - UPayments.php bootstrap and Simplixi\SUPCheckout\Gateway\Gateway compatibility gateway (id upayments)
     - PaymentLifecycle::handle_callback active wc_upayments callback at priority 5
     - WCGatewayUPaymentsBlocks compatibility-located Blocks adapter
     - PublicOrderStatus
@@ -50,13 +50,13 @@ boundaries:
   provider_infrastructure:
     - EndpointResolver
     - PaymentMethodAvailability
-    - WC_Upayments::execute_upayments_request
+    - Simplixi\SUPCheckout\Gateway\Gateway::execute_upayments_request
     - StatusVerifier::verify
     - protected Scheduler renewal transport
 
 dependency_rules:
   - rule: allow
-    from: UPayments.php/WC_Upayments
+    from: UPayments.php/Simplixi\SUPCheckout\Gateway\Gateway
     to: src/*
     reason: WooCommerce compatibility adapter may delegate inward.
   - rule: allow
@@ -65,7 +65,7 @@ dependency_rules:
     reason: Canonical callback/reconciliation lifecycle.
   - rule: deny
     from: inward payment/provider services
-    to: new service discovery or reverse lookup through WC_Upayments/WooCommerce registries beyond characterized exceptions
+    to: new service discovery or reverse lookup through the gateway class/WooCommerce registries beyond characterized exceptions
     reason: No new service-locator or reverse gateway dependency.
   - rule: deny
     from: src/Payment/*
@@ -102,7 +102,7 @@ identity_contracts:
 
 protected_contracts:
   - UPayments.php physical bootstrap
-  - WC_Upayments class identity
+  - Simplixi\SUPCheckout\Gateway\Gateway class identity (was global WC_Upayments until Sub-project 0a Task 3; gateway id upayments unchanged)
   - WCGatewayUPaymentsBlocks class identity
   - upayments gateway/payment/Blocks identity
   - woocommerce_upayments_settings
@@ -135,7 +135,7 @@ forbidden_architecture:
 approved_r5_seam:
   decision: R5_DECISION=B
   adr: .ai-architect/decisions/ADR-003-thin-callback-normalization-into-lifecycle.md
-  path: UPayments.php/WC_Upayments -> explicit compatibility mode normalization -> PaymentLifecycle
+  path: UPayments.php/Simplixi\SUPCheckout\Gateway\Gateway -> explicit compatibility mode normalization -> PaymentLifecycle
   mode_contract:
     - browser
     - webhook
@@ -143,8 +143,8 @@ approved_r5_seam:
   one_financial_lifecycle: true
 
 provider_http_egress_baseline:
-  - path: UPayments.php
-    owner: WC_Upayments::execute_upayments_request
+  - path: src/Gateway/Gateway.php
+    owner: Simplixi\SUPCheckout\Gateway\Gateway::execute_upayments_request
     primitive: wp_remote_request
   - path: src/Payment/StatusVerifier.php
     owner: StatusVerifier::verify

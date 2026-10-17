@@ -42,7 +42,10 @@ function p0_contains($source, $needle) {
 
 $bootstrap = file_get_contents($bootstrap_path);
 $checkout_orchestrator = file_get_contents($root . '/src/Payment/CheckoutOrchestrator.php');
-$runtime_source = $bootstrap . "\n" . $checkout_orchestrator;
+// The gateway class the bootstrap registers lives in src/Gateway/Gateway.php since Sub-project 0a Task 3.
+$gateway_class_source = file_get_contents($root . '/src/Gateway/Gateway.php');
+$gateway_registration_source = file_get_contents($root . '/src/Gateway/GatewayRegistration.php');
+$runtime_source = $bootstrap . "\n" . $gateway_class_source . "\n" . $checkout_orchestrator;
 $identity_source = file_get_contents($identity_path);
 $uninstall = file_get_contents($uninstall_path);
 
@@ -89,7 +92,13 @@ $legacy_shim = (string) @file_get_contents($root . '/' . Identity::LEGACY_MAIN_F
 p0_assert(p0_header_value($legacy_shim, 'Plugin Name') === null, 'pre-rename UPayments.php is only a header-less shim, so supcheckout.php is the one plugin main file');
 
 // Core compatibility identities must remain discoverable in the source tree.
-p0_assert(p0_contains($bootstrap, 'WC_Upayments'), 'legacy gateway class identity remains present');
+// Sub-project 0a Task 3 namespaces the gateway class (spec: no legacy global class may
+// collide with the official plugin's WC_Upayments); WooCommerce still receives it by name.
+p0_assert(
+    p0_contains($gateway_class_source, 'class Gateway extends \\WC_Payment_Gateway')
+        && p0_contains($gateway_registration_source, '$methods[] = Gateway::class;'),
+    'gateway class identity remains present and registered with WooCommerce'
+);
 p0_assert(p0_contains($runtime_source, 'wc_upayments'), 'legacy callback route remains present');
 p0_assert(p0_contains($bootstrap, "'upayments'"), 'legacy upayments runtime identity remains present');
 
