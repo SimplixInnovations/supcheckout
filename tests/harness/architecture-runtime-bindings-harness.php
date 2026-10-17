@@ -1087,6 +1087,28 @@ arch2_assert(
             . 'self::load_runtime(self::$main_file);',
     'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then loads the former main-file runtime'
 );
+// The former main-file runtime block (constants, ordered loads, release constants) is pinned
+// exactly: before Task 5 the main-file byte ratchet guarded it, so a dropped or reordered
+// require/define must still fail here even when no other harness checks that file.
+$loadRuntimeBody = preg_match('/private static function load_runtime\(\$main_file\)\s*\{(.*?)\n    \}/s', arch2_read($root, 'src/Plugin.php'), $loadRuntimeMatch) === 1
+    ? preg_replace('/\s+/', '', $loadRuntimeMatch[1])
+    : '';
+arch2_assert(
+    $loadRuntimeBody === 'define("UP_PLUGIN_URL",plugin_dir_url($main_file));define("UP_PLUGIN_PATH",plugin_dir_path($main_file));'
+        . "define('UPAYMENTS_PLUGIN_FILE',\$main_file);"
+        . "require_once__DIR__.'/Release/Identity.php';require_once__DIR__.'/Provider/MultiMerchantContract.php';"
+        . "require_once__DIR__.'/Admin/GatewaySettings.php';require_once__DIR__.'/Gateway/Availability.php';"
+        . "require_once__DIR__.'/Gateway/OrderPresentation.php';require_once__DIR__.'/Provider/EndpointResolver.php';"
+        . "require_once__DIR__.'/Provider/PaymentMethodAvailability.php';require_once__DIR__.'/Payment/CheckoutPayload.php';"
+        . "require_once__DIR__.'/Payment/CheckoutOrchestrator.php';require_once__DIR__.'/Payment/SavedCardSelection.php';"
+        . "require_once__DIR__.'/Payment/SavedCardPresentation.php';require_once__DIR__.'/Subscription/Presentation.php';"
+        . "require_once__DIR__.'/Subscription/Composition.php';require_once__DIR__.'/Subscription/RenewalCardAuthority.php';"
+        . "require_once__DIR__.'/Subscription/CycleEconomics.php';require_once__DIR__.'/Subscription/AutoDeductResultVerifier.php';"
+        . "require_oncedirname(__DIR__).'/includes/Token/CustomerTokenIdentity.php';require_once__DIR__.'/Migration/MigrationBootstrap.php';"
+        . "define('SUPCHECKOUT_VERSION',Identity::VERSION);define('SUPCHECKOUT_SLUG',Identity::SLUG);"
+        . "define('SUPCHECKOUT_PLUGIN_FILE',\$main_file);define('SUPCHECKOUT_UPDATE_CHANNEL',Identity::UPDATE_CHANNEL);",
+    'Plugin::load_runtime defines the former main-file constants and loads the former main-file runtime files exactly, in order'
+);
 arch2_assert(
     $registrationRegister['found']
         && $compactBody($registrationRegister['body']) === 'add_filter(woocommerce_payment_gateways,array(self::class,filter_gateways));'

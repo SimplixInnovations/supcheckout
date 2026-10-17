@@ -159,7 +159,7 @@ $current_identity_contracts = array(
         'Plugin URI: https://github.com/SimplixInnovations/supcheckout',
     ),
     // Sub-project 0a Task 5: the canonical constants moved verbatim from the main file
-    // into Plugin::load_runtime(); __FILE__ there is the main file passed to boot().
+    // into Plugin::load_runtime(); $main_file there is the main file passed to boot().
     'src/Plugin.php' => array(
         "define('SUPCHECKOUT_VERSION', Identity::VERSION);",
         "define('SUPCHECKOUT_SLUG', Identity::SLUG);",
