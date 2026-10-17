@@ -27,6 +27,16 @@
  * occurrence. A new site, a disappeared site or an unknown category fails, so Task 2
  * cannot miss one.
  *
+ * Rule 3 (order-ownership reads, shipped PHP). Rule 2 sees only literals, so a check
+ * such as `$order->get_payment_method() === $this->id` would escape it and, after
+ * cutover, reject historical `upayments` orders. Every `->get_payment_method()` call,
+ * `->payment_method` read, `['payment_method']` read, `get_meta()`/`get_post_meta()` of
+ * `payment_method`/`_payment_method`, and every `$gateway_id` or `->id` operand of a
+ * comparison (`===`, `!==`, `==`, `!=`) or of `in_array()`/`array_search()` must sit
+ * inside `Keys::is_our_gateway(...)`, inside a call whose own arguments include
+ * `Keys::gateway_ids()`, or be listed in the file-keyed, count-exact $ownership_sites
+ * inventory with a category. New, disappeared and uncategorized sites fail.
+ *
  * src/Takeover/Keys.php is the registry itself and is not scanned.
  *
  * `--scan-root=<dir>` scans another tree (used by the failing-path self-test).
@@ -206,6 +216,43 @@ $gateway_sites = array(
 );
 
 /**
+ * Order-ownership read categories => the Task 2 action (or why the site stays).
+ *
+ * @var array<string, string>
+ */
+$ownership_categories = array(
+    'ownership_compare_task2' => 'compares an order / gateway identity with one gateway id; Task 2 must make it Keys::is_our_gateway() so historical upayments orders still match',
+    'captured_for_check' => 'reads the identity into a variable that a separately inventoried check compares; the read itself stays',
+    'current_id_compare' => "compares a request or screen value with the gateway's own current id, not an order's; correct for either identity when the caller passes the current id",
+    'display_only' => 'only shows the payment method; no ownership decision',
+    'third_party_gateway' => 'intentionally compares with another gateway',
+);
+
+/**
+ * Every order-ownership read: file => kind => one category per occurrence, in source order.
+ *
+ * @var array<string, array<string, list<string>>>
+ */
+$ownership_sites = array(
+    'src/Account/SubscriptionActions.php' => array('get_payment_method()' => array('ownership_compare_task2')),
+    'src/Admin/GatewaySettings.php' => array('$gateway_id' => array('current_id_compare')),
+    'src/Gateway/Gateway.php' => array(
+        'get_payment_method()' => array('ownership_compare_task2'),
+        '->id' => array('ownership_compare_task2'),
+        '$gateway_id' => array('ownership_compare_task2'),
+    ),
+    'src/Gateway/OrderPresentation.php' => array(
+        'get_payment_method()' => array('ownership_compare_task2'),
+        '$gateway_id' => array('ownership_compare_task2'),
+    ),
+    'src/Payment/PaymentLifecycle.php' => array('get_payment_method()' => array('ownership_compare_task2', 'ownership_compare_task2')),
+    'src/Security/PublicOrderStatus.php' => array('get_payment_method()' => array('ownership_compare_task2')),
+    'src/Subscription/Checkout/Fields.php' => array("['payment_method']" => array_fill(0, 3, 'captured_for_check')),
+    'src/Subscription/Cron/Scheduler.php' => array('get_payment_method()' => array('captured_for_check', 'ownership_compare_task2')),
+    'src/Subscription/Scheduling/HistoricalEnrollment.php' => array('get_payment_method()' => array('ownership_compare_task2')),
+);
+
+/**
  * @param string $value Literal value.
  * @param string $file  Relative path of the file it occurs in.
  * @return string|null Classification, or null when unclassified.
@@ -300,6 +347,172 @@ function tic_php_occurrences($source) {
 }
 
 /**
+ * True when the token is the class name `Keys` (bare or namespace-qualified).
+ *
+ * @param mixed $token Token.
+ * @return bool
+ */
+function tic_is_keys_name($token) {
+    if (!is_array($token)) {
+        return false;
+    }
+    $names = array(T_STRING);
+    foreach (array('T_NAME_QUALIFIED', 'T_NAME_FULLY_QUALIFIED') as $name) {
+        if (defined($name)) {
+            $names[] = constant($name);
+        }
+    }
+    return in_array($token[0], $names, true) && ($token[1] === 'Keys' || substr($token[1], -5) === '\\Keys');
+}
+
+/**
+ * Index of the token that closes the group opened at $open, or null.
+ *
+ * @param array<int, mixed> $tokens Significant tokens.
+ * @return int|null
+ */
+function tic_group_close(array $tokens, $open) {
+    $depth = 0;
+    $count = count($tokens);
+    for ($i = $open; $i < $count; $i++) {
+        if ($tokens[$i] === '(') {
+            $depth++;
+        } elseif ($tokens[$i] === ')') {
+            $depth--;
+            if ($depth === 0) {
+                return $i;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * True when token $k is inside Keys::is_our_gateway(...), or inside a call whose own
+ * argument list contains Keys::gateway_ids at its top level.
+ *
+ * @param array<int, mixed> $tokens Significant tokens.
+ * @return bool
+ */
+function tic_is_keys_wrapped(array $tokens, $k) {
+    $innermost = true;
+    for ($open = $k - 1; $open >= 0; $open--) {
+        if ($tokens[$open] !== '(') {
+            continue;
+        }
+        $close = tic_group_close($tokens, $open);
+        if ($close === null || $close < $k) {
+            continue;
+        }
+        $callee = $open >= 1 && is_array($tokens[$open - 1]) && $tokens[$open - 1][0] === T_STRING ? $tokens[$open - 1][1] : null;
+        if ($callee === 'is_our_gateway' && $open >= 3 && is_array($tokens[$open - 2]) && $tokens[$open - 2][0] === T_DOUBLE_COLON && tic_is_keys_name($tokens[$open - 3])) {
+            return true;
+        }
+        if ($innermost) {
+            $innermost = false;
+            $depth = 0;
+            for ($i = $open + 1; $i < $close; $i++) {
+                if ($tokens[$i] === '(') {
+                    $depth++;
+                } elseif ($tokens[$i] === ')') {
+                    $depth--;
+                } elseif ($depth === 0 && tic_is_keys_name($tokens[$i]) && is_array($tokens[$i + 1]) && $tokens[$i + 1][0] === T_DOUBLE_COLON
+                    && is_array($tokens[$i + 2]) && $tokens[$i + 2][1] === 'gateway_ids'
+                ) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * True when the expression spanning significant tokens [$start, $end] is an operand of
+ * a comparison or the first argument of in_array()/array_search().
+ *
+ * @param array<int, mixed> $tokens Significant tokens.
+ * @return bool
+ */
+function tic_is_compared(array $tokens, $start, $end) {
+    $comparisons = array(T_IS_IDENTICAL, T_IS_NOT_IDENTICAL, T_IS_EQUAL, T_IS_NOT_EQUAL);
+    $after = $end + 1;
+    while (isset($tokens[$after]) && $tokens[$after] === ')') {
+        $after++;
+    }
+    if (isset($tokens[$after]) && is_array($tokens[$after]) && in_array($tokens[$after][0], $comparisons, true)) {
+        return true;
+    }
+    $before = $start - 1;
+    while ($before >= 0 && ($tokens[$before] === '(' || (is_array($tokens[$before]) && $tokens[$before][0] === T_STRING_CAST))) {
+        if ($tokens[$before] === '(' && $before >= 1 && is_array($tokens[$before - 1]) && $tokens[$before - 1][0] === T_STRING
+            && in_array(strtolower($tokens[$before - 1][1]), array('in_array', 'array_search'), true)
+        ) {
+            return true;
+        }
+        $before--;
+    }
+    return $before >= 0 && is_array($tokens[$before]) && in_array($tokens[$before][0], $comparisons, true);
+}
+
+/**
+ * Rule 3 occurrences in one PHP source that are not wrapped by Keys.
+ *
+ * @param string $source PHP source.
+ * @return list<array{0: string, 1: int}> [kind, line].
+ */
+function tic_ownership_occurrences($source) {
+    $tokens = array_values(array_filter(token_get_all($source), function ($token) {
+        return !is_array($token) || !in_array($token[0], array(T_WHITESPACE, T_COMMENT, T_DOC_COMMENT), true);
+    }));
+    $object_operators = array(T_OBJECT_OPERATOR);
+    if (defined('T_NULLSAFE_OBJECT_OPERATOR')) {
+        $object_operators[] = constant('T_NULLSAFE_OBJECT_OPERATOR');
+    }
+    $found = array();
+    $count = count($tokens);
+    for ($k = 0; $k < $count; $k++) {
+        $token = $tokens[$k];
+        if (!is_array($token)) {
+            continue;
+        }
+        $next = isset($tokens[$k + 1]) ? $tokens[$k + 1] : null;
+        $after_object = $k >= 1 && is_array($tokens[$k - 1]) && in_array($tokens[$k - 1][0], $object_operators, true);
+        $kind = null;
+        if ($token[0] === T_STRING && $after_object && $token[1] === 'get_payment_method' && $next === '(') {
+            $kind = 'get_payment_method()';
+        } elseif ($token[0] === T_STRING && $after_object && $token[1] === 'payment_method' && $next !== '(') {
+            $kind = '->payment_method';
+        } elseif ($token[0] === T_CONSTANT_ENCAPSED_STRING && in_array(substr($token[1], 1, -1), array('payment_method', '_payment_method'), true)) {
+            $value = substr($token[1], 1, -1);
+            if ($k >= 1 && $tokens[$k - 1] === '[' && $next === ']') {
+                $kind = "['payment_method']";
+            } elseif ($k >= 2 && $tokens[$k - 1] === '(' && is_array($tokens[$k - 2]) && in_array($tokens[$k - 2][1], array('get_meta', 'get_post_meta'), true)) {
+                $kind = "get_meta('{$value}')";
+            } elseif ($k >= 4 && $tokens[$k - 1] === ',' && $tokens[$k - 3] === '(' && is_array($tokens[$k - 4]) && $tokens[$k - 4][1] === 'get_post_meta') {
+                $kind = "get_meta('{$value}')";
+            } elseif ($value === '_payment_method') {
+                $kind = "'_payment_method'";
+            }
+        } elseif ($token[0] === T_VARIABLE && $token[1] === '$gateway_id' && tic_is_compared($tokens, $k, $k)) {
+            $kind = '$gateway_id';
+        } elseif ($token[0] === T_STRING && $after_object && $token[1] === 'id' && $next !== '(') {
+            $start = $k - 1;
+            while ($start >= 1 && is_array($tokens[$start - 1]) && (in_array($tokens[$start - 1][0], array(T_VARIABLE, T_STRING), true) || in_array($tokens[$start - 1][0], $object_operators, true))) {
+                $start--;
+            }
+            if (tic_is_compared($tokens, $start, $k)) {
+                $kind = '->id';
+            }
+        }
+        if ($kind !== null && !tic_is_keys_wrapped($tokens, $k)) {
+            $found[] = array($kind, $token[2]);
+        }
+    }
+    return $found;
+}
+
+/**
  * Rule 2 occurrences in one JS source (raw text, comments included).
  *
  * @param string $source JS source.
@@ -351,6 +564,7 @@ function tic_scan($root, array $not_persisted) {
     $unclassified = array();
     $allowlisted = array();
     $gateway = array();
+    $ownership = array();
     foreach (array_merge($files['php'], $files['js']) as $relative) {
         if ($relative === TIC_REGISTRY) {
             continue;
@@ -373,8 +587,13 @@ function tic_scan($root, array $not_persisted) {
         foreach ($occurrences['gateway'] as $site) {
             $gateway[$relative][$site[0]][] = $site[1];
         }
+        if (substr($relative, -4) === '.php') {
+            foreach (tic_ownership_occurrences($source) as $site) {
+                $ownership[$relative][$site[0]][] = $site[1];
+            }
+        }
     }
-    return array('files' => $files, 'unclassified' => $unclassified, 'allowlisted' => $allowlisted, 'gateway' => $gateway);
+    return array('files' => $files, 'unclassified' => $unclassified, 'allowlisted' => $allowlisted, 'gateway' => $gateway, 'ownership' => $ownership);
 }
 
 /** @return list<string> Allowlist entries whose occurrence count is wrong or which are stale. */
@@ -391,14 +610,19 @@ function tic_allowlist_problems(array $not_persisted, array $allowlisted) {
     return $problems;
 }
 
-/** @return list<string> New, disappeared or miscategorized gateway-identity sites. */
-function tic_gateway_problems(array $inventory, array $found, array $categories) {
+/**
+ * New, disappeared or miscategorized inventoried sites (rules 2 and 3).
+ *
+ * @param string $label Site label in messages.
+ * @return list<string>
+ */
+function tic_gateway_problems(array $inventory, array $found, array $categories, $label = 'GATEWAY SITE') {
     $problems = array();
     foreach ($found as $file => $tokens) {
         foreach ($tokens as $token => $lines) {
             $listed = isset($inventory[$file][$token]) ? count($inventory[$file][$token]) : 0;
             if (count($lines) > $listed) {
-                $problems[] = "NEW GATEWAY SITE: {$file}:" . implode(',', $lines) . " {$token} (inventoried {$listed}, found " . count($lines) . ')';
+                $problems[] = "NEW {$label}: {$file}:" . implode(',', $lines) . " {$token} (inventoried {$listed}, found " . count($lines) . ')';
             }
         }
     }
@@ -406,7 +630,7 @@ function tic_gateway_problems(array $inventory, array $found, array $categories)
         foreach ($tokens as $token => $sites) {
             $seen = isset($found[$file][$token]) ? count($found[$file][$token]) : 0;
             if ($seen < count($sites)) {
-                $problems[] = "MISSING GATEWAY SITE: {$file} {$token} (inventoried " . count($sites) . ", found {$seen})";
+                $problems[] = "MISSING {$label}: {$file} {$token} (inventoried " . count($sites) . ", found {$seen})";
             }
             foreach ($sites as $category) {
                 if (!isset($categories[$category])) {
@@ -521,10 +745,55 @@ if (!$child) {
         'an uncategorized gateway site fails'
     );
 
-    // The real failing exit path: a child run over a tree with a new name and a new site.
+    $bad_ownership_categories = array_filter($ownership_categories, function ($reason) {
+        return !is_string($reason) || trim($reason) === '';
+    });
+    tic_assert($bad_ownership_categories === array() && isset($ownership_categories['ownership_compare_task2']), 'every ownership category states its Task 2 action');
+    $ownership_probe = "<?php\n"
+        . "if (\$order->get_payment_method() === \$this->id) {}\n"                                       // 2: call + ->id
+        . "if ((string) \$order->get_payment_method() !== (string) \$gateway_id) {}\n"                    // 3: call + $gateway_id
+        . "\$m = \$order->payment_method; \$p = \$_POST['payment_method'];\n"                             // 4: property + subscript
+        . "\$x = get_post_meta(\$id, '_payment_method', true); \$y = \$order->get_meta('payment_method');\n" // 5: two meta reads
+        . "if (in_array(\$gateway->id, \$list, true)) {}\n"                                                // 6: in_array ->id
+        . "if (Keys::is_our_gateway(\$order->get_payment_method())) {}\n"                                 // 7: wrapped
+        . "if (\\Simplixi\\SUPCheckout\\Takeover\\Keys::is_our_gateway(strtolower(\$o->get_payment_method()))) {}\n" // 8: wrapped, nested
+        . "if (in_array(\$order->get_payment_method(), Keys::gateway_ids(), true)) {}\n"                  // 9: wrapped by gateway_ids
+        . "\$this->id = 'x'; \$hook = 'h_' . \$this->id; function f(\$gateway_id) { echo \$gateway_id; }\n" // 10: not comparisons
+        . "if (\$a === \$b) { \$c = foo(\$order->get_payment_method(), Keys::gateway_ids()); }\n";        // 11: gateway_ids at top level of the same call
+    $ownership_found = array_map(function ($site) {
+        return $site[0] . '@' . $site[1];
+    }, tic_ownership_occurrences($ownership_probe));
+    tic_assert(
+        $ownership_found === array(
+            'get_payment_method()@2', '->id@2',
+            'get_payment_method()@3', '$gateway_id@3',
+            '->payment_method@4', "['payment_method']@4",
+            "get_meta('_payment_method')@5", "get_meta('payment_method')@5",
+            '->id@6',
+        ),
+        'rule 3 finds every ownership read and comparison operand, and exempts Keys-wrapped reads, assignments, hook names and parameters (' . implode(', ', $ownership_found) . ')'
+    );
+    tic_assert(
+        tic_gateway_problems(
+            array('src/A.php' => array('get_payment_method()' => array('ownership_compare_task2')), 'src/B.php' => array('->id' => array('ownership_compare_task2'))),
+            array('src/A.php' => array('get_payment_method()' => array(3, 9))),
+            $ownership_categories,
+            'OWNERSHIP SITE'
+        ) === array(
+            'NEW OWNERSHIP SITE: src/A.php:3,9 get_payment_method() (inventoried 1, found 2)',
+            'MISSING OWNERSHIP SITE: src/B.php ->id (inventoried 1, found 0)',
+        ),
+        'a new ownership site and a disappeared one both fail, naming file:line'
+    );
+    tic_assert(
+        tic_gateway_problems(array('src/A.php' => array('->id' => array('gateway_lookup'))), array('src/A.php' => array('->id' => array(1))), $ownership_categories, 'OWNERSHIP SITE') === array('UNKNOWN CATEGORY: src/A.php ->id gateway_lookup'),
+        'an uncategorized ownership site fails'
+    );
+
+    // The real failing exit path: a child run over a tree with a new name and new sites.
     $fixture = rtrim(sys_get_temp_dir(), '/\\') . '/supcheckout-tic-' . getmypid() . '-' . bin2hex(random_bytes(4));
     @mkdir($fixture . '/src', 0700, true);
-    file_put_contents($fixture . '/src/Probe.php', "<?php\n\$a = '_upay_brand_new_key';\n\$b = array('payment_method' => 'upayments');\n");
+    file_put_contents($fixture . '/src/Probe.php', "<?php\n\$a = '_upay_brand_new_key';\n\$b = array('payment_method' => 'upayments');\nif (\$order->get_payment_method() === \$foo) {}\n");
     $child_result = tic_run(array(PHP_BINARY, '-d', 'error_reporting=E_ALL', '-d', 'display_errors=1', __FILE__, '--scan-root=' . $fixture));
     @unlink($fixture . '/src/Probe.php');
     @rmdir($fixture . '/src');
@@ -535,8 +804,9 @@ if (!$child) {
         $child_result !== null && $child_result['status'] === 1
         && strpos($child_output, 'UNCLASSIFIED: src/Probe.php:2 _upay_brand_new_key') !== false
         && strpos($child_output, 'NEW GATEWAY SITE: src/Probe.php:3 upayments') !== false
+        && strpos($child_output, 'NEW OWNERSHIP SITE: src/Probe.php:4 get_payment_method()') !== false
         && end($child_lines) === 'HARNESS-COMPLETE: ' . basename(__FILE__),
-        'the harness exits 1 on a new legacy name and a new gateway site, naming file:line (status ' . ($child_result === null ? 'n/a' : $child_result['status']) . ')'
+        'the harness exits 1 on a new legacy name, gateway site and ownership site, naming file:line (status ' . ($child_result === null ? 'n/a' : $child_result['status']) . ')'
     );
 }
 
@@ -571,6 +841,18 @@ foreach ($scan['gateway'] as $tokens) {
     }
 }
 tic_assert($gateway_problems === array(), "rule 2: all {$site_count} gateway-identity sites match the inventory");
+
+$ownership_problems = tic_gateway_problems($ownership_sites, $scan['ownership'], $ownership_categories, 'OWNERSHIP SITE');
+foreach ($ownership_problems as $problem) {
+    echo "{$problem}\n";
+}
+$ownership_count = 0;
+foreach ($scan['ownership'] as $kinds) {
+    foreach ($kinds as $lines) {
+        $ownership_count += count($lines);
+    }
+}
+tic_assert($ownership_problems === array(), "rule 3: all {$ownership_count} order-ownership reads match the inventory");
 
 echo "\nTakeover identity coverage: {$pass} PASS / {$fail} FAIL\n";
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";

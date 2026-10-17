@@ -454,7 +454,14 @@ final class Keys {
       - the allowlist is **file-keyed with exact occurrence counts**, so there is no global entry and no bare `upay_`;
       - the leading segment of interpolated strings and heredocs is checked too.
     - **Rule 2** inventories every gateway-identity site in shipped PHP (strings and inline HTML) and `assets/js/*.js`: `upayments`, `wc_upayments`, `woocommerce_api_wc_upayments`, `woocommerce_upayments*` and `*_upayments`. The inventory lists one category per occurrence per file and token, and each category names its Task 2 action. A new site, a disappeared site or an unknown category fails.
-    - Self-tests cover the failing exit path (a child run over a fixture tree), stale and over-count allowlist entries, prefix exactness, and new and missing gateway sites.
+    - **Rule 3** (added in the PR #173 review) inventories order-ownership reads that rule 2 cannot see because they compare variables:
+      - `->get_payment_method()` calls;
+      - `->payment_method` and `['payment_method']` reads;
+      - `get_meta()` / `get_post_meta()` of `payment_method` / `_payment_method`;
+      - `$gateway_id` / `->id` operands of `===`, `!==`, `==`, `!=`, `in_array()` and `array_search()`.
+
+      The inventory is file-keyed and count-exact, with categories `ownership_compare_task2`, `captured_for_check`, `current_id_compare`, `display_only` and `third_party_gateway`. Reads inside `Keys::is_our_gateway(...)`, or inside a call whose own arguments include `Keys::gateway_ids()`, are exempt.
+    - Self-tests cover the failing exit path (a child run over a fixture tree), stale and over-count allowlist entries, prefix exactness, new and missing gateway sites, and rule 3's detection and exemptions.
 - [ ] **Step 6: Commit.** `feat(takeover): audited identity registry and coverage harness`
 
 ### Task 2: Route every runtime read and write through `Keys`
@@ -511,6 +518,12 @@ final class Keys {
     - the `upayment_payment_type` sentinel value `upayments` (`templates/new-design-form.php:239` ↔ `CheckoutPayload.php:68`; it means "no white-label method chosen" and is not a gateway id);
     - the vestigial `Gateway::$domain`;
     - the logger source labels (optional, cosmetic).
+- **Order-ownership reads through variables** (added in the PR #173 review). Rule 2 sees only literals, so the harness's rule 3 inventory (`$ownership_sites`) also lists every `->get_payment_method()`, `->payment_method`, `['payment_method']` and `get_meta('_payment_method')` read, and every `$gateway_id` / `->id` comparison operand.
+  - Task 2 must convert **every `ownership_compare_task2` site** to `Keys::is_our_gateway()`, or to `in_array(..., Keys::gateway_ids(), true)`, and delete it from the inventory in the same commit. The harness exempts reads inside those expressions.
+  - The sites are: `SubscriptionActions.php:66`, `Gateway.php:629` (`admin_order_details()` compares with `$this->id`), `Gateway.php:668`, `OrderPresentation.php:23` (compares with the passed `$gateway_id`), `PaymentLifecycle.php:539,997`, `PublicOrderStatus.php:151`, `Scheduler.php:1237` and `HistoricalEnrollment.php:156`.
+  - The `captured_for_check` reads (`Scheduler.php:1079`, `Fields.php:165-166`) stay, and their check sites (`Scheduler.php:1096`, `Fields.php:168`) convert under rule 2.
+  - `current_id_compare` (`GatewaySettings.php:395`, the settings-screen section) stays, provided its caller passes the current gateway id.
+  - Test: after cutover, a historical `payment_method=upayments` order still renders its admin payment details (`admin_order_details()`) and its customer payment rows (`add_order_item_totals()`).
 - **H12 provenance under two prefixes** (added after the review of `02bf9fc`). The legacy prefix `_upay_customer_token_v2_b` is 25 characters, and the new `_supcheckout_customer_token_v2_b` is 33.
   - **Provenance-presence probe** (`CustomerTokenIdentity.php:219-238`). It decides whether a missing secret may be minted fresh. It must count rows under **both** `{prefix}{blog}_` patterns, and fail closed if either has rows. Otherwise, once Finalize deletes the legacy rows, a legacy-only probe finds nothing and mints a new secret, orphaning every saved-card provenance record.
   - **Scope scan** (`CustomerTokenIdentity.php:1632-1661`). It must select keys under both prefixes and slice each scope by the length of the prefix **that matched** (`Keys::user_meta_key_pair()`), never by one fixed `strlen($meta_prefix)`. When both forms of one scope exist, it treats them as one record and verifies that they agree.
