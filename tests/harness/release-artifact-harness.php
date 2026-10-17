@@ -111,6 +111,17 @@ release_assert(strpos($identity, "public const MAIN_FILE = 'supcheckout.php';") 
 release_assert(strpos($identity, "public const LEGACY_MAIN_FILE = 'UPayments.php';") !== false, 'pre-rename UPayments.php main file stays recorded as legacy identity');
 release_assert(strpos($identity, "public const TARGET_MAIN_FILE = 'supcheckout.php';") !== false, 'packaging target main file remains supcheckout.php');
 
+// Sub-project 0a Task 9: the changelog records the main-file rename, the automatic
+// basename migration and the one update path that ends deactivated.
+$changelog = (string) file_get_contents($root . '/CHANGELOG.md');
+$unreleased = '';
+if (preg_match('/^## \[Unreleased\]\R(.*?)(?=^## \[|\z)/ms', $changelog, $unreleased_match) === 1) {
+    $unreleased = $unreleased_match[1];
+}
+release_assert(strpos($unreleased, 'The main file is now `supcheckout.php`') !== false, 'CHANGELOG records the main-file rename');
+release_assert(strpos($unreleased, 'moves the active entry to `supcheckout.php`') !== false, 'CHANGELOG records the automatic basename migration');
+release_assert(strpos($unreleased, '`update.php?action=upgrade-plugin`') !== false, 'CHANGELOG records the classic Update-now exception');
+
 foreach (array('/.github/', '/tests/', '/vendor/', '/composer.json', '/composer.lock', '/docs/', '/scripts/') as $excluded) {
     release_assert(strpos($distignore, $excluded) !== false, 'distribution excludes control/development path: ' . $excluded);
 }

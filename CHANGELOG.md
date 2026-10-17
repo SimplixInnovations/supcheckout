@@ -6,6 +6,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Clean core: unused pseudo-crypto helpers removed; Blocks file guarded (Sub-project 0a Task 7)
+
+- The gateway class `Simplixi\SUPCheckout\Gateway\Gateway` no longer has the public methods `encrypt()`, `decrypt()` and `getApiKey()`. They were base64 and bcrypt wrappers that SUPCheckout never called, and their names suggested a protection they did not give. Third-party code that calls them on the `upayments` gateway object must stop doing so.
+- The public compatibility wrapper `getAPIUrlForRetreiveCards()` is unchanged.
+- `src/Blocks/PaymentMethodType.php` now exits when loaded directly outside WordPress (`defined('ABSPATH') || exit;`).
+
 ### Clean core: `includes/` moves into `src/` (Sub-project 0a Task 6)
 
 - The former `includes/` classes now live in `src/` under `Simplixi\SUPCheckout\`. The autoloader loads them. They are:
@@ -48,6 +54,13 @@ The project is still in pre-release engineering hardening. Entries below are eng
   - `WC()->payment_gateways()->payment_gateways()['upayments']`;
   - the public `getAPIUrlForRetreiveCards()` method.
 - Gateway settings links: WooCommerce matches the `section` query argument against the gateway ID or `sanitize_title( get_class( $gateway ) )`. This was checked in `WC_Settings_Payment_Gateways` in WooCommerce trunk source. `section=upayments` therefore keeps working. A saved legacy link using `section=wc_upayments`, the old class-name form, no longer opens the gateway settings.
+
+### Clean core: the main file is renamed (Sub-project 0a Tasks 2 and 2b)
+
+- The main file is now `supcheckout.php`, so the plugin basename is `supcheckout/supcheckout.php` (owner decision 2026-10-16, pre-release). The plugin header is unchanged.
+- Installs activated before this change keep working: on their next page load a header-less transitional bootstrap, `supcheckout/UPayments.php`, moves the active entry to `supcheckout.php`. On a network it moves the network-activated entry. No reactivation, no data changes. This holds for updates by zip upload ("Replace current with uploaded"), WP-CLI and the one-click or bulk updates.
+- One exception: the classic single-plugin "Update now" flow used without JavaScript (`update.php?action=upgrade-plugin`) ends with the plugin deactivated. Merchant data is unchanged, and activating SUPCheckout once recovers it.
+- The transitional bootstrap is never listed as a second plugin. It is removed in Sub-project 5, after the owner confirms every pre-rename install has loaded it.
 
 ### Non-white-label Charge fix (release-blocking, not owner accepted)
 

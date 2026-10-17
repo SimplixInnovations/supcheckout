@@ -849,8 +849,8 @@ git commit -m "docs(release): record the main-file rename and the automatic base
   - Expected: all green.
 - [ ] **Step 2: Rehearse on staging.**
   - Build the zip.
-  - Ask the owner to upload it to staging. WordPress will list SUPCheckout as inactive, because of the renamed main file.
-  - Reactivate it.
+  - Ask the owner to upload it to staging with "Replace current with uploaded" and **without deactivating**. The Task 2b shim moves the active entry to `supcheckout/supcheckout.php` on the next request. Do not use the classic single-plugin Update-now link, which ends deactivated.
+  - Confirm `wp plugin list --status=active --field=file` lists `supcheckout/supcheckout.php` and no `supcheckout/UPayments.php`.
   - Verify the installed-tree fingerprint.
   - Re-run the four sandbox scenarios from `STAGING-REHEARSAL-2026-10-15.md` Step 6 (success, decline, KNET cancel, replay).
   - Record the results.

@@ -836,21 +836,6 @@ class Gateway extends \WC_Payment_Gateway {
         return $code;
     }
 
-    public function encrypt($param)
-    {
-        return base64_encode($param);
-    }
-
-    public function decrypt($param)
-    {
-        return base64_decode($param);
-    }
-
-    public function getApiKey()
-    {
-        return password_hash($this->apiKey, PASSWORD_BCRYPT);
-    }
-
     /**
      * Get customer unique token from phone.
      *

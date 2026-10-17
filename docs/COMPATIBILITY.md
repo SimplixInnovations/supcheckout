@@ -80,6 +80,8 @@ SUPCheckout no longer declares the following global functions (Sub-project 0a Ta
 
 Third-party `remove_action()` / `remove_filter()` calls that name these functions no longer match. The hooks, priorities and argument counts are unchanged, and the product-data callbacks are static methods of the same names on `Simplixi\SUPCheckout\Subscription\ProductTypeHooks`.
 
+The gateway object no longer has the unused public methods `encrypt()`, `decrypt()` and `getApiKey()` (Sub-project 0a Task 7). The public compatibility wrapper `getAPIUrlForRetreiveCards()` is unchanged.
+
 Historical package-root movement remains certified for both pre-stable `simplixpay-upayments` and `sucheckout-upayments` roots moving to canonical `supcheckout`, including protected data continuity and rollback.
 
 ## Capability matrix

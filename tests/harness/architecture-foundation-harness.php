@@ -680,6 +680,18 @@ arch_assert(is_file($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected
 arch_assert(arch_contains($scheduler, 'class Scheduler'), 'subscription Scheduler class remains characterized');
 arch_assert(is_file($root . '/src/Blocks/PaymentMethodType.php'), 'Checkout Blocks gateway integration exists');
 
+// Sub-project 0a Task 7 (security review F5): the base64/bcrypt wrappers that nothing
+// called are removed; the protected compatibility wrapper stays.
+foreach (array('function encrypt(', 'function decrypt(', 'function getApiKey(') as $deadHelper) {
+    arch_assert(strpos($gatewayClassSource, $deadHelper) === false, 'misleading pseudo-crypto helper is gone: ' . $deadHelper);
+}
+arch_assert(strpos($gatewayClassSource, 'function getAPIUrlForRetreiveCards(') !== false, 'public compatibility wrapper getAPIUrlForRetreiveCards() remains');
+$blocksIntegrationSource = arch_read($root, 'src/Blocks/PaymentMethodType.php');
+arch_assert(
+    preg_match('/\A<\?php\s+namespace\s+Simplixi\\\\SUPCheckout\\\\Blocks;\s+defined\(\'ABSPATH\'\) \|\| exit;/', $blocksIntegrationSource) === 1,
+    'Blocks integration has a direct-access guard as its first statement after the namespace declaration'
+);
+
 $constructor = arch_direct_public_method($gatewayClassTokens, '__construct');
 arch_assert($constructor['found'], 'Gateway constructor remains public and executable');
 arch_assert(

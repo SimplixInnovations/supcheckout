@@ -45,6 +45,11 @@ namespace {
             : '';
     }
 
+    // The Blocks adapter starts with the WordPress direct-access guard (0a Task 7);
+    // without ABSPATH the require would exit 0 before any assertion below runs.
+    if (!defined('ABSPATH')) {
+        define('ABSPATH', $root . '/');
+    }
     require_once $root . '/src/Admin/GatewaySettings.php';
     require_once $blocks_file;
 
