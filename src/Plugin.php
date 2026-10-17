@@ -9,6 +9,7 @@ use Simplixi\SUPCheckout\Blocks\PaymentMethodRegistration;
 use Simplixi\SUPCheckout\Bootstrap\Requirements;
 use Simplixi\SUPCheckout\Bootstrap\WooCommerceDeclarations;
 use Simplixi\SUPCheckout\Gateway\GatewayRegistration;
+use Simplixi\SUPCheckout\Release\Identity;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\SchedulerBootstrap;
 
@@ -40,6 +41,50 @@ final class Plugin {
         SubscriptionComposition::register_presentation_hooks();
         SchedulerBootstrap::register();
         SubscriptionActions::register();
+        self::load_runtime(self::$main_file);
+    }
+
+    /**
+     * Was the tail of supcheckout.php, moved verbatim and in its order (Sub-project 0a
+     * Task 5). It still runs while the main file loads, right after the registrations
+     * above, so every constant exists, every file loads and every load-time hook
+     * (PaymentLifecycle::bootstrap() from Release/Identity.php,
+     * CheckoutAssets::bootstrap() from Gateway/Availability.php and
+     * MigrationBootstrap::boot()) is added exactly as before. The requires stay
+     * explicit rather than autoloaded so load order and timing do not change;
+     * includes/Token/CustomerTokenIdentity.php is outside the autoloader until Task 6.
+     *
+     * @param string $main_file Absolute path of supcheckout.php.
+     * @return void
+     */
+    private static function load_runtime($main_file) {
+        define("UP_PLUGIN_URL", plugin_dir_url($main_file));
+        define("UP_PLUGIN_PATH", plugin_dir_path($main_file));
+        define('UPAYMENTS_PLUGIN_FILE', $main_file );
+
+        require_once __DIR__ . '/Release/Identity.php';
+        require_once __DIR__ . '/Provider/MultiMerchantContract.php';
+        require_once __DIR__ . '/Admin/GatewaySettings.php';
+        require_once __DIR__ . '/Gateway/Availability.php';
+        require_once __DIR__ . '/Gateway/OrderPresentation.php';
+        require_once __DIR__ . '/Provider/EndpointResolver.php';
+        require_once __DIR__ . '/Provider/PaymentMethodAvailability.php';
+        require_once __DIR__ . '/Payment/CheckoutPayload.php';
+        require_once __DIR__ . '/Payment/CheckoutOrchestrator.php';
+        require_once __DIR__ . '/Payment/SavedCardSelection.php';
+        require_once __DIR__ . '/Payment/SavedCardPresentation.php';
+        require_once __DIR__ . '/Subscription/Presentation.php';
+        require_once __DIR__ . '/Subscription/Composition.php';
+        require_once __DIR__ . '/Subscription/RenewalCardAuthority.php';
+        require_once __DIR__ . '/Subscription/CycleEconomics.php';
+        require_once __DIR__ . '/Subscription/AutoDeductResultVerifier.php';
+        require_once dirname(__DIR__) . '/includes/Token/CustomerTokenIdentity.php';
+        require_once __DIR__ . '/Migration/MigrationBootstrap.php';
+
+        define('SUPCHECKOUT_VERSION', Identity::VERSION);
+        define('SUPCHECKOUT_SLUG', Identity::SLUG);
+        define('SUPCHECKOUT_PLUGIN_FILE', $main_file);
+        define('SUPCHECKOUT_UPDATE_CHANNEL', Identity::UPDATE_CHANNEL);
     }
 
     /** @return string */

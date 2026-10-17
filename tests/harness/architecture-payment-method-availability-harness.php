@@ -378,15 +378,17 @@ foreach ($failure_cases as $label => $response) {
 // Gateway/source boundary assertions freeze extraction ownership.
 $service_source = file_get_contents(dirname(__DIR__, 2) . '/src/Provider/PaymentMethodAvailability.php');
 // The gateway source is the main file plus the gateway class it registers
-// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3), plus src/Plugin.php, which
+// holds the main file's requires since Sub-project 0a Task 5.
 $gateway_main = file_get_contents(dirname(__DIR__, 2) . '/supcheckout.php');
+$gateway_plugin = file_get_contents(dirname(__DIR__, 2) . '/src/Plugin.php');
 $gateway_class = file_get_contents(dirname(__DIR__, 2) . '/src/Gateway/Gateway.php');
-$gateway_source = is_string($gateway_main) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_class : false;
+$gateway_source = is_string($gateway_main) && is_string($gateway_plugin) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_plugin . "\n" . $gateway_class : false;
 a2_assert(is_string($service_source), 'availability service source is readable');
 a2_assert(is_string($gateway_source), 'gateway source is readable');
 a2_assert(strpos($service_source, 'namespace Simplixi\\SUPCheckout\\Provider;') !== false, 'availability service uses SUPCheckout Provider namespace');
 a2_assert(strpos($service_source, 'wc_add_notice') === false && strpos($service_source, 'wc_get_checkout_url') === false, 'provider/cache service has no WooCommerce presentation dependency');
-a2_assert(strpos($gateway_source, "require_once __DIR__ . '/src/Provider/PaymentMethodAvailability.php';") !== false, 'plugin bootstrap explicitly loads availability service');
+a2_assert(strpos((string) $gateway_plugin, "require_once __DIR__ . '/Provider/PaymentMethodAvailability.php';") !== false, 'plugin bootstrap explicitly loads availability service');
 a2_assert(strpos($gateway_source, 'new PaymentMethodAvailability(') !== false, 'legacy gateway entry point delegates to availability service');
 a2_assert(strpos($gateway_source, "execute_upayments_request('check-payment-button-status', 'GET')") !== false, 'gateway preserves exact availability transport route and method');
 a2_assert(substr_count($gateway_source, 'function get_payment_methods_transient_name') === 0, 'monolith no longer owns cache fingerprint implementation');

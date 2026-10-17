@@ -174,6 +174,18 @@ Sub-project 0a Task 4 reduces the exact ratchet from **12,264 bytes to 2,751 byt
 
 The main file then declares no function and registers no hook. The public-surface snapshot is unchanged. Protected identities, settings, payment transport, provider payloads, callback routing and the `upay_action` handling semantics are unchanged.
 
+Sub-project 0a Task 5 reduces the exact ratchet from **2,751 bytes to 938 bytes** (−1,813). `supcheckout.php` is now only the bootstrap: the plugin header, the `ABSPATH` guard, the autoloader, the official-plugin pause guard and `Plugin::boot(__FILE__)`. The changes are:
+- the path constants (`UP_PLUGIN_URL`, `UP_PLUGIN_PATH`, `UPAYMENTS_PLUGIN_FILE`), the `src/` and `includes/Token/CustomerTokenIdentity.php` requires and the `SUPCHECKOUT_*` constants move verbatim, in their order, into `Plugin::load_runtime()`. `Plugin::boot()` calls it last, so they still run while the main file loads, right after the hook registrations. Each `__FILE__` there becomes the main file passed to `boot()`, so every value is unchanged;
+- the explicit `OfficialPluginConflict` require goes, because the autoloader loads the class;
+- the pause guard becomes an early `return`. The file declares nothing, so the PR #146 wrapper exception is deleted from the architecture harnesses.
+
+The harness now also holds the file to that shape:
+- at most 120 lines and 6,000 bytes;
+- no function or class declarations and no hook registrations;
+- exactly one file load (the autoloader) and no constant definitions.
+
+The public-surface snapshot is unchanged.
+
 ### Monolith ratchet contract
 
 The permanent architecture harness records the **exact accepted `supcheckout.php` byte size for the current architecture milestone**, not merely the original entry ceiling. The main file was `UPayments.php` until the Sub-project 0a rename; the byte figures above for earlier tranches are that file's history. Any tranche that changes `supcheckout.php` must update that accepted size to the exact reviewed post-change size, so every shrink becomes the next ratchet point instead of allowing later regrowth back to 257,832 bytes.

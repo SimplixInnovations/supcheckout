@@ -1039,37 +1039,24 @@ function arch2_code_without_strings(array $tokens)
 }
 
 $gateway = arch2_read($root, 'supcheckout.php');
-// Owner-approved exception (official UPayments coexistence): the main file may wrap its
-// declarations in exactly one condition, the official-plugin pause guard, opened right
-// after the conflict class is loaded and closed by the file's final endif. Everything
-// inside is then held to the same direct, unconditional rules as before; any other
-// wrapper, or a guard anywhere else, leaves the source unchanged and fails below.
-$coexistenceGuard = "require_once __DIR__ . '/src/Gateway/OfficialPluginConflict.php';
-
-";
-$coexistenceOpen = "if ( ! \Simplixi\SUPCheckout\Gateway\OfficialPluginConflict::pause_if_active( __FILE__ ) ) :
-";
-$coexistenceClose = "
-
-endif;
-";
-$coexistenceOpenAt = strpos($gateway, $coexistenceOpen);
-$coexistenceGuardAt = strpos($gateway, $coexistenceGuard);
-$coexistenceWrapped = substr_count($gateway, $coexistenceOpen) === 1
-    && substr_count($gateway, 'OfficialPluginConflict::pause_if_active(') === 1
-    && $coexistenceGuardAt !== false
-    && $coexistenceOpenAt !== false
-    && $coexistenceGuardAt < $coexistenceOpenAt
-    && strpos(substr($gateway, $coexistenceGuardAt + strlen($coexistenceGuard), $coexistenceOpenAt - $coexistenceGuardAt - strlen($coexistenceGuard)), ';') === false
-    && substr($gateway, -strlen($coexistenceClose)) === $coexistenceClose
-    && substr_count($gateway, "
-endif;") === 1;
-arch2_assert($coexistenceWrapped, 'main file uses exactly the approved official-plugin coexistence wrapper');
-$gatewayUnwrapped = $coexistenceWrapped
-    ? substr($gateway, 0, $coexistenceOpenAt) . substr($gateway, $coexistenceOpenAt + strlen($coexistenceOpen), -strlen($coexistenceClose)) . "
-"
-    : $gateway;
-$gatewayTokens = arch2_tokens($gatewayUnwrapped);
+// Sub-project 0a Task 5: the main file declares nothing, so the PR #146 coexistence
+// wrapper exception is gone. The official-plugin pause guard is now an early return,
+// and the whole executable main file is pinned token-for-token (strings decoded, no
+// whitespace or comments): ABSPATH guard, autoloader, pause guard, then one direct,
+// unconditional Plugin::boot(__FILE__). Any other statement, wrapper or guard fails.
+$gatewayTokens = arch2_tokens($gateway);
+$gatewayExecutable = '';
+foreach ($gatewayTokens as $gatewayToken) {
+    $gatewayExecutable .= $gatewayToken['text'];
+}
+arch2_assert(
+    $gatewayExecutable === 'defined(ABSPATH)||exit;'
+        . 'require_once__DIR__./src/Autoloader.php;'
+        . '\\Simplixi\\SUPCheckout\\Autoloader::register(__DIR__./src);'
+        . 'if(\\Simplixi\\SUPCheckout\\Gateway\\OfficialPluginConflict::pause_if_active(__FILE__)){return;}'
+        . '\\Simplixi\\SUPCheckout\\Plugin::boot(__FILE__);',
+    'main file is exactly the bootstrap: ABSPATH guard, autoloader, early-return official-plugin pause guard, Plugin::boot(__FILE__)'
+);
 $subscriptionComposition = arch2_read($root, 'src/Subscription/Composition.php');
 
 // Sub-project 0a Task 3 moves the two WooCommerce gateway bindings from global
@@ -1096,8 +1083,9 @@ arch2_assert(
     $pluginBoot['found']
         && $compactBody($pluginBoot['body']) === 'if(self::$main_file!==null){return;}self::$main_file=(string)$main_file;GatewayRegistration::register();'
             . 'Requirements::register();WooCommerceDeclarations::register();PaymentMethodRegistration::register();'
-            . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();',
-    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook'
+            . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();'
+            . 'self::load_runtime(self::$main_file);',
+    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then loads the former main-file runtime'
 );
 arch2_assert(
     $registrationRegister['found']

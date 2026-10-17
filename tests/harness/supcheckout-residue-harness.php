@@ -157,9 +157,13 @@ $current_identity_contracts = array(
     'docs/project/NAMING-IDENTITY-STANDARD.md' => array('SUPCheckout for UPayments', 'Simplixi\\SUPCheckout', 'SimplixInnovations/supcheckout'),
     'supcheckout.php' => array(
         'Plugin URI: https://github.com/SimplixInnovations/supcheckout',
+    ),
+    // Sub-project 0a Task 5: the canonical constants moved verbatim from the main file
+    // into Plugin::load_runtime(); __FILE__ there is the main file passed to boot().
+    'src/Plugin.php' => array(
         "define('SUPCHECKOUT_VERSION', Identity::VERSION);",
         "define('SUPCHECKOUT_SLUG', Identity::SLUG);",
-        "define('SUPCHECKOUT_PLUGIN_FILE', __FILE__);",
+        "define('SUPCHECKOUT_PLUGIN_FILE', \$main_file);",
         "define('SUPCHECKOUT_UPDATE_CHANNEL', Identity::UPDATE_CHANNEL);",
     ),
     'composer.json' => array('simplix-innovations/supcheckout', 'Simplixi\\\\SUPCheckout\\\\'),

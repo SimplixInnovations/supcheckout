@@ -305,10 +305,12 @@ a3_assert_same(array(), a3_asset_handles('scripts'), 'admin scripts do not load 
 $root = dirname(__DIR__, 2);
 $module_source = file_get_contents($root . '/src/Admin/GatewaySettings.php');
 // The gateway source is the main file plus the gateway class it registers
-// (src/Gateway/Gateway.php since Sub-project 0a Task 3).
+// (src/Gateway/Gateway.php since Sub-project 0a Task 3), plus src/Plugin.php, which
+// holds the main file's requires since Sub-project 0a Task 5.
 $gateway_main = file_get_contents($root . '/supcheckout.php');
+$gateway_plugin = file_get_contents($root . '/src/Plugin.php');
 $gateway_class = file_get_contents($root . '/src/Gateway/Gateway.php');
-$gateway_source = is_string($gateway_main) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_class : false;
+$gateway_source = is_string($gateway_main) && is_string($gateway_plugin) && is_string($gateway_class) ? $gateway_main . "\n" . $gateway_plugin . "\n" . $gateway_class : false;
 $checkout_orchestrator_source = file_get_contents($root . '/src/Payment/CheckoutOrchestrator.php');
 $checkout_runtime_source = $gateway_source . "\n" . $checkout_orchestrator_source;
 a3_assert(is_string($module_source), 'gateway settings module source is readable');
@@ -317,7 +319,7 @@ a3_assert(strpos($module_source, 'namespace Simplixi\\SUPCheckout\\Admin;') !== 
 a3_assert(strpos($module_source, 'process_payment') === false, 'settings module does not own checkout orchestration');
 a3_assert(strpos($module_source, 'execute_upayments_request') === false, 'settings module does not own provider transport');
 a3_assert(strpos($module_source, 'UPayments_order_id') === false, 'settings module does not own payment/order truth');
-a3_assert(strpos($gateway_source, "require_once __DIR__ . '/src/Admin/GatewaySettings.php';") !== false, 'plugin bootstrap explicitly loads settings module');
+a3_assert(strpos((string) $gateway_plugin, "require_once __DIR__ . '/Admin/GatewaySettings.php';") !== false, 'plugin bootstrap explicitly loads settings module');
 a3_assert(strpos($gateway_source, 'GatewaySettings::fields(') !== false, 'legacy form-field entry point delegates schema ownership');
 a3_assert(strpos($gateway_source, 'GatewaySettings::prepare_post_data(') !== false, 'legacy settings-save entry point delegates validation');
 a3_assert(strpos($gateway_source, 'GatewaySettings::render_multimerchant(') !== false, 'legacy renderer delegates presentation');

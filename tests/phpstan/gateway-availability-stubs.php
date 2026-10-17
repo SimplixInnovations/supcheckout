@@ -41,6 +41,9 @@ function add_filter($hook_name, $callback, $priority = 10, $accepted_args = 1) {
 /** @return string */
 function plugin_dir_url($file) {}
 
+/** @return string */
+function plugin_dir_path($file) {}
+
 /** @return void */
 function wp_enqueue_style($handle, $src = '', $deps = array(), $ver = false, $media = 'all') {}
 

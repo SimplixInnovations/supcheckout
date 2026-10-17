@@ -549,8 +549,41 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // nine product-data wrappers), Subscription\SchedulerBootstrap (woocommerce_init) and
 // Account\SubscriptionActions (init). The use imports only that code needed go too
 // (-9,513 bytes).
-$acceptedGatewayBytes = 2751;
+// Sub-project 0a Task 5 shrinks the main file to the bootstrap (-1,813 bytes): the
+// path and identity constants and the src/includes requires move verbatim, in order,
+// into Plugin::load_runtime(), which Plugin::boot() calls last; the explicit
+// OfficialPluginConflict require goes (the autoloader loads it); the pause guard
+// becomes an early return because the file declares nothing; the ABSPATH guard takes
+// the plan's one-line form.
+$acceptedGatewayBytes = 938;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
+// Sub-project 0a Task 5: on top of the exact ratchet, the main file is held to the
+// bootstrap shape itself, so it can never grow responsibilities again.
+$bootstrap = (string) file_get_contents($root . '/supcheckout.php');
+arch_assert(substr_count($bootstrap, "\n") <= 120, 'supcheckout.php stays a bootstrap (<= 120 lines)');
+arch_assert(strlen($bootstrap) <= 6000, 'supcheckout.php stays a bootstrap (<= 6,000 bytes)');
+arch_assert(!preg_match('/^\s*(function|class|final class|abstract class|interface|trait)\s/m', $bootstrap), 'supcheckout.php declares no functions or classes');
+arch_assert(substr_count($bootstrap, 'add_action(') + substr_count($bootstrap, 'add_filter(') === 0, 'supcheckout.php registers no hooks itself');
+// The plan's shape (header, ABSPATH guard, autoloader, pause guard, Plugin::boot) leaves
+// no constants and no file loads besides the autoloader; those live in Plugin::boot().
+$bootstrapLoads = array();
+$bootstrapDefines = 0;
+foreach (token_get_all($bootstrap) as $bootstrapToken) {
+    if (!is_array($bootstrapToken)) {
+        continue;
+    }
+    if (in_array($bootstrapToken[0], array(T_REQUIRE, T_REQUIRE_ONCE, T_INCLUDE, T_INCLUDE_ONCE), true)) {
+        $bootstrapLoads[] = $bootstrapToken[1];
+    }
+    if ($bootstrapToken[0] === T_STRING && strtolower($bootstrapToken[1]) === 'define') {
+        $bootstrapDefines++;
+    }
+}
+arch_assert(
+    $bootstrapLoads === array('require_once') && substr_count($bootstrap, "require_once __DIR__ . '/src/Autoloader.php';") === 1,
+    'supcheckout.php loads exactly one file itself: src/Autoloader.php'
+);
+arch_assert($bootstrapDefines === 0, 'supcheckout.php defines no constants itself (Plugin::boot() does)');
 foreach (array('supcheckout.php', 'UPayments.php', 'includes', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;
     $shippedFiles = is_dir($shippedPath)
