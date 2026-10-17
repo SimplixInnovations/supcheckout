@@ -416,6 +416,21 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
     }
 
+    public function test_a_cut_over_store_with_the_official_plugin_active_again_exits_7_without_consent(): void {
+        $this->seed();
+        CutoverTest::state('cut_over');
+
+        self::assertSame(CliCommands::OFFICIAL_STILL_ACTIVE, $this->cli()->run(true, false));
+
+        self::assertSame(array(), $this->system->deactivated);
+        self::assertStringContainsString('--deactivate-official', $this->printed());
+        self::assertStringNotContainsString('Success', $this->printed());
+
+        $this->system->official = null;
+        $this->out = array();
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, false), 'nothing to do once it is inactive');
+    }
+
     public function test_states_run_cannot_continue_from_exit_6(): void {
         foreach (array('rolled_back', 'finalized') as $status) {
             CutoverTest::state($status);

@@ -144,7 +144,14 @@ final class CliCommands {
         TakeoverState::refresh();
         $status = TakeoverState::get()['status'];
         if ($status === TakeoverState::CUT_OVER) {
-            return $deactivate_official ? $this->cutover(true) : $this->done('already cut over; nothing to do');
+            if ($deactivate_official) {
+                return $this->cutover(true);
+            }
+            $official = $this->system->official_plugin();
+            if ($official !== null) {
+                return $this->fail(self::OFFICIAL_STILL_ACTIVE, 'cut over, but the official UPayments plugin (' . $official . ') is active again; SUPCheckout stays paused. Rerun with --deactivate-official');
+            }
+            return $this->done('already cut over; nothing to do');
         }
         if (!in_array($status, self::RUNNABLE, true)) {
             return $this->fail(self::STATE, 'state "' . $status . '" does not allow run');
