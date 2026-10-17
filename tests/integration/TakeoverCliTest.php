@@ -156,6 +156,10 @@ if ($phase === 'paused') {
     supcheckout_cert_assert(is_array($status_json) && $status_json['stale_claims'] === array(), 'no stale claim is left');
 
     delete_option('supcheckout_cert_official_stub_fired');
+    // No terminal and no --yes: aborted, exit 1, nothing changed.
+    $unattended = supcheckout_takeover_cert_wp('supcheckout takeover run --deactivate-official');
+    supcheckout_cert_assert($unattended->return_code === CliCommands::ERROR && strpos($unattended->stdout, 'aborted; nothing changed') !== false, 'run without --yes and without a terminal exits 1: ' . $unattended->stdout . $unattended->stderr);
+    supcheckout_cert_assert(is_plugin_active(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL), 'the aborted run deactivated nothing');
     // Without consent the copy runs (read-only towards legacy) but the store is never cut
     // over while the official plugin is active.
     $refused = supcheckout_takeover_cert_wp('supcheckout takeover run --yes');

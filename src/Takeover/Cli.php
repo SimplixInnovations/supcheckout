@@ -123,11 +123,43 @@ final class Cli {
                 \WP_CLI::line($line);
             },
             static function ($question) {
-                // WP_CLI::confirm() exits the process unless the answer is yes.
-                \WP_CLI::confirm($question);
-                return true;
+                // Not WP_CLI::confirm(): it exits 0 on a decline or without a TTY, which
+                // would report an aborted run as a success.
+                return self::confirm($question, STDIN, STDOUT, self::stdin_is_terminal());
             }
         );
+    }
+
+    /**
+     * Ask a yes/no question. Only an explicit "y" or "yes" typed on an interactive terminal
+     * confirms; a decline, an empty answer, end of input or no terminal at all is a no
+     * (WP-CLI never treats static methods as subcommands).
+     *
+     * @param string   $question    Question.
+     * @param resource $input       Where the answer is read from.
+     * @param resource $output      Where the prompt is written.
+     * @param bool     $interactive The input is a terminal.
+     * @return bool
+     */
+    public static function confirm($question, $input, $output, $interactive) {
+        if (!$interactive) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- WP-CLI terminal prompt on STDOUT, not a file.
+            fwrite($output, $question . ' No terminal to confirm on: rerun with --yes.' . PHP_EOL);
+            return false;
+        }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- WP-CLI terminal prompt on STDOUT, not a file.
+        fwrite($output, $question . ' [y/n] ');
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgets -- The operator's answer on STDIN, not a file.
+        $answer = fgets($input);
+        return is_string($answer) && in_array(strtolower(trim($answer)), array('y', 'yes'), true);
+    }
+
+    /** @return bool */
+    private static function stdin_is_terminal() {
+        if (function_exists('stream_isatty')) {
+            return stream_isatty(STDIN);
+        }
+        return function_exists('posix_isatty') && posix_isatty(STDIN);
     }
 
     /**
