@@ -20,6 +20,19 @@ final class Keys {
     public const GATEWAY = 'supcheckout';
     public const CALLBACK_ROUTE_LEGACY = 'wc_upayments';
     public const CALLBACK_ROUTE = 'supcheckout';
+    /** Store API checkout `extensions` namespace the Blocks client posts under. */
+    public const EXTENSION_NAMESPACE_LEGACY = 'upayments';
+    public const EXTENSION_NAMESPACE = 'supcheckout';
+
+    /**
+     * Both gateway identities, for wc_get_orders(array('payment_method' => ...)) queries.
+     * Historical orders keep 'upayments' forever; orders created after cutover carry 'supcheckout'.
+     *
+     * @return list<string>
+     */
+    public static function gateway_ids() {
+        return array(self::GATEWAY_LEGACY, self::GATEWAY);
+    }
 
     /** @return array<string,string> Order meta, legacy → new. */
     public static function order_meta() {
@@ -126,6 +139,15 @@ final class Keys {
      * Recreated, never copied. During the switch window lock helpers take BOTH names
      * (legacy first) so a pre-cutover and a post-cutover worker still contend (Task 2).
      *
+     * Storage differs per family, which Finalize must respect: order locks, status
+     * gates and the payment-methods rate gate are plain options; the payment-methods
+     * cache is a transient (`_transient_` / `_transient_timeout_` rows); the `upay_pm_`
+     * and `upay_ctk_` families are MySQL GET_LOCK() names and never touch a table.
+     *
+     * Ordered longest match first: no legacy prefix is a prefix of a later one. The
+     * customer-token lock names stay short because GET_LOCK() names are limited to 64
+     * characters (prefix + 32-hex scope + '_' + a 20-digit user ID).
+     *
      * @return array<string,string>
      */
     public static function ephemeral_prefixes() {
@@ -135,22 +157,46 @@ final class Keys {
             'upayments_payment_methods_rate_gate_' => 'supcheckout_pmgate_v1_',
             'upay_pm_v3_' => 'supcheckout_pmcache_v3_',
             'upay_pm_' => 'supcheckout_pmlock_',
-            'upay_ctk_' => 'supcheckout_ctklock_',
+            'upay_ctk_bootstrap_b' => 'sup_ctkboot_b',
+            'upay_ctk_' => 'sup_ctk_',
         );
     }
 
     /**
-     * Written only by the official plugin. Preflight reports them, Finalize clears them,
-     * nothing copies them.
+     * Written only by the official plugin (or, for the table, by SUPCheckout's dead
+     * Subscription\Manager listener). Nothing copies them. Preflight reports them;
+     * Finalize clears the options, transients and cron hooks, but only reports the
+     * tables and never drops them.
      *
-     * @return array{options:list<string>,transients:list<string>,cron_hooks:list<string>}
+     * The update-checker names are prefixes: their suffix carries the official
+     * plugin's update-checker slug, which differs between releases.
+     *
+     * @return array{options:list<string>,option_prefixes:list<string>,transients:list<string>,cron_hooks:list<string>,cron_hook_prefixes:list<string>,tables:list<string>}
      */
     public static function official_only() {
         return array(
             'options' => array('your_gateway_version', 'upayments_block_checkout_page_id',
-                'woocommerce_upayments_enable_block_checkout', 'external_updates-upayments-V2.2.1', 'upayments_maat'),
+                'woocommerce_upayments_enable_block_checkout', 'upayments_maat', 'upay_subscription_settings'),
+            'option_prefixes' => array('external_updates-upayments'),
             'transients' => array('upayments_cron_lock'),
-            'cron_hooks' => array('upay_hourly_cron_job', 'puc_cron_check_updates-upayments-V2.2.1'),
+            'cron_hooks' => array('upay_hourly_cron_job'),
+            'cron_hook_prefixes' => array('puc_cron_check_updates-upayments'),
+            'tables' => array('upay_subscriptions'),
+        );
+    }
+
+    /**
+     * Persisted names that deliberately keep their name through the switch.
+     *
+     * @return array<string,string> Name => reason.
+     */
+    public static function unchanged_persisted() {
+        return array(
+            '_custom_field_id' => 'product meta of the subscription product type (Subscription\Presentation); shared with official 3.1.1 products, read as-is',
+            'custom_type' => 'product_type taxonomy term of the subscription product (WCProductCustomType); shared with official 3.1.1, renaming would retype products',
+            'Special Feature' => 'order-item meta label key, stored translated; the text domain moved upayments -> supcheckout, so historical items keep whatever key string was stored',
+            'chosen_payment_method' => 'WooCommerce core session key; its stored value may be upayments for up to 48 h after cutover and must still select our gateway (Keys::is_our_gateway())',
+            'payment_method' => 'WooCommerce order field; historical orders keep upayments forever and are matched with Keys::gateway_ids() / Keys::is_our_gateway()',
         );
     }
 
@@ -161,31 +207,76 @@ final class Keys {
     }
 
     /**
-     * @param string $new_key SUPCheckout name.
+     * Exact maps first, then full keys under a user-meta prefix.
+     *
+     * @param string $new_key SUPCheckout name (a prefix itself, or a full prefixed key).
      * @return string|null Legacy name.
      */
     public static function legacy_for($new_key) {
+        $new_key = (string) $new_key;
         foreach (self::copied_maps() as $map) {
             $legacy = array_search($new_key, $map, true);
             if ($legacy !== false) {
                 return (string) $legacy;
             }
         }
+        foreach (self::user_meta_prefixes() as $legacy_prefix => $new_prefix) {
+            if (strlen($new_key) > strlen($new_prefix) && strpos($new_key, $new_prefix) === 0) {
+                return $legacy_prefix . substr($new_key, strlen($new_prefix));
+            }
+        }
         return null;
     }
 
     /**
-     * @param string $legacy Legacy meta key.
+     * Exact maps first, then full keys under a user-meta prefix
+     * (`_upay_customer_token_v2_b1_{scope}` → `_supcheckout_customer_token_v2_b1_{scope}`).
+     *
+     * @param string $legacy Legacy name (a prefix itself, or a full prefixed key).
      * @return array{0:string,1:string} [new, legacy].
-     * @throws \InvalidArgumentException When the name is not in a copied map.
+     * @throws \InvalidArgumentException When the name is not classified.
      */
     public static function meta_names($legacy) {
+        $legacy = (string) $legacy;
         foreach (self::copied_maps() as $map) {
             if (isset($map[$legacy])) {
                 return array($map[$legacy], $legacy);
             }
         }
-        throw new \InvalidArgumentException('Unclassified persisted name: ' . esc_html((string) $legacy));
+        foreach (self::user_meta_prefixes() as $legacy_prefix => $new_prefix) {
+            if (strlen($legacy) > strlen($legacy_prefix) && strpos($legacy, $legacy_prefix) === 0) {
+                return array($new_prefix . substr($legacy, strlen($legacy_prefix)), $legacy);
+            }
+        }
+        throw new \InvalidArgumentException('Unclassified persisted name: ' . esc_html($legacy));
+    }
+
+    /**
+     * Resolve a user meta key given either its legacy or its new full name. A bare
+     * prefix is not a key, and non-user-meta names return null.
+     *
+     * Consumers that slice a suffix (the H12 scope) must slice by the length of the
+     * prefix that matched, because the legacy and new prefixes differ in length.
+     *
+     * @param string $key Legacy or new user meta key.
+     * @return array{0:string,1:string}|null [new, legacy].
+     */
+    public static function user_meta_key_pair($key) {
+        $key = (string) $key;
+        foreach (self::user_meta() as $legacy => $new_key) {
+            if ($key === $legacy || $key === $new_key) {
+                return array($new_key, $legacy);
+            }
+        }
+        foreach (self::user_meta_prefixes() as $legacy_prefix => $new_prefix) {
+            if (strlen($key) > strlen($legacy_prefix) && strpos($key, $legacy_prefix) === 0) {
+                return array($new_prefix . substr($key, strlen($legacy_prefix)), $key);
+            }
+            if (strlen($key) > strlen($new_prefix) && strpos($key, $new_prefix) === 0) {
+                return array($key, $legacy_prefix . substr($key, strlen($new_prefix)));
+            }
+        }
+        return null;
     }
 
     /**
@@ -210,10 +301,15 @@ final class Keys {
     /**
      * @param string $legacy Legacy table name without prefix.
      * @return string Prefixed table name in use right now.
+     * @throws \InvalidArgumentException When the table is not registered.
      */
     public static function table($legacy) {
         global $wpdb;
-        return $wpdb->prefix . (TakeoverState::is_cut_over() ? self::tables()[$legacy] : $legacy);
+        $tables = self::tables();
+        if (!isset($tables[$legacy])) {
+            throw new \InvalidArgumentException('Unregistered table: ' . esc_html((string) $legacy));
+        }
+        return $wpdb->prefix . (TakeoverState::is_cut_over() ? $tables[$legacy] : $legacy);
     }
 
     /**
