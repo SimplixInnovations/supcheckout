@@ -211,7 +211,16 @@ function coexistence_child($root, $scenario, $official_stub) {
         require $root . '/supcheckout.php';
     }
     // Observed before any official stub loads, so only SUPCheckout's own declarations count.
-    $declared = function_exists('woocommerceUpaymentsInit') && $scenario !== 'official_first';
+    // The bootstrap is the plugins_loaded requirement check Plugin::boot() registers
+    // (Bootstrap\Requirements::check_woocommerce, was the global woocommerceUpaymentsInit()).
+    $declared = false;
+    foreach ($GLOBALS['coexistence']['actions'] as $registration) {
+        if ($registration[0] === 'plugins_loaded'
+            && $registration[1] === array('Simplixi\SUPCheckout\Bootstrap\Requirements', 'check_woocommerce')
+        ) {
+            $declared = true;
+        }
+    }
     // Gateway-identity hooks SUPCheckout itself registered, also observed before any
     // official stub loads: a paused SUPCheckout must register none of them.
     $gateway_hooks = array();

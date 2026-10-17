@@ -45,6 +45,8 @@ $checkout_orchestrator = file_get_contents($root . '/src/Payment/CheckoutOrchest
 // The gateway class the bootstrap registers lives in src/Gateway/Gateway.php since Sub-project 0a Task 3.
 $gateway_class_source = file_get_contents($root . '/src/Gateway/Gateway.php');
 $gateway_registration_source = file_get_contents($root . '/src/Gateway/GatewayRegistration.php');
+// The My Account subscription action handler left the bootstrap in Sub-project 0a Task 4.
+$subscription_actions_source = file_get_contents($root . '/src/Account/SubscriptionActions.php');
 $runtime_source = $bootstrap . "\n" . $gateway_class_source . "\n" . $checkout_orchestrator;
 $identity_source = file_get_contents($identity_path);
 $uninstall = file_get_contents($uninstall_path);
@@ -100,7 +102,7 @@ p0_assert(
     'gateway class identity remains present and registered with WooCommerce'
 );
 p0_assert(p0_contains($runtime_source, 'wc_upayments'), 'legacy callback route remains present');
-p0_assert(p0_contains($bootstrap, "'upayments'"), 'legacy upayments runtime identity remains present');
+p0_assert(p0_contains($bootstrap . "\n" . $subscription_actions_source, "'upayments'"), 'legacy upayments runtime identity remains present');
 
 $token_source = file_get_contents($root . '/includes/Token/CustomerTokenIdentity.php');
 p0_assert(p0_contains($token_source, 'upayments_token_identity_secret_v2'), 'H12 identity secret key remains protected');

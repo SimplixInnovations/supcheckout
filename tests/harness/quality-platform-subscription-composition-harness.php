@@ -26,6 +26,10 @@ function q11_git_blob_sha($path) {
 $phpstan = q11_read($q11_root, 'phpstan.neon.dist');
 $phpcs = q11_read($q11_root, 'phpcs.xml.dist');
 $source = q11_read($q11_root, 'src/Subscription/Composition.php');
+// Sub-project 0a Task 4: the product-type hooks (and the nine product-data wrappers that
+// were global functions) live in ProductTypeHooks, which Composition registers at their
+// place in the topology.
+$product_type_source = q11_read($q11_root, 'src/Subscription/ProductTypeHooks.php');
 $tests = q11_read($q11_root, 'tests/unit/Subscription/CompositionTest.php');
 $fixture = q11_read($q11_root, 'tests/support/wordpress-migration-bootstrap.php');
 $stubs = q11_read($q11_root, 'tests/phpstan/subscription-composition-stubs.php');
@@ -39,22 +43,30 @@ $scheduler = q11_read($q11_root, 'includes/Subscription/Cron/Scheduler.php');
 
 q11_assert(q11_contains($phpstan, 'src/Subscription/Composition.php'), 'PHPStan owns subscription composition');
 q11_assert(q11_contains($phpcs, 'src/Subscription/Composition.php'), 'PHPCS owns subscription composition');
+q11_assert(q11_contains($phpstan, 'src/Subscription/ProductTypeHooks.php'), 'PHPStan owns subscription product-type hooks');
+q11_assert(q11_contains($phpcs, 'src/Subscription/ProductTypeHooks.php'), 'PHPCS owns subscription product-type hooks');
 q11_assert(q11_contains($phpstan, 'tests/phpstan/subscription-composition-stubs.php'), 'analysis loads bounded composition stubs');
 q11_assert(!q11_contains($phpstan, 'baseline'), 'Q11 remains baseline-free');
 q11_assert(!q11_contains($phpstan, 'ignoreErrors'), 'Q11 introduces no ignored analyzer errors');
 
+$product_type_hooks = array(
+    "add_filter('product_type_selector', array(self::class, 'addCustomProductType'))",
+    "add_filter('woocommerce_product_class', array(self::class, 'mapCustomProductClass'), 10, 2)",
+    "add_action('woocommerce_custom_type_add_to_cart', 'woocommerce_simple_add_to_cart', 30)",
+    "add_action('admin_footer', array(self::class, 'customProductTypes'))",
+    "add_filter('woocommerce_product_data_tabs', array(self::class, 'addCustomDataTab'))",
+    "add_action('woocommerce_product_data_panels', array(self::class, 'addCustomDataPanel'))",
+    "add_action('woocommerce_process_product_meta', array(self::class, 'saveCustomFieldData'))",
+    "add_action('woocommerce_single_product_summary', array(self::class, 'displayCustomFieldOnFrontend'), 10)",
+    "add_filter('woocommerce_get_item_data', array(self::class, 'displayCustomDataInCart'), 10, 2)",
+    "add_action('woocommerce_checkout_create_order_line_item', array(self::class, 'saveCustomDataToOrderItems'), 10, 4)",
+);
+foreach ($product_type_hooks as $hook) {
+    q11_assert(substr_count($product_type_source, $hook) === 1, "presentation hook remains exact: {$hook}");
+}
+q11_assert(substr_count($source, 'ProductTypeHooks::register();') === 1, 'composition registers the product-type hooks exactly once');
 $presentation_hooks = array(
     "add_action('init', array(Presentation::class, 'register_product_class'))",
-    "add_filter('product_type_selector', 'addCustomProductType')",
-    "add_filter('woocommerce_product_class', 'mapCustomProductClass', 10, 2)",
-    "add_action('woocommerce_custom_type_add_to_cart', 'woocommerce_simple_add_to_cart', 30)",
-    "add_action('admin_footer', 'customProductTypes')",
-    "add_filter('woocommerce_product_data_tabs', 'addCustomDataTab')",
-    "add_action('woocommerce_product_data_panels', 'addCustomDataPanel')",
-    "add_action('woocommerce_process_product_meta', 'saveCustomFieldData')",
-    "add_action('woocommerce_single_product_summary', 'displayCustomFieldOnFrontend', 10)",
-    "add_filter('woocommerce_get_item_data', 'displayCustomDataInCart', 10, 2)",
-    "add_action('woocommerce_checkout_create_order_line_item', 'saveCustomDataToOrderItems', 10, 4)",
     "add_action('woocommerce_order_details_after_order_table', array(Presentation::class, 'render_account_order_details'))",
     "add_action('woocommerce_before_account_orders', array(Presentation::class, 'render_account_orders_filter'))",
     "add_filter('woocommerce_my_account_my_orders_query', array(Presentation::class, 'filter_account_orders_query'))",
@@ -92,8 +104,10 @@ foreach (array(
     'CURLOPT_',
 ) as $forbidden) {
     q11_assert(!q11_contains($source, $forbidden), "composition excludes protected ownership: {$forbidden}");
+    q11_assert(!q11_contains($product_type_source, $forbidden), "product-type hooks exclude protected ownership: {$forbidden}");
 }
 q11_assert(q11_contains($source, 'private function __construct()'), 'composition is explicitly non-instantiable');
+q11_assert(q11_contains($product_type_source, 'private function __construct()'), 'product-type hooks are explicitly non-instantiable');
 q11_assert(preg_match("/'limit_response_size'\\s*=>\\s*1048576/", $scheduler) === 1, 'subscription provider response body is bounded to 1 MiB');
 q11_assert(preg_match('/strlen\\(\\$response\\)\\s*>=\\s*1048576/', $scheduler) === 1, 'subscription treats a response at the cap as ambiguous and fail closed');
 q11_assert(q11_git_blob_sha($q11_root . '/includes/Subscription/Cron/Scheduler.php') === 'f5dae0dae437ac85e00d17646b063b6ed9bbff61', 'protected Scheduler blob remains exact');

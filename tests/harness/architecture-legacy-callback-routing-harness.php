@@ -89,9 +89,9 @@ function t2_child_boot($scenario) {
 
     require_once dirname(__DIR__, 2) . '/supcheckout.php';
 
-    // Define the historical gateway class without constructing a live
-    // WooCommerce gateway instance.
-    woocommerceUpaymentsInit();
+    // Run the plugins_loaded requirement check (was woocommerceUpaymentsInit())
+    // without constructing a live WooCommerce gateway instance.
+    \Simplixi\SUPCheckout\Bootstrap\Requirements::check_woocommerce();
 
     class T2LegacyGatewayProbe extends \Simplixi\SUPCheckout\Gateway\Gateway {
         public function get_payment_staus() {

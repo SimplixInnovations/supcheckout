@@ -6,6 +6,18 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Clean core: no global functions or closures left in the main file (Sub-project 0a Task 4)
+
+- Every hook the main file registered is now registered from `Simplixi\SUPCheckout\Plugin::boot()` through named classes, with the same hook names, priorities, argument counts and registration phase:
+  - `Bootstrap\Requirements` (the WooCommerce check on `plugins_loaded` and its admin notice);
+  - `Bootstrap\WooCommerceDeclarations` (Cart & Checkout blocks and HPOS compatibility);
+  - `Blocks\PaymentMethodRegistration` (the Blocks payment method `upayments`);
+  - `Subscription\ProductTypeHooks` (subscription product data);
+  - `Subscription\SchedulerBootstrap` (the subscription scheduler on `woocommerce_init`);
+  - `Account\SubscriptionActions` (the My Account pause, resume and unsubscribe requests, with the same POST, ownership, order and nonce checks).
+- The global functions `woocommerceUpaymentsInit()`, `upaymentsMissingWcNotice()`, `addCustomProductType()`, `mapCustomProductClass()`, `customProductTypes()`, `addCustomDataTab()`, `addCustomDataPanel()`, `saveCustomFieldData()`, `displayCustomFieldOnFrontend()`, `displayCustomDataInCart()` and `saveCustomDataToOrderItems()` no longer exist. There are no aliases, because the official UPayments plugin declares functions with the same names. Customizations that call them, or remove their hooks by name (for example `remove_action('woocommerce_process_product_meta', 'saveCustomFieldData')`), must use the `Simplixi\SUPCheckout\Subscription\ProductTypeHooks` static methods of the same names instead. This supersedes the earlier subscription-composition entry below, which kept the named global wrappers callable.
+- Unchanged: the gateway ID `upayments`, settings, order metadata, the `wc_upayments` callback route, the cron and Action Scheduler hooks, and the Blocks identity `upayments`.
+
 ### Clean core: the gateway class is namespaced (Sub-project 0a Task 3)
 
 - The payment gateway class is now `Simplixi\SUPCheckout\Gateway\Gateway`. The global class `WC_Upayments` and the global callbacks `addUpaymentsGatewayClass()` and `enableUpaymentsGateway()` no longer exist. There is no alias, because the official UPayments plugin declares a `WC_Upayments` of its own.

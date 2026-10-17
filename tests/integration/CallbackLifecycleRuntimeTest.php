@@ -12,7 +12,7 @@ use Simplixi\SUPCheckout\Payment\PaymentLifecycle;
 
 if (!class_exists('Simplixi\SUPCheckout\Gateway\Gateway')) {
     require_once dirname(__DIR__, 2) . '/supcheckout.php';
-    woocommerceUpaymentsInit();
+    \Simplixi\SUPCheckout\Bootstrap\Requirements::check_woocommerce();
 }
 
 function supcheckout_r5_make_order($user_id, $suffix = '1') {

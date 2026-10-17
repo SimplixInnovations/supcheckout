@@ -1183,12 +1183,18 @@ $gatewayUnwrapped = $coexistenceWrapped
     : $gateway;
 $gatewayTokens = arch3_tokens($gatewayUnwrapped);
 
-$bootstrap = arch3_direct_top_level_hook_callback(
-    $gatewayTokens,
-    'add_action',
-    'plugins_loaded',
-    'woocommerceUpaymentsInit'
-);
+// Sub-project 0a Task 4: the global plugins_loaded callback woocommerceUpaymentsInit()
+// is now Bootstrap\Requirements::check_woocommerce(). The same rule (registered by a
+// direct, unconditional, executable statement and owned by SUPCheckout) follows
+// main file -> Plugin::boot() -> Requirements::register() -> plugins_loaded ->
+// Requirements::check_woocommerce().
+$requirementsClass = arch3_direct_file_class(arch3_tokens(arch3_read($root, 'src/Bootstrap/Requirements.php')), 'Requirements');
+$requirementsRegister = $requirementsClass['found']
+    ? arch3_direct_public_method($requirementsClass['body'], 'register')
+    : array('found' => false, 'body' => array());
+$requirementsCheck = $requirementsClass['found']
+    ? arch3_direct_public_method($requirementsClass['body'], 'check_woocommerce')
+    : array('found' => false, 'body' => array());
 // Sub-project 0a Task 3: the gateway class is no longer declared inside the
 // plugins_loaded callback. The same reachability rule (direct, unconditional,
 // executable at every step) now follows the composition-root path instead:
@@ -1219,7 +1225,13 @@ foreach ($registrationFilter['body'] as $filterToken) {
 
 arch3_assert($gateway !== '', 'supcheckout.php is readable');
 arch3_assert(!arch3_has_namespace_declaration($gatewayTokens), 'legacy main file remains global for bootstrap callbacks');
-arch3_assert($bootstrap['found'], 'plugins_loaded directly registers and owns woocommerceUpaymentsInit');
+arch3_assert(
+    $pluginBoot['found'] && arch3_has_direct_statement_text($pluginBoot['body'], 'Requirements::register();')
+        && $requirementsRegister['found']
+        && arch3_has_direct_statement_text($requirementsRegister['body'], 'add_action(plugins_loaded,array(self::class,check_woocommerce));')
+        && $requirementsCheck['found'],
+    'plugins_loaded directly registers and owns Requirements::check_woocommerce (was woocommerceUpaymentsInit)'
+);
 arch3_assert(
     arch3_has_direct_statement_text($gatewayTokens, '\\Simplixi\\SUPCheckout\\Plugin::boot(__FILE__);'),
     'main file directly and unconditionally calls Plugin::boot(__FILE__)'

@@ -74,6 +74,12 @@ Public metadata derived from this matrix:
 
 The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-16, pre-release). A header-less transitional `supcheckout/UPayments.php` shim moves pre-rename installs' active entry to `supcheckout/supcheckout.php` on their next load, without reactivation or data changes. The Release Artifact `in-place-main-file-update` cells exercise the in-place update on real WordPress, single-site and network-activated, through WP-CLI, the Plugins screen, the upload installer and the bulk / one-click upgrader. Pre-rename installs: update by zip upload ("Replace current with uploaded"), WP-CLI, or the Plugins-screen / Updates-screen one-click and bulk updates (`bulk_upgrade()`). These keep the stored `supcheckout/UPayments.php` entry, and the shim moves it on the next request. The classic single-plugin Update-now flow (`wp-admin/update.php?action=upgrade-plugin`, `Plugin_Upgrader::upgrade()`, used without JavaScript) deactivates the plugin before installing and then reactivates it by the old basename. Validation rejects the header-less shim, so the install ends **deactivated**: no SUPCheckout code runs, merchant data is unchanged, and one activation of `supcheckout/supcheckout.php` recovers it. Any future update channel must key updates to `supcheckout/supcheckout.php`.
 
+SUPCheckout no longer declares the following global functions (Sub-project 0a Task 4):
+- `woocommerceUpaymentsInit()` and `upaymentsMissingWcNotice()`;
+- the nine product-data wrappers `addCustomProductType()`, `mapCustomProductClass()`, `customProductTypes()`, `addCustomDataTab()`, `addCustomDataPanel()`, `saveCustomFieldData()`, `displayCustomFieldOnFrontend()`, `displayCustomDataInCart()` and `saveCustomDataToOrderItems()`.
+
+Third-party `remove_action()` / `remove_filter()` calls that name these functions no longer match. The hooks, priorities and argument counts are unchanged, and the product-data callbacks are static methods of the same names on `Simplixi\SUPCheckout\Subscription\ProductTypeHooks`.
+
 Historical package-root movement remains certified for both pre-stable `simplixpay-upayments` and `sucheckout-upayments` roots moving to canonical `supcheckout`, including protected data continuity and rollback.
 
 ## Capability matrix

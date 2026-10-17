@@ -4,7 +4,7 @@
  *
  * Defines sandboxed WP/Woo function stubs, requires the production
  * plugin source (supcheckout.php + CustomerTokenIdentity.php), and invokes
- * woocommerceUpaymentsInit() so both the parent PHP harness and the Store
+ * Requirements::check_woocommerce() so both the parent PHP harness and the Store
  * API subprocess child can run real production code.
  *
  * Do NOT execute this file directly. It is loaded via require_once by
@@ -596,9 +596,10 @@ if (!class_exists('WooCommerce')) {
 require_once $IDENTITY_FILE;
 require_once $PLUGIN_FILE;
 
-// Manually invoke woocommerceUpaymentsInit() since add_action won't actually run it.
-if (function_exists('woocommerceUpaymentsInit')) {
-    woocommerceUpaymentsInit();
+// Manually invoke the plugins_loaded requirement check (was woocommerceUpaymentsInit())
+// since add_action won't actually run it.
+if (class_exists('Simplixi\SUPCheckout\Bootstrap\Requirements')) {
+    \Simplixi\SUPCheckout\Bootstrap\Requirements::check_woocommerce();
 }
 
 if (!class_exists('Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType', false)) {
