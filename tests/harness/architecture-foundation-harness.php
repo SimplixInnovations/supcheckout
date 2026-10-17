@@ -428,8 +428,8 @@ $status = arch_read($root, 'docs/project/PROJECT-STATUS.md');
 $naming = arch_read($root, 'docs/project/NAMING-IDENTITY-STANDARD.md');
 $paymentLifecycle = arch_read($root, 'src/Payment/PaymentLifecycle.php');
 $securityStatus = arch_read($root, 'src/Security/PublicOrderStatus.php');
-$tokenIdentity = arch_read($root, 'includes/Token/CustomerTokenIdentity.php');
-$scheduler = arch_read($root, 'includes/Subscription/Cron/Scheduler.php');
+$tokenIdentity = arch_read($root, 'src/Token/CustomerTokenIdentity.php');
+$scheduler = arch_read($root, 'src/Subscription/Cron/Scheduler.php');
 $subscriptionComposition = arch_read($root, 'src/Subscription/Composition.php');
 $subscriptionPresentation = arch_read($root, 'src/Subscription/Presentation.php');
 $checkoutPayload = arch_read($root, 'src/Payment/CheckoutPayload.php');
@@ -584,7 +584,8 @@ arch_assert(
     'supcheckout.php loads exactly one file itself: src/Autoloader.php'
 );
 arch_assert($bootstrapDefines === 0, 'supcheckout.php defines no constants itself (Plugin::boot() does)');
-foreach (array('supcheckout.php', 'UPayments.php', 'includes', 'src', 'templates') as $shipped) {
+// includes/ moved into src/ in Sub-project 0a Task 6.
+foreach (array('supcheckout.php', 'UPayments.php', 'src', 'templates') as $shipped) {
     $shippedPath = $root . '/' . $shipped;
     $shippedFiles = is_dir($shippedPath)
         ? iterator_to_array(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($shippedPath, FilesystemIterator::SKIP_DOTS)))
@@ -672,12 +673,12 @@ arch_assert(is_file($root . '/src/Payment/StatusRateGate.php'), 'Payment StatusR
 arch_assert(is_file($root . '/src/Payment/StatusVerifier.php'), 'Payment StatusVerifier boundary exists');
 arch_assert(arch_contains($paymentLifecycle, 'namespace Simplixi\\SUPCheckout\\Payment;'), 'Payment lifecycle uses SUPCheckout namespace');
 arch_assert(arch_contains($securityStatus, 'namespace Simplixi\\SUPCheckout\\Security;'), 'Security boundary uses SUPCheckout namespace');
-arch_assert(is_file($root . '/includes/Token/CustomerTokenIdentity.php'), 'protected H12 token identity module exists');
+arch_assert(is_file($root . '/src/Token/CustomerTokenIdentity.php'), 'protected H12 token identity module exists');
 arch_assert(arch_contains($tokenIdentity, 'CustomerTokenIdentity'), 'H12 token identity implementation remains readable');
-arch_assert(is_file($root . '/includes/Subscription/Cron/Scheduler.php'), 'protected subscription scheduler exists');
-arch_assert(is_file($root . '/includes/Subscription/Cron/CycleClaim.php'), 'protected subscription cycle-claim module exists');
+arch_assert(is_file($root . '/src/Subscription/Cron/Scheduler.php'), 'protected subscription scheduler exists');
+arch_assert(is_file($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected subscription cycle-claim module exists');
 arch_assert(arch_contains($scheduler, 'class Scheduler'), 'subscription Scheduler class remains characterized');
-arch_assert(is_file($root . '/includes/class-wc-gateway-upayments-blocks.php'), 'Checkout Blocks gateway integration exists');
+arch_assert(is_file($root . '/src/Blocks/PaymentMethodType.php'), 'Checkout Blocks gateway integration exists');
 
 $constructor = arch_direct_public_method($gatewayClassTokens, '__construct');
 arch_assert($constructor['found'], 'Gateway constructor remains public and executable');

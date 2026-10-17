@@ -2,7 +2,7 @@
 /**
  * Static half of the public-surface snapshot (tests/harness/public-surface-snapshot-harness.php).
  *
- * Tokenizes the main file(s), src/ and includes/ and records, with multiplicity:
+ * Tokenizes the main file(s) and src/ (includes/ moved into src/ in Sub-project 0a Task 6) and records, with multiplicity:
  * - every add_action/add_filter call: hook, priority, accepted_args (hook_reference);
  * - every WP-Cron / Action Scheduler call: hook, group, argument shape and the
  *   literal unique flag (schedule_reference). Stored cron events and actions are
@@ -39,7 +39,7 @@ const SURFACE_SCAN_SCHEDULE_CALLS = array(
  */
 function surface_scan_static_entries($root, array $mains) {
     $paths = $mains;
-    foreach (array('src', 'includes') as $dir) {
+    foreach (array('src') as $dir) {
         if (!is_dir($root . '/' . $dir)) {
             continue;
         }

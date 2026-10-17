@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 use Simplixi\SUPCheckout\Subscription\Presentation;
-use UPayments\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
 
 #[RunTestsInSeparateProcesses]
 #[PreserveGlobalState(false)]

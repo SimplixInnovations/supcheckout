@@ -1,6 +1,6 @@
 <?php
 
-namespace UPayments\Subscription\Cron;
+namespace Simplixi\SUPCheckout\Subscription\Cron;
 
 defined('ABSPATH') || exit;
 

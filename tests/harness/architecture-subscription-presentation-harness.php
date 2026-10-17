@@ -1,6 +1,6 @@
 <?php
 
-namespace UPayments\Subscription\Helpers {
+namespace Simplixi\SUPCheckout\Subscription\Helpers {
     class Utils {
         public static $custom = false;
         public static $normal = false;
@@ -9,7 +9,7 @@ namespace UPayments\Subscription\Helpers {
     }
 }
 
-namespace UPayments\Subscription\Cron {
+namespace Simplixi\SUPCheckout\Subscription\Cron {
     class Scheduler {
         public static function getNextBillingDate($started_at, $plan, $interval) {
             return new \DateTime('2030-02-03 04:05:06', new \DateTimeZone('UTC'));
@@ -20,7 +20,7 @@ namespace UPayments\Subscription\Cron {
 namespace {
 use Simplixi\SUPCheckout\Subscription\Composition;
 use Simplixi\SUPCheckout\Subscription\Presentation;
-use UPayments\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
 
 $a4_hooks = array();
 $a4_meta = array();
@@ -294,8 +294,8 @@ a4_assert(strpos($composition, 'register_presentation_hooks') !== false && strpo
 // earlier: #71 bfadff3). This harness exited silently before reaching these pins, so they
 // still named the #67 / pre-#71 blobs; they now match the pins in the H12, Q13, Q14, Q16
 // and Q17 harnesses.
-a4_same('f5dae0dae437ac85e00d17646b063b6ed9bbff61', a4_git_blob_sha($root . '/includes/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
-a4_same('a1ae04e3239e05c4894781480333fd5e747cefba', a4_git_blob_sha($root . '/includes/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
+a4_same('1f220334fdbd3c33649f770c992a0b982ec1f4b1', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
+a4_same('3263231dfcbea4dcc3ddfc2e05866740eb6fcd3a', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
 
 echo "\nArchitecture Subscription Presentation: {$pass} PASS / {$fail} FAIL\n";
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";

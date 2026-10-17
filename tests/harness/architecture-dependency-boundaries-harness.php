@@ -145,8 +145,8 @@ $production_files = array(
 );
 $production_files = array_merge(
     $production_files,
-    t1_dep_php_files($root . '/src'),
-    t1_dep_php_files($root . '/includes')
+    // includes/ moved into src/ in Sub-project 0a Task 6.
+    t1_dep_php_files($root . '/src')
 );
 $production_files = array_values(array_unique($production_files));
 sort($production_files);
@@ -166,7 +166,7 @@ sort($egress);
 
 $expected_egress = array(
     'src/Gateway/Gateway.php:wp_remote_request',
-    'includes/Subscription/Cron/Scheduler.php:wp_remote_request',
+    'src/Subscription/Cron/Scheduler.php:wp_remote_request',
     'src/Payment/StatusVerifier.php:wp_remote_get',
 );
 sort($expected_egress);

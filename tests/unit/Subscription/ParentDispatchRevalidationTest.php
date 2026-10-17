@@ -3,7 +3,7 @@
 namespace Simplixi\SUPCheckout\Tests\Subscription;
 
 use PHPUnit\Framework\TestCase;
-use UPayments\Subscription\Cron\Scheduler;
+use Simplixi\SUPCheckout\Subscription\Cron\Scheduler;
 
 /**
  * TDD RED/GREEN for the final pre-dispatch authorization race gates.
@@ -19,7 +19,7 @@ final class ParentDispatchRevalidationTest extends TestCase
     {
         require_once dirname(__DIR__, 2) . '/support/wc-order-revalidation-fixture.php';
         require_once dirname(__DIR__, 3) . '/src/Subscription/CycleEconomics.php';
-        require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/Scheduler.php';
+        require_once dirname(__DIR__, 3) . '/src/Subscription/Cron/Scheduler.php';
     }
 
     protected function setUp(): void

@@ -28,7 +28,7 @@ namespace {
     }
 
     $root = dirname(__DIR__, 2);
-    $blocks_file = $root . '/includes/class-wc-gateway-upayments-blocks.php';
+    $blocks_file = $root . '/src/Blocks/PaymentMethodType.php';
     $blocks_js = $root . '/assets/js/upayments-block.js';
     $phpstan_file = $root . '/phpstan.neon.dist';
     $phpcs_file = $root . '/phpcs.xml.dist';
@@ -48,7 +48,7 @@ namespace {
     require_once $root . '/src/Admin/GatewaySettings.php';
     require_once $blocks_file;
 
-    class Q18BlocksAvailabilityProbe extends \WCGatewayUPaymentsBlocks {
+    class Q18BlocksAvailabilityProbe extends \Simplixi\SUPCheckout\Blocks\PaymentMethodType {
         public function set_settings_for_test($settings) {
             $this->settings = $settings;
         }
@@ -142,13 +142,13 @@ namespace {
 
     q18_assert(
         is_string($phpstan_source)
-        && strpos($phpstan_source, 'includes/class-wc-gateway-upayments-blocks.php') !== false
+        && strpos($phpstan_source, 'src/Blocks/PaymentMethodType.php') !== false
         && strpos($phpstan_source, 'tests/phpstan/blocks-availability-stubs.php') !== false,
         'PHPStan owns Blocks adapter without a baseline'
     );
     q18_assert(
         is_string($phpcs_source)
-        && strpos($phpcs_source, '<file>includes/class-wc-gateway-upayments-blocks.php</file>') !== false,
+        && strpos($phpcs_source, '<file>src/Blocks/PaymentMethodType.php</file>') !== false,
         'PHPCS owns Blocks adapter'
     );
     q18_assert(

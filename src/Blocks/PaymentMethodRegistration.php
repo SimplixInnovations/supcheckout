@@ -26,9 +26,8 @@ final class PaymentMethodRegistration {
      * @return void
      */
     public static function register_payment_method($payment_method_registry) {
-        require_once dirname(Plugin::main_file()) . '/includes/class-wc-gateway-upayments-blocks.php';
         $payment_method_registry->register(
-            new \WCGatewayUPaymentsBlocks( Plugin::main_file() )
+            new PaymentMethodType( Plugin::main_file() )
         );
     }
 

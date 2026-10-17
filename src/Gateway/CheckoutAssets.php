@@ -3,7 +3,7 @@
 namespace Simplixi\SUPCheckout\Gateway;
 
 use Simplixi\SUPCheckout\Release\Identity;
-use UPayments\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
 
 defined('ABSPATH') || exit;
 

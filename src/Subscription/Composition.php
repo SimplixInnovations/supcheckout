@@ -2,8 +2,7 @@
 
 namespace Simplixi\SUPCheckout\Subscription;
 
-use UPayments\Subscription\Checkout\Fields;
-use UPayments\Subscription\Manager;
+use Simplixi\SUPCheckout\Subscription\Checkout\Fields;
 
 /**
  * Composition boundary for the inherited subscription presentation surfaces.
@@ -39,10 +38,6 @@ final class Composition {
      * @return void
      */
     public static function initialize_legacy_modules() {
-        $root = dirname(__DIR__, 2);
-        require_once $root . '/includes/Subscription/Checkout/Fields.php';
-        require_once $root . '/includes/Subscription/Manager.php';
-        require_once $root . '/includes/Subscription/Helpers/Utils.php';
         Fields::init();
         Manager::init();
     }

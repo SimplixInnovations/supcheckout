@@ -34,7 +34,7 @@ class SUPCheckout_Provenance_Query_Failure_Wpdb extends WpdbStub {
 upay_reset_state();
 $GLOBALS['wpdb'] = new SUPCheckout_Provenance_Query_Failure_Wpdb();
 
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(
     1,
     str_repeat('b', 32)
 );

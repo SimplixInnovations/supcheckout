@@ -32,12 +32,14 @@ $registered = WC()->payment_gateways()->payment_gateways();
 supcheckout_cert_assert(isset($registered['upayments']) && $registered['upayments'] instanceof \Simplixi\SUPCheckout\Gateway\Gateway, 'WooCommerce registers the SUPCheckout gateway');
 
 supcheckout_cert_assert(
-    class_exists('WCGatewayUPaymentsBlocks'),
+    // Without autoload, as before Task 6: the class was loaded only by the Blocks
+    // registration path (it was required there; now it is autoloaded there).
+    class_exists(\Simplixi\SUPCheckout\Blocks\PaymentMethodType::class, false),
     'Checkout Blocks integration class is loaded'
 );
 
 // Start the Blocks integration the way WooCommerce does on every request.
-$blocks = new WCGatewayUPaymentsBlocks(WP_PLUGIN_DIR . '/' . getenv('SUPCHECKOUT_PLUGIN_SLUG') . '/supcheckout.php');
+$blocks = new \Simplixi\SUPCheckout\Blocks\PaymentMethodType(WP_PLUGIN_DIR . '/' . getenv('SUPCHECKOUT_PLUGIN_SLUG') . '/supcheckout.php');
 $blocks->initialize();
 
 $property = new ReflectionProperty($blocks, 'gateway');

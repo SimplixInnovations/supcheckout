@@ -45,9 +45,9 @@
     <file>src/Migration/MigrationBatch.php</file>
     <file>src/Migration/MigrationExecutor.php</file>
     <file>src/Subscription/Presentation.php</file>
-    <file>includes/class-wc-gateway-upayments-blocks.php</file>
-    <file>includes/Subscription/Checkout/Fields.php</file>
-    <file>includes/Subscription/Helpers/Utils.php</file>
+    <file>src/Blocks/PaymentMethodType.php</file>
+    <file>src/Subscription/Checkout/Fields.php</file>
+    <file>src/Subscription/Helpers/Utils.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

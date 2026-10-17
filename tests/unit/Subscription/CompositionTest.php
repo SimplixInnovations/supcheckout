@@ -55,13 +55,22 @@ final class CompositionTest extends TestCase {
         $source = file_get_contents(dirname(__DIR__, 3) . '/src/Subscription/Composition.php');
 
         self::assertIsString($source);
-        self::assertSame(1, substr_count($source, '$root = dirname(__DIR__, 2);'));
+        // Sub-project 0a Task 6: the legacy modules moved from includes/ into src/ under
+        // Simplixi\SUPCheckout and are autoloaded, so the exact dependencies are now the
+        // namespaced classes (Manager shares Composition's namespace) instead of requires.
+        self::assertSame(1, substr_count($source, 'use Simplixi\\SUPCheckout\\Subscription\\Checkout\\Fields;'));
+        self::assertSame(0, preg_match('/\b(require|include)(_once)?\b/', $source));
+        self::assertStringNotContainsString('UPayments\\', $source);
         foreach (array(
-            'includes/Subscription/Checkout/Fields.php',
-            'includes/Subscription/Manager.php',
-            'includes/Subscription/Helpers/Utils.php',
-        ) as $dependency) {
-            self::assertSame(1, substr_count($source, "require_once \$root . '/{$dependency}'"));
+            'src/Subscription/Checkout/Fields.php' => array('namespace Simplixi\\SUPCheckout\\Subscription\\Checkout;', 'class Fields'),
+            'src/Subscription/Manager.php' => array('namespace Simplixi\\SUPCheckout\\Subscription;', 'class Manager'),
+            'src/Subscription/Helpers/Utils.php' => array('namespace Simplixi\\SUPCheckout\\Subscription\\Helpers;', 'class Utils'),
+        ) as $dependency => $declarations) {
+            $dependency_source = file_get_contents(dirname(__DIR__, 3) . '/' . $dependency);
+            self::assertIsString($dependency_source);
+            foreach ($declarations as $declaration) {
+                self::assertSame(1, substr_count($dependency_source, $declaration));
+            }
         }
         self::assertSame(1, substr_count($source, 'Fields::init();'));
         self::assertSame(1, substr_count($source, 'Manager::init();'));

@@ -5,7 +5,7 @@
 
 require_once __DIR__ . '/bootstrap.php';
 
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 $phase = getenv('SUPCHECKOUT_CERT_PHASE');
 $settings_key = 'woocommerce_upayments_settings';

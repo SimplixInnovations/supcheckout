@@ -66,7 +66,7 @@ cost_assert($disabled['code'] === 0 && strpos($disabled['out'], 'SCHEDULED:upay_
 cost_assert(strpos($disabled['out'], 'CLEARED:upay_process_subscriptions') !== false, 'an existing hourly tick is cleared when subscriptions are disabled');
 cost_assert(strpos($disabled['out'], 'HOOKED:upay_process_subscriptions') !== false, 'the tick callback stays registered so a stale event is a no-op');
 
-$scheduler_source = (string) file_get_contents($root . '/includes/Subscription/Cron/Scheduler.php');
+$scheduler_source = (string) file_get_contents($root . '/src/Subscription/Cron/Scheduler.php');
 $process_body = cost_method_body($scheduler_source, 'public static function process(');
 $enabled_check = strpos($process_body, "get_option('enable_subscriptions') !== 'yes'");
 $install_check = strpos($process_body, 'CycleClaim::maybe_install()');
@@ -101,6 +101,6 @@ function get_option($name, $default = false) {
 }
 PHP
     );
-    require $root . '/includes/Subscription/Cron/Scheduler.php';
-    \UPayments\Subscription\Cron\Scheduler::init();
+    require $root . '/src/Subscription/Cron/Scheduler.php';
+    \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::init();
 }

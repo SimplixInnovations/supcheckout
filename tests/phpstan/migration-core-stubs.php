@@ -1,6 +1,6 @@
 <?php
 
-namespace UPayments\Token {
+namespace Simplixi\SUPCheckout\Token {
     final class CustomerTokenIdentity {
         const SECRET_INVALID = 'invalid';
         const SECRET_ABSENT = 'absent';

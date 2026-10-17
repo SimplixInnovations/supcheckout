@@ -21,8 +21,8 @@ use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Subscription\CycleEconomics;
 use Simplixi\SUPCheckout\Subscription\RenewalCardAuthority;
 
-$scheduler = file_get_contents($root . '/includes/Subscription/Cron/Scheduler.php');
-$cycle = file_get_contents($root . '/includes/Subscription/Cron/CycleClaim.php');
+$scheduler = file_get_contents($root . '/src/Subscription/Cron/Scheduler.php');
+$cycle = file_get_contents($root . '/src/Subscription/Cron/CycleClaim.php');
 // The customer pause/resume/cancel handler left supcheckout.php in Sub-project 0a Task 4.
 $up = file_get_contents($root . '/src/Account/SubscriptionActions.php');
 

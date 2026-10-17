@@ -7,11 +7,11 @@
  */
 
 require_once __DIR__ . '/bootstrap.php';
-require_once dirname(__DIR__, 2) . '/includes/Subscription/Cron/CycleClaim.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/Cron/CycleClaim.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/CycleEconomics.php';
 
 use Simplixi\SUPCheckout\Subscription\CycleEconomics;
-use UPayments\Subscription\Cron\CycleClaim;
+use Simplixi\SUPCheckout\Subscription\Cron\CycleClaim;
 
 $table = CycleClaim::table_name();
 $option_key = CycleClaim::OPTION_KEY;

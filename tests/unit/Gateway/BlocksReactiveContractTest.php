@@ -11,7 +11,7 @@ final class BlocksReactiveContractTest extends TestCase {
     protected function setUp(): void {
         $root = dirname(__DIR__, 3);
         $this->client_source = file_get_contents($root . '/assets/js/upayments-block.js');
-        $this->server_source = file_get_contents($root . '/includes/class-wc-gateway-upayments-blocks.php');
+        $this->server_source = file_get_contents($root . '/src/Blocks/PaymentMethodType.php');
 
         self::assertIsString($this->client_source);
         self::assertIsString($this->server_source);

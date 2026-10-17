@@ -59,13 +59,9 @@ final class DueParentWorker
             return;
         }
 
-        if (!class_exists('UPayments\Subscription\Cron\Scheduler', false)) {
-            require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/Scheduler.php';
-        }
+        $outcome = \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::process_parent_order($order);
 
-        $outcome = \UPayments\Subscription\Cron\Scheduler::process_parent_order($order);
-
-        if ($outcome === \UPayments\Subscription\Cron\Scheduler::OUTCOME_RESOLVED) {
+        if ($outcome === \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::OUTCOME_RESOLVED) {
             $fresh = wc_get_order($parent_id);
             if ($fresh instanceof \WC_Order) {
                 $next = HistoricalEnrollment::next_run_at($fresh);
@@ -76,7 +72,7 @@ final class DueParentWorker
             return;
         }
 
-        if ($outcome === \UPayments\Subscription\Cron\Scheduler::OUTCOME_PRE_DISPATCH_NO_ATTEMPT) {
+        if ($outcome === \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::OUTCOME_PRE_DISPATCH_NO_ATTEMPT) {
             self::schedule_bounded_retry($parent_id, $queued_due, $attempt);
             return;
         }

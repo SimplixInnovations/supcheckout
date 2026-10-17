@@ -7,7 +7,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
 use Simplixi\SUPCheckout\Subscription\Presentation;
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 supcheckout_cert_assert(class_exists(CheckoutOrchestrator::class, false), 'checkout orchestrator is loaded for subscription certification');
 Presentation::register_product_class();
@@ -236,12 +236,12 @@ supcheckout_cert_assert(array() === $routes, 'descriptor degradation cannot bypa
 // Final pre-dispatch authorization race revalidation (T7 FINAL-2).
 // Real WC_Order objects; helper invoked via reflection (protected static).
 // ---------------------------------------------------------------------------
-require_once dirname(__DIR__, 2) . '/includes/Subscription/Cron/Scheduler.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/Cron/Scheduler.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/CycleEconomics.php';
 
 function supcheckout_cert_dispatch_eligible($order, $amount, $currency, $customer, $card) {
     $method = new ReflectionMethod(
-        \UPayments\Subscription\Cron\Scheduler::class,
+        \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::class,
         'parent_still_eligible_for_dispatch'
     );
     // PHP < 8.1 requires setAccessible for protected reflection invokes.

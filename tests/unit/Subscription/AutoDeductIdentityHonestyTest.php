@@ -54,7 +54,7 @@ final class AutoDeductIdentityHonestyTest extends TestCase
 
     public function test_provider_order_id_is_not_fabricated_from_payment_id(): void
     {
-        $scheduler = file_get_contents(dirname(__DIR__, 3) . '/includes/Subscription/Cron/Scheduler.php');
+        $scheduler = file_get_contents(dirname(__DIR__, 3) . '/src/Subscription/Cron/Scheduler.php');
         self::assertStringContainsString('is not fabricated', $scheduler);
         self::assertStringNotContainsString("orderId'] + 1", $scheduler);
         self::assertStringNotContainsString('$provider_order_identity = $payment_id', $scheduler);

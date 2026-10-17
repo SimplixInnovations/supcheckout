@@ -120,7 +120,7 @@ q15_assert(
     q15_contains($runtime, "namespace Simplixi\\SUPCheckout\\Gateway {") && q15_contains($runtime, 'class Gateway {'),
     'runtime fixture isolates the gateway summary delegate'
 );
-q15_assert(q15_contains($stubs, 'namespace UPayments\\Subscription\\Cron'), 'analysis stub models the scheduler boundary without running it');
+q15_assert(q15_contains($stubs, 'namespace Simplixi\\SUPCheckout\\Subscription\\Cron'), 'analysis stub models the scheduler boundary without running it');
 q15_assert(q15_contains($bootstrap, "require __DIR__ . '/support/wordpress-subscription-presentation.php';"), 'PHPUnit bootstrap loads the presentation fixture');
 
 foreach (array(
@@ -134,8 +134,8 @@ foreach (array(
     q15_assert(!q15_contains($source, $forbidden), "presentation excludes unrelated runtime ownership: {$forbidden}");
 }
 
-q15_assert(q15_git_blob_sha($q15_root . '/includes/Subscription/Cron/Scheduler.php') === 'f5dae0dae437ac85e00d17646b063b6ed9bbff61', 'protected Scheduler blob remains exact');
-q15_assert(q15_git_blob_sha($q15_root . '/includes/Subscription/Cron/CycleClaim.php') === 'a1ae04e3239e05c4894781480333fd5e747cefba', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
+q15_assert(q15_git_blob_sha($q15_root . '/src/Subscription/Cron/Scheduler.php') === '1f220334fdbd3c33649f770c992a0b982ec1f4b1', 'protected Scheduler blob remains exact');
+q15_assert(q15_git_blob_sha($q15_root . '/src/Subscription/Cron/CycleClaim.php') === '3263231dfcbea4dcc3ddfc2e05866740eb6fcd3a', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q15_assert(q15_contains($workflow, 'tests/harness/quality-platform-subscription-presentation-harness.php'), 'Q15 harness remains mandatory in Quality Gates');
 q15_assert(q15_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

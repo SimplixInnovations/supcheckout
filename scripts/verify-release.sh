@@ -95,7 +95,7 @@ with zipfile.ZipFile(zip_path, "r") as archive:
     allowed_exact = {
         "supcheckout.php", "UPayments.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
     }
-    allowed_prefixes = ("src/", "includes/", "assets/", "templates/")
+    allowed_prefixes = ("src/", "assets/", "templates/")
     for rel in rel_names:
         if rel not in allowed_exact and not rel.startswith(allowed_prefixes):
             raise SystemExit(f"Unexpected release path outside allowlist: {rel}")
@@ -158,12 +158,12 @@ with zipfile.ZipFile(zip_path, "r") as archive:
         "supcheckout.php", "UPayments.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
         "src/Release/Identity.php",
         "src/Bootstrap/BasenameMigration.php",
-        "includes/class-wc-gateway-upayments-blocks.php",
+        "src/Blocks/PaymentMethodType.php",
     }
     missing = sorted(required.difference(rel_names))
     if missing:
         raise SystemExit("Missing required release files: " + ", ".join(missing))
-    for subtree in ("src/", "includes/", "assets/", "templates/"):
+    for subtree in ("src/", "assets/", "templates/"):
         if not any(rel.startswith(subtree) for rel in rel_names):
             raise SystemExit(f"Missing required runtime subtree: {subtree}")
 

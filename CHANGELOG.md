@@ -6,6 +6,24 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Clean core: `includes/` moves into `src/` (Sub-project 0a Task 6)
+
+- The former `includes/` classes now live in `src/` under `Simplixi\SUPCheckout\`. The autoloader loads them. They are:
+  - `Token\CustomerTokenIdentity`;
+  - `Subscription\Manager`;
+  - `Subscription\Checkout\Fields`;
+  - `Subscription\Helpers\Utils`;
+  - `Subscription\Cron\CycleClaim`;
+  - `Subscription\Cron\Scheduler`;
+  - `Blocks\PaymentMethodType`.
+- The `UPayments\Token\…` and `UPayments\Subscription\…` classes and the global class `WCGatewayUPaymentsBlocks` no longer exist. There are no aliases, because those names belong to the official UPayments plugin's namespace or the global namespace. Customizations that reference them by name must use the new class names.
+- Unchanged:
+  - the cron hook `upay_process_subscriptions`;
+  - the H12 token identity option `upayments_token_identity_secret_v2` and provenance keys;
+  - order and product metadata;
+  - the Blocks payment method name `upayments`;
+  - the `plugin_url` value passed to the Blocks client.
+
 ### Clean core: no global functions or closures left in the main file (Sub-project 0a Task 4)
 
 - Every hook the main file registered is now registered from `Simplixi\SUPCheckout\Plugin::boot()` through named classes, with the same hook names, priorities, argument counts and registration phase:

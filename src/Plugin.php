@@ -51,8 +51,9 @@ final class Plugin {
      * (PaymentLifecycle::bootstrap() from Release/Identity.php,
      * CheckoutAssets::bootstrap() from Gateway/Availability.php and
      * MigrationBootstrap::boot()) is added exactly as before. The requires stay
-     * explicit rather than autoloaded so load order and timing do not change;
-     * includes/Token/CustomerTokenIdentity.php is outside the autoloader until Task 6.
+     * explicit rather than autoloaded so load order and timing do not change.
+     * Token\CustomerTokenIdentity (formerly includes/, required here) is autoloaded
+     * since Task 6: it is a side-effect-free class declaration.
      *
      * @param string $main_file Absolute path of supcheckout.php.
      * @return void
@@ -78,7 +79,6 @@ final class Plugin {
         require_once __DIR__ . '/Subscription/RenewalCardAuthority.php';
         require_once __DIR__ . '/Subscription/CycleEconomics.php';
         require_once __DIR__ . '/Subscription/AutoDeductResultVerifier.php';
-        require_once dirname(__DIR__) . '/includes/Token/CustomerTokenIdentity.php';
         require_once __DIR__ . '/Migration/MigrationBootstrap.php';
 
         define('SUPCHECKOUT_VERSION', Identity::VERSION);

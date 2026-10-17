@@ -6,7 +6,7 @@ namespace {
     }
 }
 
-namespace UPayments\Subscription {
+namespace Simplixi\SUPCheckout\Subscription {
     final class Manager {
         public static function init() {
         }

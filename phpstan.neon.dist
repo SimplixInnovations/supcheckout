@@ -52,7 +52,7 @@ parameters:
         - src/Migration/MigrationBatch.php
         - src/Migration/MigrationExecutor.php
         - src/Subscription/Presentation.php
-        - includes/class-wc-gateway-upayments-blocks.php
-        - includes/Subscription/Checkout/Fields.php
-        - includes/Subscription/Helpers/Utils.php
+        - src/Blocks/PaymentMethodType.php
+        - src/Subscription/Checkout/Fields.php
+        - src/Subscription/Helpers/Utils.php
     tmpDir: .cache/phpstan

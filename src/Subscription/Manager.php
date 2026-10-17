@@ -1,6 +1,6 @@
 <?php
 
-namespace UPayments\Subscription;
+namespace Simplixi\SUPCheckout\Subscription;
 
 defined('ABSPATH') || exit;
 

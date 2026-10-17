@@ -77,7 +77,7 @@ defined( 'ABSPATH' ) || exit;
                     // scope(A)+generation(B) snapshots.
                     $api_key_classic = isset($gateway->apiKey) && is_string($gateway->apiKey) ? $gateway->apiKey : '';
                     $is_test_mode_classic = (bool) $gateway->getMode();
-                    $ctx_classic = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context(
+                    $ctx_classic = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context(
                         $api_key_classic,
                         $is_test_mode_classic
                     );
@@ -86,7 +86,7 @@ defined( 'ABSPATH' ) || exit;
                         && is_string($ctx_classic['scope']) && $ctx_classic['scope'] !== ''
                         && is_string($ctx_classic['generation_id']) && $ctx_classic['generation_id'] !== ''
                     ) {
-                        $provenance_classic = \UPayments\Token\CustomerTokenIdentity::read_provenance(
+                        $provenance_classic = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_provenance(
                             $user_id,
                             $ctx_classic['scope'],
                             $ctx_classic['generation_id']

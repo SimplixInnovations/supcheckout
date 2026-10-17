@@ -20,7 +20,7 @@ if (PHP_VERSION_ID < 70200) {
 
 $ROOT = realpath(__DIR__ . '/../..');
 $PLUGIN_FILE = $ROOT . '/supcheckout.php';
-$IDENTITY_FILE = $ROOT . '/includes/Token/CustomerTokenIdentity.php';
+$IDENTITY_FILE = $ROOT . '/src/Token/CustomerTokenIdentity.php';
 
 if (!is_file($PLUGIN_FILE)) {
     fwrite(STDERR, "FATAL: $PLUGIN_FILE not found\n");

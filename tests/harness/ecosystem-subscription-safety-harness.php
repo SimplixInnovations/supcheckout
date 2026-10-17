@@ -18,7 +18,7 @@ function r3_assert($condition, $label) {
     $fail++;
 }
 
-$scheduler = file_get_contents($root . '/includes/Subscription/Cron/Scheduler.php');
+$scheduler = file_get_contents($root . '/src/Subscription/Cron/Scheduler.php');
 r3_assert(is_string($scheduler) && $scheduler !== '', 'Scheduler source readable');
 
 // Task B: no implicit first-card selection remains in production scheduler.
