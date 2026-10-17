@@ -327,17 +327,32 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated);
     }
 
-    public function test_an_official_plugin_reactivated_during_cutover_exits_7_with_a_warning(): void {
+    public function test_an_official_plugin_reactivated_during_cutover_refuses_the_switch_with_exit_2(): void {
         $this->seed();
-        // The race only: someone reactivates it after the pre-cutover deactivation, and the
-        // post-cutover retry (defense in depth) cannot deactivate it again.
+        // Someone reactivates it after the pre-cutover deactivation: Cutover refuses to
+        // switch (official_active) and the store stays verified for a rerun.
         $system = $this->system;
         $this->system->on_step = static function ($step) use ($system) {
             if ($step === 'quiesced') {
                 $system->official = 'upayments/UPayments.php';
-                $system->deactivate_fails = true;
             }
         };
+
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->run(true, true));
+
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+        self::assertStringContainsString('official_active', $this->printed());
+        self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated, 'only the pre-cutover deactivation');
+
+        $this->system->on_step = null;
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true), 'the rerun deactivates it again and switches');
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+    }
+
+    public function test_a_cut_over_store_whose_official_plugin_cannot_be_deactivated_exits_7(): void {
+        $this->seed();
+        CutoverTest::state('cut_over');
+        $this->system->deactivate_fails = true;
 
         self::assertSame(CliCommands::OFFICIAL_STILL_ACTIVE, $this->cli()->run(true, true));
 

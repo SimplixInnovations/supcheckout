@@ -14,7 +14,7 @@ defined('ABSPATH') || exit;
  *
  * Exit codes: 0 ok, 1 error or declined, 2 blocked by preflight, 3 verification
  * mismatch, 4 busy (retry later), 5 stale billing claims, 6 state does not allow it,
- * 7 cut over but the official plugin was reactivated during the cutover.
+ * 7 already cut over but the official plugin is active again.
  */
 final class Cli {
     public const COMMAND = 'supcheckout takeover';

@@ -11,7 +11,9 @@ defined('ABSPATH') || exit;
  * Exit codes (stable; 0c and scripts rely on them):
  *  0 OK                    done (or nothing to do);
  *  1 ERROR                 declined confirmation, or an unexpected failure; rerun;
- *  2 BLOCKED               Preflight reported a blocking finding; nothing changed;
+ *  2 BLOCKED               Preflight reported a blocking finding, or the official plugin is
+ *                          active (without --deactivate-official, or reactivated during the
+ *                          cutover: Cutover's `official_active`); not cut over;
  *  3 MISMATCH              verification found a mismatch (copy runner or cutover); the
  *                          store is not cut over; fix the reported names and rerun;
  *  4 BUSY                  another process holds the copy-runner lock or the takeover
@@ -20,9 +22,9 @@ defined('ABSPATH') || exit;
  *                          `release-stale-claims`, then rerun;
  *  6 STATE                 the takeover state does not allow this (rolled_back, finalized,
  *                          unreadable, or changed by another process);
- *  7 OFFICIAL_STILL_ACTIVE cut over, but the official plugin is active again (someone
- *                          reactivated it during the cutover) and Cutover's post-switch
- *                          retry could not deactivate it; deactivate it and rerun.
+ *  7 OFFICIAL_STILL_ACTIVE a store already cut over whose official plugin is active again:
+ *                          without --deactivate-official, or the deactivation failed;
+ *                          SUPCheckout stays paused; deactivate it and rerun.
  *
  * `run` is rerunnable after a crash at any step: every step resumes from persisted state.
  * idle → preflight_ok → copying (CopyRunner, cursor per object) → verified → official
@@ -44,8 +46,10 @@ defined('ABSPATH') || exit;
  * - active without --deactivate-official: refuse with BLOCKED (copying, read-only towards
  *   legacy, has still run and stays `verified` for the rerun);
  * - already inactive (a rerun after a crash past this step): nothing to do.
- * Cutover still receives the consent, so if the plugin is reactivated during the cutover
- * its post-switch tail retries the deactivation (defense in depth; exit 7 if that fails).
+ * Defense in depth: Cutover itself refuses to switch while the official plugin is active
+ * (`official_active`, checked in its recheck and right before the swap), so a plugin
+ * reactivated during the cutover leaves the store `verified` (exit 2; a rerun deactivates
+ * it again). Deactivation after a switch exists only for a store already cut over.
  *
  * In this CLI process the official plugin's code stays loaded after deactivate_plugins():
  * the cutover path never calls do_action() itself, writes only through the CopyStore,
@@ -81,6 +85,7 @@ final class CliCommands {
         'transition_refused' => self::BUSY,
         'stale_claims' => self::STALE_CLAIMS,
         'not_verified' => self::STATE,
+        'official_active' => self::BLOCKED,
     );
 
     /** Statuses `run` starts or resumes from (before cutover). */
