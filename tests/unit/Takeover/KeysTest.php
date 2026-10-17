@@ -105,7 +105,7 @@ final class KeysTest extends TestCase {
         }
         self::assertContains('upay_hourly_cron_job', $official['cron_hooks']);
         self::assertContains('upayments_cron_lock', $official['transients']);
-        // Official 3.1.1 uninstall references both; SUPCheckout's dead Subscription\Manager listener writes the table.
+        // Official 3.1.1 uninstall references both; SUPCheckout's dead Subscription\Manager listener (removed in 0b Task 7) wrote the table.
         self::assertContains('upay_subscriptions', $official['tables']);
         self::assertContains('upay_subscription_settings', $official['options']);
     }

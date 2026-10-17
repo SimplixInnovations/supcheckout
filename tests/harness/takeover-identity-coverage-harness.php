@@ -115,9 +115,6 @@ $not_persisted = array(
     'src/Payment/PaymentLifecycle.php' => array(
         'upayments_verification' => array(1, 'query arg on the neutral post-callback redirect URL (neutral_url())'),
     ),
-    'src/Subscription/Manager.php' => array(
-        'upayments_payment_success' => array(1, 'action hook the dead Subscription\\Manager listens on; nothing fires it'),
-    ),
     'src/Takeover/Preflight.php' => array(
         'upay_subscriptions_table_present' => array(1, 'Preflight report code (plan Task 4 table) the 0c UI keys on; a report string, never a storage name'),
     ),

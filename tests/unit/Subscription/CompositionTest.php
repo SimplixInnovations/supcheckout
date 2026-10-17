@@ -57,13 +57,13 @@ final class CompositionTest extends TestCase {
         self::assertIsString($source);
         // Sub-project 0a Task 6: the legacy modules moved from includes/ into src/ under
         // Simplixi\SUPCheckout and are autoloaded, so the exact dependencies are now the
-        // namespaced classes (Manager shares Composition's namespace) instead of requires.
+        // namespaced classes instead of requires. 0b Task 7 removed the dead
+        // Subscription\Manager listener (nothing ever fired upayments_payment_success).
         self::assertSame(1, substr_count($source, 'use Simplixi\\SUPCheckout\\Subscription\\Checkout\\Fields;'));
         self::assertSame(0, preg_match('/\b(require|include)(_once)?\b/', $source));
         self::assertStringNotContainsString('UPayments\\', $source);
         foreach (array(
             'src/Subscription/Checkout/Fields.php' => array('namespace Simplixi\\SUPCheckout\\Subscription\\Checkout;', 'class Fields'),
-            'src/Subscription/Manager.php' => array('namespace Simplixi\\SUPCheckout\\Subscription;', 'class Manager'),
             'src/Subscription/Helpers/Utils.php' => array('namespace Simplixi\\SUPCheckout\\Subscription\\Helpers;', 'class Utils'),
         ) as $dependency => $declarations) {
             $dependency_source = file_get_contents(dirname(__DIR__, 3) . '/' . $dependency);
@@ -73,7 +73,30 @@ final class CompositionTest extends TestCase {
             }
         }
         self::assertSame(1, substr_count($source, 'Fields::init();'));
-        self::assertSame(1, substr_count($source, 'Manager::init();'));
+        self::assertSame(0, substr_count($source, 'Manager::init();'));
+        self::assertFileDoesNotExist(dirname(__DIR__, 3) . '/src/Subscription/Manager.php');
+    }
+
+    public function test_no_shipped_code_listens_on_or_fires_the_dead_payment_success_hook(): void {
+        $root = dirname(__DIR__, 3);
+        $files = array_merge(array($root . '/supcheckout.php', $root . '/UPayments.php'), self::php_files($root . '/src'), self::php_files($root . '/templates'));
+        foreach ($files as $file) {
+            $source = (string) file_get_contents($file);
+            self::assertStringNotContainsString('upayments_payment_success', $source, $file);
+        }
+    }
+
+    /** @return list<string> */
+    private static function php_files(string $dir): array {
+        $out = array();
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            if ($file->isFile() && substr($file->getFilename(), -4) === '.php') {
+                $out[] = $file->getPathname();
+            }
+        }
+        sort($out);
+        return $out;
     }
 
     public function test_composition_excludes_scheduler_dispatch_mutation_and_transport_ownership(): void {

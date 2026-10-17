@@ -83,13 +83,13 @@ q11_assert(substr_count($source, "add_action('woocommerce_before_shop_loop_item_
 
 // Sub-project 0a Task 6: the legacy modules moved from includes/ into src/ under
 // Simplixi\SUPCheckout and are autoloaded; the exact dependencies are the namespaced
-// classes (Manager shares Composition's namespace) instead of root-relative requires.
+// classes instead of root-relative requires. 0b Task 7 removed the dead Subscription\Manager
+// listener: nothing ever fired upayments_payment_success.
 q11_assert(substr_count($source, 'use Simplixi\\SUPCheckout\\Subscription\\Checkout\\Fields;') === 1, 'legacy checkout-fields dependency resolves to the moved namespaced class');
 q11_assert(preg_match('/\b(require|include)(_once)?\b/', $source) === 0, 'legacy dependencies are autoloaded, not required by path');
 q11_assert(!q11_contains($source, 'UPayments\\'), 'composition no longer references the former UPayments namespace');
 foreach (array(
     'src/Subscription/Checkout/Fields.php' => array('namespace Simplixi\\SUPCheckout\\Subscription\\Checkout;', 'class Fields'),
-    'src/Subscription/Manager.php' => array('namespace Simplixi\\SUPCheckout\\Subscription;', 'class Manager'),
     'src/Subscription/Helpers/Utils.php' => array('namespace Simplixi\\SUPCheckout\\Subscription\\Helpers;', 'class Utils'),
 ) as $dependency => $declarations) {
     $dependency_source = q11_read($q11_root, $dependency);
@@ -98,7 +98,7 @@ foreach (array(
     }
 }
 q11_assert(substr_count($source, 'Fields::init();') === 1, 'checkout fields initializer remains exact');
-q11_assert(substr_count($source, 'Manager::init();') === 1, 'subscription manager initializer remains exact');
+q11_assert(substr_count($source, 'Manager::init();') === 0 && !is_file($q11_root . '/src/Subscription/Manager.php'), 'the dead subscription manager listener stays removed');
 
 foreach (array(
     'Cron\\Scheduler',
@@ -141,7 +141,7 @@ q11_assert(
     || q11_contains($stubs, 'namespace Simplixi\\SUPCheckout\\Subscription\\Checkout'),
     'analysis owns checkout fields boundary directly or through bounded stubs'
 );
-q11_assert(q11_contains($stubs, 'namespace Simplixi\\SUPCheckout\\Subscription'), 'analysis stubs declare subscription manager boundary');
+q11_assert(!q11_contains($stubs, 'class Manager'), 'analysis stubs no longer declare the removed subscription manager boundary (0b Task 7)');
 
 q11_assert(q11_contains($workflow, 'quality-platform-subscription-composition-harness.php'), 'Q11 harness is mandatory in Quality Gates');
 q11_assert(q11_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -373,7 +373,7 @@ function coexistence_child($root, $scenario, $official_stub) {
     // Both class families resolve in one process: the official UPayments\Subscription
     // classes and SUPCheckout's own (autoloaded) Simplixi\SUPCheckout classes.
     echo 'CLASSES:official=' . (class_exists('UPayments\Subscription\Manager', false) ? 'yes' : 'no')
-        . ',ours=' . (class_exists('Simplixi\SUPCheckout\Subscription\Manager') && class_exists('Simplixi\SUPCheckout\Subscription\Checkout\Fields') ? 'yes' : 'no') . "\n";
+        . ',ours=' . (class_exists('Simplixi\SUPCheckout\Subscription\Helpers\Utils') && class_exists('Simplixi\SUPCheckout\Subscription\Checkout\Fields') ? 'yes' : 'no') . "\n";
     echo 'DIAGNOSTICS:' . json_encode($GLOBALS['coexistence_diagnostics'], JSON_UNESCAPED_SLASHES) . "\n";
     echo 'ACTIVE:' . json_encode(array_values((array) $GLOBALS['coexistence']['options']['active_plugins']), JSON_UNESCAPED_SLASHES) . "\n";
 }

@@ -39,7 +39,6 @@ final class Composition {
      */
     public static function initialize_legacy_modules() {
         Fields::init();
-        Manager::init();
     }
 
     /**

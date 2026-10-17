@@ -172,7 +172,8 @@ final class Keys {
 
     /**
      * Written only by the official plugin (or, for the table, by SUPCheckout's dead
-     * Subscription\Manager listener). Nothing copies them. Preflight reports them;
+     * Subscription\Manager listener, removed in 0b Task 7: nothing ever fired its hook).
+     * Nothing copies them. Preflight reports them;
      * Finalize clears the options, transients and cron hooks, but only reports the
      * tables and never drops them.
      *

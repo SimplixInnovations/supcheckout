@@ -121,14 +121,6 @@
     },
     {
         "kind": "action",
-        "hook": "upayments_payment_success",
-        "priority": 10,
-        "accepted_args": 1,
-        "registered_in": "gateway_constructor",
-        "contexts": "admin cli frontend"
-    },
-    {
-        "kind": "action",
         "hook": "updated_post_meta",
         "priority": 10,
         "accepted_args": 4,
@@ -797,14 +789,6 @@
         "kind": "hook_reference",
         "type": "action",
         "hook": "upay_process_subscriptions",
-        "priority": 10,
-        "accepted_args": 1,
-        "contexts": "static"
-    },
-    {
-        "kind": "hook_reference",
-        "type": "action",
-        "hook": "upayments_payment_success",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"
