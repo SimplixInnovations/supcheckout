@@ -178,6 +178,20 @@ final class TakeoverState {
     }
 
     /**
+     * Forget every cached copy of the state in this process: the is_cut_over() answer and
+     * the option's object-cache entry. Long-running workers (a queue runner working many
+     * actions, WP-CLI) call it before a decision that depends on the takeover state (a
+     * billing-cycle claim, a due-parent action), so a transition another process made
+     * since this one started is seen.
+     *
+     * @return void
+     */
+    public static function refresh() {
+        self::flush_cache();
+        OrderLock::flush_option_cache(self::OPTION);
+    }
+
+    /**
      * @param string|null          $raw  Stored string, or null when there is no record yet.
      * @param array<string, mixed> $next New state.
      * @return bool

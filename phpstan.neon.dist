@@ -70,4 +70,5 @@ parameters:
         - src/Takeover/BillingTableCopier.php
         - src/Takeover/CopyRunner.php
         - src/Takeover/LegacyCallbackListener.php
+        - src/Takeover/Quiesce.php
     tmpDir: .cache/phpstan

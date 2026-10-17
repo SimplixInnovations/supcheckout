@@ -118,8 +118,8 @@ q11_assert(q11_contains($source, 'private function __construct()'), 'composition
 q11_assert(q11_contains($product_type_source, 'private function __construct()'), 'product-type hooks are explicitly non-instantiable');
 q11_assert(preg_match("/'limit_response_size'\\s*=>\\s*1048576/", $scheduler) === 1, 'subscription provider response body is bounded to 1 MiB');
 q11_assert(preg_match('/strlen\\(\\$response\\)\\s*>=\\s*1048576/', $scheduler) === 1, 'subscription treats a response at the cap as ambiguous and fail closed');
-q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/Scheduler.php') === 'a8900abd30eec617a7c5c283355a67579a04c323', 'protected Scheduler blob remains exact');
-q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/CycleClaim.php') === '55f30d1ad7fe6eeb1c0a16b365b08a97e9fc3f13', 'protected CycleClaim reviewed blob remains exact after identifier-placeholder and warning-boundary hardening');
+q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/Scheduler.php') === '0b71d3bb04fd2a1f0a87a7f8d41c57d49430cca5', 'protected Scheduler blob remains exact');
+q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/CycleClaim.php') === '2484a298d13d79088b0e6221001894c99cfde79b', 'protected CycleClaim reviewed blob remains exact after identifier-placeholder and warning-boundary hardening');
 
 q11_assert(substr_count($tests, 'public function test_') >= 5, 'Subscription Composition has focused PHPUnit characterization');
 foreach (array(

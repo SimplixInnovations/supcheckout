@@ -5,6 +5,7 @@ namespace Simplixi\SUPCheckout\Subscription\Cron;
 defined('ABSPATH') || exit;
 
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\Quiesce;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 
 /**
@@ -267,7 +268,10 @@ class CycleClaim
         global $wpdb;
         // A claim starts a cycle: re-read the takeover state so a long-running queue
         // worker never claims in the table it saw before a cutover or rollback.
-        TakeoverState::flush_cache();
+        TakeoverState::refresh();
+        if (Quiesce::is_active()) {
+            return false;
+        }
         $table = self::table_name();
 
         $now_gmt = current_time('mysql', true);
@@ -298,11 +302,29 @@ class CycleClaim
 
         // Defense in depth: confirm we actually own the row we just wrote.
         $row = self::get($cycle_key);
-        return is_array($row)
+        $owned = is_array($row)
             && isset($row['owner_token'])
             && hash_equals((string) $row['owner_token'], $owner_token)
             && isset($row['state'])
             && (string) $row['state'] === self::STATE_CLAIMED;
+        return $owned && !self::released_for_quiesce($cycle_key, $owner_token);
+    }
+
+    /**
+     * A takeover cutover or rollback (Takeover\Quiesce) may have started between the
+     * pre-claim check and the claim: then the claim, still `claimed` (no provider POST
+     * can have been sent), is released at once and the caller sees a lost claim, so the
+     * cutover's drain never races a claim it could not see.
+     *
+     * @return bool True when the claim was given up.
+     */
+    private static function released_for_quiesce(string $cycle_key, string $owner_token): bool
+    {
+        if (!Quiesce::is_active()) {
+            return false;
+        }
+        self::release_claimed($cycle_key, $owner_token);
+        return true;
     }
 
     /**
@@ -322,7 +344,10 @@ class CycleClaim
         global $wpdb;
         // A claim starts a cycle: re-read the takeover state so a long-running queue
         // worker never claims in the table it saw before a cutover or rollback.
-        TakeoverState::flush_cache();
+        TakeoverState::refresh();
+        if (Quiesce::is_active()) {
+            return false;
+        }
         $table = self::table_name();
 
         if ($parent_order_id <= 0
@@ -362,7 +387,7 @@ class CycleClaim
         }
 
         $row = self::get($cycle_key);
-        return is_array($row)
+        $owned = is_array($row)
             && isset($row['owner_token'])
             && hash_equals((string) $row['owner_token'], $owner_token)
             && isset($row['state'])
@@ -371,6 +396,7 @@ class CycleClaim
             && hash_equals((string) $row['expected_amount'], $expected_amount)
             && isset($row['expected_currency'])
             && hash_equals((string) $row['expected_currency'], $expected_currency);
+        return $owned && !self::released_for_quiesce($cycle_key, $owner_token);
     }
 
     /**
@@ -493,6 +519,9 @@ class CycleClaim
         string $new_owner_token
     ): bool {
         global $wpdb;
+        if (Quiesce::is_active()) {
+            return false;
+        }
         $table   = self::table_name();
         $now_gmt = current_time('mysql', true);
 
@@ -532,13 +561,14 @@ class CycleClaim
         // Fresh-read ownership proof after the CAS update. Callers must also
         // re-read and validate the immutable snapshot before any provider POST.
         $row = self::get($cycle_key);
-        return is_array($row)
+        $owned = is_array($row)
             && isset($row['owner_token'])
             && hash_equals((string) $row['owner_token'], $new_owner_token)
             && isset($row['parent_order_id'])
             && (int) $row['parent_order_id'] === $parent_order_id
             && isset($row['state'])
             && (string) $row['state'] === self::STATE_CLAIMED;
+        return $owned && !self::released_for_quiesce($cycle_key, $new_owner_token);
     }
 
     /**

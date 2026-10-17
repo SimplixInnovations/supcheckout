@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription\Cron;
 
 use DateTime;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\Quiesce;
+use Simplixi\SUPCheckout\Takeover\TakeoverState;
 use WC_Order;
 use WC_DateTime;
 use DateTimeInterface;
@@ -91,6 +93,15 @@ class Scheduler
     {
         $context = ['source' => 'upayments-cron'];
         self::$last_outcome = self::OUTCOME_NOT_ELIGIBLE;
+        // A queue runner works many actions in one process: see a cutover or rollback
+        // another process made since it started.
+        TakeoverState::refresh();
+        if (Quiesce::is_active()) {
+            // A takeover cutover or rollback is switching the billing-attempts table:
+            // defer before any work, so the worker queues its bounded retry.
+            self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
+            return self::$last_outcome;
+        }
         try {
             if (!CycleClaim::maybe_install()) {
                 self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
@@ -102,6 +113,11 @@ class Scheduler
                 return self::$last_outcome;
             }
             self::process_one_order($order, new DateTime('now', wp_timezone()), $context);
+            if (self::$last_outcome === self::OUTCOME_NOT_ELIGIBLE && Quiesce::is_active()) {
+                // A claim refused or released because a takeover lease started meanwhile
+                // (CycleClaim): nothing was sent, so this cycle is retried later.
+                self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
+            }
         } catch (\Throwable $e) {
             // Per-parent isolation: never crash the Action Scheduler runner.
             if (self::$last_outcome === self::OUTCOME_NOT_ELIGIBLE) {
@@ -126,6 +142,14 @@ class Scheduler
     {
         $logger  = wc_get_logger();
         $context = ['source' => 'upayments-cron'];
+
+        TakeoverState::refresh();
+        if (Quiesce::is_active()) {
+            // A takeover cutover or rollback holds the lease: the enrollment feeder and
+            // its cursor stay still until it is released (or expires).
+            $logger->info('Subscription tick skipped: a takeover operation holds the quiesce lease.', $context);
+            return;
+        }
 
         // Table readiness (CycleClaim::maybe_install) and ALL subsequent
         // cron work executes INSIDE the outer try so that any Throwable

@@ -61,6 +61,7 @@
     <file>src/Takeover/BillingTableCopier.php</file>
     <file>src/Takeover/CopyRunner.php</file>
     <file>src/Takeover/LegacyCallbackListener.php</file>
+    <file>src/Takeover/Quiesce.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 
