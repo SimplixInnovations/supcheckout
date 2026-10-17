@@ -76,7 +76,7 @@ final class WordPressCopyStore implements CopyStore {
         $sql = 'SELECT DISTINCT meta_key FROM %i WHERE user_id = %d AND ' . $clause . ' ORDER BY meta_key ASC';
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
         $prepared = $wpdb->prepare($sql, array_merge(array($wpdb->usermeta, (int) $user_id), $clause_args));
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the copy must see live user meta keys.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; the copy must see live user meta keys.
         $keys = $wpdb->get_col($prepared);
         return is_array($keys) ? array_values(array_map('strval', $keys)) : array();
     }
@@ -172,7 +172,7 @@ final class WordPressCopyStore implements CopyStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and %i placeholders, one per column.
         $prepared = $wpdb->prepare($sql, $args);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; copy into the takeover-owned new table.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; copy into the takeover-owned new table.
         return $wpdb->query($prepared) !== false;
     }
 
@@ -192,7 +192,7 @@ final class WordPressCopyStore implements CopyStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and %i / %s placeholders.
         $prepared = $wpdb->prepare($sql, $args);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; refresh the takeover's own copies.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; refresh the takeover's own copies.
         return $wpdb->query($prepared) !== false;
     }
 
@@ -207,7 +207,7 @@ final class WordPressCopyStore implements CopyStore {
         }
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
         $prepared = $wpdb->prepare($sql, $args);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; removes orphan copies from the takeover-owned new table.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; removes orphan copies from the takeover-owned new table.
         return $wpdb->query($prepared) !== false;
     }
 
@@ -232,7 +232,7 @@ final class WordPressCopyStore implements CopyStore {
         }
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
         $prepared = $wpdb->prepare($sql, $args);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; verification must read live rows.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; verification must read live rows.
         $rows = $wpdb->get_results($prepared, defined('ARRAY_A') ? constant('ARRAY_A') : 'ARRAY_A');
         $sums = array();
         foreach (is_array($rows) ? $rows : array() as $row) {
@@ -293,7 +293,7 @@ final class WordPressCopyStore implements CopyStore {
         if (!is_string($prepared) || $prepared === '') {
             return array();
         }
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared by the caller; the cursor must see live rows.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared by the caller; the cursor must see live rows.
         $ids = $wpdb->get_col($prepared);
         $out = array();
         foreach (is_array($ids) ? $ids : array() as $id) {
