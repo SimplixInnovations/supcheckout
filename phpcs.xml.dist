@@ -63,6 +63,7 @@
     <file>src/Takeover/LegacyCallbackListener.php</file>
     <file>src/Takeover/Quiesce.php</file>
     <file>src/Takeover/SettingsCopier.php</file>
+    <file>src/Takeover/ThirdPartyTranslator.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

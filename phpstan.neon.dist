@@ -72,4 +72,5 @@ parameters:
         - src/Takeover/LegacyCallbackListener.php
         - src/Takeover/Quiesce.php
         - src/Takeover/SettingsCopier.php
+        - src/Takeover/ThirdPartyTranslator.php
     tmpDir: .cache/phpstan
