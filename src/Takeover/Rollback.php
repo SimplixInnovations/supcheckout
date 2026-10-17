@@ -330,8 +330,11 @@ final class Rollback {
             $progress = self::progress_of($state);
             $this->add_conflicts(isset($progress['conflicts']) && is_array($progress['conflicts']) ? $progress['conflicts'] : array());
             $this->restored = isset($progress['restored']) ? (int) $progress['restored'] : $this->restored;
-            if (self::removal_pending($state)) {
-                $error = $this->remove($state, $progress);
+            // A rolled_back store with no progress record (rolled back outside Rollback)
+            // still has every copy: remove them before preflight_ok, from the start.
+            $unrecorded = $state['status'] === TakeoverState::ROLLED_BACK && !isset($progress['removal_pending']);
+            if (self::removal_pending($state) || $unrecorded) {
+                $error = $this->remove($state, $unrecorded ? array() : $progress);
                 if ($error !== null) {
                     return $this->result($error);
                 }

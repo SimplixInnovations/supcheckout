@@ -351,6 +351,22 @@ final class RollbackTest extends TestCase {
         }
     }
 
+    public function test_a_rolled_back_store_without_a_progress_record_still_removes_its_copies_first(): void {
+        $this->seed_cut_over();
+        self::assertTrue(TakeoverState::transition(TakeoverState::ROLLED_BACK), 'rolled back outside Rollback (no progress record)');
+
+        $result = $this->rollback()->run(false);
+
+        self::assertNull($result['error'], (string) json_encode($result));
+        // Nothing back-synced the cursor written after cutover, so its copy is a later edit: kept.
+        self::assertSame(array('supcheckout_subscription_enrollment_cursor'), array_column($result['conflicts'], 'path'));
+        self::assertSame(25, get_option('supcheckout_subscription_enrollment_cursor'));
+        self::assertLessThan(array_search('preflight_ok', $result['steps'], true), array_search('copies_removed', $result['steps'], true));
+        self::assertSame(array(), $this->store->tables['new']);
+        self::assertSame(array(), $GLOBALS['supcheckout_test_status_orders'][7]->persisted_values('_supcheckout_payment_id'));
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+    }
+
     public function test_an_order_created_by_an_in_flight_request_after_the_transition_is_rewritten_by_the_removal(): void {
         $this->seed_cut_over();
         $this->system->on_step = static function ($step) {
