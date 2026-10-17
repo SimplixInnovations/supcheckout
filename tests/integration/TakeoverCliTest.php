@@ -135,10 +135,23 @@ if ($phase === 'paused') {
     $status_json = json_decode(trim($status->stdout), true);
     supcheckout_cert_assert(is_array($status_json) && $status_json['stale_claims'] === array(), 'no stale claim is left');
 
+    delete_option('supcheckout_cert_official_stub_fired');
+    // Without consent the copy runs (read-only towards legacy) but the store is never cut
+    // over while the official plugin is active.
+    $refused = supcheckout_takeover_cert_wp('supcheckout takeover run --yes');
+    supcheckout_cert_assert($refused->return_code === CliCommands::BLOCKED, 'run without --deactivate-official exits 2 while the official plugin is active: ' . $refused->stdout . $refused->stderr);
+    supcheckout_cert_assert(strpos($refused->stdout, 'takeover copy: verified') !== false, 'the copy itself still ran and verified');
+    $status = supcheckout_takeover_cert_wp('supcheckout takeover status --format=json');
+    $status_json = json_decode(trim($status->stdout), true);
+    supcheckout_cert_assert(is_array($status_json) && $status_json['status'] === 'verified', 'the store stays verified, not cut over');
+
     $run = supcheckout_takeover_cert_wp('supcheckout takeover run --yes --deactivate-official');
     supcheckout_cert_note('run output: ' . $run->stdout);
-    supcheckout_cert_assert($run->return_code === CliCommands::OK, 'run --yes --deactivate-official exits 0: ' . $run->stdout . $run->stderr);
-    supcheckout_cert_assert(strpos($run->stdout, 'takeover copy: verified') !== false && strpos($run->stdout, 'official_deactivated') !== false, 'run copied, verified, cut over and deactivated the official plugin');
+    supcheckout_cert_assert($run->return_code === CliCommands::OK, 'rerun with --deactivate-official exits 0: ' . $run->stdout . $run->stderr);
+    $deactivated_at = strpos($run->stdout, 'official plugin deactivated');
+    $quiesced_at = strpos($run->stdout, 'takeover cutover: quiesced');
+    supcheckout_cert_assert($deactivated_at !== false && $quiesced_at !== false && $deactivated_at < $quiesced_at, 'the official plugin is deactivated before the cutover takes the lease and runs its final verify');
+    supcheckout_cert_assert(strpos($run->stdout, 'takeover cutover: cut_over') !== false, 'the store is cut over');
     return;
 }
 
@@ -158,6 +171,7 @@ if ($phase === 'verify') {
         supcheckout_cert_assert($order->get_payment_method() === 'upayments', 'order ' . $order_id . ': historical payment_method is never rewritten');
     }
     supcheckout_cert_assert(get_option(Keys::SETTINGS_OPTION) === get_option('woocommerce_upayments_settings'), 'settings copied verbatim, legacy option kept');
+    supcheckout_cert_assert(get_option('supcheckout_cert_official_stub_fired', array()) === array(), 'no hook of the still-loaded official plugin fired in the run process after its deactivation: ' . wp_json_encode(get_option('supcheckout_cert_official_stub_fired')));
     $status = supcheckout_takeover_cert_wp('supcheckout takeover status --format=json');
     $status_json = json_decode(trim($status->stdout), true);
     supcheckout_cert_assert($status->return_code === 0 && is_array($status_json) && $status_json['status'] === 'cut_over' && !in_array('official_still_active', $status_json['warnings'], true), 'status reports cut_over with no official_still_active warning');

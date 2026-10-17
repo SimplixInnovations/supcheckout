@@ -32,6 +32,8 @@ final class CliCommandsTest extends TestCase {
     private $questions = array();
     /** @var bool */
     private $answer = true;
+    /** @var list<string> Cutover steps reached. */
+    private $steps = array();
 
     protected function setUp(): void {
         \supcheckout_test_reset_wp_options();
@@ -150,14 +152,105 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(get_option('woocommerce_upayments_settings'), get_option(Keys::SETTINGS_OPTION));
         self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated);
         self::assertStringContainsString('phase=', $this->printed(), 'copy progress is shown');
-        self::assertStringContainsString('official_deactivated', $this->printed());
+        self::assertStringContainsString('official plugin deactivated', $this->printed());
     }
 
-    public function test_run_without_consent_never_deactivates_the_official_plugin(): void {
+    public function test_the_official_plugin_is_deactivated_after_copy_verifies_and_before_the_final_verify(): void {
         $this->seed();
+        $at_deactivation = array();
+        $this->system->on_deactivate = function () use (&$at_deactivation) {
+            TakeoverState::refresh();
+            $at_deactivation = array(
+                'status' => TakeoverState::get()['status'],
+                'quiesced' => Quiesce::is_active($this->system->now),
+                'steps' => $this->steps,
+            );
+        };
+        $official_during = array();
+        $this->system->on_step = function ($step) use (&$official_during) {
+            $this->steps[] = $step;
+            $official_during[$step] = $this->system->official;
+        };
+
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true), $this->printed());
+
+        self::assertSame(TakeoverState::VERIFIED, $at_deactivation['status'], 'deactivated once the copy verified');
+        self::assertFalse($at_deactivation['quiesced'], 'before Cutover takes the lease');
+        self::assertSame(array(), $at_deactivation['steps'], 'before any Cutover step');
+        self::assertNull($official_during['quiesced'], 'the final verify runs with the official plugin inactive');
+        self::assertNull($official_during['verified_objects']);
+        self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated, 'exactly once');
+        self::assertNotContains('official_deactivated', $this->steps, 'nothing left for the post-cutover tail');
+    }
+
+    public function test_run_without_consent_while_the_official_plugin_is_active_copies_but_refuses_to_cut_over(): void {
+        $orders = $this->seed();
+
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->run(true, false));
+
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status'], 'copying may proceed; cutover never happens');
+        self::assertSame(array('pay-1'), $orders[0]->persisted_values('_supcheckout_payment_id'));
+        self::assertFalse(get_option(Keys::SETTINGS_OPTION, false), 'Cutover never ran');
+        self::assertSame(array(), $this->system->deactivated);
+        self::assertStringContainsString('--deactivate-official', $this->printed());
+    }
+
+    public function test_run_without_consent_cuts_over_when_the_official_plugin_is_inactive(): void {
+        $this->seed();
+        $this->system->official = null;
         self::assertSame(CliCommands::OK, $this->cli()->run(true, false));
         self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
         self::assertSame(array(), $this->system->deactivated);
+    }
+
+    public function test_a_failed_deactivation_before_cutover_cuts_nothing_over(): void {
+        $this->seed();
+        $this->system->deactivate_fails = true;
+
+        self::assertSame(CliCommands::ERROR, $this->cli()->run(true, true));
+
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+        self::assertFalse(get_option(Keys::SETTINGS_OPTION, false), 'Cutover never ran');
+    }
+
+    public function test_a_run_killed_after_deactivation_and_before_cutover_resumes_on_rerun(): void {
+        $this->seed();
+        $this->system->on_deactivate = static function () {
+            throw new \RuntimeException('process killed after deactivation');
+        };
+        try {
+            $this->cli()->run(true, true);
+            self::fail('the run must die right after the deactivation');
+        } catch (\RuntimeException $e) {
+            self::assertSame('process killed after deactivation', $e->getMessage());
+        }
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+        self::assertNull($this->system->official, 'the official plugin is inactive; SUPCheckout serves the store in verified state');
+        $this->system->on_deactivate = null;
+
+        // Rerun without the flag: the official plugin is already inactive, nothing blocks.
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, false), $this->printed());
+
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+        self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated, 'never deactivated twice');
+    }
+
+    public function test_the_cutover_path_triggers_no_hook_of_the_still_loaded_official_plugin_in_process(): void {
+        // After deactivate_plugins() the official plugin's callbacks are still registered in
+        // this process. Every write the cutover path makes goes through the CopyStore,
+        // options and the CutoverSystem; none of them may fire an official hook, and no
+        // billing claim or cron callback may run here.
+        $this->seed();
+        $events_before = count($this->system->events);
+
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true), $this->printed());
+
+        self::assertFalse(class_exists('Simplixi\\SUPCheckout\\Subscription\\Cron\\CycleClaim', false) && $this->claims->released !== array(), 'no claim is taken or released in process');
+        self::assertSame(array(), $this->claims->released);
+        foreach (array_slice($this->system->events, $events_before) as $event) {
+            self::assertStringStartsWith('supcheckout_', $event['hook'], 'only new-name cron twins are scheduled, nothing runs in process');
+        }
+        self::assertSame(0, $this->system->sleeps, 'no wait on any in-process worker');
     }
 
     public function test_a_copy_verification_mismatch_exits_3_and_leaves_the_store_uncut(): void {
@@ -231,9 +324,17 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated);
     }
 
-    public function test_an_official_plugin_that_stays_active_exits_7_with_a_warning(): void {
+    public function test_an_official_plugin_reactivated_during_cutover_exits_7_with_a_warning(): void {
         $this->seed();
-        $this->system->deactivate_fails = true;
+        // The race only: someone reactivates it after the pre-cutover deactivation, and the
+        // post-cutover retry (defense in depth) cannot deactivate it again.
+        $system = $this->system;
+        $this->system->on_step = static function ($step) use ($system) {
+            if ($step === 'quiesced') {
+                $system->official = 'upayments/UPayments.php';
+                $system->deactivate_fails = true;
+            }
+        };
 
         self::assertSame(CliCommands::OFFICIAL_STILL_ACTIVE, $this->cli()->run(true, true));
 
@@ -282,7 +383,8 @@ final class CliCommandsTest extends TestCase {
 
     public function test_status_reports_state_progress_journal_warnings_and_stale_claims(): void {
         $this->seed();
-        self::assertSame(CliCommands::OK, $this->cli()->run(true, false));
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $this->system->official = 'upayments/UPayments.php';
         $this->claims->add(str_repeat('a', 64), 'claimed', 'owner-a', $this->system->now - 3600);
         $this->claims->add(str_repeat('b', 64), 'dispatching', 'owner-b', $this->system->now - 3600);
         $this->out = array();

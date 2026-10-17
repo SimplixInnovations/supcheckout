@@ -799,6 +799,13 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - `finalize [--yes] [--force-after-review]`.
 - Exit codes: `0` ok, `2` blocked by preflight, `3` verification mismatch.
 
+**Amended during implementation (Task 9 review):**
+- **Exit codes, complete:** `0` ok, `1` error or declined, `2` blocked (preflight, or the official plugin active without `--deactivate-official`), `3` verification mismatch, `4` busy (runner lock, lease held or lost, claims in flight), `5` stale billing claims, `6` the state does not allow it, `7` cut over but the official plugin was reactivated during the cutover and could not be deactivated again.
+- **Official plugin deactivated before the final verify, not after cutover.** While active, the official plugin runs its own renewal cron and callbacks, ignores the Quiesce lease and writes legacy-only meta (`_upay_last_billed_at`, billing state). A renewal it charged between Cutover's final verify and a post-cutover deactivation would be read from the stale new-name copy and could be charged twice. `run` therefore deactivates it once the copy is `verified` and before `Cutover::run()` takes the lease. From the next request, SUPCheckout's full runtime serves the store in `verified` (legacy reads, dual writes, quiesce-aware, permanent `wc_upayments` route), so Cutover's final verify sees only lock-respecting writers. Without `--deactivate-official` an active official plugin refuses the cutover (exit 2; the read-only copy still runs). Cutover's post-switch `official_still_active` tail stays as defense in depth.
+- **`release-stale-claims [--yes]`** releases only `claimed` billing rows older than 600 s, under the Quiesce lease, by a compare-and-swap DELETE; journaled as audit-only entries that Rollback never replays.
+- **Probe-only route while paused (accepted deviation).** Preflight's blocking `callback_unreachable` check needs the new route to answer before cutover, i.e. while paused. `PausedBoot` registers `LegacyCallbackListener::handle_probe()` on `woocommerce_api_supcheckout`, only on a `supcheckout_probe=1` request; it answers the probe and exits, never reaching the payment lifecycle. `wc_upayments` is never registered while paused.
+- **0c admin entry point:** not registered until 0c exists.
+
 - [ ] **Step 1: Write the failing integration test.** With the **official 3.1.1 plugin active**, SUPCheckout is activated and therefore paused. The test:
   - asserts `wp supcheckout takeover preflight` is available and runs;
   - asserts no `upayments` gateway, route or cron registration came from SUPCheckout's paused boot (the official plugin owns them);

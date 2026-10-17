@@ -29,6 +29,8 @@ final class FakeCutoverSystem implements CutoverSystem {
     public $on_now = null;
     /** @var callable|null function (string $step): void, called when the cutover reaches a step. */
     public $on_step = null;
+    /** @var callable|null function (string $basename): void, called after a successful deactivation. */
+    public $on_deactivate = null;
 
     public function cron_events() {
         return $this->events;
@@ -53,6 +55,9 @@ final class FakeCutoverSystem implements CutoverSystem {
             return false;
         }
         $this->official = null;
+        if (is_callable($this->on_deactivate)) {
+            call_user_func($this->on_deactivate, (string) $basename);
+        }
         return true;
     }
 

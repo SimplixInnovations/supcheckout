@@ -12,11 +12,22 @@
  * another directory whose main file is UPayments.php (OfficialPluginConflict), a 3.1.1
  * version header (Preflight's official_plugin_active fact) and ownership of the legacy
  * `wc_upayments` WC-API route, so the test can show the paused SUPCheckout never
- * registers on it. It declares no global function or class.
+ * registers on it. It declares no global function or class (one loop variable, unset).
  */
 
 defined('ABSPATH') || exit;
 
-add_action('woocommerce_api_wc_upayments', static function () {
-    // The official plugin's callback handler would run here; the stand-in only owns the route.
-});
+// The official plugin's callback, renewal cron and payment hooks. After the takeover
+// deactivates the stand-in, its code stays loaded in that WP-CLI process: if anything in
+// the cutover path fired one of these there, the hook name is recorded and the verify
+// phase fails.
+foreach (array('woocommerce_api_wc_upayments', 'upay_process_subscriptions', 'woocommerce_payment_complete', 'woocommerce_order_status_changed') as $supcheckout_cert_hook) {
+    add_action($supcheckout_cert_hook, static function () use ($supcheckout_cert_hook) {
+        if (!in_array('upayments/UPayments.php', (array) get_option('active_plugins', array()), true)) {
+            $fired = (array) get_option('supcheckout_cert_official_stub_fired', array());
+            $fired[] = $supcheckout_cert_hook;
+            update_option('supcheckout_cert_official_stub_fired', $fired, false);
+        }
+    });
+}
+unset($supcheckout_cert_hook);

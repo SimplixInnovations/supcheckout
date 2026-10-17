@@ -14,7 +14,7 @@ defined('ABSPATH') || exit;
  *
  * Exit codes: 0 ok, 1 error or declined, 2 blocked by preflight, 3 verification
  * mismatch, 4 busy (retry later), 5 stale billing claims, 6 state does not allow it,
- * 7 cut over but the official plugin is still active.
+ * 7 cut over but the official plugin was reactivated during the cutover.
  */
 final class Cli {
     public const COMMAND = 'supcheckout takeover';
@@ -61,7 +61,7 @@ final class Cli {
      * : Do not ask for confirmation.
      *
      * [--deactivate-official]
-     * : Deactivate the official UPayments plugin right after the cutover.
+     * : Deactivate the official UPayments plugin once the copy verifies, before the cutover. Without it, an active official plugin refuses the cutover (exit 2).
      *
      * @param array<int, string>    $args       Positional arguments.
      * @param array<string, string> $assoc_args Options.

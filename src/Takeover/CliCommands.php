@@ -20,29 +20,38 @@ defined('ABSPATH') || exit;
  *                          `release-stale-claims`, then rerun;
  *  6 STATE                 the takeover state does not allow this (rolled_back, finalized,
  *                          unreadable, or changed by another process);
- *  7 OFFICIAL_STILL_ACTIVE cut over, but the official plugin could not be deactivated:
- *                          SUPCheckout stays paused until it is; deactivate it or rerun.
+ *  7 OFFICIAL_STILL_ACTIVE cut over, but the official plugin is active again (someone
+ *                          reactivated it during the cutover) and Cutover's post-switch
+ *                          retry could not deactivate it; deactivate it and rerun.
  *
  * `run` is rerunnable after a crash at any step: every step resumes from persisted state.
- * idle → preflight_ok → copying (CopyRunner, cursor per object) → verified → cut_over
- * (Cutover, which is idempotent before its compare-and-swap and only retries the
- * deactivation after it). Preflight runs again on every rerun before cutover, so a store
- * that became blocked meanwhile is never switched.
+ * idle → preflight_ok → copying (CopyRunner, cursor per object) → verified → official
+ * plugin deactivated → cut_over (Cutover, idempotent before its compare-and-swap).
+ * Preflight runs again on every rerun before cutover, so a store that became blocked
+ * meanwhile is never switched.
  *
- * Official-plugin deactivation timing (--deactivate-official): exactly where the plan puts
- * it, Cutover's last step, after the verified → cut_over compare-and-swap. Until then the
- * official plugin is the only runtime serving the shared `upayments` gateway and its
- * `wc_upayments` callback route (SUPCheckout is paused in every web request), so no two
- * runtimes ever answer one callback. Deactivating earlier would hand checkout to a runtime
- * still in the copy window for the whole copy; deactivating later would leave a cut-over
- * store whose reads prefer new names while the official plugin keeps writing legacy ones.
- * The remaining window is the final verify pass to the deactivation (one process,
- * seconds): payment truth is unaffected, because paid state is the WooCommerce order
- * status set only after authenticated provider status by whichever plugin handles the
- * callback, and that field is never renamed or copied; a legacy-only meta written in that
- * window is still read through Keys' legacy fallback when no new value exists (a key that
- * already had a copied value, such as an extra UPayments_WHS row, keeps the copy: the
- * Task 12 matrix covers a legacy-route webhook in that window).
+ * Official plugin (amended after review): never cut over while it is active. It runs its
+ * own renewal cron and callbacks, ignores the Quiesce lease and writes legacy-only meta
+ * (`_upay_last_billed_at`, billing state); a renewal it charged between Cutover's final
+ * verify and a later deactivation would be read from the stale new-name copy after cutover
+ * and could be charged again. So, once the copy is `verified` and BEFORE Cutover takes the
+ * lease and runs its final verify:
+ * - active and --deactivate-official given: deactivate it here. From the next request on,
+ *   SUPCheckout's full runtime boots in `verified`: it reads legacy, writes both names,
+ *   respects the quiesce and serves the permanent `wc_upayments` route, so callbacks keep
+ *   being served with no gap, and Cutover's final verify runs with only lock-respecting
+ *   writers. A failed deactivation exits ERROR with nothing cut over;
+ * - active without --deactivate-official: refuse with BLOCKED (copying, read-only towards
+ *   legacy, has still run and stays `verified` for the rerun);
+ * - already inactive (a rerun after a crash past this step): nothing to do.
+ * Cutover still receives the consent, so if the plugin is reactivated during the cutover
+ * its post-switch tail retries the deactivation (defense in depth; exit 7 if that fails).
+ *
+ * In this CLI process the official plugin's code stays loaded after deactivate_plugins():
+ * the cutover path never calls do_action() itself, writes only through the CopyStore,
+ * options and the CutoverSystem, takes no billing claim, and only schedules cron twins
+ * (no cron callback runs in a WP-CLI process); billing claims and cron run in later
+ * requests, which boot without the official plugin.
  */
 final class CliCommands {
     public const OK = 0;
@@ -121,7 +130,7 @@ final class CliCommands {
 
     /**
      * @param bool $yes                 Skip the confirmation.
-     * @param bool $deactivate_official Owner consent to deactivate the official plugin at cutover.
+     * @param bool $deactivate_official Owner consent to deactivate the official plugin before cutover.
      * @return int Exit code.
      */
     public function run($yes, $deactivate_official) {
@@ -152,7 +161,33 @@ final class CliCommands {
         if ($copied !== self::OK) {
             return $copied;
         }
+        $official = $this->retire_official((bool) $deactivate_official);
+        if ($official !== self::OK) {
+            return $official;
+        }
         return $this->cutover((bool) $deactivate_official);
+    }
+
+    /**
+     * The official plugin must be inactive before Cutover takes the lease (see the class
+     * docblock): deactivate it with consent, refuse without.
+     *
+     * @param bool $deactivate_official Consent.
+     * @return int Exit code.
+     */
+    private function retire_official($deactivate_official) {
+        $official = $this->system->official_plugin();
+        if ($official === null) {
+            return self::OK;
+        }
+        if (!$deactivate_official) {
+            return $this->fail(self::BLOCKED, 'the official UPayments plugin (' . $official . ') is active; the copy is verified but the store was not switched. Rerun with --deactivate-official, or deactivate it first');
+        }
+        if (!$this->system->deactivate_plugin($official)) {
+            return $this->fail(self::ERROR, 'the official UPayments plugin (' . $official . ') could not be deactivated; the store was not switched');
+        }
+        $this->line('official plugin deactivated: ' . $official . ' (SUPCheckout serves the store from the next request)');
+        return self::OK;
     }
 
     /**
