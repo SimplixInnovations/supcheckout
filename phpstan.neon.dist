@@ -77,4 +77,7 @@ parameters:
         - src/Takeover/CutoverSystem.php
         - src/Takeover/WordPressCutoverSystem.php
         - src/Takeover/Cutover.php
+        - src/Takeover/StaleClaimStore.php
+        - src/Takeover/StaleClaims.php
+        - src/Takeover/WordPressStaleClaimStore.php
     tmpDir: .cache/phpstan
