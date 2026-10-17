@@ -227,7 +227,7 @@ foreach (array(
     );
     coexistence_assert(
         strpos($result['out'], 'COPY_RUNNER_HOOKS:0') !== false,
-        "paused ({$scenario}): even mid-takeover (copying), SUPCheckout never registers the supcheckout_takeover_copy_batch hook"
+        "paused ({$scenario}): even mid-takeover (copying), SUPCheckout registers neither the copy batch hook nor its watchdog"
     );
 }
 foreach (array(
@@ -243,7 +243,7 @@ foreach (array(
         strpos($result['out'], $all_gateway_hooks) !== false,
         "running ({$scenario}): SUPCheckout registers both gateway filters and the wc_upayments route"
     );
-    coexistence_assert(strpos($result['out'], 'COPY_RUNNER_HOOKS:1') !== false, "running ({$scenario}): copying registers the copy runner hook exactly once");
+    coexistence_assert(strpos($result['out'], 'COPY_RUNNER_HOOKS:2') !== false, "running ({$scenario}): copying registers the copy batch hook and its watchdog exactly once each");
     coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "running ({$scenario}): no PHP warning, notice or deprecation");
 }
 
@@ -341,7 +341,9 @@ function coexistence_child($root, $scenario, $official_stub) {
     sort($gateway_hooks);
     $copy_runner_hooks = 0;
     foreach ($GLOBALS['coexistence']['actions'] as $registration) {
-        if ($registration[0] === 'supcheckout_takeover_copy_batch') {
+        if ($registration[0] === 'supcheckout_takeover_copy_batch'
+            || ($registration[0] === 'action_scheduler_init' && $registration[1] === array('Simplixi\SUPCheckout\Takeover\CopyRunner', 'watchdog'))
+        ) {
             $copy_runner_hooks++;
         }
     }

@@ -40,7 +40,10 @@ final class CopyRunnerSchedulingTest extends TestCase {
 
             $registered = self::runner_registrations();
             if ($status === 'copying') {
-                self::assertSame(array(array(CopyRunner::HOOK, array(CopyRunner::class, 'handle_action'), 10, 1)), $registered, 'copying: one registration');
+                self::assertSame(array(
+                    array(CopyRunner::HOOK, array(CopyRunner::class, 'handle_action'), 10, 1),
+                    array('action_scheduler_init', array(CopyRunner::class, 'watchdog'), 10, 1),
+                ), $registered, 'copying: the batch hook and the watchdog, once each');
             } else {
                 self::assertSame(array(), $registered, "$status: nothing registered");
             }
@@ -97,6 +100,28 @@ final class CopyRunnerSchedulingTest extends TestCase {
         self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
+    public function test_a_killed_chain_is_requeued_once_on_the_next_request_after_action_scheduler_init(): void {
+        self::state('copying');
+        // The killed action left nothing pending; the next request boots and registers.
+        CopyRunner::register();
+        $watchdog = null;
+        foreach ($GLOBALS['supcheckout_test_action_calls'] as $call) {
+            if ($call[0] === CopyRunner::WATCHDOG_HOOK) {
+                $watchdog = $call[1];
+            }
+        }
+        self::assertIsCallable($watchdog);
+
+        // action_scheduler_init fires (twice: a second request, or a second plugin firing it).
+        call_user_func($watchdog);
+        call_user_func($watchdog);
+
+        $scheduled = $GLOBALS['supcheckout_as_calls']['scheduled'];
+        self::assertCount(1, $scheduled, 'one continuation, never a duplicate');
+        self::assertSame(CopyRunner::HOOK, $scheduled[0]['hook']);
+        self::assertTrue($scheduled[0]['unique']);
+    }
+
     public function test_the_watchdog_waits_for_action_scheduler_to_be_initialized(): void {
         self::state('copying');
         \Action_Scheduler::$initialized = false;
@@ -119,7 +144,7 @@ final class CopyRunnerSchedulingTest extends TestCase {
     /** @return list<array<int, mixed>> */
     private static function runner_registrations(): array {
         return array_values(array_filter($GLOBALS['supcheckout_test_action_calls'], static function ($call) {
-            return $call[0] === CopyRunner::HOOK;
+            return $call[0] === CopyRunner::HOOK || $call[0] === 'action_scheduler_init';
         }));
     }
 

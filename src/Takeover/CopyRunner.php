@@ -30,14 +30,13 @@ defined('ABSPATH') || exit;
  * Only one runner works at a time: a self-expiring lock option (LOCK_OPTION, compare-and-
  * swap through OrderLock's primitives) makes a second runner return `busy`.
  *
- * Scheduling: the Action Scheduler action HOOK (group GROUP, no arguments) is registered
- * only while the takeover is copying (register()). Each action queues its own continuation
- * once (schedule(), unique), including when another runner holds the lock. An action that
- * is killed outright queues nothing: watchdog() re-queues a chain with no pending or
- * running action, but it needs Action Scheduler to be initialized, which it never is when
- * Plugin::boot() runs (SUPCheckout loads before WooCommerce). Until watchdog() is wired to a
- * hook that fires after Action Scheduler initializes (a new public-surface entry, not yet
- * approved), a dead chain is resumed only by an explicit schedule() (CLI or admin UI).
+ * Scheduling: only while the takeover is copying, register() adds the Action Scheduler
+ * action HOOK (group GROUP, no arguments) and the watchdog on WATCHDOG_HOOK. Each action
+ * queues its own continuation once (schedule(), unique), including when another runner
+ * holds the lock. An action killed outright queues nothing; on the next request,
+ * watchdog() (run on `action_scheduler_init`, when Action Scheduler is ready, which it never
+ * is during Plugin::boot() because SUPCheckout loads before WooCommerce) re-queues the chain
+ * if no batch action is pending or running. The unique schedule never duplicates one.
  */
 final class CopyRunner {
     public const ORDER_BATCH = 50;
@@ -50,6 +49,8 @@ final class CopyRunner {
     /** Action Scheduler hook and group of the batch action. */
     public const HOOK = 'supcheckout_takeover_copy_batch';
     public const GROUP = 'supcheckout';
+    /** Fired by Action Scheduler once its data store is ready, on every request it loads. */
+    public const WATCHDOG_HOOK = 'action_scheduler_init';
     /** Seconds one batch action keeps running steps. */
     public const ACTION_TIME_BUDGET = 20;
     /** Seconds before an action retries a contended order lock. */
@@ -103,15 +104,16 @@ final class CopyRunner {
     }
 
     /**
-     * Register the batch action, only while the takeover is copying: an idle store (and
-     * every other status) registers nothing. Called from Plugin::boot(), which a paused
-     * SUPCheckout (official plugin active) never reaches.
+     * Register the batch action and the watchdog, only while the takeover is copying: an
+     * idle store (and every other status) registers nothing. Called from Plugin::boot(),
+     * which a paused SUPCheckout (official plugin active) never reaches.
      *
      * @return void
      */
     public static function register() {
         if (TakeoverState::get()['status'] === TakeoverState::COPYING) {
             add_action(self::HOOK, array(self::class, 'handle_action'));
+            add_action(self::WATCHDOG_HOOK, array(self::class, 'watchdog'));
         }
     }
 
@@ -136,9 +138,9 @@ final class CopyRunner {
     }
 
     /**
-     * Re-queue a dead chain: while copying, with Action Scheduler initialized, queue the
-     * batch action unless one is already pending or running. Safe to call on any request:
-     * schedule() is unique and does nothing outside copying.
+     * Re-queue a dead chain (registered on WATCHDOG_HOOK while copying): with Action
+     * Scheduler initialized, queue the batch action unless one is already pending or
+     * running. Safe on every request: schedule() is unique and does nothing outside copying.
      *
      * @return bool True when an action is queued (now or already).
      */
@@ -154,7 +156,7 @@ final class CopyRunner {
      * `in-progress`, which as_has_scheduled_action() and the unique schedule both count, so
      * queueing it from inside the callback would be refused and the chain would end. At
      * shutdown the action is complete. A process killed outright queues nothing; the cursor
-     * keeps the progress and watchdog() or an explicit schedule() resumes it.
+     * keeps the progress and the watchdog resumes it on a later request.
      *
      * @return void
      */

@@ -644,6 +644,14 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "action_scheduler_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "added_post_meta",
         "priority": 10,
         "accepted_args": 4,

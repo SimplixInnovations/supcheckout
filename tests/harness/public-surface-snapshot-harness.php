@@ -88,23 +88,23 @@ if ($violations !== array()) {
     }
     exit(1);
 }
-// The takeover copy runner (0b Task 6) registers its Action Scheduler hook only while the
-// takeover is copying: every other state boots without it, so idle stores add nothing at
-// runtime. These boots are checked, never recorded.
-foreach (array('idle' => 0, 'preflight_ok' => 0, 'copying' => 1, 'verified' => 0, 'cut_over' => 0) as $takeover_status => $expected) {
+// The takeover copy runner (0b Task 6) registers its Action Scheduler hook and its watchdog
+// (action_scheduler_init) only while the takeover is copying: every other state boots
+// without them, so idle stores add nothing at runtime. These boots are checked, never recorded.
+foreach (array('idle' => 0, 'preflight_ok' => 0, 'copying' => 2, 'verified' => 0, 'cut_over' => 0) as $takeover_status => $expected) {
     $registered = 0;
     foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
-        if ($entry['kind'] === 'action' && $entry['hook'] === 'supcheckout_takeover_copy_batch') {
+        if ($entry['kind'] === 'action' && in_array($entry['hook'], array('supcheckout_takeover_copy_batch', 'action_scheduler_init'), true)) {
             $registered++;
         }
     }
     if ($registered !== $expected) {
-        echo "FAIL: a {$takeover_status} boot registers the copy runner hook {$registered} time(s), expected {$expected}.\n";
+        echo "FAIL: a {$takeover_status} boot registers {$registered} copy runner hook(s), expected {$expected}.\n";
         echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
         exit(1);
     }
 }
-echo "Takeover copy runner: registered once while copying, never in idle, preflight_ok, verified or cut_over boots.\n";
+echo "Takeover copy runner: batch hook and watchdog registered once each while copying, never in idle, preflight_ok, verified or cut_over boots.\n";
 
 $json = json_encode($entries, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 
