@@ -40,10 +40,37 @@ final class WordPressCutoverSystemTest extends TestCase {
         self::assertArrayHasKey('upayments/UPayments.php', $GLOBALS['supcheckout_test_site_options']['active_sitewide_plugins'], 'other sites keep the plugin');
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_every_active_official_install_is_deactivated_and_none_may_remain(): void {
+        self::boot(false);
+        $GLOBALS['supcheckout_test_options']['active_plugins'] = array('upayments/UPayments.php', 'upayments-old/UPayments.php');
+
+        $system = new WordPressCutoverSystem();
+        self::assertTrue($system->deactivate_plugin('upayments/UPayments.php'));
+
+        self::assertSame(array(array(array('upayments/UPayments.php', 'upayments-old/UPayments.php'), false, false)), $GLOBALS['cutover_system_deactivations']);
+        self::assertNull($system->official_plugin(), 'no official install is left active');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a_second_install_that_stays_active_fails_the_post_check(): void {
+        self::boot(false);
+        $GLOBALS['supcheckout_test_multisite'] = true;
+        $GLOBALS['supcheckout_test_site_options']['active_sitewide_plugins'] = array('upayments-old/UPayments.php' => 1);
+
+        $system = new WordPressCutoverSystem();
+        self::assertFalse($system->deactivate_plugin('upayments/UPayments.php'), 'upayments-old is still active');
+        self::assertSame('upayments-old/UPayments.php', $system->official_plugin());
+    }
+
     private static function boot(bool $network): void {
         $plugins = sys_get_temp_dir() . '/supcheckout-cutover-system-' . getmypid();
         @mkdir($plugins . '/upayments', 0777, true);
+        @mkdir($plugins . '/upayments-old', 0777, true);
         file_put_contents($plugins . '/upayments/UPayments.php', "<?php\n");
+        file_put_contents($plugins . '/upayments-old/UPayments.php', "<?php\n");
         define('WP_PLUGIN_DIR', $plugins);
         \supcheckout_test_reset_wp_options();
         \supcheckout_test_reset_plugin_registry(dirname(__DIR__, 3) . '/..');

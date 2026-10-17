@@ -53,11 +53,17 @@ final class WordPressCutoverSystem implements CutoverSystem {
         if (!function_exists('deactivate_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
-        // This site only: the takeover is per site, and a network activation (which Preflight
-        // blocks) must never be turned off for the whole network. The post-check still sees
-        // a network activation, so that case is never reported as deactivated.
-        deactivate_plugins((string) $basename, false, false);
-        return $this->official_plugin() !== (string) $basename;
+        // Every active official install, not only $basename: a second */UPayments.php copy
+        // would keep serving the shared identity. This site only: the takeover is per site,
+        // and a network activation (which Preflight blocks) must never be turned off for the
+        // whole network. Success requires that no official install remains active, so a
+        // network activation or a copy that stayed active is never reported as deactivated.
+        $plugins = OfficialPluginConflict::conflicting_plugins(dirname(__DIR__, 2) . '/supcheckout.php');
+        if (!in_array((string) $basename, $plugins, true)) {
+            array_unshift($plugins, (string) $basename);
+        }
+        deactivate_plugins($plugins, false, false);
+        return $this->official_plugin() === null;
     }
 
     public function now() {

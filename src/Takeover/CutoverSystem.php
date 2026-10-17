@@ -35,8 +35,10 @@ interface CutoverSystem {
     public function official_plugin();
 
     /**
+     * Deactivate $basename and every other active official install, for this site only.
+     *
      * @param string $basename Plugin basename.
-     * @return bool True when the plugin is no longer active afterwards.
+     * @return bool True only when no official install is active afterwards.
      */
     public function deactivate_plugin($basename);
 
