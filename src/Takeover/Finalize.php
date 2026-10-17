@@ -20,7 +20,12 @@ defined('ABSPATH') || exit;
  *     "Checkout (Block)" page, the official tables, the permanent legacy callback route);
  *  4. renew the lease, persist the removal start, check holds() right before the
  *     compare-and-swap, transition cut_over → finalized, flush caches, release the lease;
- *  5. remove the legacy names (FinalizeRemoval), persisting progress after every unit;
+ *  5. remove the legacy names (FinalizeRemoval), persisting progress after every unit; then
+ *     settle exactly as a rollback's copy removal does: wait, bounded with a `settling`
+ *     progress line per poll, until CopyRemoval::SETTLE_SECONDS have passed since the
+ *     transition (a request that read cut_over before it still dual-writes legacy names until
+ *     it ends), and run full rescans (not cursor-bound) until one removes nothing, at most
+ *     CopyRemoval::MAX_RESCANS (`removal_unsettled`, exit 4: rerun later);
  *  6. retire the legacy billing-attempts table under a fresh lease, after the transition:
  *     drain legacy claims (bounded); keep it while any legacy row is `claimed` or
  *     `dispatching`, any legacy row was updated after the cutover's sync (cut_over_at), or
@@ -78,6 +83,14 @@ final class Finalize {
     private $kept = array();
     /** @var array<string, mixed> */
     private $reported = array();
+    /** @var int Removal pass: 1 is the cursor pass, 2.. are full rescans. */
+    private $pass = 1;
+    /** @var int Late legacy names the current rescan removed. */
+    private $found = 0;
+    /** @var int System time of the transition (start of the settle barrier). */
+    private $transitioned_at = 0;
+    /** @var bool A rescan came back clean: only the table retirement is left. */
+    private $settled = false;
 
     /**
      * @param FinalizeStore|null  $store  Store; WordPress when omitted.
@@ -236,6 +249,8 @@ final class Finalize {
         if (!$this->lease->maybe_renew() || !$this->lease->holds()) {
             return 'lease_lost';
         }
+        // The settle barrier counts from here (CopyRemoval::SETTLE_SECONDS).
+        $this->transitioned_at = $this->system->now();
         if (!TakeoverState::patch(array(self::PROGRESS => $this->progress(FinalizeRemoval::start(), true)), TakeoverState::CUT_OVER)) {
             return 'transition_refused';
         }
@@ -311,6 +326,8 @@ final class Finalize {
         }
         $previous = isset($state[self::PROGRESS]['reported']) && is_array($state[self::PROGRESS]['reported']) ? $state[self::PROGRESS]['reported'] : array();
         $this->reported = $previous + $this->capture_reported();
+        // A sweep settles from the original transition (a sweep right after it still waits).
+        $this->transitioned_at = isset($state[self::PROGRESS]['transitioned_at']) ? (int) $state[self::PROGRESS]['transitioned_at'] : $this->system->now() - CopyRemoval::SETTLE_SECONDS;
         if (!TakeoverState::patch(array(self::PROGRESS => $this->progress(FinalizeRemoval::start(), true)), TakeoverState::FINALIZED)) {
             return $this->result('transition_refused');
         }
@@ -330,6 +347,11 @@ final class Finalize {
             $this->removed = array_merge(FinalizeRemoval::no_removals(), isset($progress['removed']) && is_array($progress['removed']) ? array_map('intval', $progress['removed']) : array());
             $this->kept = FinalizeRemoval::merge_kept(array(), isset($progress['kept']) && is_array($progress['kept']) ? $progress['kept'] : array());
             $this->reported = isset($progress['reported']) && is_array($progress['reported']) ? $progress['reported'] : $this->reported;
+            // Pass 1 is the cursor removal; passes 2.. are full rescans after the settle time.
+            $this->pass = isset($progress['pass']) ? max(1, (int) $progress['pass']) : 1;
+            $this->found = isset($progress['found']) ? (int) $progress['found'] : 0;
+            $this->transitioned_at = isset($progress['transitioned_at']) ? (int) $progress['transitioned_at'] : $this->system->now();
+            $this->settled = !empty($progress['settled']);
             $removal = isset($progress['removal']) && is_array($progress['removal']) ? $progress['removal'] : FinalizeRemoval::start();
             $error = $this->remove($removal);
             if ($error !== null) {
@@ -343,6 +365,9 @@ final class Finalize {
     }
 
     /**
+     * Every legacy-name phase in passes (the settle barrier, as CopyRemoval's for a rollback),
+     * then the table retirement once a rescan came back clean.
+     *
      * @param array<string, mixed> $removal Removal progress.
      * @return string|null Error code.
      */
@@ -353,14 +378,30 @@ final class Finalize {
             if ($phase === FinalizeRemoval::PHASE_DONE) {
                 break;
             }
+            if ($phase === FinalizeRemoval::PHASE_TABLE && !$this->settled) {
+                $next = $this->end_pass();
+                if ($next === 'removal_unsettled') {
+                    // The next run starts a fresh rescan (the settle time has long passed).
+                    $this->pass = 2;
+                    $this->found = 0;
+                    $this->kept = array();
+                    return $this->save_progress(FinalizeRemoval::start(), true) ? $next : 'transition_refused';
+                }
+                $removal = $next === true ? $removal : FinalizeRemoval::start();
+                if (!$this->save_progress($removal, true)) {
+                    return 'transition_refused';
+                }
+                continue;
+            }
             $out = $phase === FinalizeRemoval::PHASE_TABLE ? $this->retire_table() : FinalizeRemoval::step($this->store, $this->system, $removal, true);
             $this->absorb($out);
             if (in_array($out['status'], array('busy', 'lease_lost'), true)) {
                 return $out['status'];
             }
+            $this->found += ($this->pass > 1 && $phase !== FinalizeRemoval::PHASE_TABLE) ? array_sum($out['removed']) : 0;
             // Units done before a lock or a failure stay done: persist them first.
             $removal = $out['progress'];
-            if (!TakeoverState::patch(array(self::PROGRESS => $this->progress($removal, true)), TakeoverState::FINALIZED)) {
+            if (!$this->save_progress($removal, true)) {
                 return 'transition_refused';
             }
             if ($out['status'] === FinalizeRemoval::LOCKED) {
@@ -375,15 +416,69 @@ final class Finalize {
                 return 'removal_incomplete';
             }
             $locked = 0;
-            if ($removal['phase'] !== $phase) {
+            if ($removal['phase'] !== $phase && ($this->pass === 1 || $phase === FinalizeRemoval::PHASE_TABLE)) {
                 $this->step($phase === FinalizeRemoval::PHASE_TABLE ? (string) $out['table'] : $phase . '_removed');
             }
         }
-        if (!TakeoverState::patch(array(self::PROGRESS => $this->progress($removal, false)), TakeoverState::FINALIZED)) {
+        if (!$this->save_progress($removal, false)) {
             return 'transition_refused';
         }
         $this->step('legacy_removed');
         return null;
+    }
+
+    /**
+     * After a removal pass: the cursor pass waits for the settle time; a rescan that found
+     * nothing settles the removal (the table retirement follows); one that removed late legacy
+     * names starts another rescan, at most CopyRemoval::MAX_RESCANS in all
+     * (`removal_unsettled`, exit 4: rerun later). Each rescan recomputes what is kept.
+     *
+     * @return bool|string True once settled, false for another pass, or an error code.
+     */
+    private function end_pass() {
+        if ($this->pass === 1) {
+            $this->step('legacy_swept');
+            $this->settle();
+        } else {
+            $this->step('rescanned');
+            if ($this->found === 0) {
+                $this->settled = true;
+                return true;
+            }
+            $this->report['late_legacy_removed'] = (isset($this->report['late_legacy_removed']) ? (int) $this->report['late_legacy_removed'] : 0) + $this->found;
+            if ($this->pass > CopyRemoval::MAX_RESCANS) {
+                return 'removal_unsettled';
+            }
+        }
+        ++$this->pass;
+        $this->found = 0;
+        $this->kept = array();
+        return false;
+    }
+
+    /**
+     * Wait, bounded, until CopyRemoval::SETTLE_SECONDS have passed since the transition: a
+     * request or worker that read cut_over before it still dual-writes legacy names until it
+     * ends. No lease is held, so renewals are not paused.
+     *
+     * @return void
+     */
+    private function settle() {
+        $deadline = $this->transitioned_at + CopyRemoval::SETTLE_SECONDS;
+        while ($this->system->now() < $deadline) {
+            // One progress line per poll (WP-CLI prints every step).
+            $this->step('settling');
+            $this->system->sleep(min(CopyRemoval::SETTLE_POLL, $deadline - $this->system->now()));
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $removal Removal progress.
+     * @param bool                 $pending Still pending.
+     * @return bool
+     */
+    private function save_progress(array $removal, $pending) {
+        return TakeoverState::patch(array(self::PROGRESS => $this->progress($removal, $pending)), TakeoverState::FINALIZED);
     }
 
     /**
@@ -567,7 +662,8 @@ final class Finalize {
      * @return array<string, mixed>
      */
     private function progress(array $removal, $pending) {
-        return array('removal' => $removal, 'removed' => $this->removed, 'kept' => $this->kept, 'reported' => $this->reported, 'pending' => $pending);
+        return array('removal' => $removal, 'removed' => $this->removed, 'kept' => $this->kept, 'reported' => $this->reported, 'pending' => $pending,
+            'transitioned_at' => $this->transitioned_at, 'pass' => $this->pass, 'found' => $this->found, 'settled' => $this->settled);
     }
 
     /**

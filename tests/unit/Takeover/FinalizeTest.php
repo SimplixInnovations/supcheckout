@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Takeover\CopyRemoval;
 use Simplixi\SUPCheckout\Takeover\Cutover;
 use Simplixi\SUPCheckout\Takeover\Finalize;
 use Simplixi\SUPCheckout\Takeover\Journal;
@@ -260,7 +261,7 @@ final class FinalizeTest extends TestCase {
 
     public function test_a_crash_at_any_step_is_resumed_by_running_finalize_again(): void {
         $steps = array('quiesced', 'verified', 'finalized', 'caches_flushed', 'cron_removed', 'orders_removed', 'users_removed',
-            'products_removed', 'options_removed', 'backups_removed', 'official_removed', 'ephemeral_removed', 'table_retired');
+            'products_removed', 'options_removed', 'backups_removed', 'official_removed', 'ephemeral_removed', 'legacy_swept', 'settling', 'rescanned', 'table_retired');
         foreach ($steps as $index => $crash_at) {
             $this->setUp();
             $order = $this->seed_cut_over();
@@ -312,6 +313,86 @@ final class FinalizeTest extends TestCase {
 
         self::assertTrue($result['ok'], (string) json_encode($result));
         self::assertSame(array(), $order->persisted_values('UPayments_PaymentID'));
+    }
+
+    public function test_the_removal_settles_before_its_final_rescan_and_holds_no_lease_meanwhile(): void {
+        $this->seed_cut_over();
+        $at = array();
+        $leased = array();
+        $system = $this->system;
+        $this->system->on_step = static function ($step) use (&$at, &$leased, $system) {
+            $at[$step] = $system->now;
+            if ($step === 'settling') {
+                $leased[] = Quiesce::is_active($system->now);
+            }
+        };
+
+        $result = $this->finalize()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertGreaterThanOrEqual(CopyRemoval::SETTLE_SECONDS, $at['rescanned'] - $at['finalized'], 'the final rescan starts only after the settle time');
+        self::assertSame(CopyRemoval::SETTLE_SECONDS / CopyRemoval::SETTLE_POLL, count(array_keys($result['steps'], 'settling', true)), 'one progress line per poll');
+        self::assertSame(array(false), array_values(array_unique($leased)), 'the settle holds no lease (renewals are not paused)');
+        $order = array_flip($result['steps']);
+        self::assertLessThan($order['legacy_swept'], $order['ephemeral_removed']);
+        self::assertLessThan($order['table_retired'], $order['rescanned'], 'the table is retired after a clean rescan');
+    }
+
+    public function test_legacy_names_a_cut_over_request_writes_after_the_sweep_are_removed_by_the_rescan(): void {
+        $order = $this->seed_cut_over();
+        $other = new FakeCrudObject(9, 'upayments', array('UPayments_PaymentID' => array('pay-9b'), '_supcheckout_payment_id' => array('pay-9')));
+        $GLOBALS['supcheckout_test_status_orders'][9] = $other;
+        $injected = false;
+        $this->system->on_step = static function ($step) use ($order, &$injected) {
+            if ($step === 'settling' && !$injected) {
+                // A request that read the state as cut_over before the switch still writes both names.
+                $injected = true;
+                $order->external_write('UPayments_TrackID', array('t-1'));
+                $order->external_write('_supcheckout_track_id', array('t-1'));
+                $GLOBALS['supcheckout_test_options']['upay_subscription_enrollment_cursor'] = 11;
+                $GLOBALS['supcheckout_test_options']['supcheckout_subscription_enrollment_cursor'] = 11;
+            }
+        };
+
+        $result = $this->finalize()->run(true);
+
+        self::assertTrue($injected);
+        self::assertSame(2, count(array_keys($result['steps'], 'rescanned', true)), 'a dirty rescan, then a clean one');
+        self::assertSame(2, $result['report']['late_legacy_removed']);
+        self::assertSame(array(), $order->persisted_values('UPayments_TrackID'), 'the straggler legacy twin is removed');
+        self::assertSame(array('t-1'), $order->persisted_values('_supcheckout_track_id'));
+        self::assertFalse(get_option('upay_subscription_enrollment_cursor', false));
+        self::assertSame(11, get_option('supcheckout_subscription_enrollment_cursor'));
+        self::assertSame(1, self::kept($result)['order_meta:UPayments_PaymentID:unequal']['count'], 'a rescan never double-counts a kept value');
+        self::assertFalse(Finalize::pending(TakeoverState::get()));
+    }
+
+    public function test_a_writer_that_keeps_writing_legacy_names_leaves_the_removal_unsettled_until_a_rerun(): void {
+        $order = $this->seed_cut_over();
+        $writes = 0;
+        $this->system->on_step = static function ($step) use ($order, &$writes) {
+            if ($step === 'legacy_swept' || $step === 'rescanned') {
+                ++$writes;
+                $order->external_write('UPayments_TrackID', array('t-' . $writes));
+                $order->external_write('_supcheckout_track_id', array('t-' . $writes));
+            }
+        };
+
+        $unsettled = $this->finalize()->run(true);
+
+        self::assertSame('removal_unsettled', $unsettled['error']);
+        self::assertSame(CopyRemoval::MAX_RESCANS, count(array_keys($unsettled['steps'], 'rescanned', true)));
+        self::assertTrue(Finalize::pending(TakeoverState::get()), 'not recorded complete');
+        self::assertSame(0, $this->store->drops, 'the table waits for a clean rescan');
+
+        $this->system->on_step = null;
+        $result = $this->finalize()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(array(), $order->persisted_values('UPayments_TrackID'));
+        self::assertSame(array('t-' . $writes), $order->persisted_values('_supcheckout_track_id'));
+        self::assertNotContains('settling', $result['steps'], 'the rerun does not wait again');
+        self::assertFalse(Finalize::pending(TakeoverState::get()));
     }
 
     public function test_an_order_a_payment_request_holds_is_retried_then_left_for_a_rerun(): void {
@@ -439,14 +520,20 @@ final class FinalizeTest extends TestCase {
         $row = array('cycle_key' => self::key('6'), 'parent_order_id' => 7, 'owner_token' => 'w', 'state' => 'claimed', 'payment_id' => null, 'updated_gmt' => gmdate('Y-m-d H:i:s', self::T0));
         $this->store->add_legacy_row($row);
         $store = $this->store;
-        $this->system->on_sleep = static function () use ($store) {
-            // The pinned worker gives its claim up (CycleClaim::won() releases a claim whose table switched).
-            unset($store->tables['legacy'][self::key('6')]);
+        $draining = false;
+        $this->system->on_step = static function ($step) use (&$draining) {
+            $draining = $draining || $step === 'rescanned';
+        };
+        $this->system->on_sleep = static function () use ($store, &$draining) {
+            if ($draining) {
+                // The pinned worker gives its claim up (CycleClaim::won() releases a claim whose table switched).
+                unset($store->tables['legacy'][self::key('6')]);
+            }
         };
 
         $result = $this->finalize()->run(true);
 
-        self::assertGreaterThan(0, $this->system->sleeps, 'the drain waited for the pinned claim');
+        self::assertSame(1, $result['report']['legacy_claims_in_flight'], 'the drain waited for the pinned claim');
         self::assertFalse($this->store->table_exists('legacy'), (string) json_encode($result));
         self::assertGreaterThan(0, $cut_over_at);
     }

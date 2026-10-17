@@ -734,6 +734,26 @@ final class CliCommandsTest extends TestCase {
         self::assertStringNotContainsString('pay-2-newer', $this->printed(), 'never a value');
     }
 
+    public function test_finalize_settles_with_progress_lines_and_a_writer_that_never_stops_exits_4(): void {
+        $orders = $this->cut_over();
+        $writes = 0;
+        $this->system->on_step = static function ($step) use ($orders, &$writes) {
+            if ($step === 'legacy_swept' || $step === 'rescanned') {
+                ++$writes;
+                $orders[0]->external_write('UPayments_TrackID', array('t-' . $writes));
+                $orders[0]->external_write('_supcheckout_track_id', array('t-' . $writes));
+            }
+        };
+
+        self::assertSame(CliCommands::BUSY, $this->cli()->finalize(true, true, false));
+
+        self::assertStringContainsString('removal_unsettled', $this->printed());
+        self::assertStringContainsString('settling', $this->printed(), 'the settle wait is visible');
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
+        $this->system->on_step = null;
+        self::assertSame(CliCommands::OK, $this->cli()->finalize(true, false, false), 'a rerun completes');
+    }
+
     public function test_finalize_dry_run_writes_nothing_and_prints_the_plan(): void {
         $this->cut_over();
         self::age(3);

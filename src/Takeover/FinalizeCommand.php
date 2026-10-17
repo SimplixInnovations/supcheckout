@@ -14,8 +14,12 @@ defined('ABSPATH') || exit;
  *  2 BLOCKED    the official plugin is active (it writes legacy names and ignores the lease);
  *  3 MISMATCH   verification refused before the transition: unreadable journal, disagreeing
  *               token-identity secrets, or no new billing table; nothing changed;
- *  4 BUSY       the takeover lease is held or was lost, the state changed meanwhile, or an
- *               order stayed locked by a payment request; rerun later (it resumes);
+ *  4 BUSY       the takeover lease is held or was lost, the state changed meanwhile, an
+ *               order stayed locked by a payment request, or late writers still recreated
+ *               legacy names after the settle time (`removal_unsettled`); rerun later (it
+ *               resumes). After the transition the run waits in-process for
+ *               CopyRemoval::SETTLE_SECONDS (a `settling` line every 10 s) before its final
+ *               rescans, like a rollback;
  *  6 STATE      not cut over, or fewer than 30 days since the cutover without
  *               --force-after-review;
  *  8 CONFLICTS  finalized, but values that did not verify equal (and a legacy billing table
@@ -31,6 +35,7 @@ final class FinalizeCommand {
         'lease_lost' => CliCommands::BUSY,
         'transition_refused' => CliCommands::BUSY,
         'removal_busy' => CliCommands::BUSY,
+        'removal_unsettled' => CliCommands::BUSY,
         'official_active' => CliCommands::BLOCKED,
         'not_cut_over' => CliCommands::STATE,
         'too_early' => CliCommands::STATE,
