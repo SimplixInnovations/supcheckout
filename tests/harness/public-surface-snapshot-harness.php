@@ -105,6 +105,27 @@ foreach (array('idle' => 0, 'preflight_ok' => 0, 'copying' => 2, 'verified' => 0
     }
 }
 echo "Takeover copy runner: batch hook and watchdog registered once each while copying, never in idle, preflight_ok, verified or cut_over boots.\n";
+// Both WC-API callback routes (0b Task 8) carry the same pair in every takeover state, the
+// legacy route permanently (finalized included): the lifecycle at priority 5 from the
+// load phase and the gateway's fallback at priority 10 from its constructor.
+foreach (array('idle', 'copying', 'cut_over', 'finalized', 'rolled_back') as $takeover_status) {
+    $pairs = array();
+    foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
+        if ($entry['kind'] === 'action' && in_array($entry['hook'], array('woocommerce_api_wc_upayments', 'woocommerce_api_supcheckout'), true)) {
+            $pairs[$entry['hook']][] = $entry['priority'] . '@' . $entry['registered_in'];
+        }
+    }
+    foreach (array('woocommerce_api_wc_upayments', 'woocommerce_api_supcheckout') as $hook) {
+        $found = isset($pairs[$hook]) ? $pairs[$hook] : array();
+        sort($found);
+        if ($found !== array('10@gateway_constructor', '5@load')) {
+            echo "FAIL: a {$takeover_status} boot registers " . json_encode($found) . " on {$hook}, expected the lifecycle at 5 (load) and the gateway fallback at 10 (gateway_constructor).\n";
+            echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
+            exit(1);
+        }
+    }
+}
+echo "Callback routes: wc_upayments and supcheckout each carry the lifecycle at 5 and the gateway fallback at 10 in idle, copying, cut_over, finalized and rolled_back boots.\n";
 
 $json = json_encode($entries, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 
@@ -143,6 +164,7 @@ function surface_invariant_violations(array $frontend, array $static) {
     $required = array(
         'gateway id upayments' => array('kind' => 'gateway', 'id' => 'upayments'),
         'WC-API route wc_upayments' => array('kind' => 'wc_api_route', 'route' => 'wc_upayments'),
+        'WC-API route supcheckout' => array('kind' => 'wc_api_route', 'route' => 'supcheckout'),
         'at least one gateway settings field' => array('kind' => 'gateway_form_field', 'gateway' => 'upayments'),
         'Blocks payment method upayments' => array('kind' => 'blocks_payment_method', 'name' => 'upayments'),
         'action supcheckout_process_due_parent with 3 accepted args' => array('kind' => 'action', 'hook' => 'supcheckout_process_due_parent', 'accepted_args' => 3),

@@ -180,7 +180,8 @@ namespace {
         }
     }
 
-    function t1_child_boot($scenario, $sentinel_priority) {
+    function t1_child_boot($scenario, $sentinel_priority, $route = 'wc_upayments') {
+        $hook = 'woocommerce_api_' . (string) $route;
         $_GET = array();
         $_POST = array();
         $_SERVER = array('REQUEST_METHOD' => 'GET');
@@ -199,7 +200,7 @@ namespace {
         \Simplixi\SUPCheckout\Payment\PaymentLifecycle::bootstrap();
 
         add_action(
-            'woocommerce_api_wc_upayments',
+            $hook,
             function () {
                 echo "LEGACY_SENTINEL\n";
             },
@@ -232,7 +233,7 @@ namespace {
             exit(64);
         }
 
-        t1_do_action('woocommerce_api_wc_upayments');
+        t1_do_action($hook);
 
         // The canonical priority-5 lifecycle must terminate every callback
         // scenario above before control can return here.
@@ -240,14 +241,16 @@ namespace {
         exit(65);
     }
 
-    function t1_run_child($scenario, $sentinel_priority) {
+    function t1_run_child($scenario, $sentinel_priority, $route = 'wc_upayments') {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(__FILE__)
             . ' --child '
             . escapeshellarg((string) $scenario)
             . ' '
-            . escapeshellarg((string) $sentinel_priority);
+            . escapeshellarg((string) $sentinel_priority)
+            . ' '
+            . escapeshellarg((string) $route);
 
         $descriptors = array(
             1 => array('pipe', 'w'),
@@ -299,7 +302,7 @@ namespace {
     if (isset($argv[1]) && $argv[1] === '--child') {
         $scenario = isset($argv[2]) ? (string) $argv[2] : '';
         $priority = isset($argv[3]) ? (int) $argv[3] : 10;
-        t1_child_boot($scenario, $priority);
+        t1_child_boot($scenario, $priority, isset($argv[4]) ? (string) $argv[4] : 'wc_upayments');
     }
 
     $t1_pass = 0;
@@ -379,6 +382,30 @@ namespace {
     t1_assert(
         t1_has($sensitivity['stdout'], 'STATUS:200'),
         'priority sensitivity still reaches the real lifecycle after the earlier sentinel'
+    );
+
+    // 0b Task 8: the supcheckout route carries the same priority-5 lifecycle. Every
+    // scenario above, valid webhook and browser routing included, is byte-identical on
+    // both routes, and a sentinel at the default priority on either route never runs.
+    foreach ($cases as $scenario => $expectations) {
+        $legacy = t1_run_child($scenario, 10, 'wc_upayments');
+        $current = t1_run_child($scenario, 10, 'supcheckout');
+        t1_assert(
+            $current['exit'] === 0 && $current['stderr'] === '',
+            $scenario . ' on supcheckout terminates through the production callback boundary'
+        );
+        foreach ($expectations['must'] as $needle) {
+            t1_assert(t1_has($current['stdout'], $needle), $scenario . ' on supcheckout emits expected evidence: ' . $needle);
+        }
+        foreach ($expectations['must_not'] as $needle) {
+            t1_assert(t1_not_has($current['stdout'], $needle), $scenario . ' on supcheckout excludes forbidden evidence: ' . $needle);
+        }
+        t1_assert($legacy === $current, $scenario . ': wc_upayments and supcheckout are byte-identical');
+    }
+    $route_sensitivity = t1_run_child('webhook-invalid', 4, 'supcheckout');
+    t1_assert(
+        t1_has($route_sensitivity['stdout'], 'LEGACY_SENTINEL') && t1_has($route_sensitivity['stdout'], 'STATUS:200'),
+        'priority sensitivity on supcheckout: an earlier listener runs first, then the real lifecycle at priority 5'
     );
 
     // Static compatibility characterization remains deliberately separate from

@@ -15,6 +15,7 @@ use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\LegacyCallbackListener;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 /**
@@ -194,6 +195,7 @@ class Gateway extends \WC_Payment_Gateway {
         // Custom hooks for front-end rendering, scripts, etc.
         add_filter("woocommerce_get_order_item_totals", [$this, "add_order_item_totals"], 10, 3);
         add_action("woocommerce_api_" . strtolower("WC_UPayments") , [$this, "check_ipn_response", ]);
+        LegacyCallbackListener::register_gateway($this);
         add_filter("woocommerce_gateway_icon", [$this, "custom_payment_gateway_icons"], 10, 2);
         add_action("woocommerce_admin_order_data_after_order_details", [$this, "admin_order_details"], 10, 3);
         add_action("admin_enqueue_scripts", [$this, "admin_enqueue_scripts"]);

@@ -210,9 +210,10 @@ coexistence_assert(
     'SUPCheckout alone defines none of the official plugin\'s constants'
 );
 // The 'upayments' gateway identity is shared with the official plugin until 0b, so a
-// paused SUPCheckout must register no gateway, availability or wc_upayments hook
-// (Plugin::boot() runs only after the pause early-return). A running one registers all three.
-$all_gateway_hooks = 'GATEWAY_HOOKS:["woocommerce_api_wc_upayments","woocommerce_available_payment_gateways","woocommerce_payment_gateways"]';
+// paused SUPCheckout must register no gateway, availability or callback route hook, on
+// either WC-API route (Plugin::boot() runs only after the pause early-return). A running
+// one registers all four: both gateway filters, wc_upayments and, since 0b Task 8, supcheckout.
+$all_gateway_hooks = 'GATEWAY_HOOKS:["woocommerce_api_supcheckout","woocommerce_api_wc_upayments","woocommerce_available_payment_gateways","woocommerce_payment_gateways"]';
 foreach (array(
     'official_first' => $official_first,
     'ours_first' => $ours_first,
@@ -223,7 +224,7 @@ foreach (array(
 ) as $scenario => $result) {
     coexistence_assert(
         strpos($result['out'], 'GATEWAY_HOOKS:[]') !== false,
-        "paused ({$scenario}): SUPCheckout registers no woocommerce_payment_gateways, woocommerce_available_payment_gateways or woocommerce_api_wc_upayments hook"
+        "paused ({$scenario}): SUPCheckout registers no woocommerce_payment_gateways, woocommerce_available_payment_gateways, woocommerce_api_wc_upayments or woocommerce_api_supcheckout hook"
     );
     coexistence_assert(
         strpos($result['out'], 'COPY_RUNNER_HOOKS:0') !== false,
@@ -241,7 +242,7 @@ foreach (array(
 ) as $scenario => $result) {
     coexistence_assert(
         strpos($result['out'], $all_gateway_hooks) !== false,
-        "running ({$scenario}): SUPCheckout registers both gateway filters and the wc_upayments route"
+        "running ({$scenario}): SUPCheckout registers both gateway filters and both callback routes"
     );
     coexistence_assert(strpos($result['out'], 'COPY_RUNNER_HOOKS:2') !== false, "running ({$scenario}): copying registers the copy batch hook and its watchdog exactly once each");
     coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "running ({$scenario}): no PHP warning, notice or deprecation");
@@ -333,7 +334,7 @@ function coexistence_child($root, $scenario, $official_stub) {
     // official stub loads: a paused SUPCheckout must register none of them.
     $gateway_hooks = array();
     foreach (array_merge($GLOBALS['coexistence']['actions'], $GLOBALS['coexistence']['filters']) as $registration) {
-        if (in_array($registration[0], array('woocommerce_payment_gateways', 'woocommerce_available_payment_gateways', 'woocommerce_api_wc_upayments'), true)) {
+        if (in_array($registration[0], array('woocommerce_payment_gateways', 'woocommerce_available_payment_gateways', 'woocommerce_api_wc_upayments', 'woocommerce_api_supcheckout'), true)) {
             $gateway_hooks[] = (string) $registration[0];
         }
     }
