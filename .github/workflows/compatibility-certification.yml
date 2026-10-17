@@ -307,6 +307,18 @@ jobs:
           SUPCHECKOUT_CERT_PHASE: second_cycle
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      # Sub-project 0b Task 11, last because it is irreversible: cut over a third time, then
+      # finalize (refused before 30 days, a read-only dry run, then forced after review).
+      - name: Cut over again and finalize
+        env:
+          SUPCHECKOUT_CERT_PHASE: finalize
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify the finalized store
+        env:
+          SUPCHECKOUT_CERT_PHASE: finalized
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Remove takeover fixtures
         if: ${{ always() }}
         run: |

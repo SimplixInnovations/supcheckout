@@ -22,6 +22,15 @@
  *                                  settings intact, copies and cron twins removed, the
  *                                  post-cutover order back on upayments and still paid,
  *                                  the official plugin active again and SUPCheckout paused.
+ *   SUPCHECKOUT_CERT_PHASE=second_cycle abort out of verified, then a rollback with a later
+ *                                  edit (exit 8);
+ *   SUPCHECKOUT_CERT_PHASE=finalize    (Task 11) cuts over a third time, then `finalize`:
+ *                                  refused before 30 days (exit 6), a read-only dry run, the
+ *                                  irreversible warning without a terminal (exit 1), and
+ *                                  `finalize --yes --force-after-review`;
+ *   SUPCHECKOUT_CERT_PHASE=finalized   in a fresh process: finalized, verified-equal legacy
+ *                                  keys removed and still read through the new names, the
+ *                                  legacy callback route served, rollback/abort/run refused.
  */
 
 require_once __DIR__ . '/bootstrap.php';
@@ -329,4 +338,99 @@ if ($phase === 'rolled_back') {
     return;
 }
 
-throw new RuntimeException('Set SUPCHECKOUT_CERT_PHASE to paused, verify, rollback, rolled_back or second_cycle.');
+if ($phase === 'finalize') {
+    // Sub-project 0b Task 11: a third cutover of the rolled-back store, then the guarded,
+    // irreversible finalize as real WP-CLI commands (forced after review: the CI cell cannot
+    // wait 30 days).
+    supcheckout_cert_assert(is_plugin_active(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL), 'the official plugin stand-in is active after the second cycle');
+    $help = supcheckout_takeover_cert_wp('help supcheckout takeover finalize');
+    supcheckout_cert_assert($help->return_code === 0 && strpos($help->stdout, '--force-after-review') !== false && strpos($help->stdout, '--dry-run') !== false, '`finalize` is registered with --force-after-review and --dry-run: ' . $help->stderr);
+    $run = supcheckout_takeover_cert_wp('supcheckout takeover run --yes --deactivate-official');
+    supcheckout_cert_assert($run->return_code === CliCommands::OK, 'the store is cut over again: ' . $run->stdout . $run->stderr);
+
+    $status = json_decode(trim(supcheckout_takeover_cert_wp('supcheckout takeover status --format=json')->stdout), true);
+    supcheckout_cert_assert(is_array($status) && $status['status'] === 'cut_over' && $status['finalize']['days_left'] === 30 && $status['finalize']['allowed'] === false, 'status shows 30 days until finalize is allowed: ' . wp_json_encode($status['finalize'] ?? null));
+    supcheckout_cert_assert(is_array($status['finalize']['planned']) && $status['finalize']['planned']['order_meta'] >= 2, 'status shows the planned removal');
+
+    $early = supcheckout_takeover_cert_wp('supcheckout takeover finalize --yes');
+    supcheckout_cert_assert($early->return_code === CliCommands::STATE && strpos($early->stdout, '30 day(s)') !== false, 'finalize before 30 days exits 6: ' . $early->stdout . $early->stderr);
+
+    global $wpdb;
+    // Everything a finalize would write, read past the object cache (the dry run runs in
+    // another process): the takeover state, journal and lease, every Keys::options() name,
+    // and every meta row of the seeded orders in either order store.
+    $snapshot = static function () use ($wpdb) {
+        $names = array_merge(array(TakeoverState::OPTION, \Simplixi\SUPCheckout\Takeover\Quiesce::OPTION), array_keys(Keys::options()), array_values(Keys::options()));
+        $list = implode(', ', array_fill(0, count($names), '%s'));
+        $options = $wpdb->get_results($wpdb->prepare(
+            'SELECT option_name, option_value FROM %i WHERE option_name IN (' . $list . ') OR option_name LIKE %s ORDER BY option_name',
+            array_merge(array($wpdb->options), $names, array($wpdb->esc_like(\Simplixi\SUPCheckout\Takeover\Journal::OPTION) . '%'))
+        ), ARRAY_A);
+        $ids = array_map('intval', (array) get_option(SUPCHECKOUT_TAKEOVER_CERT_ORDERS, array()));
+        $meta = array();
+        foreach (array($wpdb->postmeta => 'post_id', $wpdb->prefix . 'wc_orders_meta' => 'order_id') as $table => $column) {
+            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) !== $table) {
+                continue;
+            }
+            $meta[$table] = $wpdb->get_results($wpdb->prepare(
+                'SELECT %i AS object_id, meta_key, meta_value FROM %i WHERE %i IN (' . implode(', ', array_fill(0, count($ids), '%d')) . ') ORDER BY meta_id',
+                array_merge(array($column, $table, $column), $ids)
+            ), ARRAY_A);
+        }
+        return wp_json_encode(array($options, $meta));
+    };
+    $before = $snapshot();
+    $dry = supcheckout_takeover_cert_wp('supcheckout takeover finalize --dry-run --format=json');
+    $plan = json_decode(trim($dry->stdout), true);
+    supcheckout_cert_assert($dry->return_code === CliCommands::OK && is_array($plan) && $plan['would_refuse'] === array('too_early') && $plan['removed']['order_meta'] >= 2, 'the dry run reports what finalize would remove: ' . $dry->stdout . $dry->stderr);
+    supcheckout_cert_assert($snapshot() === $before, 'the dry run wrote nothing (options and post meta unchanged)');
+
+    $unattended = supcheckout_takeover_cert_wp('supcheckout takeover finalize --force-after-review');
+    supcheckout_cert_assert($unattended->return_code === CliCommands::ERROR && strpos($unattended->stdout . $unattended->stderr, 'IRREVERSIBLE') !== false, 'finalize without --yes and without a terminal warns and exits 1: ' . $unattended->stdout . $unattended->stderr);
+    $finalize = supcheckout_takeover_cert_wp('supcheckout takeover finalize --yes --force-after-review');
+    supcheckout_cert_note('finalize output: ' . $finalize->stdout);
+    supcheckout_cert_assert(in_array($finalize->return_code, array(CliCommands::OK, CliCommands::CONFLICTS), true), 'finalize --yes --force-after-review completes (0, or 8 when earlier steps of this shared cell left unequal legacy values): ' . $finalize->stdout . $finalize->stderr);
+    foreach (array('verified', 'finalized', 'orders_removed', 'legacy_removed') as $step) {
+        supcheckout_cert_assert(strpos($finalize->stdout, $step) !== false, 'finalize reached ' . $step);
+    }
+    supcheckout_cert_assert(strpos($finalize->stdout, 'finalized') < strpos($finalize->stdout, 'orders_removed'), 'the transition happens before the legacy names are removed');
+    return;
+}
+
+if ($phase === 'finalized') {
+    supcheckout_cert_assert(!is_plugin_active(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL), 'the official plugin stays deactivated');
+    supcheckout_cert_assert(defined('SUPCHECKOUT_VERSION'), 'SUPCheckout boots fully on a finalized store');
+    $state = TakeoverState::get();
+    supcheckout_cert_assert($state['status'] === TakeoverState::FINALIZED && $state['finalize_forced'] === true, 'state is finalized, forced after review');
+    supcheckout_cert_assert(TakeoverState::is_cut_over(), 'the runtime still sees the switch');
+    supcheckout_cert_assert(!\Simplixi\SUPCheckout\Takeover\Finalize::pending($state), 'no removal is pending');
+    foreach ((array) get_option(SUPCHECKOUT_TAKEOVER_CERT_ORDERS, array()) as $index => $order_id) {
+        $order = wc_get_order((int) $order_id);
+        $expected = 'takeover-cert-pay-' . ($index + 1);
+        supcheckout_cert_assert($order instanceof WC_Order, 'seeded order ' . $order_id . ' exists');
+        supcheckout_cert_assert($order->get_meta('UPayments_PaymentID') === '', 'order ' . $order_id . ': the verified-equal legacy key is removed');
+        supcheckout_cert_assert($order->get_meta('_supcheckout_payment_id') === $expected, 'order ' . $order_id . ': the new key keeps the payment id');
+        supcheckout_cert_assert(Keys::read_order_meta($order, 'UPayments_PaymentID') === $expected, 'order ' . $order_id . ': the runtime still reads it');
+        supcheckout_cert_assert($order->get_meta(Keys::TAKEOVER_COPY_MARKER) === '', 'order ' . $order_id . ': the takeover marker is removed');
+        supcheckout_cert_assert($order->get_payment_method() === 'upayments', 'order ' . $order_id . ': historical payment_method unchanged');
+    }
+    supcheckout_cert_assert(has_action('woocommerce_api_' . Keys::CALLBACK_ROUTE_LEGACY) !== false, 'the legacy callback route is still served');
+    supcheckout_cert_assert(is_array(get_option(Keys::SETTINGS_OPTION)) && is_array(get_option('woocommerce_upayments_settings')), 'the settings and their legacy source are kept');
+    $crons = function_exists('_get_cron_array') ? (array) _get_cron_array() : array();
+    foreach ($crons as $hooks) {
+        foreach (array_keys((array) $hooks) as $hook) {
+            supcheckout_cert_assert(!in_array($hook, Keys::official_only()['cron_hooks'], true), 'no official cron event is left: ' . $hook);
+        }
+    }
+    foreach (array('rollback --yes', 'abort --yes', 'run --yes') as $command) {
+        $refused = supcheckout_takeover_cert_wp('supcheckout takeover ' . $command);
+        supcheckout_cert_assert($refused->return_code === CliCommands::STATE, $command . ' is refused after finalize (exit 6): ' . $refused->stdout . $refused->stderr);
+    }
+    $status = json_decode(trim(supcheckout_takeover_cert_wp('supcheckout takeover status --format=json')->stdout), true);
+    supcheckout_cert_assert(is_array($status) && $status['status'] === 'finalized' && $status['finalize']['pending'] === false && $status['finalize']['forced'] === true, 'status reports the completed finalize: ' . wp_json_encode($status));
+    $sweep = supcheckout_takeover_cert_wp('supcheckout takeover finalize --yes');
+    supcheckout_cert_assert(in_array($sweep->return_code, array(CliCommands::OK, CliCommands::CONFLICTS), true) && strpos($sweep->stdout, 'sweep') !== false, 'finalize on a finalized store only sweeps again: ' . $sweep->stdout . $sweep->stderr);
+    return;
+}
+
+throw new RuntimeException('Set SUPCHECKOUT_CERT_PHASE to paused, verify, rollback, rolled_back, second_cycle, finalize or finalized.');
