@@ -16,7 +16,9 @@ defined('ABSPATH') || exit;
  * the legacy table until is_cut_over(), and Rollback removes the copies before a store can
  * re-enter copying. Every row in it is therefore the takeover's own copy, and a copied row
  * whose legacy row moved on (a live claim advancing from `claimed` to `dispatching`) is
- * refreshed from the legacy row (REPLACE of exactly those keys). Cutover (Task 7) still
+ * refreshed from the legacy row (REPLACE of exactly those keys), and a copied row whose
+ * legacy row was deleted (CycleClaim::release_claimed()) is deleted from the new table over
+ * the copied range, and over the open tail on the last batch. Cutover (Task 7) still
  * re-syncs the whole table under a quiesce; this phase is the bulk copy and its proof.
  *
  * Verification walks the legacy keys again and compares a per-row checksum over every
@@ -57,9 +59,13 @@ final class BillingTableCopier {
         }
         $keys = $store->table_keys_after(CopyStore::TABLE_LEGACY, $cursor, self::BATCH);
         if ($keys === array()) {
+            if (!$store->table_delete_orphans($cursor, null)) {
+                return self::copied(true, $cursor, 0, self::ERROR_READ);
+            }
             return self::copied(true, $cursor, 0, null);
         }
         $last = (string) end($keys);
+        $done = count($keys) < self::BATCH;
         if (!$store->table_insert_missing($columns, $cursor, $last)) {
             return self::copied(true, $cursor, 0, self::ERROR_READ);
         }
@@ -67,7 +73,10 @@ final class BillingTableCopier {
         if ($stale !== array() && !$store->table_replace($columns, $stale)) {
             return self::copied(true, $cursor, 0, self::ERROR_READ);
         }
-        return self::copied(count($keys) < self::BATCH, $last, count($keys), null);
+        if (!$store->table_delete_orphans($cursor, $done ? null : $last)) {
+            return self::copied(true, $cursor, 0, self::ERROR_READ);
+        }
+        return self::copied($done, $last, count($keys), null);
     }
 
     /**

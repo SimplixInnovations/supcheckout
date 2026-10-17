@@ -97,7 +97,8 @@ final class OrderCopierTest extends TestCase {
         self::assertSame(array(), $order->writes);
     }
 
-    public function test_a_foreign_differing_new_value_is_reported_and_never_overwritten(): void {
+    public function test_outside_copying_a_foreign_differing_new_value_is_reported_and_never_overwritten(): void {
+        self::state('cut_over');
         $order = self::stored(new FakeCrudObject(16, 'upayments', array(
             'UPayments_PaymentID' => array('pay-secret-legacy'),
             '_supcheckout_payment_id' => array('pay-secret-foreign'),
@@ -130,9 +131,10 @@ final class OrderCopierTest extends TestCase {
         self::assertTrue(OrderCopier::verify($order)['ok']);
     }
 
-    public function test_a_copy_edited_by_someone_else_is_no_longer_the_copiers_own(): void {
+    public function test_outside_copying_a_copy_edited_by_someone_else_is_no_longer_the_copiers_own(): void {
         $order = self::stored(new FakeCrudObject(18, 'upayments', array('UPayments_PaymentID' => array('pay-1'))));
         OrderCopier::copy($order);
+        self::state('verified');
 
         $order->external_write('_supcheckout_payment_id', array('pay-other'));
         $order->external_write('UPayments_PaymentID', array('pay-2'));
@@ -142,9 +144,10 @@ final class OrderCopierTest extends TestCase {
         self::assertSame(array('pay-other'), $order->persisted_values('_supcheckout_payment_id'));
     }
 
-    public function test_an_unreadable_marker_claims_nothing(): void {
+    public function test_outside_copying_an_unreadable_marker_claims_nothing(): void {
         $order = self::stored(new FakeCrudObject(19, 'upayments', array('UPayments_PaymentID' => array('pay-1'))));
         OrderCopier::copy($order);
+        self::state('preflight_ok');
         $order->external_write(OrderCopier::MARKER_META, array('{not json'));
         $order->external_write('UPayments_PaymentID', array('pay-2'));
 
@@ -152,6 +155,75 @@ final class OrderCopierTest extends TestCase {
 
         self::assertSame(array('UPayments_PaymentID'), $result['mismatches'], 'fail closed: no own copy is assumed');
         self::assertSame(array('pay-1'), $order->persisted_values('_supcheckout_payment_id'));
+    }
+
+    // --- While copying, legacy is authoritative: the new key is set to the legacy list. ---
+
+    public function test_while_copying_an_extra_row_from_a_stale_unlocked_writer_self_heals(): void {
+        $order = self::stored(new FakeCrudObject(40, 'upayments', array('UPayments_PaymentID' => array('pay-1'))));
+        OrderCopier::copy($order);
+        // A stale object without the new key (Scheduler, SubscriptionActions: no order lock)
+        // updates the legacy row and INSERTs a second new-key row.
+        $order->external_write('UPayments_PaymentID', array('pay-2'));
+        $order->external_write('_supcheckout_payment_id', array('pay-1', 'pay-2'));
+        self::assertFalse(OrderCopier::verify($order)['ok']);
+
+        $result = OrderCopier::copy($order);
+
+        self::assertSame(array(), $result['mismatches']);
+        self::assertSame(array('pay-2'), $order->persisted_values('_supcheckout_payment_id'));
+        self::assertTrue(OrderCopier::verify($order)['ok']);
+    }
+
+    public function test_while_copying_a_partially_saved_multi_row_list_self_heals(): void {
+        $order = self::stored(new FakeCrudObject(41, 'upayments', array(
+            'UPayments_WHS' => array('pending', 'failed', 'captured'),
+            '_supcheckout_public_status' => array('pending', 'failed'),
+        )));
+
+        $result = OrderCopier::copy($order);
+
+        self::assertSame(array(), $result['mismatches']);
+        self::assertSame(array('pending', 'failed', 'captured'), $order->persisted_values('_supcheckout_public_status'));
+        self::assertSame(array('pending', 'failed', 'captured'), $order->persisted_values('UPayments_WHS'), 'legacy untouched');
+    }
+
+    public function test_while_copying_a_value_written_by_an_unlocked_writer_between_read_and_save_converges_on_rerun(): void {
+        $order = self::stored(new FakeCrudObject(42, 'upayments', array('UPayments_PaymentID' => array('pay-1'))));
+        // The unlocked writer lands its legacy-only write after the copier read the order.
+        $order->on_save = static function (FakeCrudObject $saved) {
+            $saved->on_save = null;
+            $saved->external_write('UPayments_PaymentID', array('pay-late'));
+        };
+
+        OrderCopier::copy($order);
+        self::assertSame(array('pay-1'), $order->persisted_values('_supcheckout_payment_id'));
+        self::assertFalse(OrderCopier::verify($order)['ok'], 'the late write is not in the copy yet');
+        OrderCopier::copy($order);
+
+        self::assertSame(array('pay-late'), $order->persisted_values('_supcheckout_payment_id'));
+        self::assertTrue(OrderCopier::verify($order)['ok']);
+    }
+
+    public function test_while_copying_the_marker_still_records_what_was_copied(): void {
+        $order = self::stored(new FakeCrudObject(43, 'upayments', array('UPayments_PaymentID' => array('pay-1'), '_supcheckout_payment_id' => array('pay-x'))));
+
+        OrderCopier::copy($order);
+
+        $marker = json_decode((string) $order->persisted_values(OrderCopier::MARKER_META)[0], true);
+        self::assertSame(array('UPayments_PaymentID'), array_keys($marker));
+        self::assertSame(OrderCopier::MARKER_META, \Simplixi\SUPCheckout\Takeover\Keys::TAKEOVER_COPY_MARKER, 'the marker name comes from Keys');
+    }
+
+    public function test_an_unwrappable_row_still_fails_closed_while_copying(): void {
+        $order = self::stored(new FakeCrudObject(44, 'upayments', array('UPayments_TrackID' => array('t-1'))));
+        $order->inject_unwrappable_row('UPayments_PaymentID', 'pay-raw');
+
+        $result = OrderCopier::copy($order);
+
+        self::assertSame(array('UPayments_PaymentID'), $result['mismatches']);
+        self::assertSame(array(), $order->persisted_values('_supcheckout_payment_id'));
+        self::assertSame(array('t-1'), $order->persisted_values('_supcheckout_track_id'));
     }
 
     public function test_hpos_disagreement_copies_the_crud_value_and_reports_postmeta_only_data(): void {

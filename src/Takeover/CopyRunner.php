@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Takeover;
 
 use Simplixi\SUPCheckout\Payment\OrderLock;
+use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
 
 defined('ABSPATH') || exit;
 
@@ -30,8 +31,13 @@ defined('ABSPATH') || exit;
  * swap through OrderLock's primitives) makes a second runner return `busy`.
  *
  * Scheduling: the Action Scheduler action HOOK (group GROUP, no arguments) is registered
- * only while the takeover is copying (register()), and each action queues its own
- * continuation once (schedule(), unique).
+ * only while the takeover is copying (register()). Each action queues its own continuation
+ * once (schedule(), unique), including when another runner holds the lock. An action that
+ * is killed outright queues nothing: watchdog() re-queues a chain with no pending or
+ * running action, but it needs Action Scheduler to be initialized, which it never is when
+ * Plugin::boot() runs (SUPCheckout loads before WooCommerce). Until watchdog() is wired to a
+ * hook that fires after Action Scheduler initializes (a new public-surface entry, not yet
+ * approved), a dead chain is resumed only by an explicit schedule() (CLI or admin UI).
  */
 final class CopyRunner {
     public const ORDER_BATCH = 50;
@@ -117,7 +123,7 @@ final class CopyRunner {
      * @return bool True when an action is queued (now or already).
      */
     public static function schedule($delay = 0) {
-        if (!function_exists('as_schedule_single_action') || !function_exists('as_has_scheduled_action')) {
+        if (!ActionSchedulerBridge::is_ready()) {
             return false;
         }
         if (TakeoverState::get()['status'] !== TakeoverState::COPYING) {
@@ -130,6 +136,17 @@ final class CopyRunner {
     }
 
     /**
+     * Re-queue a dead chain: while copying, with Action Scheduler initialized, queue the
+     * batch action unless one is already pending or running. Safe to call on any request:
+     * schedule() is unique and does nothing outside copying.
+     *
+     * @return bool True when an action is queued (now or already).
+     */
+    public static function watchdog() {
+        return self::schedule();
+    }
+
+    /**
      * The Action Scheduler callback: run steps until the time budget is spent or the runner
      * stops continuing, then queue the continuation.
      *
@@ -137,7 +154,7 @@ final class CopyRunner {
      * `in-progress`, which as_has_scheduled_action() and the unique schedule both count, so
      * queueing it from inside the callback would be refused and the chain would end. At
      * shutdown the action is complete. A process killed outright queues nothing; the cursor
-     * keeps the progress and the next schedule() resumes it.
+     * keeps the progress and watchdog() or an explicit schedule() resumes it.
      *
      * @return void
      */
@@ -156,14 +173,16 @@ final class CopyRunner {
     /**
      * @param string $status A run() status.
      * @return int|null Seconds until the next batch, or null when nothing follows: a
-     *                  finished, stopped or idle runner ends the chain, and a busy one
-     *                  leaves it to the runner holding the lock.
+     *                  finished, stopped or idle runner ends the chain. A busy one retries,
+     *                  because the lock holder may be a killed action whose lock only
+     *                  expires after LOCK_TTL; the unique schedule never duplicates a
+     *                  continuation the holder queues itself.
      */
     public static function continuation_delay($status) {
         if ($status === self::CONTINUE_RUN) {
             return 0;
         }
-        return $status === self::RETRY ? self::RETRY_DELAY : null;
+        return ($status === self::RETRY || $status === self::BUSY) ? self::RETRY_DELAY : null;
     }
 
     /**
@@ -302,13 +321,14 @@ final class CopyRunner {
      */
     private function table(array $progress) {
         $step = BillingTableCopier::copy_batch($this->store, (string) $progress['cursors']['table']);
-        $progress['cursors']['table'] = $step['cursor'];
-        $progress['max_copied_key'] = $step['cursor'];
-        $progress['totals']['table_rows'] += $step['rows'];
         if ($step['error'] !== null) {
             $progress['mismatches']['table'] = self::add_group($progress['mismatches']['table'], array($step['error']));
             return $this->next_phase($progress, true, self::PHASE_FINISH);
         }
+        // Only a successful batch advances the cursor and the copied-key record.
+        $progress['cursors']['table'] = $step['cursor'];
+        $progress['max_copied_key'] = $step['cursor'];
+        $progress['totals']['table_rows'] += $step['rows'];
         return $this->next_phase($progress, $step['done'], self::PHASE_TABLE_VERIFY);
     }
 

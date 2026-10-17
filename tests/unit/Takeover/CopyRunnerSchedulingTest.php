@@ -77,10 +77,41 @@ final class CopyRunnerSchedulingTest extends TestCase {
         self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
-    public function test_only_a_continuing_or_retrying_runner_queues_a_continuation(): void {
+    public function test_a_busy_runner_keeps_the_chain_alive(): void {
+        // A killed action can hold the runner lock for up to LOCK_TTL; its retries see busy.
+        self::assertSame(CopyRunner::RETRY_DELAY, CopyRunner::continuation_delay(CopyRunner::BUSY));
+    }
+
+    public function test_the_watchdog_requeues_a_dead_chain_once_and_only_while_copying(): void {
+        self::state('copying');
+
+        self::assertTrue(CopyRunner::watchdog());
+        self::assertTrue(CopyRunner::watchdog(), 'an action already queued counts');
+        self::assertCount(1, $GLOBALS['supcheckout_as_calls']['scheduled']);
+
+        $GLOBALS['supcheckout_as_calls']['scheduled'] = array();
+        foreach (array('idle', 'preflight_ok', 'verified', 'cut_over') as $status) {
+            self::state($status);
+            self::assertFalse(CopyRunner::watchdog(), $status);
+        }
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
+    }
+
+    public function test_the_watchdog_waits_for_action_scheduler_to_be_initialized(): void {
+        self::state('copying');
+        \Action_Scheduler::$initialized = false;
+        try {
+            self::assertFalse(CopyRunner::watchdog());
+            self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
+        } finally {
+            \Action_Scheduler::$initialized = true;
+        }
+    }
+
+    public function test_only_a_finished_stopped_or_idle_runner_ends_the_chain(): void {
         self::assertSame(0, CopyRunner::continuation_delay(CopyRunner::CONTINUE_RUN));
         self::assertSame(CopyRunner::RETRY_DELAY, CopyRunner::continuation_delay(CopyRunner::RETRY));
-        foreach (array(CopyRunner::VERIFIED, CopyRunner::MISMATCH, CopyRunner::STOPPED, CopyRunner::IDLE, CopyRunner::BUSY) as $status) {
+        foreach (array(CopyRunner::VERIFIED, CopyRunner::MISMATCH, CopyRunner::STOPPED, CopyRunner::IDLE) as $status) {
             self::assertNull(CopyRunner::continuation_delay($status), $status);
         }
     }

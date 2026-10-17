@@ -117,6 +117,18 @@ final class WordPressCopyStoreTest extends TestCase {
         self::assertSame(array('wp_supcheckout_billing_attempts', 'cycle_key', 'state', 'cycle_key', 'state', 'wp_upayments_billing_attempts', 'cycle_key', 'k1', 'k2'), $statement['args']);
     }
 
+    public function test_orphan_deletion_targets_only_new_rows_without_a_legacy_row(): void {
+        $store = new WordPressCopyStore();
+
+        self::assertTrue($store->table_delete_orphans('aa', 'ff'));
+        self::assertTrue($store->table_delete_orphans('ff', null));
+
+        self::assertSame('DELETE n FROM %i n LEFT JOIN %i l ON l.cycle_key = n.cycle_key WHERE n.cycle_key > %s AND n.cycle_key <= %s AND l.cycle_key IS NULL', $this->db->prepared[0]['query']);
+        self::assertSame(array('wp_supcheckout_billing_attempts', 'wp_upayments_billing_attempts', 'aa', 'ff'), $this->db->prepared[0]['args']);
+        self::assertSame('DELETE n FROM %i n LEFT JOIN %i l ON l.cycle_key = n.cycle_key WHERE n.cycle_key > %s AND l.cycle_key IS NULL', $this->db->prepared[1]['query']);
+        self::assertSame(array('wp_supcheckout_billing_attempts', 'wp_upayments_billing_attempts', 'ff'), $this->db->prepared[1]['args']);
+    }
+
     public function test_checksums_cover_every_column_with_null_flags(): void {
         $this->db->results = array(array('row_key' => 'k1', 'row_sum' => str_repeat('a', 32)));
 

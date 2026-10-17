@@ -81,6 +81,15 @@ final class KeysTest extends TestCase {
         }
     }
 
+    public function test_takeover_markers_are_registered_and_never_copied_identities(): void {
+        self::assertSame(array('_supcheckout_takeover_copy_v1'), Keys::takeover_markers());
+        self::assertSame(Keys::TAKEOVER_COPY_MARKER, Keys::takeover_markers()[0]);
+        self::assertNull(Keys::legacy_for(Keys::TAKEOVER_COPY_MARKER), 'no legacy name');
+        foreach (array(Keys::order_meta(), Keys::user_meta(), Keys::product_meta(), Keys::options()) as $map) {
+            self::assertNotContains(Keys::TAKEOVER_COPY_MARKER, $map);
+        }
+    }
+
     public function test_official_only_and_settings_sources_are_never_copied(): void {
         $copied = array_merge(...array_map('array_keys', self::copied_maps()));
         $official = Keys::official_only();

@@ -141,8 +141,9 @@ final class OrderCopierBatchTest extends TestCase {
     }
 
     public function test_mismatches_return_the_takeover_to_preflight_ok_with_a_summary_of_key_names(): void {
-        self::order(1, array('UPayments_PaymentID' => array('pay-secret-1'), '_supcheckout_payment_id' => array('pay-secret-foreign')));
-        self::order(2, array('UPayments_TrackID' => array('track-2')));
+        $broken = self::order(1, array('UPayments_TrackID' => array('track-1')));
+        $broken->inject_unwrappable_row('UPayments_PaymentID', 'pay-secret-1');
+        self::order(2, array('UPayments_TrackID' => array('track-2'), '_supcheckout_track_id' => array('pay-secret-stale')));
 
         $statuses = $this->run_to_end();
 
@@ -350,6 +351,57 @@ final class OrderCopierBatchTest extends TestCase {
 
         self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
         self::assertSame(array('count' => 3, 'keys' => array('checksum', 'row_count')), TakeoverState::get()['mismatches']['table'], 'the changed row, the extra row and the count');
+    }
+
+    public function test_a_legacy_row_released_after_its_copy_leaves_no_orphan_after_a_rerun(): void {
+        for ($i = 1; $i <= 3; $i++) {
+            $this->store->add_legacy_row(self::row($i, 'claimed'));
+        }
+        $this->run_until_phase('table_verify');
+        // CycleClaim::release_claimed() deletes a stale `claimed` row from the legacy table.
+        unset($this->store->tables['legacy'][self::key(2)]);
+
+        $statuses = $this->run_to_end();
+        self::assertSame('mismatch', end($statuses), 'the orphan is detected');
+
+        self::assertTrue(CopyRunner::begin());
+        $statuses = $this->run_to_end();
+        self::assertSame('verified', end($statuses));
+        self::assertArrayNotHasKey(self::key(2), $this->store->tables['new'], 'the orphan copy is deleted');
+        self::assertCount(2, $this->store->tables['new']);
+    }
+
+    public function test_orphans_in_the_new_table_are_removed_over_the_copied_range_and_the_open_tail(): void {
+        for ($i = 1; $i <= 3; $i++) {
+            $this->store->add_legacy_row(self::row($i, 'resolved'));
+        }
+        $this->store->new_table_exists = true;
+        foreach (array(7, 8, 9) as $i) {
+            $this->store->tables['new'][self::key($i)] = self::row($i, 'claimed');
+        }
+
+        $statuses = $this->run_to_end();
+
+        self::assertSame('verified', end($statuses));
+        $legacy = $this->store->tables['legacy'];
+        $new = $this->store->tables['new'];
+        ksort($legacy, SORT_STRING);
+        ksort($new, SORT_STRING);
+        self::assertSame($legacy, $new);
+        self::assertNotSame(array(), $this->store->orphan_deletes);
+        self::assertNull(end($this->store->orphan_deletes)[1], 'the last batch also clears the open tail');
+    }
+
+    public function test_max_copied_key_only_advances_on_a_successful_batch(): void {
+        $this->store->add_legacy_row(self::row(1, 'resolved'));
+        $this->store->new_table_exists = true;
+        $this->store->tables['new'][self::key(1)] = self::row(1, 'claimed');
+        $this->store->fail_replace = true;
+
+        $this->run_to_end();
+
+        self::assertSame('', TakeoverState::get()['max_copied_key'], 'a failed batch records nothing');
+        self::assertSame(array('table_unreadable'), TakeoverState::get()['mismatches']['table']['keys']);
     }
 
     public function test_no_legacy_table_means_nothing_to_copy(): void {

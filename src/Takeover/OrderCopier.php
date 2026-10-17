@@ -14,18 +14,28 @@ defined('ABSPATH') || exit;
  * the new key. Legacy rows are never changed or removed, and neither is payment_method
  * or any payment state: the copier only writes new-name meta and its own marker.
  *
- * Orders are copied under the per-order OrderLock, the same lock (and, in the takeover
- * window, the same pair of names from Keys::ephemeral_names()) the payment runtime takes,
- * and re-read under it, so a runtime write and a copy never interleave and a stale order
- * object can never overwrite a newer value. A contended lock defers the copy; it is never
+ * Orders are copied under the per-order OrderLock (in the takeover window, the pair of
+ * names from Keys::ephemeral_names()) and re-read under it. The payment lifecycle and part
+ * of checkout take the same lock, so those writers never interleave with a copy. Other
+ * runtime writers (the subscription scheduler, customer subscription actions and more)
+ * write without it, so a copy can still race them; the copy rules below converge on the
+ * next run instead of relying on the lock. A contended lock defers the copy; it is never
  * waited for or forced.
  *
- * Ownership. The copier may change a new key only when that key is empty or still holds
- * exactly a value list the copier itself confirmed equal to the legacy list. Those lists
- * are recorded as SHA-256 fingerprints (Journal::fingerprint()) in the object's marker
- * meta MARKER_META, so a legacy value changed later by the official plugin is carried
- * over, while a differing value written by anyone else is reported as a mismatch (by key
- * name only) and kept. An unreadable marker claims nothing.
+ * While the takeover is `copying`, the legacy names are authoritative: every read is
+ * legacy-only until cutover and the window model mirrors every runtime write to both
+ * names. The copier therefore sets each new key to exactly the legacy value list, in
+ * order, whatever the new key holds: an extra row from a stale unlocked writer, a partly
+ * saved multi-row list or a late write all converge on the next copy.
+ *
+ * Outside `copying` the copier is conservative: it changes a new key only when that key is
+ * empty or still holds exactly a list the copier confirmed equal to the legacy list;
+ * anything else is reported as a mismatch (by key name only) and kept. An unreadable
+ * marker claims nothing.
+ *
+ * In every state the confirmed lists are recorded as SHA-256 fingerprints
+ * (Journal::fingerprint()) in the object's marker meta MARKER_META
+ * (Keys::TAKEOVER_COPY_MARKER), the audit record of what was copied.
  *
  * Idempotent: an identical value list is skipped, and an object with nothing to change is
  * not saved. Everything one object needs is written by a single save(), so a failure
@@ -38,7 +48,7 @@ defined('ABSPATH') || exit;
  */
 final class OrderCopier {
     /** Per-object marker: JSON {legacy key: fingerprint of the value list it confirmed}. */
-    public const MARKER_META = '_supcheckout_takeover_copy_v1';
+    public const MARKER_META = Keys::TAKEOVER_COPY_MARKER;
 
     public const COPIED = 'copied';
     public const LOCKED = 'locked';
@@ -106,6 +116,7 @@ final class OrderCopier {
         $object_id = self::id_of($object);
         $raw_marker = $object->get_meta(self::MARKER_META, true, 'edit');
         $marker = self::decode_marker($raw_marker);
+        $legacy_authoritative = TakeoverState::get()['status'] === TakeoverState::COPYING;
         $next_marker = array();
         $result = self::result(self::COPIED);
         $changed = false;
@@ -128,7 +139,7 @@ final class OrderCopier {
                 }
                 continue;
             }
-            if (!self::is_own($new_values, $marker, $legacy)) {
+            if (!$legacy_authoritative && !self::is_own($new_values, $marker, $legacy)) {
                 $result['mismatches'][] = $legacy;
                 continue;
             }

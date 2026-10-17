@@ -135,6 +135,17 @@ interface CopyStore {
     public function table_replace(array $columns, array $keys);
 
     /**
+     * Delete the new table's rows with $after_key < key <= $upto_key that have no legacy
+     * row (a legacy row CycleClaim::release_claimed() removed after it was copied). The
+     * new table has no runtime writer before cutover, so every such row is an orphan copy.
+     *
+     * @param string      $after_key Exclusive lower bound.
+     * @param string|null $upto_key  Inclusive upper bound; null for the open tail.
+     * @return bool
+     */
+    public function table_delete_orphans($after_key, $upto_key);
+
+    /**
      * @param string       $which     TABLE_LEGACY or TABLE_NEW.
      * @param list<string> $columns   Columns in the checksum, in this order.
      * @param string       $after_key Exclusive lower bound.

@@ -37,6 +37,8 @@ final class FakeCrudObject {
     public $object_value_written = false;
     /** @var list<array{0:string,1:mixed}> get_meta calls: [key, context]. */
     public $reads = array();
+    /** @var callable|null function (FakeCrudObject $object): void, an unlocked writer at save() time. */
+    public $on_save = null;
 
     /** @param array<string, list<mixed>> $meta Key => values, in row order. */
     public function __construct(int $id, string $payment_method = 'upayments', array $meta = array(), string $status = 'processing') {
@@ -121,6 +123,9 @@ final class FakeCrudObject {
     }
 
     public function save(): int {
+        if (is_callable($this->on_save)) {
+            call_user_func($this->on_save, $this);
+        }
         if ($this->fail_next_save) {
             $this->fail_next_save = false;
             $this->rows = $this->copy_rows($this->persisted);
@@ -147,6 +152,13 @@ final class FakeCrudObject {
         return array_values(array_unique(array_map(static function ($write) {
             return $write[1];
         }, $this->writes)));
+    }
+
+    /** Add a row without WC_Meta_Data's get_data() (the copier must fail closed on it). */
+    public function inject_unwrappable_row(string $key, string $value): void {
+        $row = (object) array('id' => 0, 'key' => $key, 'value' => $value);
+        $this->rows[] = $row;
+        $this->persisted[] = clone $row;
     }
 
     /**

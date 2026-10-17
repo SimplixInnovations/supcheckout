@@ -43,6 +43,10 @@ final class FakeCopyStore implements CopyStore {
     public $selections = array();
     /** @var int */
     public $table_creates = 0;
+    /** @var bool */
+    public $fail_replace = false;
+    /** @var list<array{0:string,1:string|null}> Orphan deletions: [after, upto]. */
+    public $orphan_deletes = array();
 
     public function order_ids_after($after_id, $limit) {
         $this->selections[] = array('orders', $limit);
@@ -172,9 +176,22 @@ final class FakeCopyStore implements CopyStore {
     }
 
     public function table_replace(array $columns, array $keys) {
+        if ($this->fail_replace) {
+            return false;
+        }
         foreach ($keys as $key) {
             if (isset($this->tables[self::TABLE_LEGACY][$key])) {
                 $this->tables[self::TABLE_NEW][$key] = self::project($this->tables[self::TABLE_LEGACY][$key], $columns);
+            }
+        }
+        return true;
+    }
+
+    public function table_delete_orphans($after_key, $upto_key) {
+        $this->orphan_deletes[] = array((string) $after_key, $upto_key === null ? null : (string) $upto_key);
+        foreach (array_keys($this->tables[self::TABLE_NEW]) as $key) {
+            if ($this->in_range($key, (string) $after_key, $upto_key) && !isset($this->tables[self::TABLE_LEGACY][$key])) {
+                unset($this->tables[self::TABLE_NEW][$key]);
             }
         }
         return true;

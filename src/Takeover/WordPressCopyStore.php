@@ -196,6 +196,21 @@ final class WordPressCopyStore implements CopyStore {
         return $wpdb->query($prepared) !== false;
     }
 
+    public function table_delete_orphans($after_key, $upto_key) {
+        global $wpdb;
+        $sql = 'DELETE n FROM %i n LEFT JOIN %i l ON l.cycle_key = n.cycle_key WHERE n.cycle_key > %s'
+            . ($upto_key === null ? '' : ' AND n.cycle_key <= %s')
+            . ' AND l.cycle_key IS NULL';
+        $args = array(self::table(self::TABLE_NEW), self::table(self::TABLE_LEGACY), (string) $after_key);
+        if ($upto_key !== null) {
+            $args[] = (string) $upto_key;
+        }
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
+        $prepared = $wpdb->prepare($sql, $args);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; removes orphan copies from the takeover-owned new table.
+        return $wpdb->query($prepared) !== false;
+    }
+
     public function table_checksums($which, array $columns, $after_key, $upto_key) {
         global $wpdb;
         $parts = array();
