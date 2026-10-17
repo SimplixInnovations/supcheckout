@@ -49,4 +49,20 @@ if (!function_exists('update_site_option')) {
     }
 }
 
+if (!function_exists('get_file_data')) {
+    /**
+     * WordPress get_file_data(): header values from the first 8 KB of a file.
+     */
+    function get_file_data($file, $default_headers, $context = '') {
+        $data = (string) file_get_contents($file, false, null, 0, 8192);
+        $values = array();
+        foreach ($default_headers as $field => $regex) {
+            $values[$field] = preg_match('/^(?:[ \t]*<\?php)?[ \t\/*#@]*' . preg_quote($regex, '/') . ':(.*)$/mi', $data, $match) === 1
+                ? trim(preg_replace('/\s*(?:\*\/|\?>).*/', '', $match[1]))
+                : '';
+        }
+        return $values;
+    }
+}
+
 supcheckout_test_reset_plugin_registry();

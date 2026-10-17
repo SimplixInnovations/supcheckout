@@ -51,6 +51,9 @@
     <file>src/Takeover/Keys.php</file>
     <file>src/Takeover/TakeoverState.php</file>
     <file>src/Takeover/Journal.php</file>
+    <file>src/Takeover/Environment.php</file>
+    <file>src/Takeover/Preflight.php</file>
+    <file>src/Takeover/OfficialFootprint.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

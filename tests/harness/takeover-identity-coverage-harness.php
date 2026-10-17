@@ -118,6 +118,9 @@ $not_persisted = array(
     'src/Subscription/Manager.php' => array(
         'upayments_payment_success' => array(1, 'action hook the dead Subscription\\Manager listens on; nothing fires it'),
     ),
+    'src/Takeover/Preflight.php' => array(
+        'upay_subscriptions_table_present' => array(1, 'Preflight report code (plan Task 4 table) the 0c UI keys on; a report string, never a storage name'),
+    ),
     'src/Token/CustomerTokenIdentity.php' => array(
         'upayments_token_identity_secret_record_v1' => array(1, 'VERIFIER_DOMAIN HMAC domain separator built into stored secret verifiers; must never be renamed'),
     ),

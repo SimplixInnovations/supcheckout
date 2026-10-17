@@ -118,6 +118,8 @@ final class DualReadTest extends TestCase {
             'src/Payment/ReconciliationSweep.php' => 1,
             'src/Subscription/Cron/Scheduler.php' => 1,
             'src/Subscription/Scheduling/HistoricalEnrollment.php' => 1,
+            // Preflight's pending-order count and HPOS sample (0b Task 4).
+            'src/Takeover/Environment.php' => 2,
             'src/Token/CustomerTokenIdentity.php' => 2,
         );
         $found = array();

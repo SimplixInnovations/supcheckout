@@ -227,6 +227,31 @@ final class PaymentMethodAvailability {
     }
 
     /**
+     * cached() without its side effect, for probe(). WordPress's get_transient()
+     * deletes an expired transient's rows, so it is not a pure read. This reads the
+     * same value it would return: the object cache when one is in use, otherwise the
+     * `_transient_` option, ignored once its `_transient_timeout_` has passed.
+     *
+     * @return array|null
+     */
+    private function peek_cached() {
+        $object_cache = function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache();
+        foreach ($this->transient_names() as $name) {
+            if ($object_cache) {
+                $cached = function_exists('wp_cache_get') ? wp_cache_get($name, 'transient') : false;
+            } else {
+                $timeout = get_option('_transient_timeout_' . $name, null);
+                $expired = $timeout !== null && $timeout !== false && (int) $timeout < time();
+                $cached = $expired ? false : get_option('_transient_' . $name, false);
+            }
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Classify only the strict canonical schema-3 cache shapes.
      *
      * @param mixed $cached Cached value.
@@ -366,6 +391,79 @@ final class PaymentMethodAvailability {
         $transport = call_user_func($this->transport);
         $failure = self::failure_sentinel();
 
+        $payment_methods = self::normalize_provider_response($transport);
+        if ($payment_methods === null) {
+            $this->cache($failure, $new_not_before);
+            return $this->failure_or_last_known_good();
+        }
+
+        $canonical = array(
+            'schema'       => self::CACHE_SCHEMA,
+            'result'       => 'success',
+            'isWhiteLabel' => $payment_methods['isWhiteLabel'],
+            'payButtons'   => $payment_methods['payButtons'],
+        );
+        $this->cache($canonical, $new_not_before);
+        $this->remember_last_known_good($canonical);
+        return $payment_methods;
+    }
+
+    /**
+     * Read-only availability check for the takeover Preflight (credential_unverified).
+     *
+     * Same credential scope, fresh-cache classification, cooldown and provider
+     * normalization as fetch(), but it writes nothing: no rate-gate update, no fresh
+     * cache, failure sentinel or last-known-good write, no advisory lock, and no
+     * get_transient() (which deletes expired rows; peek_cached() reads instead). The
+     * last-known-good copy is not consulted: it is a checkout-resilience stand-in, not
+     * evidence that the current credential works now.
+     *
+     * - empty credential: null, no provider call;
+     * - a fresh canonical success in the cache: that success, no provider call;
+     * - a fresh failure sentinel: array('result' => 'failure'), no provider call;
+     * - no fresh cache while the 65-second gate is closed: array('result' => 'cooldown').
+     *   UPayments documents one availability request per minute and this call cannot
+     *   record one, so it never calls inside the window;
+     * - otherwise exactly one provider call, normalized like fetch(). It is not
+     *   recorded in the gate, so a checkout refresh within the same minute may still
+     *   call once more: the only cost of not writing.
+     *
+     * @return array|null Normalized provider data (result 'success'), a failure or
+     *                    cooldown result, or null when the credential is empty.
+     */
+    public function probe() {
+        if (empty($this->api_key)) {
+            return null;
+        }
+
+        $cached = $this->peek_cached();
+        if ($cached !== null) {
+            $status = self::classify_cached($cached);
+            if ($status === 'success') {
+                return $cached;
+            }
+            if ($status === 'failure') {
+                return array('result' => 'failure');
+            }
+        }
+
+        $gate = $this->rate_gate();
+        if (time() < $gate['not_before']) {
+            return array('result' => 'cooldown');
+        }
+
+        $payment_methods = self::normalize_provider_response(call_user_func($this->transport));
+        return $payment_methods === null ? array('result' => 'failure') : $payment_methods;
+    }
+
+    /**
+     * Strict provider-response normalization shared by fetch() and probe().
+     *
+     * @param mixed $transport Hardened transport outcome.
+     * @return array|null Provider data with result 'success', a boolean isWhiteLabel and
+     *                    exactly the known buttons as 0/1, or null for any failure.
+     */
+    private static function normalize_provider_response($transport) {
         if (!is_array($transport)
             || !isset($transport['transport_ok']) || $transport['transport_ok'] !== true
             || !isset($transport['http_status']) || (int) $transport['http_status'] !== 201
@@ -373,8 +471,7 @@ final class PaymentMethodAvailability {
             || !isset($transport['body']) || !is_scalar($transport['body'])
             || (string) $transport['body'] === ''
         ) {
-            $this->cache($failure, $new_not_before);
-            return $this->failure_or_last_known_good();
+            return null;
         }
 
         $result = json_decode((string) $transport['body'], true);
@@ -382,14 +479,12 @@ final class PaymentMethodAvailability {
             || !array_key_exists('status', $result) || $result['status'] !== true
             || !isset($result['data']) || !is_array($result['data'])
         ) {
-            $this->cache($failure, $new_not_before);
-            return $this->failure_or_last_known_good();
+            return null;
         }
 
         $payment_methods = $result['data'];
         if (!array_key_exists('isWhiteLabel', $payment_methods)) {
-            $this->cache($failure, $new_not_before);
-            return $this->failure_or_last_known_good();
+            return null;
         }
 
         $white_label = $payment_methods['isWhiteLabel'];
@@ -398,8 +493,7 @@ final class PaymentMethodAvailability {
         } elseif ($white_label === false || $white_label === 0 || $white_label === '0') {
             $normalized_white_label = false;
         } else {
-            $this->cache($failure, $new_not_before);
-            return $this->failure_or_last_known_good();
+            return null;
         }
 
         $raw_buttons = isset($payment_methods['payButtons']) && is_array($payment_methods['payButtons'])
@@ -417,22 +511,13 @@ final class PaymentMethodAvailability {
             } elseif ($value === false || $value === 0 || $value === '0') {
                 $normalized_buttons[$button] = 0;
             } else {
-                $this->cache($failure, $new_not_before);
-                return $this->failure_or_last_known_good();
+                return null;
             }
         }
 
-        $canonical = array(
-            'schema'       => self::CACHE_SCHEMA,
-            'result'       => 'success',
-            'isWhiteLabel' => $normalized_white_label,
-            'payButtons'   => $normalized_buttons,
-        );
         $payment_methods['result'] = 'success';
         $payment_methods['isWhiteLabel'] = $normalized_white_label;
         $payment_methods['payButtons'] = $normalized_buttons;
-        $this->cache($canonical, $new_not_before);
-        $this->remember_last_known_good($canonical);
         return $payment_methods;
     }
 }
