@@ -175,7 +175,7 @@ final class Cli {
      * : Finalize before the 30 days have passed (review `--dry-run` first).
      *
      * [--dry-run]
-     * : Print what would be removed, kept and reported; write nothing.
+     * : Print what would be removed, kept and reported, and why a real run would refuse; write nothing. A dry run only reports and always exits 0.
      *
      * [--format=<format>]
      * : Dry-run output format.

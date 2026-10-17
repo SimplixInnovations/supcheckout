@@ -27,6 +27,8 @@ final class WordPressCopyStoreTest extends TestCase {
             public $postmeta = 'wp_postmeta';
             public $usermeta = 'wp_usermeta';
             public $options = 'wp_options';
+            /** @var string */
+            public $last_error = '';
             /** @var list<array{query:string,args:list<mixed>}> */
             public $prepared = array();
             /** @var list<string> */
@@ -256,6 +258,21 @@ final class WordPressCopyStoreTest extends TestCase {
         $this->db->var = 'wp_upayments_billing_attempts';
         self::assertNull((new WordPressCopyStore())->table_rows_updated_after(CopyStore::TABLE_LEGACY, '2026-10-01 00:00:00'));
         self::assertSame(array('query' => 'SELECT COUNT(*) FROM %i WHERE updated_gmt > %s', 'args' => array('wp_upayments_billing_attempts', '2026-10-01 00:00:00')), end($this->db->prepared));
+    }
+
+    public function test_a_database_error_on_a_table_read_is_reported_once(): void {
+        $store = new WordPressCopyStore();
+        $this->db->col = array();
+        $store->table_keys_after(CopyStore::TABLE_LEGACY, '', 500);
+        self::assertFalse($store->table_read_failed());
+
+        $this->db->last_error = 'Lost connection to MySQL server during query';
+        self::assertSame(array(), $store->table_keys_after(CopyStore::TABLE_LEGACY, '', 500));
+        $this->db->last_error = '';
+        $store->table_count(CopyStore::TABLE_LEGACY);
+
+        self::assertTrue($store->table_read_failed(), 'an error on any read since the last check');
+        self::assertFalse($store->table_read_failed(), 'reset by the check');
     }
 
     public function test_transients_go_through_the_transient_api(): void {

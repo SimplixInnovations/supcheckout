@@ -23,6 +23,9 @@ final class WordPressCopyStore implements FinalizeStore {
     /** Rows a checksum read without an upper bound returns at most. */
     private const OPEN_RANGE_LIMIT = 1001;
 
+    /** @var bool A billing-table read hit a database error since table_read_failed() last ran. */
+    private $read_failed = false;
+
     public function order_ids_after($after_id, $limit) {
         return $this->orders_with_keys_after($after_id, $limit, array_keys(Keys::order_meta()));
     }
@@ -270,6 +273,7 @@ final class WordPressCopyStore implements FinalizeStore {
         $prepared = $wpdb->prepare($sql, $args);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above with a dynamic placeholder list; the back-sync must compare live claim states.
         $rows = $wpdb->get_results($prepared, defined('ARRAY_A') ? constant('ARRAY_A') : 'ARRAY_A');
+        $this->note_read();
         $states = array();
         foreach (is_array($rows) ? $rows : array() as $row) {
             if (is_array($row) && isset($row['row_key'], $row['row_state'])) {
@@ -287,6 +291,7 @@ final class WordPressCopyStore implements FinalizeStore {
         $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i WHERE state = %s', self::table($which), (string) $state);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the back-sync precheck must count live rows.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
     }
 
@@ -311,6 +316,7 @@ final class WordPressCopyStore implements FinalizeStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; live schema read.
         $columns = $wpdb->get_col($prepared);
+        $this->note_read();
         if (!is_array($columns)) {
             return array();
         }
@@ -337,6 +343,7 @@ final class WordPressCopyStore implements FinalizeStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the cursor must see live rows.
         $keys = $wpdb->get_col($prepared);
+        $this->note_read();
         return is_array($keys) ? array_values(array_map('strval', $keys)) : array();
     }
 
@@ -414,6 +421,7 @@ final class WordPressCopyStore implements FinalizeStore {
         $prepared = $wpdb->prepare($sql, $args);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; verification must read live rows.
         $rows = $wpdb->get_results($prepared, defined('ARRAY_A') ? constant('ARRAY_A') : 'ARRAY_A');
+        $this->note_read();
         $sums = array();
         foreach (is_array($rows) ? $rows : array() as $row) {
             if (is_array($row) && isset($row['row_key'], $row['row_sum'])) {
@@ -428,6 +436,7 @@ final class WordPressCopyStore implements FinalizeStore {
         $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i', self::table($which));
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; verification must read live rows.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
     }
 
@@ -453,6 +462,7 @@ final class WordPressCopyStore implements FinalizeStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the drain must see live claim state.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
     }
 
@@ -469,6 +479,7 @@ final class WordPressCopyStore implements FinalizeStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the drain must see live claim state.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
     }
 
@@ -511,13 +522,14 @@ final class WordPressCopyStore implements FinalizeStore {
         $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i WHERE updated_gmt > %s', self::table($which), (string) $since_gmt);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; Finalize must count live rows.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
     }
 
     public function drop_legacy_table() {
         global $wpdb;
         $prepared = $wpdb->prepare('DROP TABLE IF EXISTS %i', self::table(self::TABLE_LEGACY));
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above with the identifier through %i. Schema change by design: Finalize retires the plugin-owned legacy billing-attempts table (never the table in use) only after its rows verified equal to the new table under the Quiesce lease.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above with the identifier through %i. Schema change by design: Finalize retires the plugin-owned legacy billing-attempts table (never the table in use) only under the Quiesce lease, after the drain, when no legacy row is claimed, dispatching or newer than the cutover and every legacy row is covered by an equal or later state in the new table (Finalize::table_verdict(), BillingTableCopier::covers()).
         $wpdb->query($prepared);
         return !$this->table_exists(self::TABLE_LEGACY);
     }
@@ -525,6 +537,25 @@ final class WordPressCopyStore implements FinalizeStore {
     public function post_status($post_id) {
         $status = function_exists('get_post_status') ? get_post_status((int) $post_id) : false;
         return is_string($status) && $status !== '' ? $status : null;
+    }
+
+    public function table_read_failed() {
+        $failed = $this->read_failed;
+        $this->read_failed = false;
+        return $failed;
+    }
+
+    /**
+     * Remember a database error on the billing-table read just made: wpdb returns an empty
+     * list or null on an error, which must never pass for "no rows" (Finalize's table drop).
+     *
+     * @return void
+     */
+    private function note_read() {
+        global $wpdb;
+        if (isset($wpdb->last_error) && is_string($wpdb->last_error) && $wpdb->last_error !== '') {
+            $this->read_failed = true;
+        }
     }
 
     /**

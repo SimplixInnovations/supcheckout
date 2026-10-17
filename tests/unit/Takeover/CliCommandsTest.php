@@ -754,6 +754,19 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(CliCommands::OK, $this->cli()->finalize(true, false, false), 'a rerun completes');
     }
 
+    public function test_finalize_on_a_finalized_store_refuses_an_active_official_plugin_before_asking(): void {
+        $this->cut_over();
+        self::assertSame(CliCommands::OK, $this->cli()->finalize(true, true, false));
+        $this->system->official = 'upayments/UPayments.php';
+        $this->questions = array();
+        $this->out = array();
+
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->finalize(false, false, false));
+
+        self::assertSame(array(), $this->questions, 'refused before the confirmation');
+        self::assertStringContainsString('official UPayments plugin', $this->printed());
+    }
+
     public function test_finalize_dry_run_writes_nothing_and_prints_the_plan(): void {
         $this->cut_over();
         self::age(3);

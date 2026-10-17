@@ -33,8 +33,9 @@ defined('ABSPATH') || exit;
  *   exist only for Rollback. SettingsCopier makes no backup: its restore source is the
  *   legacy gateway settings option itself, which is a protected identity and stays (keeping
  *   it is fail-safe; settings reads after cutover take woocommerce_supcheckout_settings first);
- * - official: every Keys::official_only() option (exact and by prefix) and transient. Its
- *   tables are reported by Finalize, never touched;
+ * - official: every Keys::official_only() option (exact and by prefix) and transient, except
+ *   SHARED_OPTIONS (a generic name another plugin may own; reported). Its tables are
+ *   reported by Finalize, never touched;
  * - ephemeral: legacy rows by storage type (Keys::ephemeral_storage()): plain options by
  *   name, transients through delete_transient() plus orphaned timeout rows; GET_LOCK() names
  *   have no rows;
@@ -61,6 +62,13 @@ final class FinalizeRemoval {
     public const FAILED = 'failed';
 
     public const AUDIT = 'none:finalize';
+
+    /**
+     * Keys::official_only() options that Finalize reports but never deletes:
+     * `your_gateway_version` is the generic WooCommerce gateway-template option name, so
+     * another template-derived plugin may own it (Keys keeps it official-only for Preflight).
+     */
+    public const SHARED_OPTIONS = array('your_gateway_version');
 
     /** Option and transient rows per ephemeral step. */
     public const EPHEMERAL_BATCH = 500;
@@ -495,7 +503,7 @@ final class FinalizeRemoval {
         $official = Keys::official_only();
         $missing = new \stdClass();
         $names = array();
-        foreach ($official['options'] as $name) {
+        foreach (array_diff($official['options'], self::SHARED_OPTIONS) as $name) {
             if (get_option($name, $missing) !== $missing) {
                 $names[] = $name;
             }

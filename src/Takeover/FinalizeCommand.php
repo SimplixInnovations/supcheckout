@@ -9,9 +9,11 @@ defined('ABSPATH') || exit;
  * delegates here and Cli turns the exit code into the process exit status.
  *
  * Exit codes (CliCommands' table):
- *  0 OK         finalized (or swept again), or a dry run printed;
+ *  0 OK         finalized (or swept again), or a dry run printed: a dry run only reports
+ *               (its would-refuse reasons included) and always exits 0;
  *  1 ERROR      declined confirmation, or an unexpected failure; rerun to resume;
- *  2 BLOCKED    the official plugin is active (it writes legacy names and ignores the lease);
+ *  2 BLOCKED    the official plugin is active (it writes legacy names, ignores the lease and
+ *               holds its own cron mutex), also on a resume or a sweep of a finalized store;
  *  3 MISMATCH   verification refused before the transition: unreadable journal, disagreeing
  *               token-identity secrets, or no new billing table; nothing changed;
  *  4 BUSY       the takeover lease is held or was lost, the state changed meanwhile, an
@@ -136,6 +138,10 @@ final class FinalizeCommand {
      * @return string|int The confirmation question, or the exit code of a refusal.
      */
     private function question(array $state, $force) {
+        $official = $this->system->official_plugin();
+        if ($official !== null && in_array($state['status'], array(TakeoverState::CUT_OVER, TakeoverState::FINALIZED), true)) {
+            return $this->fail(CliCommands::BLOCKED, 'the official UPayments plugin (' . $official . ') is active; deactivate it, then rerun');
+        }
         if ($state['status'] === TakeoverState::FINALIZED) {
             return 'Sweep the remaining legacy UPayments names again (only values verified equal to their SUPCheckout copies are deleted)?';
         }
@@ -145,10 +151,6 @@ final class FinalizeCommand {
         $days = Finalize::days_left($state, time());
         if ($days > 0 && !$force) {
             return $this->fail(CliCommands::STATE, 'finalize is allowed in ' . $days . ' day(s) (' . gmdate('Y-m-d', Finalize::due_at($state)) . ' UTC); review `wp supcheckout takeover finalize --dry-run`, then rerun with --force-after-review to finalize earlier');
-        }
-        $official = $this->system->official_plugin();
-        if ($official !== null) {
-            return $this->fail(CliCommands::BLOCKED, 'the official UPayments plugin (' . $official . ') is active; deactivate it, then rerun');
         }
         return 'Finalize is IRREVERSIBLE: rollback will no longer be possible, and every legacy UPayments name verified equal to its SUPCheckout copy is deleted (values that differ are kept and reported). Finalize now?';
     }

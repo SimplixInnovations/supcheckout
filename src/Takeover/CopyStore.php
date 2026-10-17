@@ -89,6 +89,7 @@ interface CopyStore {
     public function load_product($product_id);
 
     /**
+     * @phpstan-impure
      * @param string $which TABLE_LEGACY or TABLE_NEW.
      * @return bool
      */

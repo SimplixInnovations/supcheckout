@@ -163,6 +163,9 @@ final class FakeCopyStore implements FinalizeStore {
 
     public function table_keys_after($which, $after_key, $limit) {
         $this->selections[] = array('table_' . $which, $limit);
+        if ($this->fail_legacy_keys && $which === self::TABLE_LEGACY) {
+            return array();
+        }
         $keys = array();
         foreach (array_keys($this->tables[$which]) as $key) {
             if (strcmp((string) $key, (string) $after_key) > 0) {
@@ -425,6 +428,14 @@ final class FakeCopyStore implements FinalizeStore {
     public $fail_drop = false;
     /** @var int */
     public $drops = 0;
+    /** @var bool table_keys_after() on the legacy table returns nothing (a read error). */
+    public $fail_legacy_keys = false;
+    /** @var bool table_read_failed() reports a read error. */
+    public $read_error = false;
+
+    public function table_read_failed() {
+        return $this->read_error;
+    }
 
     public function finalize_order_ids_after($after_id, $limit) {
         $this->selections[] = array('finalize_orders', $limit);

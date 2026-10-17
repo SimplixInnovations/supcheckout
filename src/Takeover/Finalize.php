@@ -50,7 +50,9 @@ defined('ABSPATH') || exit;
  * names a straggler wrote and retries a kept table).
  *
  * Never removed: the legacy callback route (served forever by LegacyCallbackListener),
- * the gateway settings sources (woocommerce_upayments_settings is a protected identity and
+ * generic gateway-template option names another plugin may own
+ * (FinalizeRemoval::SHARED_OPTIONS, reported), the gateway settings sources
+ * (woocommerce_upayments_settings is a protected identity and
  * keeping it is fail-safe: settings reads take the new option first), translated
  * third-party values, other plugins' data, the official tables and the "Checkout (Block)"
  * page (reported only). The takeover's own third-party backups exist only for Rollback and
@@ -274,9 +276,7 @@ final class Finalize {
      */
     private function verification_failures() {
         $failures = array();
-        $official = $this->system->official_plugin();
-        if ($official !== null) {
-            $this->report['official'] = $official;
+        if ($this->official_active()) {
             $failures[] = 'official_active';
         }
         try {
@@ -294,9 +294,23 @@ final class Finalize {
     }
 
     /**
+     * @return bool True (and reported) while an official plugin install is active: it writes
+     *              legacy names, ignores the lease and holds its own cron mutex
+     *              (`upayments_cron_lock`), so nothing it owns may be removed under it.
+     */
+    private function official_active() {
+        $official = $this->system->official_plugin();
+        if ($official === null) {
+            return false;
+        }
+        $this->report['official'] = $official;
+        return true;
+    }
+
+    /**
      * Reported, never removed (read before the removal deletes the page's option).
      *
-     * @return array{block_checkout_page: array{page_id:int, status:string}|null, official_tables: list<string>, callback_route: string}
+     * @return array{block_checkout_page: array{page_id:int, status:string}|null, official_tables: list<string>, shared_options: list<string>, callback_route: string}
      */
     private function capture_reported() {
         $page = null;
@@ -311,7 +325,13 @@ final class Finalize {
                 $tables[] = $table;
             }
         }
-        return array('block_checkout_page' => $page, 'official_tables' => $tables, 'callback_route' => Keys::CALLBACK_ROUTE_LEGACY);
+        $shared = array();
+        foreach (FinalizeRemoval::SHARED_OPTIONS as $name) {
+            if (get_option($name, null) !== null) {
+                $shared[] = $name;
+            }
+        }
+        return array('block_checkout_page' => $page, 'official_tables' => $tables, 'shared_options' => $shared, 'callback_route' => Keys::CALLBACK_ROUTE_LEGACY);
     }
 
     /**
@@ -321,6 +341,9 @@ final class Finalize {
      * @return array{ok:bool, removed:array<string,int>, kept:list<array<string,mixed>>, reported:array<string,mixed>, forced:bool, error:string|null, steps:list<string>, report:array<string,mixed>}
      */
     private function sweep(array $state) {
+        if ($this->official_active()) {
+            return $this->result('official_active');
+        }
         if (self::pending($state)) {
             return $this->resume();
         }
@@ -341,6 +364,9 @@ final class Finalize {
      * @return array{ok:bool, removed:array<string,int>, kept:list<array<string,mixed>>, reported:array<string,mixed>, forced:bool, error:string|null, steps:list<string>, report:array<string,mixed>}
      */
     private function resume() {
+        if ($this->official_active()) {
+            return $this->result('official_active');
+        }
         try {
             TakeoverState::refresh();
             $progress = self::progress_of(TakeoverState::get());
@@ -372,6 +398,9 @@ final class Finalize {
      * @return string|null Error code.
      */
     private function remove(array $removal) {
+        if ($this->official_active()) {
+            return 'official_active';
+        }
         $locked = 0;
         while (true) {
             $phase = isset($removal['phase']) ? (string) $removal['phase'] : FinalizeRemoval::PHASE_CRON;
@@ -436,6 +465,11 @@ final class Finalize {
      * @return bool|string True once settled, false for another pass, or an error code.
      */
     private function end_pass() {
+        // Reactivated meanwhile: it would delete and rewrite its own legacy names (and its
+        // cron mutex) under the rescans, which could never settle.
+        if ($this->official_active()) {
+            return 'official_active';
+        }
         if ($this->pass === 1) {
             $this->step('legacy_swept');
             $this->settle();
@@ -499,6 +533,10 @@ final class Finalize {
             return $out;
         }
         try {
+            // Another run may have retired it while this one waited for the lease.
+            if (!$this->store->table_exists(CopyStore::TABLE_LEGACY)) {
+                return $out;
+            }
             $verdict = $this->drain_legacy();
             $rows = 0;
             if ($verdict === null) {
@@ -587,6 +625,28 @@ final class Finalize {
      * @return array{0:string|null, 1:int} [null when droppable, else why it is kept; rows concerned].
      */
     private function table_verdict(array $state) {
+        $this->store->table_read_failed();
+        $verdict = $this->table_rows_verdict($state);
+        if ($verdict[0] === 'lease_lost') {
+            return $verdict;
+        }
+        if ($this->store->table_read_failed()) {
+            return array('table_unreadable', 0);
+        }
+        if ($verdict[0] === null) {
+            $verdict = $this->report_checksums();
+        }
+        if ($this->store->table_read_failed()) {
+            return array('table_unreadable', 0);
+        }
+        return $verdict;
+    }
+
+    /**
+     * @param array<string, mixed> $state State.
+     * @return array{0:string|null, 1:int} As table_verdict(), before the read-error check.
+     */
+    private function table_rows_verdict(array $state) {
         $claimed = $this->store->table_count_state(CopyStore::TABLE_LEGACY, 'claimed');
         $dispatching = $this->store->table_count_state(CopyStore::TABLE_LEGACY, 'dispatching');
         $newer = $this->store->table_rows_updated_after(CopyStore::TABLE_LEGACY, gmdate('Y-m-d H:i:s', (int) $state['cut_over_at']));
@@ -604,9 +664,11 @@ final class Finalize {
         }
         $missing = 0;
         $behind = 0;
+        $seen = 0;
         $cursor = '';
         do {
             $keys = $this->store->table_keys_after(CopyStore::TABLE_LEGACY, $cursor, BillingTableCopier::BATCH);
+            $seen += count($keys);
             $legacy = $this->store->table_states(CopyStore::TABLE_LEGACY, $keys);
             $new = $this->store->table_states(CopyStore::TABLE_NEW, $keys);
             foreach ($keys as $key) {
@@ -621,7 +683,12 @@ final class Finalize {
                 return array('lease_lost', 0);
             }
         } while (count($keys) === BillingTableCopier::BATCH);
-        $this->report_checksums();
+        // Fail closed: a key read that stopped short (a database error returns no keys) must
+        // never let the drop run on rows it did not see.
+        $count = $this->store->table_count(CopyStore::TABLE_LEGACY);
+        if ($count === null || $count !== $seen) {
+            return array('table_unreadable', 0);
+        }
         if ($missing > 0) {
             return array('legacy_rows_missing_in_new', $missing);
         }
@@ -629,10 +696,11 @@ final class Finalize {
     }
 
     /**
-     * Information only: how many rows differ between the two tables by per-row checksum
-     * (expected after renewals while cut over).
+     * Information only, for a table about to be dropped: how many rows differ between the two
+     * tables by per-row checksum (expected after renewals while cut over). Renews the lease
+     * per batch.
      *
-     * @return void
+     * @return array{0:string|null, 1:int} [null, 0], or ['lease_lost', 0].
      */
     private function report_checksums() {
         $cursor = '';
@@ -641,8 +709,12 @@ final class Finalize {
             $step = BillingTableCopier::back_verify_batch($this->store, $cursor);
             $differing += $step['mismatches'] - (in_array(BillingTableCopier::ROW_COUNT, $step['codes'], true) ? 1 : 0);
             $cursor = $step['cursor'];
+            if ($this->lease !== null && !$this->lease->maybe_renew()) {
+                return array('lease_lost', 0);
+            }
         } while (!$step['done']);
         $this->reported['billing_table_checksums'] = array('differing_rows' => $differing);
+        return array(null, 0);
     }
 
     /**

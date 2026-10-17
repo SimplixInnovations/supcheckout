@@ -75,6 +75,16 @@ interface FinalizeStore extends RollbackStore {
     public function drop_legacy_table();
 
     /**
+     * Whether any billing-table read since the previous call hit a database error (a failed
+     * read returns an empty list or null, which must never pass for "no rows"). Resets the flag.
+     *
+     * @phpstan-impure
+     *
+     * @return bool
+     */
+    public function table_read_failed();
+
+    /**
      * @param int $post_id Post ID.
      * @return string|null Its post status, or null when it does not exist.
      */

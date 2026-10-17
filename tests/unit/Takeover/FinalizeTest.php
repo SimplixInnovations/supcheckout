@@ -484,6 +484,7 @@ final class FinalizeTest extends TestCase {
             $kept = self::kept($result);
             self::assertArrayHasKey('billing_table:' . $this->legacy_table() . ':' . $reason, $kept, $case . ': ' . json_encode($result['kept']));
             self::assertSame(1, $kept['billing_table:' . $this->legacy_table() . ':' . $reason]['count'], $case . ': reported by count');
+            self::assertArrayNotHasKey('billing_table_checksums', $result['reported'], $case . ': no informational checksum pass once the table is kept');
             self::assertStringNotContainsString(self::key('1'), (string) json_encode($result), $case . ': never a cycle key or value');
         }
     }
@@ -538,6 +539,89 @@ final class FinalizeTest extends TestCase {
         self::assertGreaterThan(0, $cut_over_at);
     }
 
+    public function test_a_sweep_or_resume_with_the_official_plugin_active_is_refused_and_writes_nothing(): void {
+        foreach (array('sweep', 'resume') as $case) {
+            $this->setUp();
+            $order = $this->seed_cut_over();
+            if ($case === 'sweep') {
+                self::assertTrue($this->finalize()->run(true)['ok'], $case);
+            } else {
+                $this->system->on_step = static function ($step) {
+                    if ($step === 'caches_flushed') {
+                        throw new \RuntimeException('killed');
+                    }
+                };
+                self::assertSame('error', $this->finalize()->run(true)['error'], $case);
+                $this->system->on_step = null;
+                self::assertTrue(Finalize::pending(TakeoverState::get()), $case);
+            }
+            // The official plugin was reactivated meanwhile: it holds its cron mutex and writes legacy names.
+            $this->system->official = 'upayments/UPayments.php';
+            $order->external_write('UPayments_TrackID', array('t-1'));
+            $order->external_write('_supcheckout_track_id', array('t-1'));
+            $GLOBALS['supcheckout_test_options']['_transient_upayments_cron_lock'] = '1';
+            $this->system->events[] = array('timestamp' => self::T0 + 60, 'hook' => 'upay_hourly_cron_job', 'args' => array(), 'schedule' => 'hourly');
+            $options = $GLOBALS['supcheckout_test_options'];
+            $events = $this->system->events;
+            $journal = count(Journal::entries());
+
+            $result = $this->finalize()->run(false);
+
+            self::assertSame('official_active', $result['error'], $case);
+            self::assertSame($options, $GLOBALS['supcheckout_test_options'], $case . ': no option, state, journal or lock write');
+            self::assertSame($events, $this->system->events, $case . ': its cron events stay');
+            self::assertSame($journal, count(Journal::entries()), $case);
+            self::assertSame(array('t-1'), $order->persisted_values('UPayments_TrackID'), $case);
+        }
+    }
+
+    public function test_a_legacy_table_read_error_keeps_the_table(): void {
+        foreach (array('keys_unreadable', 'read_error') as $case) {
+            $this->setUp();
+            $this->seed_cut_over();
+            if ($case === 'keys_unreadable') {
+                // table_keys_after() returns no key on a database error.
+                $this->store->fail_legacy_keys = true;
+            } else {
+                $this->store->read_error = true;
+            }
+
+            $result = $this->finalize()->run(true);
+
+            self::assertNull($result['error'], $case . ': ' . json_encode($result));
+            self::assertTrue($this->store->table_exists('legacy'), $case . ': kept');
+            self::assertSame(0, $this->store->drops, $case);
+            self::assertArrayHasKey('billing_table:' . $this->legacy_table() . ':table_unreadable', self::kept($result), $case . ': ' . json_encode($result['kept']));
+        }
+    }
+
+    public function test_a_legacy_table_another_run_retired_during_the_lease_wait_is_not_counted_twice(): void {
+        $this->seed_cut_over();
+        $store = $this->store;
+        $armed = false;
+        $this->system->on_step = static function ($step) use (&$armed) {
+            $armed = $armed || $step === 'rescanned';
+        };
+        $this->system->on_now = static function () use ($store, &$armed) {
+            if ($armed) {
+                // A concurrent finalize retired the table while this one waited for the lease.
+                $armed = false;
+                $store->legacy_table_exists = false;
+                $store->tables['legacy'] = array();
+            }
+        };
+
+        $result = $this->finalize()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(0, $result['removed']['billing_table'], 'not counted as this run\'s drop');
+        self::assertSame(0, $this->store->drops);
+        self::assertContains('table_absent', $result['steps']);
+        self::assertSame(array(), array_values(array_filter(Journal::entries(), static function ($entry) {
+            return $entry['path'] === 'billing_attempts:drop';
+        })), 'no spurious drop is journaled');
+    }
+
     public function test_official_leftovers_and_legacy_ephemeral_rows_are_removed_by_storage_type(): void {
         $this->seed_cut_over();
         $this->seed_leftovers();
@@ -546,7 +630,7 @@ final class FinalizeTest extends TestCase {
         $result = $this->finalize()->run(true);
 
         self::assertTrue($result['ok'], (string) json_encode($result));
-        foreach (array('your_gateway_version', 'upayments_block_checkout_page_id', 'upay_subscription_settings', 'external_updates-upayments',
+        foreach (array('upayments_block_checkout_page_id', 'upay_subscription_settings', 'external_updates-upayments',
             'external_updates-upayments-woocommerce', '_transient_upayments_cron_lock', '_transient_timeout_upayments_cron_lock',
             'simplixpay_upay_order_lock_v1_99', 'simplixpay_upay_status_v1_0123456789abcdef_bucket', 'upayments_payment_methods_rate_gate_live',
             '_transient_upay_pm_v3_0123456789abcdef', '_transient_timeout_upay_pm_v3_0123456789abcdef', '_transient_timeout_upay_pm_v3_fedcba9876543210') as $name) {
@@ -559,7 +643,9 @@ final class FinalizeTest extends TestCase {
         self::assertNotContains('upay_hourly_cron_job', $this->hooks());
         self::assertNotContains('puc_cron_check_updates-upayments', $this->hooks());
         self::assertContains('other_plugin_cron', $this->hooks());
-        self::assertSame(5, $result['removed']['official_options']);
+        self::assertSame(4, $result['removed']['official_options']);
+        self::assertSame('3.0.0', get_option('your_gateway_version'), 'a generic gateway-template option name another plugin may own: never deleted');
+        self::assertSame(array('your_gateway_version'), $result['reported']['shared_options']);
         self::assertSame(1, $result['removed']['official_transients']);
         self::assertSame(2, $result['removed']['official_cron']);
         self::assertSame(3, $result['removed']['ephemeral_options']);
