@@ -98,7 +98,7 @@ No public GitHub Release or WordPress.org publication is authorized.
 
 ## Protected compatibility identities
 
-Never mechanically/global-replace provider/payment/persisted identities. Protected by default:
+Never mechanically/global-replace provider/payment/persisted identities. Protected until migrated by the approved takeover (Sub-project 0b, `src/Takeover/`, whose real-WordPress migration matrix is `.github/workflows/takeover-migration-matrix.yml`), with the legacy callback route `wc_upayments` permanent:
 
 - gateway/payment method ID `upayments`;
 - `woocommerce_upayments_settings`;
@@ -114,7 +114,7 @@ Never mechanically/global-replace provider/payment/persisted identities. Protect
 - public compatibility wrapper `getAPIUrlForRetreiveCards()`;
 - normalized `whitelabled` compatibility shape.
 
-Changing one requires an explicitly approved migration contract with old/new precedence, upgrade, rollback/failure semantics and regression evidence.
+The approved takeover is that migration contract: it copies (never moves) each identity to its `supcheckout` name through `Keys`, keeps every legacy name until Finalize, never rewrites historical order `payment_method`, and serves `wc_upayments` forever. Identities that `Keys` does not map stay protected unconditionally; the takeover never migrates them: provider API field, path and schema terminology; the public compatibility wrapper `getAPIUrlForRetreiveCards()`; the normalized `whitelabled` compatibility shape; and the frozen Phase 9I migration identities: the provenance values `legacy_compat` / `legacy_verified_capture`. The two Phase 9I ledger key names, `simplixpay_upayments_migration_v1` and `_simplixpay_upayments_migration_result_v1`, are mapped in `Keys` and are copied with their values unchanged. Changing an identity outside the takeover still requires an explicitly approved migration contract with old/new precedence, upgrade, rollback/failure semantics and regression evidence.
 
 ## Main file
 
@@ -130,6 +130,7 @@ Do not remove, skip, soften or blanket-ignore:
 - `.github/workflows/provider-sandbox-certification.yml`;
 - `.github/workflows/release-artifact.yml`;
 - `.github/workflows/wordpress-org-submission-check.yml`;
+- `.github/workflows/takeover-migration-matrix.yml`;
 - CodeQL/security analysis;
 - architecture harnesses;
 - Quality Platform Q1-Q19 harnesses;
