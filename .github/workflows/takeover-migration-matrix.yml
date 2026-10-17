@@ -77,22 +77,23 @@ jobs:
         include:
           # Provenance: github.com/upaymentskwt/woocommerce, resolved with `git ls-remote`
           # on 2026-10-18 (2.x exist only as branches; 3.x are tags). `tree` is the SHA-256 of
-          # the sorted `sha256sum` list of every file in the codeload archive of that commit.
+          # the sorted `sha256sum` list (text mode) of every file in the codeload archive of that
+          # commit, computed on two machines from independent downloads.
           - ref: V2.0.5
             commit: 830ae6abbe9f8e7a0b0e477db91832705c9dc1de
-            tree: 729de85cece1727da1fd7de9a733eae937908e42c19083603dc65948bda8496d
+            tree: 2ece0979458810515c0abc025122e1d26db0152d732b5654a3725b072c7fdf5c
             version: '2.0.5'
           - ref: upayments-V2.2.1
             commit: fe02cf65809ad4eccc519de22a7a4c2f1659a96a
-            tree: 0ee281e21a9eecdc2295a1947ce94864ca98587c665843281f90972335a01081
+            tree: ecfac77c9e0d0b457180f653548a5c12668ecd14dc390f8afc9149e68ef8722f
             version: '2.2.1'
           - ref: '3.0.0'
             commit: 5a2efd4d859db2b8d583f3f9fe230eac300d2dc7
-            tree: c00e144ea436e0fb00f0b4d52023a33f5adb3d224899701501799cbed8df7bf9
+            tree: 1c622c6bcfb4d6c9ff20852454916f5e14e34104c5c46a8f99952a930de73f7a
             version: '3.0.0'
           - ref: '3.1.1'
             commit: 0916b6d8b7adcbf02983e534db1c89bf6029f143
-            tree: d95581891b709091987d8897d64c1a469d38ceed6731bae5562b5b67c890024f
+            tree: 75cb86737e84f7a81a43b774bc976f0d0bddcc5081eda26deae2b032e810b1d1
             version: '3.1.1'
           - storage: hpos
             wcml: 'yes'
@@ -390,7 +391,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/wordpress/wp-content/mu-plugins" "$RUNNER_TEMP/matrix"
           cp tests/integration/fixtures/takeover-matrix-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-matrix.php"
           echo "SUPCHECKOUT_MATRIX_DIR=$RUNNER_TEMP/matrix" >> "$GITHUB_ENV"
-          bash tests/integration/takeover-matrix.sh install-official "$RUNNER_TEMP/wordpress" 0916b6d8b7adcbf02983e534db1c89bf6029f143 d95581891b709091987d8897d64c1a469d38ceed6731bae5562b5b67c890024f 3.1.1
+          bash tests/integration/takeover-matrix.sh install-official "$RUNNER_TEMP/wordpress" 0916b6d8b7adcbf02983e534db1c89bf6029f143 75cb86737e84f7a81a43b774bc976f0d0bddcc5081eda26deae2b032e810b1d1 3.1.1
           wp plugin activate upayments
           bash tests/integration/takeover-matrix.sh start-server "$RUNNER_TEMP/wordpress"
 
