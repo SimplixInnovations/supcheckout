@@ -1,13 +1,13 @@
 <?php
 
-namespace UPayments\Subscription\Helpers {
+namespace Simplixi\SUPCheckout\Subscription\Helpers {
     class Utils {
         public static function cartHasCustomType() { return false; }
         public static function cartHasNormalProduct() { return false; }
     }
 }
 
-namespace UPayments\Subscription\Cron {
+namespace Simplixi\SUPCheckout\Subscription\Cron {
     class Scheduler {
         /** @return void */
         public static function init() {}

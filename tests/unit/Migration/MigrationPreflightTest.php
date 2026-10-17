@@ -6,7 +6,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 use Simplixi\SUPCheckout\Migration\MigrationPreflight;
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 final class MigrationPreflightTest extends TestCase {
     protected function setUp(): void {

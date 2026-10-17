@@ -186,6 +186,14 @@ The harness now also holds the file to that shape:
 
 The public-surface snapshot is unchanged.
 
+Sub-project 0a Task 6 leaves `supcheckout.php` unchanged (938 bytes) and deletes `includes/`. Each file moves with history into `src/` under `Simplixi\SUPCheckout\`, so no SUPCheckout class shares the `UPayments\` namespace or the global namespace with the official plugin:
+- `Token\CustomerTokenIdentity`;
+- `Subscription\Manager`, `Subscription\Checkout\Fields` and `Subscription\Helpers\Utils`;
+- `Subscription\Cron\CycleClaim` and `Subscription\Cron\Scheduler`;
+- `Blocks\PaymentMethodType`, which was the global `WCGatewayUPaymentsBlocks`.
+
+Only the namespace line and imports change, with two exceptions in the Blocks adapter. It drops its stale global-prefix `phpcs:ignore`. Its `plugin_url` now resolves from `dirname(__FILE__, 2)`, so the value is still the plugin root one directory deeper. The autoloader replaces the explicit requires of these files; Scheduler's own top-of-file requires stay byte-identical. The reviewed Scheduler and CycleClaim blob pins move to the new paths and blobs. Persisted identities are unchanged, including `upay_process_subscriptions`, `upayments_token_identity_secret_v2`, H12 provenance keys, `_upay_*` meta and the Blocks name `upayments`. The public-surface snapshot is unchanged.
+
 ### Monolith ratchet contract
 
 The permanent architecture harness records the **exact accepted `supcheckout.php` byte size for the current architecture milestone**, not merely the original entry ceiling. The main file was `UPayments.php` until the Sub-project 0a rename; the byte figures above for earlier tranches are that file's history. Any tranche that changes `supcheckout.php` must update that accepted size to the exact reviewed post-change size, so every shrink becomes the next ratchet point instead of allowing later regrowth back to 257,832 bytes.
@@ -201,14 +209,14 @@ Normal architecture tranches may hold or reduce the ratchet. Increasing it is me
 - `src/Payment/` — `PaymentLifecycle`, `StatusVerifier`, `ProviderResult`, `StatusRateGate`, `OrderLock`;
 - `src/Security/` — public order-status authorization boundary.
 
-Legacy but already separated protected areas remain under `includes/`:
+Legacy but already separated protected areas (under `includes/` until Sub-project 0a Task 6; byte figures are from the original audit):
 
-- `includes/Token/CustomerTokenIdentity.php` — **96,821 bytes**, H12-critical;
-- `includes/Subscription/Cron/Scheduler.php` — **47,965 bytes**;
-- `includes/Subscription/Cron/CycleClaim.php` — **15,954 bytes**;
-- `includes/Subscription/Checkout/Fields.php`;
-- `includes/Subscription/Manager.php`;
-- `includes/class-wc-gateway-upayments-blocks.php` — Blocks gateway integration.
+- `src/Token/CustomerTokenIdentity.php` — **96,821 bytes**, H12-critical;
+- `src/Subscription/Cron/Scheduler.php` — **47,965 bytes**;
+- `src/Subscription/Cron/CycleClaim.php` — **15,954 bytes**;
+- `src/Subscription/Checkout/Fields.php`;
+- `src/Subscription/Manager.php`;
+- `src/Blocks/PaymentMethodType.php` — Blocks gateway integration (was `includes/class-wc-gateway-upayments-blocks.php`).
 
 ## Protected compatibility boundaries
 

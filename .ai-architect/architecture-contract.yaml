@@ -36,7 +36,7 @@ boundaries:
   platform_edges:
     - UPayments.php bootstrap and Simplixi\SUPCheckout\Gateway\Gateway compatibility gateway (id upayments)
     - PaymentLifecycle::handle_callback active wc_upayments callback at priority 5
-    - WCGatewayUPaymentsBlocks compatibility-located Blocks adapter
+    - Simplixi\SUPCheckout\Blocks\PaymentMethodType Blocks adapter (was global WCGatewayUPaymentsBlocks until Sub-project 0a Task 6)
     - PublicOrderStatus
   application_payment:
     - CheckoutOrchestrator
@@ -103,7 +103,7 @@ identity_contracts:
 protected_contracts:
   - UPayments.php physical bootstrap
   - Simplixi\SUPCheckout\Gateway\Gateway class identity (was global WC_Upayments until Sub-project 0a Task 3; gateway id upayments unchanged)
-  - WCGatewayUPaymentsBlocks class identity
+  - Simplixi\SUPCheckout\Blocks\PaymentMethodType class identity (was global WCGatewayUPaymentsBlocks until Sub-project 0a Task 6; Blocks name upayments unchanged)
   - upayments gateway/payment/Blocks identity
   - woocommerce_upayments_settings
   - wc_upayments
@@ -149,7 +149,7 @@ provider_http_egress_baseline:
   - path: src/Payment/StatusVerifier.php
     owner: StatusVerifier::verify
     primitive: wp_remote_get
-  - path: includes/Subscription/Cron/Scheduler.php
+  - path: src/Subscription/Cron/Scheduler.php
     owner: Scheduler renewal dispatch
     primitive: wp_remote_request
 

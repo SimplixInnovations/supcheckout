@@ -1,6 +1,6 @@
 <?php
 
-namespace UPayments\Token {
+namespace Simplixi\SUPCheckout\Token {
     if (!class_exists(CustomerTokenIdentity::class, false)) {
         final class CustomerTokenIdentity {
             const SECRET_INVALID = 'invalid';
@@ -251,7 +251,7 @@ namespace {
             'generation_id' => $generation,
             'verifier' => hash_hmac(
                 'sha256',
-                \UPayments\Token\CustomerTokenIdentity::VERIFIER_DOMAIN . '|1|' . $generation,
+                \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::VERIFIER_DOMAIN . '|1|' . $generation,
                 $secret
             ),
         );

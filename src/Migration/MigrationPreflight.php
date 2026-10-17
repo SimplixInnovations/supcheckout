@@ -1,7 +1,7 @@
 <?php
 namespace Simplixi\SUPCheckout\Migration;
 
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 defined('ABSPATH') || exit;
 

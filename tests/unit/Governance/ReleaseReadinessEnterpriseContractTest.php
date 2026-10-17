@@ -76,7 +76,7 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
     }
 
     public function test_blocks_checkout_uses_server_localized_interaction_copy(): void {
-        $php = self::read_repository_file('includes/class-wc-gateway-upayments-blocks.php');
+        $php = self::read_repository_file('src/Blocks/PaymentMethodType.php');
         $js = self::read_repository_file('assets/js/upayments-block.js');
 
         self::assertStringContainsString("'saved_card_selected'", $php);

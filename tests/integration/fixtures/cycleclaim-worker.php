@@ -40,9 +40,9 @@ if (!is_string($wp_load) || $wp_load === '' || !is_file($wp_load)) {
 }
 
 require_once $wp_load;
-require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/CycleClaim.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/Cron/CycleClaim.php';
 
-use UPayments\Subscription\Cron\CycleClaim;
+use Simplixi\SUPCheckout\Subscription\Cron\CycleClaim;
 
 if (!CycleClaim::maybe_install()) {
     echo json_encode(array('ok' => false, 'mode' => $mode, 'owner' => $owner, 'error' => 'schema_not_ready')) . "\n";

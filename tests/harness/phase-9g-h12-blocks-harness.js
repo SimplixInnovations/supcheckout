@@ -400,7 +400,7 @@ function makeSettings(overrides) {
         product_type: [],
         plugin_url: 'https://example.test/wp-content/plugins/upayments/',
         // Mirrors the server-localized `translation` payload built by
-        // WCGatewayUPaymentsBlocks::get_payment_method_data(). The Blocks
+        // Simplixi\SUPCheckout\Blocks\PaymentMethodType::get_payment_method_data(). The Blocks
         // script owns no customer-facing English of its own.
         translation: {
             purchase_type_label: 'Purchase Type',
@@ -1850,7 +1850,7 @@ record(true, 'H-ST-1 harness initializes', 'harness');
 // produced by the PHP Blocks adapter, and the harness fixture must not drift
 // from that payload.
 {
-    const blocksPhp = fs.readFileSync(path.join(ROOT, 'includes', 'class-wc-gateway-upayments-blocks.php'), 'utf8');
+    const blocksPhp = fs.readFileSync(path.join(ROOT, 'src', 'Blocks', 'PaymentMethodType.php'), 'utf8');
     const blocksJs = fs.readFileSync(path.join(ROOT, 'assets', 'js', 'upayments-block.js'), 'utf8');
     const readKeys = new Set();
     (blocksJs.match(/text\('([a-z_]+)'\)/g) || []).forEach(function (m) {

@@ -39,7 +39,7 @@ $status = q11_read($q11_root, 'docs/project/PROJECT-STATUS.md');
 $readme = q11_read($q11_root, 'README.md');
 $handoff = q11_read($q11_root, 'docs/project/NEW-CHAT-HANDOFF.md');
 $playbook = q11_read($q11_root, 'docs/project/MASTER-ENGINEERING-PLAYBOOK.md');
-$scheduler = q11_read($q11_root, 'includes/Subscription/Cron/Scheduler.php');
+$scheduler = q11_read($q11_root, 'src/Subscription/Cron/Scheduler.php');
 
 q11_assert(q11_contains($phpstan, 'src/Subscription/Composition.php'), 'PHPStan owns subscription composition');
 q11_assert(q11_contains($phpcs, 'src/Subscription/Composition.php'), 'PHPCS owns subscription composition');
@@ -81,13 +81,21 @@ foreach ($presentation_hooks as $hook) {
 q11_assert(substr_count($source, "add_filter('woocommerce_add_to_cart_validation', array(\$gateway, 'restrictMixedCartProducts'), 10, 3)") === 1, 'gateway cart-validation hook remains exact');
 q11_assert(substr_count($source, "add_action('woocommerce_before_shop_loop_item_title', array(\$gateway, 'renderSubscriptionBadgeInProductList'), 9)") === 1, 'gateway product-badge hook remains exact');
 
-q11_assert(substr_count($source, '$root = dirname(__DIR__, 2);') === 1, 'legacy dependency root remains exact');
+// Sub-project 0a Task 6: the legacy modules moved from includes/ into src/ under
+// Simplixi\SUPCheckout and are autoloaded; the exact dependencies are the namespaced
+// classes (Manager shares Composition's namespace) instead of root-relative requires.
+q11_assert(substr_count($source, 'use Simplixi\\SUPCheckout\\Subscription\\Checkout\\Fields;') === 1, 'legacy checkout-fields dependency resolves to the moved namespaced class');
+q11_assert(preg_match('/\b(require|include)(_once)?\b/', $source) === 0, 'legacy dependencies are autoloaded, not required by path');
+q11_assert(!q11_contains($source, 'UPayments\\'), 'composition no longer references the former UPayments namespace');
 foreach (array(
-    'includes/Subscription/Checkout/Fields.php',
-    'includes/Subscription/Manager.php',
-    'includes/Subscription/Helpers/Utils.php',
-) as $dependency) {
-    q11_assert(substr_count($source, "require_once \$root . '/{$dependency}'") === 1, "legacy dependency remains exact: {$dependency}");
+    'src/Subscription/Checkout/Fields.php' => array('namespace Simplixi\\SUPCheckout\\Subscription\\Checkout;', 'class Fields'),
+    'src/Subscription/Manager.php' => array('namespace Simplixi\\SUPCheckout\\Subscription;', 'class Manager'),
+    'src/Subscription/Helpers/Utils.php' => array('namespace Simplixi\\SUPCheckout\\Subscription\\Helpers;', 'class Utils'),
+) as $dependency => $declarations) {
+    $dependency_source = q11_read($q11_root, $dependency);
+    foreach ($declarations as $declaration) {
+        q11_assert(substr_count($dependency_source, $declaration) === 1, "legacy dependency remains exact: {$dependency} declares {$declaration}");
+    }
 }
 q11_assert(substr_count($source, 'Fields::init();') === 1, 'checkout fields initializer remains exact');
 q11_assert(substr_count($source, 'Manager::init();') === 1, 'subscription manager initializer remains exact');
@@ -110,8 +118,8 @@ q11_assert(q11_contains($source, 'private function __construct()'), 'composition
 q11_assert(q11_contains($product_type_source, 'private function __construct()'), 'product-type hooks are explicitly non-instantiable');
 q11_assert(preg_match("/'limit_response_size'\\s*=>\\s*1048576/", $scheduler) === 1, 'subscription provider response body is bounded to 1 MiB');
 q11_assert(preg_match('/strlen\\(\\$response\\)\\s*>=\\s*1048576/', $scheduler) === 1, 'subscription treats a response at the cap as ambiguous and fail closed');
-q11_assert(q11_git_blob_sha($q11_root . '/includes/Subscription/Cron/Scheduler.php') === 'f5dae0dae437ac85e00d17646b063b6ed9bbff61', 'protected Scheduler blob remains exact');
-q11_assert(q11_git_blob_sha($q11_root . '/includes/Subscription/Cron/CycleClaim.php') === 'a1ae04e3239e05c4894781480333fd5e747cefba', 'protected CycleClaim reviewed blob remains exact after identifier-placeholder and warning-boundary hardening');
+q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/Scheduler.php') === '1f220334fdbd3c33649f770c992a0b982ec1f4b1', 'protected Scheduler blob remains exact');
+q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/CycleClaim.php') === '3263231dfcbea4dcc3ddfc2e05866740eb6fcd3a', 'protected CycleClaim reviewed blob remains exact after identifier-placeholder and warning-boundary hardening');
 
 q11_assert(substr_count($tests, 'public function test_') >= 5, 'Subscription Composition has focused PHPUnit characterization');
 foreach (array(
@@ -129,11 +137,11 @@ q11_assert(q11_contains($fixture, 'function add_action('), 'unit fixture records
 q11_assert(q11_contains($fixture, 'function add_filter('), 'unit fixture records filters');
 q11_assert(q11_contains($fixture, 'supcheckout_test_hook_calls'), 'unit fixture preserves ordered hook topology');
 q11_assert(
-    q11_contains($phpstan, 'includes/Subscription/Checkout/Fields.php')
-    || q11_contains($stubs, 'namespace UPayments\\Subscription\\Checkout'),
+    q11_contains($phpstan, 'src/Subscription/Checkout/Fields.php')
+    || q11_contains($stubs, 'namespace Simplixi\\SUPCheckout\\Subscription\\Checkout'),
     'analysis owns checkout fields boundary directly or through bounded stubs'
 );
-q11_assert(q11_contains($stubs, 'namespace UPayments\\Subscription'), 'analysis stubs declare subscription manager boundary');
+q11_assert(q11_contains($stubs, 'namespace Simplixi\\SUPCheckout\\Subscription'), 'analysis stubs declare subscription manager boundary');
 
 q11_assert(q11_contains($workflow, 'quality-platform-subscription-composition-harness.php'), 'Q11 harness is mandatory in Quality Gates');
 q11_assert(q11_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

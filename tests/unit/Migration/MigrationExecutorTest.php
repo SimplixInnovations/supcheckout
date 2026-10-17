@@ -7,7 +7,7 @@ use ReflectionClass;
 use ReflectionMethod;
 use Simplixi\SUPCheckout\Migration\MigrationExecutor;
 use Simplixi\SUPCheckout\Migration\MigrationPreflight;
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 final class MigrationExecutorTest extends TestCase {
     protected function setUp(): void {

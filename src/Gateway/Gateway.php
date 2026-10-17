@@ -14,7 +14,7 @@ use Simplixi\SUPCheckout\Payment\CheckoutPayload;
 use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 /**
  * The WooCommerce payment gateway WooCommerce registers as 'upayments'.
@@ -592,7 +592,7 @@ class Gateway extends \WC_Payment_Gateway {
             }
 
             if ($this->autoDeduction === 'yes'
-                && \UPayments\Subscription\Helpers\Utils::cartHasCustomType()
+                && \Simplixi\SUPCheckout\Subscription\Helpers\Utils::cartHasCustomType()
             ) {
                 wp_enqueue_script('supcheckout-subscription-checkout', $plugin_url . 'assets/js/subscription-checkout.js', array('jquery'), SUPCHECKOUT_VERSION, true);
                 wp_localize_script('supcheckout-subscription-checkout', 'wcUser', array(
@@ -1027,8 +1027,8 @@ class Gateway extends \WC_Payment_Gateway {
         $isSubscriptionFeatureEnabled = ($this->autoDeduction === 'yes');
 
         // Cart state
-        $hasSubscriptionProduct = \UPayments\Subscription\Helpers\Utils::cartHasCustomType();
-        $hasNormalProduct      = \UPayments\Subscription\Helpers\Utils::cartHasNormalProduct();
+        $hasSubscriptionProduct = \Simplixi\SUPCheckout\Subscription\Helpers\Utils::cartHasCustomType();
+        $hasNormalProduct      = \Simplixi\SUPCheckout\Subscription\Helpers\Utils::cartHasNormalProduct();
 
         // Subscription context = feature enabled AND subscription product in cart
         $isSubscriptionContext = $isSubscriptionFeatureEnabled && $hasSubscriptionProduct && !$hasNormalProduct;

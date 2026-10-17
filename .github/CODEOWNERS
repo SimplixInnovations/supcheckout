@@ -5,6 +5,6 @@
 /.github/                               @SimplixInnovationsAdmin
 /supcheckout.php                        @SimplixInnovationsAdmin
 /UPayments.php                          @SimplixInnovationsAdmin
-/includes/Token/                        @SimplixInnovationsAdmin
-/includes/Subscription/                 @SimplixInnovationsAdmin
-/includes/class-wc-gateway-upayments-blocks.php @SimplixInnovationsAdmin
+/src/Token/                             @SimplixInnovationsAdmin
+/src/Subscription/                      @SimplixInnovationsAdmin
+/src/Blocks/PaymentMethodType.php       @SimplixInnovationsAdmin

@@ -210,11 +210,11 @@ class Phase9IWpdb {
 }
 $GLOBALS['wpdb'] = new Phase9IWpdb();
 
-require_once $root . '/includes/Token/CustomerTokenIdentity.php';
+require_once $root . '/src/Token/CustomerTokenIdentity.php';
 require_once $root . '/src/Migration/MigrationPreflight.php';
 
 use Simplixi\SUPCheckout\Migration\MigrationPreflight;
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 $pass = 0; $fail = 0;
 function p9_assert($condition, $label) {

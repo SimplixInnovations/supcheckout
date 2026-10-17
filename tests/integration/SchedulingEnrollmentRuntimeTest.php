@@ -13,7 +13,7 @@ use Simplixi\SUPCheckout\Subscription\Scheduling\DueParentWorker as Worker;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment as Enrollment;
 
 if (!class_exists('WCProductCustomType')) {
-    \UPayments\Subscription\Helpers\Utils::$custom = true;
+    \Simplixi\SUPCheckout\Subscription\Helpers\Utils::$custom = true;
     if (!class_exists('Simplixi\SUPCheckout\Subscription\Presentation', false)) {
         require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
     }

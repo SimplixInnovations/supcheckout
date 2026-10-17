@@ -159,10 +159,10 @@ class P9EWpdb {
 }
 $GLOBALS['wpdb'] = new P9EWpdb();
 
-require_once $root . '/includes/Token/CustomerTokenIdentity.php';
+require_once $root . '/src/Token/CustomerTokenIdentity.php';
 require_once $root . '/src/Migration/MigrationPreflight.php';
 require_once $root . '/src/Migration/MigrationExecutor.php';
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 use Simplixi\SUPCheckout\Migration\MigrationPreflight;
 use Simplixi\SUPCheckout\Migration\MigrationExecutor;
 

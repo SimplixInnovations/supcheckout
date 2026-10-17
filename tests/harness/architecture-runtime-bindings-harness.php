@@ -1104,7 +1104,8 @@ arch2_assert(
         . "require_once__DIR__.'/Payment/SavedCardPresentation.php';require_once__DIR__.'/Subscription/Presentation.php';"
         . "require_once__DIR__.'/Subscription/Composition.php';require_once__DIR__.'/Subscription/RenewalCardAuthority.php';"
         . "require_once__DIR__.'/Subscription/CycleEconomics.php';require_once__DIR__.'/Subscription/AutoDeductResultVerifier.php';"
-        . "require_oncedirname(__DIR__).'/includes/Token/CustomerTokenIdentity.php';require_once__DIR__.'/Migration/MigrationBootstrap.php';"
+        // Token\CustomerTokenIdentity is autoloaded since Sub-project 0a Task 6 (side-effect-free class declaration).
+        . "require_once__DIR__.'/Migration/MigrationBootstrap.php';"
         . "define('SUPCHECKOUT_VERSION',Identity::VERSION);define('SUPCHECKOUT_SLUG',Identity::SLUG);"
         . "define('SUPCHECKOUT_PLUGIN_FILE',\$main_file);define('SUPCHECKOUT_UPDATE_CHANNEL',Identity::UPDATE_CHANNEL);",
     'Plugin::load_runtime defines the former main-file constants and loads the former main-file runtime files exactly, in order'

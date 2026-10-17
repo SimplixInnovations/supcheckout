@@ -61,7 +61,7 @@ foreach ($cases as $label => $case) {
     supcheckout_cert_assert($registry->is_registered('upayments'), 'Blocks registry contains upayments for case ' . $label);
 
     $integration = $registry->get_registered('upayments');
-    supcheckout_cert_assert($integration instanceof WCGatewayUPaymentsBlocks, 'Blocks registry returns SUPCheckout integration for case ' . $label);
+    supcheckout_cert_assert($integration instanceof \Simplixi\SUPCheckout\Blocks\PaymentMethodType, 'Blocks registry returns SUPCheckout integration for case ' . $label);
     supcheckout_cert_assert($integration->is_active() === $case['active'], 'Blocks availability is exact for case ' . $label);
     supcheckout_cert_assert(
         array('products') === $integration->get_supported_features(),

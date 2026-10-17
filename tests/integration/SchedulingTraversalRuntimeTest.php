@@ -8,13 +8,13 @@ require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/ActionScheduler
 require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/HistoricalEnrollment.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/DueParentWorker.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/LifecycleScheduler.php';
-require_once dirname(__DIR__, 2) . '/includes/Subscription/Cron/Scheduler.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/Cron/Scheduler.php';
 
 use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge as ASBridge;
 use Simplixi\SUPCheckout\Subscription\Scheduling\DueParentWorker as Worker;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment as Enrollment;
 use Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler;
-use UPayments\Subscription\Cron\Scheduler as UpayScheduler;
+use Simplixi\SUPCheckout\Subscription\Cron\Scheduler as UpayScheduler;
 
 if (!class_exists('WCProductCustomType')) {
     require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';

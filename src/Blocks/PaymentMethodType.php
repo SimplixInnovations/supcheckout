@@ -1,4 +1,7 @@
 <?php
+
+namespace Simplixi\SUPCheckout\Blocks;
+
 // Use the necessary Blocks Interfaces
 use Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType;
 use Simplixi\SUPCheckout\Admin\GatewaySettings;
@@ -9,8 +12,7 @@ use Simplixi\SUPCheckout\Admin\GatewaySettings;
  * This class handles the integration of the UPayments gateway with the 
  * WooCommerce Block Checkout (including data and assets registration).
  */
-// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound -- Protected legacy WooCommerce Blocks integration identity retained for compatibility.
-class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
+class PaymentMethodType extends AbstractPaymentMethodType {
 
     protected $name = 'upayments';
     protected $gateway;
@@ -171,7 +173,7 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
                     // scope(A)+generation(B) snapshots.
                     $api_key = is_string( $this->gateway->apiKey ) ? $this->gateway->apiKey : '';
                     $is_test_mode = (bool) $this->gateway->getMode();
-                    $ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context(
+                    $ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context(
                         $api_key,
                         $is_test_mode
                     );
@@ -180,7 +182,7 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
                         && is_string( $ctx['scope'] ) && $ctx['scope'] !== ''
                         && is_string( $ctx['generation_id'] ) && $ctx['generation_id'] !== ''
                     ) {
-                        $provenance = \UPayments\Token\CustomerTokenIdentity::read_provenance(
+                        $provenance = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_provenance(
                             $user_id,
                             $ctx['scope'],
                             $ctx['generation_id']
@@ -266,7 +268,7 @@ class WCGatewayUPaymentsBlocks extends AbstractPaymentMethodType {
             'product_type'              => $product_details,
             'upay_subscription_plan'     => 'one_time', // Default value
             'upay_subscription_interval' => '0',        // Default value
-            'plugin_url'                => plugin_dir_url( dirname( __FILE__ ) ),
+            'plugin_url'                => plugin_dir_url( dirname( __FILE__, 2 ) ),
             'translation'               => [
                 'purchase_type_label'   => __('Purchase Type', 'supcheckout'),
                 'billing_interval_label' => __('Billing Interval', 'supcheckout'),

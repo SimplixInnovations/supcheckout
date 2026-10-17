@@ -207,10 +207,7 @@ final class HistoricalEnrollment
             $start_date = new \DateTime($start_date->format('Y-m-d H:i:s'), $start_date->getTimezone());
         }
 
-        if (!class_exists('UPayments\Subscription\Cron\Scheduler', false)) {
-            require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/Scheduler.php';
-        }
-        $next = \UPayments\Subscription\Cron\Scheduler::getNextBillingDate($start_date, (string) $plan, $interval);
+        $next = \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::getNextBillingDate($start_date, (string) $plan, $interval);
         if (!$next) {
             return null;
         }

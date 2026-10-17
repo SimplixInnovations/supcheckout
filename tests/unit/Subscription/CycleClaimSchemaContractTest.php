@@ -13,7 +13,7 @@ final class CycleClaimSchemaContractTest extends TestCase
 {
     public function test_schema_v2_identity_and_snapshot_fields(): void
     {
-        $source = file_get_contents(dirname(__DIR__, 3) . '/includes/Subscription/Cron/CycleClaim.php');
+        $source = file_get_contents(dirname(__DIR__, 3) . '/src/Subscription/Cron/CycleClaim.php');
         self::assertIsString($source);
         self::assertStringContainsString("const SCHEMA_VERSION = '2';", $source);
         self::assertStringContainsString('upayments_billing_attempts', $source);
@@ -31,9 +31,9 @@ final class CycleClaimSchemaContractTest extends TestCase
     public function test_dispatchable_snapshot_requires_complete_v2_economics(): void
     {
         require_once dirname(__DIR__, 3) . '/src/Subscription/CycleEconomics.php';
-        require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/CycleClaim.php';
+        require_once dirname(__DIR__, 3) . '/src/Subscription/Cron/CycleClaim.php';
 
-        $claim = \UPayments\Subscription\Cron\CycleClaim::class;
+        $claim = \Simplixi\SUPCheckout\Subscription\Cron\CycleClaim::class;
         self::assertFalse($claim::has_dispatchable_snapshot(array()));
         self::assertFalse($claim::has_dispatchable_snapshot(array(
             'expected_amount' => '',
@@ -68,9 +68,9 @@ final class CycleClaimSchemaContractTest extends TestCase
 
     public function test_dispatchable_snapshot_rejects_malformed_economics(): void
     {
-        require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/CycleClaim.php';
+        require_once dirname(__DIR__, 3) . '/src/Subscription/Cron/CycleClaim.php';
 
-        $claim = \UPayments\Subscription\Cron\CycleClaim::class;
+        $claim = \Simplixi\SUPCheckout\Subscription\Cron\CycleClaim::class;
         $base = array(
             'cycle_key' => str_repeat('b', 64),
             'parent_order_id' => 9,
@@ -105,9 +105,9 @@ final class CycleClaimSchemaContractTest extends TestCase
     public function test_journal_validators_match_cycle_economics(): void
     {
         require_once dirname(__DIR__, 3) . '/src/Subscription/CycleEconomics.php';
-        require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/CycleClaim.php';
+        require_once dirname(__DIR__, 3) . '/src/Subscription/Cron/CycleClaim.php';
 
-        $claim = \UPayments\Subscription\Cron\CycleClaim::class;
+        $claim = \Simplixi\SUPCheckout\Subscription\Cron\CycleClaim::class;
         $econ = \Simplixi\SUPCheckout\Subscription\CycleEconomics::class;
 
         foreach (array('0', '10', '10.000', '10.0', 7, '0.5') as $ok) {

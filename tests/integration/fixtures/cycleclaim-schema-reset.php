@@ -4,9 +4,9 @@
  */
 
 require_once dirname(__DIR__) . '/bootstrap.php';
-require_once dirname(__DIR__, 3) . '/includes/Subscription/Cron/CycleClaim.php';
+require_once dirname(__DIR__, 3) . '/src/Subscription/Cron/CycleClaim.php';
 
-use UPayments\Subscription\Cron\CycleClaim;
+use Simplixi\SUPCheckout\Subscription\Cron\CycleClaim;
 
 $table = CycleClaim::table_name();
 global $wpdb;

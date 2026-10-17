@@ -742,49 +742,49 @@ upay_assert_eq(upay_call_static('Simplixi\SUPCheckout\Gateway\Gateway', 'normali
 // ---------------------------------------------------------------------------
 
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => '12345678']])],
         '12345678'
     )['reason'], 'success', 'PHP-CTR-1 201+match => success', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 422, 'transport_ok' => true, 'curl_errno' => 0, 'body' => json_encode(['status' => false, 'message' => 'duplicate token collision detected'])],
         '12345678'
     )['reason'], 'http_422', 'PHP-CTR-2 422+duplicate => http_422', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 200, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{}'],
         '12345678'
     )['reason'], 'http_200', 'PHP-CTR-3 200 => http_200', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => json_encode(['status' => false, 'data' => ['customerUniqueToken' => '12345678']])],
         '12345678'
     )['reason'], 'status_not_true', 'PHP-CTR-4 status=false', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 201, 'transport_ok' => false, 'curl_errno' => 0, 'body' => '{}'],
         '12345678'
     )['reason'], 'http_201_transport_not_ok', 'PHP-CTR-5 transport_ok=false', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 500, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{}'],
         '12345678'
     )['reason'], 'http_500', 'PHP-CTR-6 500 => http_500', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 429, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{}'],
         '12345678'
     )['reason'], 'http_429', 'PHP-CTR-7 429 => http_429', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 28, 'body' => '{}'],
         '12345678'
     )['reason'], 'curl_error', 'PHP-CTR-8 curl_errno != 0', 'helper_unit_runtime'
@@ -794,31 +794,31 @@ upay_assert_eq(
 // {"status":true,...,"data":{"customerUniqueToken":50588906}}) and rejects a
 // duplicate with HTTP 422 "Customer unique token already exist".
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"message":"Customer unique token created successfully","data":{"customerUniqueToken":12345678}}'],
         '12345678'
     )['reason'], 'success', 'PHP-CTR-9 provider numeric token echo => success', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"data":{"customerUniqueToken":12345679}}'],
         '12345678'
     )['reason'], 'token_mismatch', 'PHP-CTR-10 numeric token of a different value => token_mismatch', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"data":{"customerUniqueToken":12345678.0}}'],
         '12345678'
     )['reason'], 'missing_token', 'PHP-CTR-11 non-integer numeric token => missing_token', 'helper_unit_runtime'
 );
 upay_assert_eq(
-    \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(
+    \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(
         ['http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => '{"status":true,"data":{"customerUniqueToken":true}}'],
         '12345678'
     )['reason'], 'missing_token', 'PHP-CTR-12 boolean token => missing_token', 'helper_unit_runtime'
 );
 
-$upay_establish = new ReflectionMethod(\UPayments\Token\CustomerTokenIdentity::class, 'establish_canonical_token');
+$upay_establish = new ReflectionMethod(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::class, 'establish_canonical_token');
 if (PHP_VERSION_ID < 80100) { $upay_establish->setAccessible(true); }
 $upay_duplicate = ['http_status' => 422, 'transport_ok' => false, 'curl_errno' => 0, 'body' => '{"message":"Customer unique token already exist","errors":{"customerUniqueToken":["Customer unique token already exist"]}}'];
 $upay_calls = [];
@@ -918,7 +918,7 @@ function upay_with_history_secret() {
 
 // 13.1 empty
 upay_with_history_secret();
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'none', 'PHP-ICH-1 empty history returns none', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'no_tokens_found', 'PHP-ICH-2 reason=no_tokens_found', 'helper_unit_runtime');
 
@@ -938,7 +938,7 @@ for ($oid = 1; $oid <= 300; $oid++) {
     $o->meta_store = [];
     $state['orders_fixture'][$oid] = $o;
 }
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-3 >200 incomplete history returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'incomplete_scan', 'PHP-ICH-4 reason=incomplete_scan', 'helper_unit_runtime');
 
@@ -947,7 +947,7 @@ $state['history_pages'] = [1 => [42]];
 $state['history_total'] = 1;
 $state['history_max_pages'] = 1;
 $state['orders_fixture'] = []; // Clear registered orders so order 42 is unloadable.
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-5 unloadable order returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'unloadable_order', 'PHP-ICH-6 reason=unloadable_order', 'helper_unit_runtime');
 
@@ -964,21 +964,21 @@ $order_throwing = new class extends FakeWCOrder {
     public function get_items($type) { return []; }
 };
 $state['orders_fixture'][1] = $order_throwing;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-7 force-refresh fail in history returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'force_refresh_failed', 'PHP-ICH-8 reason=force_refresh_failed', 'helper_unit_runtime');
 
 // 13.5 query exception
 $state['history_pages'] = [];
 $state['history_query_exception'] = true;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-9 query exception returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'query_exception', 'PHP-ICH-10 reason=query_exception', 'helper_unit_runtime');
 $state['history_query_exception'] = false;
 
 // 13.6 malformed result
 $state['history_malformed_result'] = true;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-11 malformed result returns indeterminate', 'helper_unit_runtime');
 $state['history_malformed_result'] = false;
 
@@ -993,7 +993,7 @@ foreach ([1, 2, 3] as $oid) {
     $o->meta_store = [];
     $state['orders_fixture'][$oid] = $o;
 }
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-12 duplicate order IDs across pages returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'duplicate_order_id', 'PHP-ICH-13 reason=duplicate_order_id', 'helper_unit_runtime');
 
@@ -1039,7 +1039,7 @@ $state['history_total'] = 3;
 $state['history_max_pages'] = 2;
 // Add a page 2 that has orders so we don't hit unexpected_empty_page.
 $state['history_pages'][2] = [4, 5];
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 // We need page 2 to report a different max_pages. Override the stub to inject this behavior.
 // Use a property on state: page-specific max_pages override.
 class CustomStub {
@@ -1070,7 +1070,7 @@ foreach ([1, 2, 3, 4] as $oid) {
     $o->meta_store = [];
     $state['orders_fixture'][$oid] = $o;
 }
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-16 max_pages changes returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'max_pages_changed', 'PHP-ICH-17 reason=max_pages_changed', 'helper_unit_runtime');
 
@@ -1087,7 +1087,7 @@ $o = new FakeWCOrder(99);
 $o->items_meta = [];
 $o->meta_store = [];
 $state['orders_fixture'][99] = $o;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-18 oversized page returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'oversized_page', 'PHP-ICH-19 reason=oversized_page', 'helper_unit_runtime');
 
@@ -1099,7 +1099,7 @@ $o = new FakeWCOrder(3);
 $o->items_meta = [];
 $o->meta_store = [];
 $state['orders_fixture'][3] = $o;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-20 unexpected empty page returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'unexpected_empty_page', 'PHP-ICH-21 reason=unexpected_empty_page', 'helper_unit_runtime');
 
@@ -1133,7 +1133,7 @@ foreach ([1, 2, 3] as $oid) {
     $o->meta_store = [];
     $state['orders_fixture'][$oid] = $o;
 }
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-22 page beyond max returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'page_beyond_max', 'PHP-ICH-23 reason=page_beyond_max', 'helper_unit_runtime');
 $GLOBALS['wpdb'] = new WpdbStub();
@@ -1143,13 +1143,13 @@ $state['orders_fixture'] = [];
 $state['history_pages'] = [1 => [-5]];
 $state['history_total'] = 1;
 $state['history_max_pages'] = 1;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-24 invalid order ID returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'invalid_order_id', 'PHP-ICH-25 reason=invalid_order_id', 'helper_unit_runtime');
 
 // 13.14 missing orders array
 $state['history_malformed_result'] = true;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-26 missing orders returns indeterminate', 'helper_unit_runtime');
 $state['history_malformed_result'] = false;
 
@@ -1161,7 +1161,7 @@ $o = new FakeWCOrder(1);
 $o->items_meta = [];
 $o->meta_store = [];
 $state['orders_fixture'][1] = $o;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat("a", 32), str_repeat("b", 32));
 upay_assert_eq($result['classification'], 'indeterminate', 'PHP-ICH-27 missing total returns indeterminate', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'missing_total', 'PHP-ICH-28 reason=missing_total', 'helper_unit_runtime');
 
@@ -1170,7 +1170,7 @@ upay_assert_eq($result['reason'], 'missing_total', 'PHP-ICH-28 reason=missing_to
 // ---------------------------------------------------------------------------
 
 upay_reset_state();
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(0, str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(0, str_repeat("b", 32));
 upay_assert_eq($result['state'], 'none', 'PHP-CUI-1 user_id=0 returns none', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'not_logged_in', 'PHP-CUI-2 reason=not_logged_in', 'helper_unit_runtime');
 
@@ -1179,7 +1179,7 @@ upay_assert_eq($result['reason'], 'not_logged_in', 'PHP-CUI-2 reason=not_logged_
 // absent we cannot manufacture a generation, so the test supplies the
 // generation that the bootstrap path would have produced. The test then
 // asserts the SECRET-ABSENT case explicitly.
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
 upay_assert_eq($result['state'], 'none', 'PHP-CUI-3 missing secret returns none (no implicit generation)', 'helper_unit_runtime');
 upay_assert_eq($result['reason'], 'no_provenance_records', 'PHP-CUI-4 reason=no_provenance_records', 'helper_unit_runtime');
 
@@ -1194,7 +1194,7 @@ $state['usermeta'][1][$meta_key] = [[
     'source' => 'create_201', 'scope' => $scope,
     'secret_generation_id' => $gen, 'established_at_gmt' => time(),
 ]];
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $gen);
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $gen);
 upay_assert_eq($result['state'], 'same_generation_only', 'PHP-CUI-5 valid provenance returns same_generation_only', 'helper_unit_runtime');
 
 // different generation
@@ -1204,12 +1204,12 @@ $state['usermeta'][1][$meta_key] = [[
     'source' => 'create_201', 'scope' => $scope,
     'secret_generation_id' => $other_gen, 'established_at_gmt' => time(),
 ]];
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $gen);
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $gen);
 upay_assert_eq($result['state'], 'secret_generation_mismatch', 'PHP-CUI-6 different-generation returns mismatch', 'helper_unit_runtime');
 
 // malformed usermeta (non-array)
 $state['usermeta'][1][$meta_key] = ['not an array'];
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
 upay_assert_eq($result['state'], 'invalid', 'PHP-CUI-7 non-array usermeta returns invalid', 'helper_unit_runtime');
 
 // duplicate usermeta values
@@ -1217,12 +1217,12 @@ $state['usermeta'][1][$meta_key] = [
     ['version' => 3, 'kind' => 'canonical', 'token' => '12345678', 'source' => 'create_201', 'scope' => $scope, 'secret_generation_id' => $gen, 'established_at_gmt' => time()],
     ['version' => 3, 'kind' => 'canonical', 'token' => '99999999', 'source' => 'create_201', 'scope' => $scope, 'secret_generation_id' => $gen, 'established_at_gmt' => time()],
 ];
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
 upay_assert_eq($result['state'], 'invalid', 'PHP-CUI-8 duplicate values returns invalid', 'helper_unit_runtime');
 
 // force-refresh failure during prior provenance
 $state['force_user_cache_refresh_failure'] = true;
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
 upay_assert_eq($result['state'], 'read_failure', 'PHP-CUI-9 refresh failure returns read_failure', 'helper_unit_runtime');
 $state['force_user_cache_refresh_failure'] = false;
 
@@ -1232,7 +1232,7 @@ $state['usermeta'][1][$meta_key] = [[
     'source' => 'create_201', 'scope' => $scope,
     'secret_generation_id' => $gen, 'established_at_gmt' => time(),
 ]];
-$result = \UPayments\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_current_user_prior_provenance(1, str_repeat("b", 32));
 upay_assert_eq($result['state'], 'invalid', 'PHP-CUI-10 wrong-version record returns invalid', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
@@ -1243,9 +1243,9 @@ upay_reset_state();
 upay_with_history_secret();
 // Re-read $gen from the freshly created secret to avoid stale generation values.
 $state =& upay_test_state();
-$gen = $state['options'][\UPayments\Token\CustomerTokenIdentity::SECRET_OPTION]['generation_id'];
+$gen = $state['options'][\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::SECRET_OPTION]['generation_id'];
 $state['force_user_cache_refresh_failure'] = true;
-$result = \UPayments\Token\CustomerTokenIdentity::read_provenance(1, str_repeat('a', 32), str_repeat('0', 32));
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_provenance(1, str_repeat('a', 32), str_repeat('0', 32));
 upay_assert_eq($result['state'], 'invalid', 'PHP-RP-1 force refresh fail returns invalid', 'helper_unit_runtime');
 $state['force_user_cache_refresh_failure'] = false;
 
@@ -1254,7 +1254,7 @@ $state['usermeta'][1]['_upay_customer_token_v2_b1_' . str_repeat('a', 32)] = [
     ['version' => 3, 'kind' => 'canonical', 'token' => '12345678', 'source' => 'create_201', 'scope' => str_repeat('a', 32), 'secret_generation_id' => $gen, 'established_at_gmt' => time()],
     ['version' => 3, 'kind' => 'canonical', 'token' => '99999999', 'source' => 'create_201', 'scope' => str_repeat('a', 32), 'secret_generation_id' => $gen, 'established_at_gmt' => time()],
 ];
-$result = \UPayments\Token\CustomerTokenIdentity::read_provenance(1, str_repeat('a', 32), $gen);
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_provenance(1, str_repeat('a', 32), $gen);
 upay_assert_eq($result['state'], 'invalid', 'PHP-RP-2 duplicate provenance returns invalid', 'helper_unit_runtime');
 
 // valid
@@ -1263,29 +1263,29 @@ $state['usermeta'][1]['_upay_customer_token_v2_b1_' . str_repeat('a', 32)] = [[
     'source' => 'create_201', 'scope' => str_repeat('a', 32),
     'secret_generation_id' => $gen, 'established_at_gmt' => time(),
 ]];
-$result = \UPayments\Token\CustomerTokenIdentity::read_provenance(1, str_repeat('a', 32), $gen);
+$result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_provenance(1, str_repeat('a', 32), $gen);
 upay_assert_eq($result['state'], 'valid', 'PHP-RP-3 valid provenance returns valid', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
 // 16. CustomerTokenIdentity constants
 // ---------------------------------------------------------------------------
 
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::SCHEMA_VERSION, 3, 'PHP-CONST-1 SCHEMA_VERSION=3', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::SECRET_BYTES, 32, 'PHP-CONST-2 SECRET_BYTES=32', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::SECRET_HEX_LENGTH, 64, 'PHP-CONST-3 SECRET_HEX_LENGTH=64', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::GENERATION_ID_BYTES, 16, 'PHP-CONST-4 GENERATION_ID_BYTES=16', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::GENERATION_ID_HEX_LENGTH, 32, 'PHP-CONST-5 GENERATION_ID_HEX_LENGTH=32', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::SCOPE_HEX_LENGTH, 32, 'PHP-CONST-6 SCOPE_HEX_LENGTH=32', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::KIND_CANONICAL, 'canonical', 'PHP-CONST-7 KIND_CANONICAL', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::KIND_LEGACY_COMPAT, 'legacy_compat', 'PHP-CONST-8 KIND_LEGACY_COMPAT', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::SOURCE_CREATE_201, 'create_201', 'PHP-CONST-9 SOURCE_CREATE_201', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::SOURCE_LEGACY_VERIFIED_CAPTURE, 'legacy_verified_capture', 'PHP-CONST-10 SOURCE_LEGACY', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::HISTORY_MAX_ORDERS, 200, 'PHP-CONST-11 HISTORY_MAX_ORDERS=200', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::HISTORY_PAGE_SIZE, 20, 'PHP-CONST-12 HISTORY_PAGE_SIZE=20', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::LOCK_PREFIX, 'upay_ctk_', 'PHP-CONST-13 LOCK_PREFIX=upay_ctk_', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::LOCK_MAX_LENGTH, 64, 'PHP-CONST-14 LOCK_MAX_LENGTH=64', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::VERIFIER_DOMAIN, 'upayments_token_identity_secret_record_v1', 'PHP-CONST-15 VERIFIER_DOMAIN', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::SECRET_OPTION, 'upayments_token_identity_secret_v2', 'PHP-CONST-16 SECRET_OPTION', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::SCHEMA_VERSION, 3, 'PHP-CONST-1 SCHEMA_VERSION=3', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::SECRET_BYTES, 32, 'PHP-CONST-2 SECRET_BYTES=32', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::SECRET_HEX_LENGTH, 64, 'PHP-CONST-3 SECRET_HEX_LENGTH=64', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::GENERATION_ID_BYTES, 16, 'PHP-CONST-4 GENERATION_ID_BYTES=16', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::GENERATION_ID_HEX_LENGTH, 32, 'PHP-CONST-5 GENERATION_ID_HEX_LENGTH=32', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::SCOPE_HEX_LENGTH, 32, 'PHP-CONST-6 SCOPE_HEX_LENGTH=32', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::KIND_CANONICAL, 'canonical', 'PHP-CONST-7 KIND_CANONICAL', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::KIND_LEGACY_COMPAT, 'legacy_compat', 'PHP-CONST-8 KIND_LEGACY_COMPAT', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::SOURCE_CREATE_201, 'create_201', 'PHP-CONST-9 SOURCE_CREATE_201', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::SOURCE_LEGACY_VERIFIED_CAPTURE, 'legacy_verified_capture', 'PHP-CONST-10 SOURCE_LEGACY', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::HISTORY_MAX_ORDERS, 200, 'PHP-CONST-11 HISTORY_MAX_ORDERS=200', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::HISTORY_PAGE_SIZE, 20, 'PHP-CONST-12 HISTORY_PAGE_SIZE=20', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::LOCK_PREFIX, 'upay_ctk_', 'PHP-CONST-13 LOCK_PREFIX=upay_ctk_', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::LOCK_MAX_LENGTH, 64, 'PHP-CONST-14 LOCK_MAX_LENGTH=64', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::VERIFIER_DOMAIN, 'upayments_token_identity_secret_record_v1', 'PHP-CONST-15 VERIFIER_DOMAIN', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::SECRET_OPTION, 'upayments_token_identity_secret_v2', 'PHP-CONST-16 SECRET_OPTION', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
 // 17. Source-level invariants — must hold in production source
@@ -1333,29 +1333,29 @@ upay_assert_eq(strpos($checkout_source, "\$extraMerchantData[0] = ["), false, 'P
 // exercises the underlying functions in isolation.
 // ---------------------------------------------------------------------------
 
-$HU = '\UPayments\Token\CustomerTokenIdentity';
+$HU = '\Simplixi\SUPCheckout\Token\CustomerTokenIdentity';
 
 // parse_strict_nonneg_int
 $out = 0;
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('1', $out), true, 'HUP-PSPI-1 1 -> true', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('1', $out), true, 'HUP-PSPI-1 1 -> true', 'helper_unit_runtime');
 upay_assert_eq($out, 1, 'HUP-PSPI-2 out=1', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int(0, $out), false, 'HUP-PSPI-3 0 -> false', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int(-1, $out), false, 'HUP-PSPI-4 -1 -> false', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('0', $out), false, "HUP-PSPI-5 '0' -> false", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('00', $out), false, "HUP-PSPI-6 '00' -> false (leading zero rejected)", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('01', $out), false, "HUP-PSPI-7 '01' -> false (leading zero rejected)", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('0005', $out), false, "HUP-PSPI-8 '0005' -> false (leading zero rejected)", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('1.0', $out), false, "HUP-PSPI-9 '1.0' -> false (float rejected)", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('1e2', $out), false, "HUP-PSPI-10 '1e2' -> false (scientific rejected)", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('+1', $out), false, "HUP-PSPI-11 '+1' -> false (sign rejected)", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int(' 1', $out), false, "HUP-PSPI-12 ' 1' -> false (whitespace rejected)", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('1 ', $out), false, "HUP-PSPI-13 '1 ' -> false (whitespace rejected)", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('', $out), false, "HUP-PSPI-14 '' -> false", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int(null, $out), false, "HUP-PSPI-15 null -> false", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int([], $out), false, "HUP-PSPI-16 [] -> false", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int(true, $out), false, "HUP-PSPI-17 true -> false", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int(1.5, $out), false, "HUP-PSPI-18 1.5 -> false", 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::parse_strict_positive_int('9999999999999999999', $out), false, "HUP-PSPI-19 overflow -> false", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int(0, $out), false, 'HUP-PSPI-3 0 -> false', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int(-1, $out), false, 'HUP-PSPI-4 -1 -> false', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('0', $out), false, "HUP-PSPI-5 '0' -> false", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('00', $out), false, "HUP-PSPI-6 '00' -> false (leading zero rejected)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('01', $out), false, "HUP-PSPI-7 '01' -> false (leading zero rejected)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('0005', $out), false, "HUP-PSPI-8 '0005' -> false (leading zero rejected)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('1.0', $out), false, "HUP-PSPI-9 '1.0' -> false (float rejected)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('1e2', $out), false, "HUP-PSPI-10 '1e2' -> false (scientific rejected)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('+1', $out), false, "HUP-PSPI-11 '+1' -> false (sign rejected)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int(' 1', $out), false, "HUP-PSPI-12 ' 1' -> false (whitespace rejected)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('1 ', $out), false, "HUP-PSPI-13 '1 ' -> false (whitespace rejected)", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('', $out), false, "HUP-PSPI-14 '' -> false", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int(null, $out), false, "HUP-PSPI-15 null -> false", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int([], $out), false, "HUP-PSPI-16 [] -> false", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int(true, $out), false, "HUP-PSPI-17 true -> false", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int(1.5, $out), false, "HUP-PSPI-18 1.5 -> false", 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::parse_strict_positive_int('9999999999999999999', $out), false, "HUP-PSPI-19 overflow -> false", 'helper_unit_runtime');
 
 // compute_provider_unit_price_decimal — exact long division
 upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::compute_provider_unit_price_decimal('1.00', 8), '0.125', 'HUP-PE-1 1.00/8 = 0.125 exact', 'helper_unit_runtime');
@@ -1445,7 +1445,7 @@ upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive
 upay_assert_eq(\Simplixi\SUPCheckout\Gateway\Gateway::validate_provider_positive_decimal('000'), null, "HUP-VPD-10 '000' rejected", 'helper_unit_runtime');
 
 // parse_strict_nonneg_int (private via reflection)
-$psni = function($v) use (&$psni_o) { $psni_o = 0; $r = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'parse_strict_nonneg_int', [$v, &$psni_o]); return [$r, $psni_o]; };
+$psni = function($v) use (&$psni_o) { $psni_o = 0; $r = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'parse_strict_nonneg_int', [$v, &$psni_o]); return [$r, $psni_o]; };
 $rr = $psni(0); upay_assert_eq($rr[0], true, 'HUP-PSNI-1 0 -> true', 'helper_unit_runtime'); upay_assert_eq($rr[1], 0, 'HUP-PSNI-1-out=0', 'helper_unit_runtime');
 $rr = $psni(5); upay_assert_eq($rr[0], true, 'HUP-PSNI-2 5 -> true', 'helper_unit_runtime'); upay_assert_eq($rr[1], 5, 'HUP-PSNI-2-out=5', 'helper_unit_runtime');
 $rr = $psni(-1); upay_assert_eq($rr[0], false, 'HUP-PSNI-3 -1 -> false', 'helper_unit_runtime');
@@ -1467,17 +1467,17 @@ $rr = $psni(true); upay_assert_eq($rr[0], false, 'HUP-PSNI-18 true -> false', 'h
 $rr = $psni(1.5); upay_assert_eq($rr[0], false, 'HUP-PSNI-19 1.5 -> false', 'helper_unit_runtime');
 
 // read_existing_identity_context strict typing
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('', true);
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('', true);
 upay_assert_eq($ctx['state'], 'invalid_input', 'HUP-RIEC-1 empty api_key -> invalid_input', 'helper_unit_runtime');
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('abc', 'yes');
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('abc', 'yes');
 upay_assert_eq($ctx['state'], 'invalid_input', 'HUP-RIEC-2 string is_test_mode -> invalid_input', 'helper_unit_runtime');
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context(123, true);
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context(123, true);
 upay_assert_eq($ctx['state'], 'invalid_input', 'HUP-RIEC-3 int api_key -> invalid_input', 'helper_unit_runtime');
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context(null, true);
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context(null, true);
 upay_assert_eq($ctx['state'], 'invalid_input', 'HUP-RIEC-4 null api_key -> invalid_input', 'helper_unit_runtime');
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context([], true);
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context([], true);
 upay_assert_eq($ctx['state'], 'invalid_input', 'HUP-RIEC-5 array api_key -> invalid_input', 'helper_unit_runtime');
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('abc', 1);
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('abc', 1);
 upay_assert_eq($ctx['state'], 'invalid_input', 'HUP-RIEC-6 int is_test_mode -> invalid_input', 'helper_unit_runtime');
 
 // ---------------------------------------------------------------------------
@@ -1639,7 +1639,7 @@ foreach ($bm_scenarios as $name => $scenario) {
     }
 
     // Drive inspect_bootstrap_history / inspect_customer_history
-    $bclass = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
+    $bclass = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
     $state['bootstrap_call_count']++;
     $has_class = is_array($bclass) && isset($bclass['classification']);
     upay_assert($has_class, $name . ' returns array classification (' . $scenario['label'] . ')', 'helper_unit_runtime');
@@ -1709,7 +1709,7 @@ foreach ($bl_scenarios as $name => $scenario) {
             break;
     }
     // Drive the secret-establishment entrypoint via read_existing_identity_context.
-    $ctx = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'read_existing_identity_context', ['test_api_key', false]);
+    $ctx = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'read_existing_identity_context', ['test_api_key', false]);
     // We assert that the harness recorded at least one lock attempt when expected.
     if ($scenario['expect_lock_acquire'] > 0) {
         $state['lock_held_names'] = isset($state['lock_held_names']) ? $state['lock_held_names'] : [];
@@ -2476,7 +2476,7 @@ foreach (['pre-lock', 'post-lock'] as $phase) {
     })();
     // Capture identity-write baseline after the fixture is set up.
     $writes_before = $state['identity_writes'];
-    $bclass = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
+    $bclass = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
     $is_prior = is_array($bclass) && (
         (isset($bclass['classification']) && strpos((string) $bclass['classification'], 'prior') !== false) ||
         (isset($bclass['classification']) && strpos((string) $bclass['classification'], 'PRIOR') !== false) ||
@@ -2688,7 +2688,7 @@ function _upay_xbm_make_valid_secret_record() {
     $secret = bin2hex(random_bytes(32));                // 64 hex chars
     $verifier = hash_hmac(
         'sha256',
-        \UPayments\Token\CustomerTokenIdentity::VERIFIER_DOMAIN . '|1|' . $gen,
+        \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::VERIFIER_DOMAIN . '|1|' . $gen,
         $secret
     );
     return [
@@ -2758,7 +2758,7 @@ foreach ($xbm_expectations as $name => $scenario) {
             $state['current_user_id'] = 0;
             break;
     }
-    $res = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
+    $res = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
     upay_assert_eq(
         isset($res['classification']) ? $res['classification'] : null,
         $scenario['classification'],
@@ -3055,7 +3055,7 @@ for ($i = 0; $i < 200; $i++) {
 $state['history_pages'][1] = array_map(function($o){ return $o->get_id(); }, $orders);
 $state['history_total'] = 200;
 $state['history_max_pages'] = 10;
-$res = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
+$res = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
 upay_assert_eq(
     isset($res['classification']) ? $res['classification'] : null,
     'indeterminate',
@@ -3071,7 +3071,7 @@ upay_assert_eq(
 
 $state['history_total'] = 21;
 $state['history_pages'][1] = array_map(function($o){ return $o->get_id(); }, array_slice($orders, 0, 21));
-$res2 = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
+$res2 = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [$state['current_user_id']]);
 upay_assert_eq(
     isset($res2['classification']) ? $res2['classification'] : null,
     'indeterminate',
@@ -3180,15 +3180,15 @@ foreach ($prov_paths as $name => $desc) {
 
 $artifact_paths = [
     'XART-1' => '/supcheckout.php',
-    'XART-2' => '/includes/Token/CustomerTokenIdentity.php',
-    'XART-3' => '/includes/class-wc-gateway-upayments-blocks.php',
+    'XART-2' => '/src/Token/CustomerTokenIdentity.php',
+    'XART-3' => '/src/Blocks/PaymentMethodType.php',
     'XART-4' => '/templates/new-design-form.php',
     'XART-5' => '/tests/harness/phase-9g-h12-php-harness.php',
     'XART-6' => '/tests/harness/phase-9g-h12-blocks-harness.js',
     'XART-7' => '/assets/js/upayments-block.js',
     'XART-8' => '/assets/js/new-upay.js',
-    'XART-9' => '/includes/Subscription/Cron/Scheduler.php',
-    'XART-10' => '/includes/Subscription/Cron/CycleClaim.php',
+    'XART-9' => '/src/Subscription/Cron/Scheduler.php',
+    'XART-10' => '/src/Subscription/Cron/CycleClaim.php',
     'XART-11' => '/README.md',
     'XART-12' => '/CHANGELOG.md',
 ];
@@ -3411,23 +3411,23 @@ foreach ($forbidden as $fn) {
 // --- SEM14-H: Scheduler.php blob unchanged (uses proc_open for cross-platform reliability) ---
 $scheduler_blob = '';
 $desc = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-$proc = @proc_open('git rev-parse HEAD:includes/Subscription/Cron/Scheduler.php', $desc, $pipes, $repo_root);
+$proc = @proc_open('git rev-parse HEAD:src/Subscription/Cron/Scheduler.php', $desc, $pipes, $repo_root);
 if (is_resource($proc)) {
     $scheduler_blob = trim(stream_get_contents($pipes[1]));
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($scheduler_blob, 'f5dae0dae437ac85e00d17646b063b6ed9bbff61', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
+upay_assert_eq($scheduler_blob, '1f220334fdbd3c33649f770c992a0b982ec1f4b1', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
 
 // --- SEM14-I: CycleClaim.php reviewed protected blob ---
 $cycle_blob = '';
-$proc = @proc_open('git rev-parse HEAD:includes/Subscription/Cron/CycleClaim.php', $desc, $pipes, $repo_root);
+$proc = @proc_open('git rev-parse HEAD:src/Subscription/Cron/CycleClaim.php', $desc, $pipes, $repo_root);
 if (is_resource($proc)) {
     $cycle_blob = trim(stream_get_contents($pipes[1]));
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($cycle_blob, 'a1ae04e3239e05c4894781480333fd5e747cefba', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
+upay_assert_eq($cycle_blob, '3263231dfcbea4dcc3ddfc2e05866740eb6fcd3a', 'SEM14-I CycleClaim.php reviewed blob byte-identical', 'static_source');
 
 // --- SEM14-J: Production code does NOT use bccomp/BCMath/GMP ---
 // Production gateway source: the main file plus the gateway class it registers
@@ -3451,14 +3451,14 @@ upay_assert_eq($has_ceiling, false, 'SEM14-L no > 10.000 runtime ceiling in prod
 upay_reset_state();
 $gen_m = str_repeat('c', 32);
 upay_set_secret('live_key', 'live_secret_test_' . str_repeat('c', 20), 'live', $gen_m);
-$ctx1 = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
-$ctx2 = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
+$ctx1 = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
+$ctx2 = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
 upay_assert_eq($ctx1['state'], $ctx2['state'], 'SEM14-SEM14-M-1 read is deterministic (same state on repeat)', 'helper_unit_runtime');
 upay_assert_eq($ctx1['scope'], $ctx2['scope'], 'SEM14-SEM14-M-2 read is deterministic (same scope on repeat)', 'helper_unit_runtime');
 upay_assert_eq($ctx1['generation_id'], $ctx2['generation_id'], 'SEM14-SEM14-M-3 read is deterministic (same generation on repeat)', 'helper_unit_runtime');
 
 // --- SEM14-N: Atomic provenance write compensation (verify create_provenance failure path deletes the meta) ---
-$reflection = new ReflectionClass('\UPayments\Token\CustomerTokenIdentity');
+$reflection = new ReflectionClass('\Simplixi\SUPCheckout\Token\CustomerTokenIdentity');
 $cp_method = $reflection->getMethod('create_provenance');
 upay_make_reflection_accessible($cp_method);
 upay_reset_state();
@@ -3504,7 +3504,7 @@ foreach ([
     ['api_key' => 'abc', 'is_test_mode' => null, 'desc' => 'null is_test_mode'],
     ['api_key' => 'abc', 'is_test_mode' => [], 'desc' => 'array is_test_mode'],
 ] as $i => $case) {
-    $ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context($case['api_key'], $case['is_test_mode']);
+    $ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context($case['api_key'], $case['is_test_mode']);
     upay_assert_eq($ctx['state'], 'invalid_input', "SEM14-P-$i read_existing_identity_context({$case['desc']}) -> invalid_input", 'helper_unit_runtime');
 }
 
@@ -3687,7 +3687,7 @@ $state['orders_fixture'][10088] = $prior_order;
 $state['history_pages'][1] = [10088];
 $state['history_total'] = 1;
 $state['history_max_pages'] = 1;
-$res = upay_call_static('UPayments\Token\CustomerTokenIdentity', 'inspect_customer_history', [88, $current_scope_str, $current_generation_str]);
+$res = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'inspect_customer_history', [88, $current_scope_str, $current_generation_str]);
 upay_assert(
     isset($res['classification']) && $res['classification'] === 'prior_scope_only' && isset($res['reason']) && $res['reason'] === 'prior_scope_same_generation',
     'PRIOR-LOCK-3 inspect_customer_history AFTER user-lock transition with prior-scope order -> prior_scope_only/prior_scope_same_generation (got ' . json_encode($res) . ')',
@@ -3732,7 +3732,7 @@ function upay_run_create_provenance_race($scenario_name, $failure_injection, $po
     // Derive the exact current production identity context before injecting the
     // race. Hard-coded pseudo-scopes can cause create_provenance() to reject
     // before the intended write/rollback seam and therefore create false PASSes.
-    $identity_context = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
+    $identity_context = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
     $scope_fingerprint = isset($identity_context['scope']) && is_string($identity_context['scope'])
         ? $identity_context['scope']
         : null;
@@ -3741,7 +3741,7 @@ function upay_run_create_provenance_race($scenario_name, $failure_injection, $po
         : null;
     $blog_id = (string) get_current_blog_id();
     $meta_key = $scope_fingerprint !== null
-        ? \UPayments\Token\CustomerTokenIdentity::get_user_meta_key($blog_id, $scope_fingerprint)
+        ? \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key($blog_id, $scope_fingerprint)
         : null;
 
     if ($identity_context['state'] !== 'valid'
@@ -4198,13 +4198,13 @@ upay_assert_eq($existing_meta !== '', true, 'SEM14-SEM14-V-2 pre-write rejection
 
 // --- SEM14-W: read_existing_identity_context with valid input and missing secret ---
 upay_reset_state();
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
 upay_assert_eq($ctx['state'], 'absent', 'SEM14-SEM14-W-1 missing secret -> absent', 'helper_unit_runtime');
 
 // --- SEM14-X: read_existing_identity_context with valid input and present secret ---
 upay_reset_state();
 upay_set_secret('live_key', 'live_secret_test_' . str_repeat('b', 20), 'live', $gen);
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('live_key', false);
 upay_assert_eq($ctx['state'], 'valid', 'SEM14-SEM14-X-1 valid secret -> valid', 'helper_unit_runtime');
 
 // --- SEM14-Y: parse_strict_nonneg_int requires explicit generation for history ---
@@ -4254,7 +4254,7 @@ upay_assert($direct_php_input <= 1, 'LINT-Z-6 at most 1 php://input reference in
 // =========================================================================
 // Each test drives a real production validator with a token of the wrong PHP
 // type and asserts the EXACT observable. No (string) coercion should occur.
-$cti_class = '\\UPayments\\Token\\CustomerTokenIdentity';
+$cti_class = '\\Simplixi\\SUPCheckout\\Token\\CustomerTokenIdentity';
 
 // is_valid_canonical_token: integer 12345678 must FAIL (not a string).
 $ref_canonical = (new ReflectionClass($cti_class))->getMethod('is_valid_canonical_token');
@@ -4576,7 +4576,7 @@ upay_assert_eq(
 // SCOPE_PATTERN = /^[0-9a-f]{32}$/, so we need a valid 32-hex scope.
 $valid_scope = str_repeat('a', 32);
 upay_reset_state();
-$ctx = \UPayments\Token\CustomerTokenIdentity::read_provenance(99, $valid_scope, null);
+$ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_provenance(99, $valid_scope, null);
 upay_assert_eq(
     $ctx['state'],
     'invalid',
@@ -4589,7 +4589,7 @@ upay_assert_eq(
     'RR-14 read_provenance with null generation: reason=missing_generation',
         'helper_unit_runtime'
 );
-$ctx_int = \UPayments\Token\CustomerTokenIdentity::read_provenance(99, $valid_scope, 12345);
+$ctx_int = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_provenance(99, $valid_scope, 12345);
 upay_assert_eq(
     $ctx_int['state'],
     'invalid',
@@ -5995,12 +5995,12 @@ upay_assert(!$mismatch_has_b, 'SP-CARD-MISMATCH Retrieve response does NOT conta
 // ===========================================================================
 // SECTION BLOCKS-SANITIZER: Blocks PHP strict saved-card token sanitizer
 // ===========================================================================
-// Exercises the REAL WCGatewayUPaymentsBlocks::get_payment_method_data()
+// Exercises the REAL Simplixi\SUPCheckout\Blocks\PaymentMethodType::get_payment_method_data()
 // with a testable subclass that injects a mock gateway returning mixed-type
 // provider cards. The sanitizer must reject all non-string tokens via the
 // actual production code path.
 
-require_once $ROOT . '/includes/class-wc-gateway-upayments-blocks.php';
+require_once $ROOT . '/src/Blocks/PaymentMethodType.php';
 
 if (!class_exists('WC_Upayments_BlocksSanitizerTestable', false)) {
 class WC_Upayments_BlocksSanitizerTestable extends WC_Upayments_Testable {
@@ -6020,7 +6020,7 @@ class WC_Upayments_BlocksSanitizerTestable extends WC_Upayments_Testable {
 }
 
 if (!class_exists('WCGatewayUPaymentsBlocks_Testable', false)) {
-class WCGatewayUPaymentsBlocks_Testable extends WCGatewayUPaymentsBlocks {
+class WCGatewayUPaymentsBlocks_Testable extends \Simplixi\SUPCheckout\Blocks\PaymentMethodType {
     public function __construct($pluginFile, $gw) {
         parent::__construct($pluginFile);
         $this->gateway = $gw;
@@ -6048,7 +6048,7 @@ $state['options']['upayments_token_identity_secret_v2'] = [
     'verifier' => $blocks_verifier,
 ];
 // Derive the actual scope from the secret.
-$blocks_ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('test_api_key', false);
+$blocks_ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('test_api_key', false);
 $blocks_scope = $blocks_ctx['scope'] ?? null;
 $blocks_gen_actual = $blocks_ctx['generation_id'] ?? null;
 $state['usermeta'][42] = [
@@ -6152,106 +6152,106 @@ if (class_exists('Simplixi\\SUPCheckout\\Payment\\SavedCardPresentation', false)
 
 // --- 19.1 is_valid_canonical_token: exact 8-digit, leading 1-9 --------------
 // Reclassified #20: direct helper/validator calls → helper_unit_runtime.
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('12345678'), true, 'PHP-R19-CTV-1 8-digit canonical valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('99999999'), true, 'PHP-R19-CTV-2 8-digit all-9 canonical valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('19999999'), true, 'PHP-R19-CTV-3 leading-1 canonical valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('02345678'), false, 'PHP-R19-CTV-4 leading-0 rejected (canonical)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('1234567'), false, 'PHP-R19-CTV-5 7 digits rejected (canonical)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('123456789'), false, 'PHP-R19-CTV-6 9 digits rejected (canonical)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('12345678901234567'), false, 'PHP-R19-CTV-7 17 digits rejected (canonical)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('123456789012345678'), false, 'PHP-R19-CTV-8 18 digits rejected (canonical)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token(''), false, 'PHP-R19-CTV-9 empty rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token(' 12345678'), false, 'PHP-R19-CTV-10 leading-space rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('12345678 '), false, 'PHP-R19-CTV-11 trailing-space rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('1234567a'), false, 'PHP-R19-CTV-12 trailing-letter rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('12345-78'), false, 'PHP-R19-CTV-13 dash rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('1234.678'), false, 'PHP-R19-CTV-14 dot rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('12.345.678'), false, 'PHP-R19-CTV-15 grouped-digit rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('123456780'), false, 'PHP-R19-CTV-16 9 digits leading-1 rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('00000000'), false, 'PHP-R19-CTV-17 all-zero rejected (canonical)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token('01234567'), false, 'PHP-R19-CTV-18 0-leading 8-digit rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token(null), false, 'PHP-R19-CTV-19 null rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token(12345678), false, 'PHP-R19-CTV-20 int rejected (strict-string)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('12345678'), true, 'PHP-R19-CTV-1 8-digit canonical valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('99999999'), true, 'PHP-R19-CTV-2 8-digit all-9 canonical valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('19999999'), true, 'PHP-R19-CTV-3 leading-1 canonical valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('02345678'), false, 'PHP-R19-CTV-4 leading-0 rejected (canonical)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('1234567'), false, 'PHP-R19-CTV-5 7 digits rejected (canonical)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('123456789'), false, 'PHP-R19-CTV-6 9 digits rejected (canonical)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('12345678901234567'), false, 'PHP-R19-CTV-7 17 digits rejected (canonical)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('123456789012345678'), false, 'PHP-R19-CTV-8 18 digits rejected (canonical)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token(''), false, 'PHP-R19-CTV-9 empty rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token(' 12345678'), false, 'PHP-R19-CTV-10 leading-space rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('12345678 '), false, 'PHP-R19-CTV-11 trailing-space rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('1234567a'), false, 'PHP-R19-CTV-12 trailing-letter rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('12345-78'), false, 'PHP-R19-CTV-13 dash rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('1234.678'), false, 'PHP-R19-CTV-14 dot rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('12.345.678'), false, 'PHP-R19-CTV-15 grouped-digit rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('123456780'), false, 'PHP-R19-CTV-16 9 digits leading-1 rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('00000000'), false, 'PHP-R19-CTV-17 all-zero rejected (canonical)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token('01234567'), false, 'PHP-R19-CTV-18 0-leading 8-digit rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token(null), false, 'PHP-R19-CTV-19 null rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token(12345678), false, 'PHP-R19-CTV-20 int rejected (strict-string)', 'helper_unit_runtime');
 
 // --- 19.2 is_valid_legacy_token: 8-18 digits, leading 0 allowed -------------
 // Reclassified #20: direct helper/validator calls → helper_unit_runtime.
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('12345678'), true, 'PHP-R19-LTV-1 8-digit legacy valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('02345678'), true, 'PHP-R19-LTV-2 leading-0 8-digit legacy valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('00000000'), true, 'PHP-R19-LTV-3 all-zero 8-digit legacy valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('12345678901234567'), true, 'PHP-R19-LTV-4 17-digit legacy valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('123456789012345678'), true, 'PHP-R19-LTV-5 18-digit legacy valid (boundary)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('1234567'), false, 'PHP-R19-LTV-6 7-digit rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('1234567890123456789'), false, 'PHP-R19-LTV-7 19-digit rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('12345678901234567890'), false, 'PHP-R19-LTV-8 20-digit rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token(''), false, 'PHP-R19-LTV-9 empty rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('1234567a'), false, 'PHP-R19-LTV-10 trailing-letter rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('12345678a'), false, 'PHP-R19-LTV-11 8-digit + letter rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('12345-678'), false, 'PHP-R19-LTV-12 dash rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('1234.5678'), false, 'PHP-R19-LTV-13 dot rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token(' 12345678'), false, 'PHP-R19-LTV-14 leading-space rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token(null), false, 'PHP-R19-LTV-15 null rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token(12345678), false, 'PHP-R19-LTV-16 int rejected (strict-string)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('abcdefgh'), false, 'PHP-R19-LTV-17 letters-only rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_legacy_token('1234567☢8'), false, 'PHP-R19-LTV-18 non-ASCII rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('12345678'), true, 'PHP-R19-LTV-1 8-digit legacy valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('02345678'), true, 'PHP-R19-LTV-2 leading-0 8-digit legacy valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('00000000'), true, 'PHP-R19-LTV-3 all-zero 8-digit legacy valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('12345678901234567'), true, 'PHP-R19-LTV-4 17-digit legacy valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('123456789012345678'), true, 'PHP-R19-LTV-5 18-digit legacy valid (boundary)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('1234567'), false, 'PHP-R19-LTV-6 7-digit rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('1234567890123456789'), false, 'PHP-R19-LTV-7 19-digit rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('12345678901234567890'), false, 'PHP-R19-LTV-8 20-digit rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token(''), false, 'PHP-R19-LTV-9 empty rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('1234567a'), false, 'PHP-R19-LTV-10 trailing-letter rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('12345678a'), false, 'PHP-R19-LTV-11 8-digit + letter rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('12345-678'), false, 'PHP-R19-LTV-12 dash rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('1234.5678'), false, 'PHP-R19-LTV-13 dot rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token(' 12345678'), false, 'PHP-R19-LTV-14 leading-space rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token(null), false, 'PHP-R19-LTV-15 null rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token(12345678), false, 'PHP-R19-LTV-16 int rejected (strict-string)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('abcdefgh'), false, 'PHP-R19-LTV-17 letters-only rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_legacy_token('1234567☢8'), false, 'PHP-R19-LTV-18 non-ASCII rejected', 'helper_unit_runtime');
 
 // --- 19.3 is_valid_token_for_kind: kind dispatch ----------------------------
 // Reclassified #20: direct helper/validator calls → helper_unit_runtime.
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_token_for_kind('12345678', 'canonical'), true, 'PHP-R19-TFK-1 canonical kind dispatches', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_token_for_kind('02345678', 'canonical'), false, 'PHP-R19-TFK-2 leading-0 fails canonical dispatch', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_token_for_kind('02345678', 'legacy_compat'), true, 'PHP-R19-TFK-3 legacy_compat allows leading-0', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_token_for_kind('12345678', 'legacy_compat'), true, 'PHP-R19-TFK-4 legacy_compat allows 8-digit', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_token_for_kind('1234567', 'legacy_compat'), false, 'PHP-R19-TFK-5 legacy_compat rejects <8 digits', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_token_for_kind('12345678', 'unknown_kind'), false, 'PHP-R19-TFK-6 unknown kind rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_token_for_kind('12345678', ''), false, 'PHP-R19-TFK-7 empty kind rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_token_for_kind(null, 'canonical'), false, 'PHP-R19-TFK-8 null token rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_token_for_kind('12345678', 'canonical'), true, 'PHP-R19-TFK-1 canonical kind dispatches', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_token_for_kind('02345678', 'canonical'), false, 'PHP-R19-TFK-2 leading-0 fails canonical dispatch', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_token_for_kind('02345678', 'legacy_compat'), true, 'PHP-R19-TFK-3 legacy_compat allows leading-0', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_token_for_kind('12345678', 'legacy_compat'), true, 'PHP-R19-TFK-4 legacy_compat allows 8-digit', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_token_for_kind('1234567', 'legacy_compat'), false, 'PHP-R19-TFK-5 legacy_compat rejects <8 digits', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_token_for_kind('12345678', 'unknown_kind'), false, 'PHP-R19-TFK-6 unknown kind rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_token_for_kind('12345678', ''), false, 'PHP-R19-TFK-7 empty kind rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_token_for_kind(null, 'canonical'), false, 'PHP-R19-TFK-8 null token rejected', 'helper_unit_runtime');
 
 // --- 19.4 generate_canonical_token: shape and uniqueness --------------------
 // Reclassified #20: direct helper calls → helper_unit_runtime.
-$gen_t1 = \UPayments\Token\CustomerTokenIdentity::generate_canonical_token();
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_canonical_token($gen_t1), true, 'PHP-R19-GEN-1 generated token passes canonical validator', 'helper_unit_runtime');
+$gen_t1 = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::generate_canonical_token();
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_canonical_token($gen_t1), true, 'PHP-R19-GEN-1 generated token passes canonical validator', 'helper_unit_runtime');
 upay_assert_eq(strlen($gen_t1) === 8, true, 'PHP-R19-GEN-2 generated token is exactly 8 chars', 'helper_unit_runtime');
 upay_assert_eq(ctype_digit($gen_t1), true, 'PHP-R19-GEN-3 generated token is all-digit', 'helper_unit_runtime');
 upay_assert_eq($gen_t1[0] >= '1' && $gen_t1[0] <= '9', true, 'PHP-R19-GEN-4 generated token leading char is 1-9', 'helper_unit_runtime');
-$gen_t2 = \UPayments\Token\CustomerTokenIdentity::generate_canonical_token();
-$gen_t3 = \UPayments\Token\CustomerTokenIdentity::generate_canonical_token();
+$gen_t2 = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::generate_canonical_token();
+$gen_t3 = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::generate_canonical_token();
 upay_assert_eq($gen_t1 !== $gen_t2, true, 'PHP-R19-GEN-5 two consecutive tokens differ', 'helper_unit_runtime');
 upay_assert_eq($gen_t2 !== $gen_t3, true, 'PHP-R19-GEN-6 second and third tokens differ', 'helper_unit_runtime');
 
 // --- 19.5 is_valid_scope: 32-char hex ---------------------------------------
 // Reclassified #20: direct validator calls → helper_unit_runtime.
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('a', 32)), true, 'PHP-R19-SCP-1 32-hex scope valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('f', 32)), true, 'PHP-R19-SCP-2 all-f scope valid', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope('0123456789abcdef0123456789abcDEF'), false, 'PHP-R19-SCP-3 mixed-case hex rejected (strict-lowercase)', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('a', 31)), false, 'PHP-R19-SCP-4 31-char rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('a', 33)), false, 'PHP-R19-SCP-5 33-char rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope(''), false, 'PHP-R19-SCP-6 empty rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('z', 32)), false, 'PHP-R19-SCP-7 non-hex rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope(null), false, 'PHP-R19-SCP-8 null rejected', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('a', 32) . '!'), false, 'PHP-R19-SCP-9 trailing-non-hex rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('a', 32)), true, 'PHP-R19-SCP-1 32-hex scope valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('f', 32)), true, 'PHP-R19-SCP-2 all-f scope valid', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope('0123456789abcdef0123456789abcDEF'), false, 'PHP-R19-SCP-3 mixed-case hex rejected (strict-lowercase)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('a', 31)), false, 'PHP-R19-SCP-4 31-char rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('a', 33)), false, 'PHP-R19-SCP-5 33-char rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope(''), false, 'PHP-R19-SCP-6 empty rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('z', 32)), false, 'PHP-R19-SCP-7 non-hex rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope(null), false, 'PHP-R19-SCP-8 null rejected', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::is_valid_scope(str_repeat('a', 32) . '!'), false, 'PHP-R19-SCP-9 trailing-non-hex rejected', 'helper_unit_runtime');
 
 // --- 19.6 get_user_meta_key: same/different inputs (blog_id is strict-string) -
 // Reclassified #20: direct helper calls → helper_unit_runtime.
-$k_a = \UPayments\Token\CustomerTokenIdentity::get_user_meta_key('1', str_repeat('a', 32));
-$k_b = \UPayments\Token\CustomerTokenIdentity::get_user_meta_key('1', str_repeat('a', 32));
-$k_c = \UPayments\Token\CustomerTokenIdentity::get_user_meta_key('1', str_repeat('b', 32));
-$k_d = \UPayments\Token\CustomerTokenIdentity::get_user_meta_key('2', str_repeat('a', 32));
+$k_a = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key('1', str_repeat('a', 32));
+$k_b = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key('1', str_repeat('a', 32));
+$k_c = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key('1', str_repeat('b', 32));
+$k_d = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key('2', str_repeat('a', 32));
 upay_assert_eq(is_string($k_a) && strlen($k_a) > 0, true, 'PHP-R19-UMK-1 meta key is non-empty string', 'helper_unit_runtime');
 upay_assert_eq($k_a === $k_b, true, 'PHP-R19-UMK-2 same inputs → same key (deterministic)', 'helper_unit_runtime');
 upay_assert_eq($k_a !== $k_c, true, 'PHP-R19-UMK-3 different scope → different key', 'helper_unit_runtime');
 upay_assert_eq($k_a !== $k_d, true, 'PHP-R19-UMK-4 different user → different key', 'helper_unit_runtime');
 upay_assert_eq(strpos($k_a, str_repeat('a', 32)) !== false, true, 'PHP-R19-UMK-5 key embeds scope fingerprint', 'helper_unit_runtime');
 // Integer blog_id is rejected (strict-string boundary).
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::get_user_meta_key(1, str_repeat('a', 32)), null, 'PHP-R19-UMK-6 int blog_id rejected (strict-string boundary)', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key(1, str_repeat('a', 32)), null, 'PHP-R19-UMK-6 int blog_id rejected (strict-string boundary)', 'helper_unit_runtime');
 // Malformed scope returns null.
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::get_user_meta_key('1', str_repeat('z', 32)), null, 'PHP-R19-UMK-7 invalid scope returns null', 'helper_unit_runtime');
-upay_assert_eq(\UPayments\Token\CustomerTokenIdentity::get_user_meta_key('1', ''), null, 'PHP-R19-UMK-8 empty scope returns null', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key('1', str_repeat('z', 32)), null, 'PHP-R19-UMK-7 invalid scope returns null', 'helper_unit_runtime');
+upay_assert_eq(\Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key('1', ''), null, 'PHP-R19-UMK-8 empty scope returns null', 'helper_unit_runtime');
 
 // --- 19.7 get_lock_name: same/different inputs ------------------------------
 // Reclassified #20: direct helper calls → helper_unit_runtime.
-$lock_a = \UPayments\Token\CustomerTokenIdentity::get_lock_name(str_repeat('a', 32), '1');
-$lock_b = \UPayments\Token\CustomerTokenIdentity::get_lock_name(str_repeat('a', 32), '1');
-$lock_c = \UPayments\Token\CustomerTokenIdentity::get_lock_name(str_repeat('b', 32), '1');
-$lock_d = \UPayments\Token\CustomerTokenIdentity::get_lock_name(str_repeat('a', 32), '2');
+$lock_a = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_lock_name(str_repeat('a', 32), '1');
+$lock_b = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_lock_name(str_repeat('a', 32), '1');
+$lock_c = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_lock_name(str_repeat('b', 32), '1');
+$lock_d = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_lock_name(str_repeat('a', 32), '2');
 upay_assert_eq(is_string($lock_a) && strlen($lock_a) > 0, true, 'PHP-R19-LCK-1 lock name is non-empty string', 'helper_unit_runtime');
 upay_assert_eq($lock_a === $lock_b, true, 'PHP-R19-LCK-2 same inputs → same lock', 'helper_unit_runtime');
 upay_assert_eq($lock_a !== $lock_c, true, 'PHP-R19-LCK-3 different scope → different lock', 'helper_unit_runtime');
@@ -6300,77 +6300,77 @@ $transport_mismatch = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0,
     'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => '99999999']])
 ];
-$reason_mismatch = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_mismatch, '12345678')['reason'];
+$reason_mismatch = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_mismatch, '12345678')['reason'];
 upay_assert_eq($reason_mismatch === 'token_mismatch', true, 'PHP-R19-CTR-1 echoed token != submitted → token_mismatch', 'helper_unit_runtime');
 
 $transport_match = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0,
     'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => '12345678']])
 ];
-$reason_match = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_match, '12345678')['reason'];
+$reason_match = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_match, '12345678')['reason'];
 upay_assert_eq($reason_match === 'success', true, 'PHP-R19-CTR-2 echoed token == submitted → success', 'helper_unit_runtime');
 
 $transport_no_data = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0,
     'body' => json_encode(['status' => true])
 ];
-$reason_no_data = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_no_data, '12345678')['reason'];
+$reason_no_data = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_no_data, '12345678')['reason'];
 upay_assert_eq($reason_no_data !== 'success', true, 'PHP-R19-CTR-3 missing data → not success', 'helper_unit_runtime');
 
 $transport_no_cut = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0,
     'body' => json_encode(['status' => true, 'data' => []])
 ];
-$reason_no_cut = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_no_cut, '12345678')['reason'];
+$reason_no_cut = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_no_cut, '12345678')['reason'];
 upay_assert_eq($reason_no_cut !== 'success', true, 'PHP-R19-CTR-4 empty data → not success', 'helper_unit_runtime');
 
 $transport_nonstring_cut = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0,
     'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => [12345678]]])
 ];
-$reason_nonstring = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_nonstring_cut, '12345678')['reason'];
+$reason_nonstring = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_nonstring_cut, '12345678')['reason'];
 upay_assert_eq($reason_nonstring !== 'success', true, 'PHP-R19-CTR-5 non-scalar customerUniqueToken → not success', 'helper_unit_runtime');
 
 $transport_empty_body = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0, 'body' => ''
 ];
-$reason_empty = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_empty_body, '12345678')['reason'];
+$reason_empty = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_empty_body, '12345678')['reason'];
 upay_assert_eq($reason_empty !== 'success', true, 'PHP-R19-CTR-6 empty body → not success', 'helper_unit_runtime');
 
 $transport_garbage_body = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0,
     'body' => 'not-json-at-all{'
 ];
-$reason_garbage = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_garbage_body, '12345678')['reason'];
+$reason_garbage = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_garbage_body, '12345678')['reason'];
 upay_assert_eq($reason_garbage !== 'success', true, 'PHP-R19-CTR-7 garbage body → not success', 'helper_unit_runtime');
 
 // --- 19.11 Additional semantic coverage: transport-shape + boundary checks ---
 // Non-array transport → transport_failure.
-$transport_not_array = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response('not-array', '12345678')['reason'];
+$transport_not_array = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response('not-array', '12345678')['reason'];
 upay_assert_eq($transport_not_array === 'transport_failure', true, 'PHP-R19-CTR-8 non-array transport → transport_failure', 'helper_unit_runtime');
 
 // Missing http_status → transport_failure.
-$transport_no_status = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(['transport_ok' => true, 'body' => '{}'], '12345678')['reason'];
+$transport_no_status = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(['transport_ok' => true, 'body' => '{}'], '12345678')['reason'];
 upay_assert_eq($transport_no_status === 'transport_failure', true, 'PHP-R19-CTR-9 missing http_status → transport_failure', 'helper_unit_runtime');
 
 // Non-int http_status → transport_failure.
-$transport_status_str = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(['http_status' => '201', 'transport_ok' => true, 'body' => '{}'], '12345678')['reason'];
+$transport_status_str = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(['http_status' => '201', 'transport_ok' => true, 'body' => '{}'], '12345678')['reason'];
 upay_assert_eq($transport_status_str === 'transport_failure', true, 'PHP-R19-CTR-10 string http_status → transport_failure', 'helper_unit_runtime');
 
 // Zero http_status → transport_failure.
-$transport_zero_status = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response(['http_status' => 0, 'transport_ok' => true, 'body' => '{}'], '12345678')['reason'];
+$transport_zero_status = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response(['http_status' => 0, 'transport_ok' => true, 'body' => '{}'], '12345678')['reason'];
 upay_assert_eq($transport_zero_status === 'transport_failure', true, 'PHP-R19-CTR-11 http_status=0 → transport_failure', 'helper_unit_runtime');
 
 // Empty submitted_token → invalid_candidate.
-$transport_empty_submitted = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_match, '')['reason'];
+$transport_empty_submitted = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_match, '')['reason'];
 upay_assert_eq($transport_empty_submitted === 'invalid_candidate', true, 'PHP-R19-CTR-12 empty submitted_token → invalid_candidate', 'helper_unit_runtime');
 
 // Non-canonical submitted_token → invalid_candidate.
-$transport_noncanon = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_match, 'abc')['reason'];
+$transport_noncanon = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_match, 'abc')['reason'];
 upay_assert_eq($transport_noncanon === 'invalid_candidate', true, 'PHP-R19-CTR-13 non-canonical submitted → invalid_candidate', 'helper_unit_runtime');
 
 // Submitted token as int → invalid_candidate (strict-string).
-$transport_int_submitted = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_match, 12345678)['reason'];
+$transport_int_submitted = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_match, 12345678)['reason'];
 upay_assert_eq($transport_int_submitted === 'invalid_candidate', true, 'PHP-R19-CTR-14 int submitted → invalid_candidate', 'helper_unit_runtime');
 
 // Echoed token with leading zero (canonical would reject, but legacy might accept) → mismatch.
@@ -6378,13 +6378,13 @@ $transport_leading_zero = [
     'http_status' => 201, 'transport_ok' => true, 'curl_errno' => 0,
     'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => '02345678']])
 ];
-$reason_lz = \UPayments\Token\CustomerTokenIdentity::classify_create_token_response($transport_leading_zero, '02345678')['reason'];
+$reason_lz = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::classify_create_token_response($transport_leading_zero, '02345678')['reason'];
 upay_assert_eq($reason_lz === 'invalid_candidate', true, 'PHP-R19-CTR-15 leading-zero submitted → invalid_candidate (canonical rejects)', 'helper_unit_runtime');
 
 // --- 19.12 get_bootstrap_lock_name: deterministic singleton ------------------
 // Reclassified #20: direct helper calls → helper_unit_runtime.
-$boot_a = \UPayments\Token\CustomerTokenIdentity::get_bootstrap_lock_name();
-$boot_b = \UPayments\Token\CustomerTokenIdentity::get_bootstrap_lock_name();
+$boot_a = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_bootstrap_lock_name();
+$boot_b = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_bootstrap_lock_name();
 upay_assert_eq(is_string($boot_a) && strlen($boot_a) > 0, true, 'PHP-R19-BLN-1 bootstrap lock name is non-empty string', 'helper_unit_runtime');
 upay_assert_eq($boot_a === $boot_b, true, 'PHP-R19-BLN-2 bootstrap lock name is deterministic', 'helper_unit_runtime');
 
@@ -6651,13 +6651,13 @@ function upay_real_actual_scope($secret_record) {
     // a real is_test_mode, AND the real registered secret. The harness fakes
     // the secret via option mock; we therefore mimic the call with a known
     // api_key/test_mode and rely on the harness WP_Options override.
-    return \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context(
+    return \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context(
         'test_api_key_mode_specific',
         true
     );
 }
 function upay_real_meta_key($blog_id, $scope) {
-    return \UPayments\Token\CustomerTokenIdentity::get_user_meta_key((string) $blog_id, $scope);
+    return \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_user_meta_key((string) $blog_id, $scope);
 }
 function upay_real_user_id($scenario_user_id) {
     return (int) $scenario_user_id > 0 ? (int) $scenario_user_id : 1;

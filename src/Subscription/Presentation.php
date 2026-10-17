@@ -2,8 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Subscription;
 
-use UPayments\Subscription\Cron\Scheduler;
-use UPayments\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Subscription\Cron\Scheduler;
+use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
 
 /**
  * Inherited subscription product, admin and My Account presentation behavior.

@@ -120,9 +120,10 @@ foreach (array('/vendor/', '/tests/', '/composer.json', '/composer.lock', '/phpc
 }
 q1_assert(q1_contains($gitignore, '/vendor/'), 'Composer vendor directory is ignored');
 // Every shipped runtime PHP file: the main file, the transitional UPayments.php shim
-// and everything under src/ and includes/ (the PSR-4 autoloader is hand-written).
+// and everything under src/ (the PSR-4 autoloader is hand-written; includes/ moved into src/
+// in Sub-project 0a Task 6).
 $q1_runtime_files = array('supcheckout.php', 'UPayments.php');
-foreach (array('src', 'includes') as $q1_runtime_dir) {
+foreach (array('src') as $q1_runtime_dir) {
     $q1_iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($q1_root . '/' . $q1_runtime_dir, FilesystemIterator::SKIP_DOTS));
     foreach ($q1_iterator as $q1_file) {
         if ($q1_file->isFile() && strtolower($q1_file->getExtension()) === 'php') {

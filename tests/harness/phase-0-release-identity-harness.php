@@ -109,10 +109,10 @@ p0_assert(
 p0_assert(p0_contains($runtime_source, 'wc_upayments'), 'legacy callback route remains present');
 p0_assert(p0_contains($bootstrap_path_sources . "\n" . $subscription_actions_source, "'upayments'"), 'legacy upayments runtime identity remains present');
 
-$token_source = file_get_contents($root . '/includes/Token/CustomerTokenIdentity.php');
+$token_source = file_get_contents($root . '/src/Token/CustomerTokenIdentity.php');
 p0_assert(p0_contains($token_source, 'upayments_token_identity_secret_v2'), 'H12 identity secret key remains protected');
 
-$scheduler_source = file_get_contents($root . '/includes/Subscription/Cron/Scheduler.php');
+$scheduler_source = file_get_contents($root . '/src/Subscription/Cron/Scheduler.php');
 p0_assert(p0_contains($scheduler_source, 'upay_process_subscriptions'), 'legacy subscription cron identity remains protected');
 
 // Uninstall must preserve merchant/payment data until an explicit cleanup

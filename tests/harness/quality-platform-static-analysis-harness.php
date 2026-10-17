@@ -51,7 +51,8 @@ function q2_supcheckout_i18n_violations($root) {
         'esc_attr_e' => 1,
     );
     $paths = array('supcheckout.php');
-    foreach (array('src', 'includes') as $directory) {
+    // includes/ moved into src/ in Sub-project 0a Task 6.
+    foreach (array('src') as $directory) {
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS)
         );

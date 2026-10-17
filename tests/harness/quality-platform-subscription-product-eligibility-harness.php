@@ -40,7 +40,7 @@ function get_post_meta($product_id, $key, $single = false) {
         : '';
 }
 
-require_once dirname(__DIR__, 2) . '/includes/Subscription/Helpers/Utils.php';
+require_once dirname(__DIR__, 2) . '/src/Subscription/Helpers/Utils.php';
 
 $pass = 0;
 $fail = 0;
@@ -63,7 +63,7 @@ function q19_set_cart($product_ids) {
     }
 }
 
-use UPayments\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
 
 q19_set_cart(array());
 $GLOBALS['q19_meta'] = array();
@@ -124,8 +124,8 @@ $GLOBALS['q19_meta'] = array(
 q19_assert(Utils::cartHasRestrictedProducts() === true, 'one explicitly opted-out product restricts the mixed cart');
 
 $root = dirname(__DIR__, 2);
-$utils_source = file_get_contents($root . '/includes/Subscription/Helpers/Utils.php');
-$fields_source = file_get_contents($root . '/includes/Subscription/Checkout/Fields.php');
+$utils_source = file_get_contents($root . '/src/Subscription/Helpers/Utils.php');
+$fields_source = file_get_contents($root . '/src/Subscription/Checkout/Fields.php');
 $checkout_source = file_get_contents($root . '/src/Payment/CheckoutOrchestrator.php');
 $checkout_test_source = file_get_contents($root . '/tests/unit/Payment/CheckoutOrchestratorTest.php');
 $phpstan_source = file_get_contents($root . '/phpstan.neon.dist');
@@ -182,14 +182,14 @@ q19_assert(
 );
 q19_assert(
     is_string($phpstan_source)
-    && strpos($phpstan_source, 'includes/Subscription/Checkout/Fields.php') !== false
-    && strpos($phpstan_source, 'includes/Subscription/Helpers/Utils.php') !== false,
+    && strpos($phpstan_source, 'src/Subscription/Checkout/Fields.php') !== false
+    && strpos($phpstan_source, 'src/Subscription/Helpers/Utils.php') !== false,
     'PHPStan directly owns Q19 subscription eligibility sources'
 );
 q19_assert(
     is_string($phpcs_source)
-    && strpos($phpcs_source, '<file>includes/Subscription/Checkout/Fields.php</file>') !== false
-    && strpos($phpcs_source, '<file>includes/Subscription/Helpers/Utils.php</file>') !== false,
+    && strpos($phpcs_source, '<file>src/Subscription/Checkout/Fields.php</file>') !== false
+    && strpos($phpcs_source, '<file>src/Subscription/Helpers/Utils.php</file>') !== false,
     'PHPCS directly owns Q19 subscription eligibility sources'
 );
 q19_assert(

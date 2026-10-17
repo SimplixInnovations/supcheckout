@@ -1,5 +1,5 @@
 <?php
-namespace UPayments\Token;
+namespace Simplixi\SUPCheckout\Token;
 
 defined('ABSPATH') || exit;
 

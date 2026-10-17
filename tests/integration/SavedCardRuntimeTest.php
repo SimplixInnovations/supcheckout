@@ -7,9 +7,17 @@ require_once __DIR__ . '/bootstrap.php';
 
 use Simplixi\SUPCheckout\Payment\SavedCardPresentation;
 use Simplixi\SUPCheckout\Payment\SavedCardSelection;
-use UPayments\Token\CustomerTokenIdentity;
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
-supcheckout_cert_assert(class_exists(CustomerTokenIdentity::class, false), 'customer token identity boundary is loaded');
+// Sub-project 0a Task 6: CustomerTokenIdentity moved from includes/ (eagerly required by the
+// bootstrap) into src/, served lazily by the plugin's PSR-4 autoloader (the only autoloader in
+// this runtime). It is a side-effect-free class declaration, so the rule is availability from
+// the shipped package, not eager loading.
+supcheckout_cert_assert(class_exists(CustomerTokenIdentity::class), 'customer token identity boundary is available through the production autoloader');
+supcheckout_cert_assert(
+    substr(str_replace('\\', '/', (string) (new ReflectionClass(CustomerTokenIdentity::class))->getFileName()), -strlen('/src/Token/CustomerTokenIdentity.php')) === '/src/Token/CustomerTokenIdentity.php',
+    'customer token identity boundary is loaded from the packaged src/Token/CustomerTokenIdentity.php'
+);
 supcheckout_cert_assert(class_exists(SavedCardPresentation::class, false), 'saved-card presentation boundary is loaded by the production plugin bootstrap');
 supcheckout_cert_assert(class_exists(SavedCardSelection::class, false), 'saved-card selection boundary is loaded by the production plugin bootstrap');
 supcheckout_cert_assert('•••• 4242' === SavedCardPresentation::label(array('number' => '4111 1111 1111 4242'), 'Saved card'), 'saved-card presentation exposes only last four in packaged runtime');

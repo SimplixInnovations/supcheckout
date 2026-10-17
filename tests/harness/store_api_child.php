@@ -500,13 +500,13 @@ if (is_array($identity_setup_decoded) && ($identity_setup_decoded['setup_mode'] 
 
     // Call the actual production helper.
     try {
-        $history_mode_result = \UPayments\Token\CustomerTokenIdentity::inspect_bootstrap_history($state['current_user_id']);
+        $history_mode_result = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_bootstrap_history($state['current_user_id']);
     } catch (Throwable $e) {
         $history_mode_result = ['classification' => 'EXCEPTION', 'reason' => $e->getMessage()];
     }
 }
 if (is_array($identity_setup_decoded) && ($identity_setup_decoded['setup_mode'] ?? '') === 'establish_then_select') {
-    $established = \UPayments\Token\CustomerTokenIdentity::get_or_establish_token(
+    $established = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::get_or_establish_token(
         $state['current_user_id'],
         'test_api_key',
         false,
@@ -632,12 +632,12 @@ $provenance_source = null;
 $provenance_scope = null;
 $provenance_generation = null;
 try {
-    $ctx = \UPayments\Token\CustomerTokenIdentity::read_existing_identity_context('test_api_key', false);
+    $ctx = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_existing_identity_context('test_api_key', false);
     $identity_context_state = $ctx['state'] ?? null;
     $identity_scope = $ctx['scope'] ?? null;
     $identity_generation = $ctx['generation_id'] ?? null;
     if (($ctx['state'] ?? null) === 'valid' && ($ctx['scope'] ?? null) !== null && ($ctx['generation_id'] ?? null) !== null) {
-        $prov = \UPayments\Token\CustomerTokenIdentity::read_provenance($state['current_user_id'], $ctx['scope'], $ctx['generation_id']);
+        $prov = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::read_provenance($state['current_user_id'], $ctx['scope'], $ctx['generation_id']);
         $provenance_state = $prov['state'] ?? null;
         if (($prov['state'] ?? null) === 'valid' && is_array($prov['record'] ?? null)) {
             $provenance_token = $prov['record']['token'] ?? null;

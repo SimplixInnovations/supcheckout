@@ -1,6 +1,6 @@
 <?php
 
-namespace UPayments\Subscription\Helpers {
+namespace Simplixi\SUPCheckout\Subscription\Helpers {
     final class Utils {
         public static $custom = false;
         public static $normal = false;
@@ -10,7 +10,7 @@ namespace UPayments\Subscription\Helpers {
     }
 }
 
-namespace UPayments\Subscription\Cron {
+namespace Simplixi\SUPCheckout\Subscription\Cron {
     final class Scheduler {
         public static function getNextBillingDate($started_at, $plan, $interval) {
             if (!$started_at instanceof \DateTimeInterface || !is_string($plan) || $interval <= 0) {

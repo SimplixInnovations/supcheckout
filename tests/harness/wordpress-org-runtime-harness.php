@@ -29,10 +29,10 @@ function wporgr_read($root, $path) {
 // The gateway source is the main file plus the gateway class it registers
 // (src/Gateway/Gateway.php since Sub-project 0a Task 3).
 $gateway = wporgr_read($root, 'supcheckout.php') . "\n" . wporgr_read($root, 'src/Gateway/Gateway.php');
-$scheduler = wporgr_read($root, 'includes/Subscription/Cron/Scheduler.php');
+$scheduler = wporgr_read($root, 'src/Subscription/Cron/Scheduler.php');
 $status = wporgr_read($root, 'src/Payment/StatusVerifier.php');
 $payload = wporgr_read($root, 'src/Payment/CheckoutPayload.php');
-$token = wporgr_read($root, 'includes/Token/CustomerTokenIdentity.php');
+$token = wporgr_read($root, 'src/Token/CustomerTokenIdentity.php');
 $new_template = wporgr_read($root, 'templates/new-design-form.php');
 $old_template = wporgr_read($root, 'templates/old-design-form.php');
 $product_type = wporgr_read($root, 'src/Subscription/WCProductCustomType.php');
