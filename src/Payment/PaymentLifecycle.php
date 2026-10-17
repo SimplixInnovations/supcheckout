@@ -6,8 +6,10 @@ defined('ABSPATH') || exit;
 
 use Simplixi\SUPCheckout\Security\PublicOrderStatus;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\LegacyCallbackListener;
 
 require_once dirname(__DIR__) . '/Security/PublicOrderStatus.php';
+require_once dirname(__DIR__) . '/Takeover/LegacyCallbackListener.php';
 require_once __DIR__ . '/ProviderResult.php';
 require_once __DIR__ . '/StatusRateGate.php';
 require_once __DIR__ . '/OrderLock.php';
@@ -16,6 +18,10 @@ require_once __DIR__ . '/ReconciliationSweep.php';
 
 /**
  * Payment callback + reconciliation strangler for the historical wc_upayments route.
+ *
+ * The wc_upayments route is permanent (0b Task 8): bootstrap() registers it in every
+ * takeover state, and Takeover\LegacyCallbackListener mirrors it onto the supcheckout
+ * route that Charges use after cutover, both served by handle_callback().
  */
 final class PaymentLifecycle {
     private const CALLBACK_HOOK = 'woocommerce_api_wc_upayments';
@@ -56,6 +62,7 @@ final class PaymentLifecycle {
         self::$bootstrapped = true;
 
         add_action(self::CALLBACK_HOOK, array(__CLASS__, 'handle_callback'), 5);
+        LegacyCallbackListener::register();
         add_action(self::RECONCILE_HOOK, array(__CLASS__, 'reconcile_order'), 10, 1);
         add_action(self::SECONDARY_RECONCILE_HOOK, array(__CLASS__, 'reconcile_secondary'), 10, 1);
         ReconciliationSweep::register();

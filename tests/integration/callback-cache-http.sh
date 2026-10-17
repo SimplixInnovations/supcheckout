@@ -207,4 +207,89 @@ grep -Eiq '^Location:.*order-received' <<<"$glued_headers" || {
 echo 'PASS: browser return with the provider-glued query reaches order-received'
 assert_no_cache_headers 'browser return with provider-glued query'
 
+# 0b Task 8: the supcheckout route answers the same requests identically under the
+# same no-cache policy, and answers the preflight probe (only there) with a no-op 200.
+for route_case in 'browser-invalid|GET|page=success|30' 'webhook-invalid|POST||200' 'public-status-unavailable|GET|get_order_status=1|404'; do
+  IFS='|' read -r case_label case_method case_query case_status <<<"$route_case"
+  for route in wc_upayments supcheckout; do
+    : > "$headers_file"
+    : > "$body_file"
+    url="$base_url/?wc-api=${route}"
+    [[ -n "$case_query" ]] && url="${url}&${case_query}"
+    supcheckout_curl_once_or_diagnose \
+      "${route} ${case_label}" \
+      "$server_pid" \
+      "$server_log" \
+      -sS -D "$headers_file" -o "$body_file" \
+      --max-time 20 \
+      -X "$case_method" \
+      "$url" \
+      >/dev/null
+    route_status="$(head -n 1 "$headers_file" | tr -d '\r')"
+    grep -Eq "HTTP/[0-9.]+ ${case_status}" <<<"$route_status" || {
+      echo "FAIL: ${route} ${case_label} status changed: $route_status" >&2
+      cat "$headers_file" >&2
+      exit 1
+    }
+    if grep -Eiq '^X-SUPCheckout-Probe:' <<<"$(tr -d '\r' <"$headers_file")"; then
+      echo "FAIL: ${route} ${case_label} was answered as a probe" >&2
+      exit 1
+    fi
+    tr -d '\r' <"$headers_file" | grep -Ei '^Location:' >"${headers_file}.${route}.location" || true
+    cp "$body_file" "${body_file}.${route}"
+    assert_no_cache_headers "${route} ${case_label}"
+  done
+  cmp -s "${headers_file}.wc_upayments.location" "${headers_file}.supcheckout.location" || {
+    echo "FAIL: ${case_label} redirects differently on wc_upayments and supcheckout" >&2
+    exit 1
+  }
+  cmp -s "${body_file}.wc_upayments" "${body_file}.supcheckout" || {
+    echo "FAIL: ${case_label} answers differently on wc_upayments and supcheckout" >&2
+    exit 1
+  }
+  echo "PASS: ${case_label} is identical on wc_upayments and supcheckout"
+done
+
+: > "$headers_file"
+: > "$body_file"
+supcheckout_curl_once_or_diagnose \
+  'supcheckout preflight probe' \
+  "$server_pid" \
+  "$server_log" \
+  -sS -D "$headers_file" -o "$body_file" \
+  --max-time 20 \
+  -X GET \
+  "$base_url/?wc-api=supcheckout&supcheckout_probe=1" \
+  >/dev/null
+probe_headers="$(tr -d '\r' <"$headers_file")"
+grep -Eq 'HTTP/[0-9.]+ 200' <<<"$(head -n 1 <<<"$probe_headers")" || {
+  echo "FAIL: supcheckout preflight probe is not a 200" >&2
+  echo "$probe_headers" >&2
+  exit 1
+}
+grep -Eiq '^X-SUPCheckout-Probe: *1$' <<<"$probe_headers" || {
+  echo "FAIL: supcheckout preflight probe lacks its acknowledgement header" >&2
+  echo "$probe_headers" >&2
+  exit 1
+}
+assert_no_cache_headers 'supcheckout preflight probe'
+echo 'PASS: supcheckout preflight probe is an acknowledged no-op 200'
+
+: > "$headers_file"
+: > "$body_file"
+supcheckout_curl_once_or_diagnose \
+  'wc_upayments with the probe argument' \
+  "$server_pid" \
+  "$server_log" \
+  -sS -D "$headers_file" -o "$body_file" \
+  --max-time 20 \
+  -X GET \
+  "$base_url/?wc-api=wc_upayments&supcheckout_probe=1" \
+  >/dev/null
+if grep -Eiq '^X-SUPCheckout-Probe:' <<<"$(tr -d '\r' <"$headers_file")"; then
+  echo 'FAIL: the legacy route acknowledged a probe' >&2
+  exit 1
+fi
+echo 'PASS: wc_upayments does not answer the probe'
+
 echo 'PASS: callback-cache HTTP fixture completed'

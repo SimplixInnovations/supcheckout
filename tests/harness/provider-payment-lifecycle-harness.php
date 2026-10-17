@@ -273,10 +273,25 @@ namespace Simplixi\SUPCheckout\Payment {
     reset_state();
 }
 
+namespace Simplixi\SUPCheckout\Gateway {
+    // Stand-in for the registered gateway class (scenario T1). After cutover
+    // Keys::find_gateway() accepts only an instance of this class (0b Task 2), never
+    // another plugin's object registered under 'upayments'.
+    class Gateway extends \Simplixi\SUPCheckout\Payment\FakeGateway {
+        public function get_return_url($order = null) {
+            return 'https://shop.test/checkout/order-received/' . (is_object($order) ? (int) $order->get_id() : 0) . '/';
+        }
+    }
+}
+
 namespace {
     function WC() { return new \Simplixi\SUPCheckout\Payment\FakeWooRuntime(); }
     function wp_cache_delete($key, $group = '') { return true; }
     function wc_get_price_decimals() { return 3; }
+    // Takeover\TakeoverState and Takeover\LegacyCallbackListener call the global WordPress
+    // functions; both read and record through the same fake store as the payment code.
+    function get_option($name, $default = false) { return \Simplixi\SUPCheckout\Payment\get_option($name, $default); }
+    function add_action($hook, $callback, $priority = 10, $accepted_args = 1) { return \Simplixi\SUPCheckout\Payment\add_action($hook, $callback, $priority, $accepted_args); }
 
     require_once __DIR__ . '/../../src/Takeover/TakeoverState.php';
     require_once __DIR__ . '/../../src/Takeover/Keys.php';
@@ -307,6 +322,7 @@ namespace {
     }
     function reset_fixture($id = 501) {
         \Simplixi\SUPCheckout\Payment\reset_state();
+        \Simplixi\SUPCheckout\Takeover\TakeoverState::flush_cache();
         $order = new FakeOrder($id, 'merchant-order-' . $id);
         $gateway = new FakeGateway();
         \Simplixi\SUPCheckout\Payment\state()['orders'][$id] = $order;
@@ -338,6 +354,127 @@ namespace {
             $r->setAccessible(true);
         }
         return $r->invokeArgs(null, $args);
+    }
+
+    // Scenario T1 (0b Task 8, Review Focus 3): a pre-switch order, legacy keys only and
+    // payment_method 'upayments', paid by a webhook that arrives after cutover.
+    const T1_ORDER = 600;
+    const T1_TRACK = 'track-t1';
+    const T1_PAYMENT = 'pay-t1';
+
+    function t1_fixture() {
+        list(, $order) = reset_fixture(T1_ORDER);
+        $gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
+        \Simplixi\SUPCheckout\Payment\state()['gateway'] = $gateway;
+        \Simplixi\SUPCheckout\Payment\state()['options'][\Simplixi\SUPCheckout\Takeover\TakeoverState::OPTION] = json_encode(array(
+            'status' => 'cut_over',
+            'cut_over_at' => 1700000000,
+            'cursor' => 0,
+            'totals' => array(),
+        ));
+        \Simplixi\SUPCheckout\Takeover\TakeoverState::flush_cache();
+        set_provider_transaction(transaction_for($order, 'CAPTURED', T1_TRACK, T1_PAYMENT));
+        return array($gateway, $order);
+    }
+
+    /**
+     * T1 route child: one real WC-API dispatch of woocommerce_api_{route}, every listener
+     * PaymentLifecycle::bootstrap() attached in priority order, through the production
+     * exit(). The response lines and, at shutdown, the order state are printed so the
+     * parent can compare the two routes byte for byte.
+     *
+     * @param string $route      wc_upayments or supcheckout.
+     * @param string $mode       webhook (POST) or browser (GET with the page marker).
+     * @param string $state_file JSON order state of an earlier child, '' for a fresh order.
+     */
+    function t1_route_child($route, $mode, $state_file) {
+        function status_header($code) { echo 'STATUS:' . (int) $code . "\n"; }
+        function wp_safe_redirect($url) { echo 'REDIRECT:' . $url . "\n"; return true; }
+        function wc_nocache_headers() { echo "NOCACHE_HEADERS\n"; }
+        function wp_unslash($value) { return $value; }
+        function is_user_logged_in() { return false; }
+        function home_url($path = '') { return 'https://shop.test' . $path; }
+        function wc_get_page_permalink($page) { return 'https://shop.test/' . $page . '/'; }
+        function add_query_arg($key, $value, $url) { return $url . (strpos($url, '?') === false ? '?' : '&') . $key . '=' . $value; }
+        eval('namespace Simplixi\SUPCheckout\Takeover; function header($line) { echo "HEADER:" . $line . "\n"; } function headers_sent() { return false; }');
+
+        list(, $order) = t1_fixture();
+        if ($state_file !== '') {
+            $saved = json_decode((string) file_get_contents($state_file), true);
+            $order->status = $saved['status'];
+            $order->transaction_id = $saved['transaction_id'];
+            $order->payment_complete_calls = $saved['payment_complete_calls'];
+            $order->notes = $saved['notes'];
+            $order->meta = $saved['meta'];
+        }
+        register_shutdown_function(function () use ($order) {
+            $meta = $order->meta;
+            ksort($meta);
+            foreach ($meta as $key => $value) {
+                // The per-minute callback lookup bucket (gmdate('YmdHi')) is the only clock value.
+                $meta[$key] = is_string($value) ? preg_replace('/^[0-9]{12}:/', 'MINUTE:', $value) : $value;
+            }
+            echo 'REMOTE_CALLS:' . \Simplixi\SUPCheckout\Payment\state()['remote_get_calls'] . "\n";
+            echo 'ORDER_STATE:' . json_encode(array(
+                'status' => $order->status,
+                'transaction_id' => $order->transaction_id,
+                'payment_complete_calls' => $order->payment_complete_calls,
+                'notes' => $order->notes,
+                'meta' => $meta,
+            )) . "\n";
+        });
+
+        PaymentLifecycle::bootstrap();
+        $keys = array('wc_order_id' => (string) T1_ORDER, 'track_id' => T1_TRACK, 'requested_order_id' => 'merchant-order-' . T1_ORDER);
+        if ($mode === 'webhook') {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_GET = array();
+            $_POST = $keys;
+        } else {
+            $_SERVER['REQUEST_METHOD'] = 'GET';
+            $_GET = array('page' => 'success') + $keys;
+            $_POST = array();
+        }
+
+        $queue = array();
+        foreach (\Simplixi\SUPCheckout\Payment\state()['actions'] as $index => $action) {
+            if ($action[0] === 'woocommerce_api_' . $route) {
+                $queue[] = array((int) $action[2], $index, $action[1]);
+            }
+        }
+        usort($queue, function ($left, $right) {
+            return $left[0] === $right[0] ? $left[1] <=> $right[1] : $left[0] <=> $right[0];
+        });
+        echo 'LISTENERS:' . count($queue) . "\n";
+        foreach ($queue as $entry) {
+            call_user_func($entry[2]);
+        }
+        echo "ROUTE_RETURNED_UNEXPECTEDLY\n";
+        exit(65);
+    }
+
+    function t1_run_route_child($route, $mode, $state_file = '') {
+        $command = escapeshellarg(PHP_BINARY) . ' -d error_reporting=E_ALL -d display_errors=1 ' . escapeshellarg(__FILE__)
+            . ' --t1-route ' . escapeshellarg($route) . ' ' . escapeshellarg($mode) . ' ' . escapeshellarg($state_file);
+        $pipes = array();
+        $process = proc_open($command, array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
+        if (!is_resource($process)) {
+            return array('exit' => 127, 'stdout' => '', 'stderr' => 'proc_open failed', 'state' => null);
+        }
+        $stdout = (string) stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = (string) stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        $state = null;
+        if (preg_match('/^ORDER_STATE:(.*)$/m', $stdout, $match) === 1) {
+            $state = json_decode($match[1], true);
+        }
+        return array('exit' => (int) $exit, 'stdout' => $stdout, 'stderr' => $stderr, 'state' => $state);
+    }
+
+    if (isset($argv[1]) && $argv[1] === '--t1-route') {
+        t1_route_child((string) $argv[2], (string) $argv[3], isset($argv[4]) ? (string) $argv[4] : '');
     }
 
     // Exact provider result table, including fail-closed future values.
@@ -1010,6 +1147,83 @@ namespace {
     list($gateway, $order) = reset_fixture(591); set_provider_transaction(transaction_for($order, 'CANCELED'));
     PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
     same($order->get_meta('UPayments_WHS'), 'cancelled', 'H6 cancelled result reaches status poll');
+
+    // T1 (0b Task 8, Review Focus 3): a webhook for a pre-switch payment arrives after
+    // cutover. The order holds only legacy keys and payment_method 'upayments'. The
+    // authenticated CAPTURED binds through the legacy identity (read with fallback), the
+    // order completes once, and every runtime write follows the window model: in cut_over
+    // both names are written (Keys::write_keys()), the legacy identity is never rewritten
+    // and payment_method stays 'upayments'.
+    list($gateway, $order) = t1_fixture();
+    ok(\Simplixi\SUPCheckout\Takeover\TakeoverState::is_cut_over(), 'T1 the store is cut over');
+    same($order->get_meta('_supcheckout_provider_order_id'), '', 'T1 the pre-switch order has no new provider identity');
+    $out = PaymentLifecycle::route_callback($gateway, $order, T1_TRACK, 'merchant-order-' . T1_ORDER, 'webhook');
+    same($out['state'], 'captured', 'T1 the provider CAPTURED binds to the pre-switch order');
+    same($order->payment_complete_calls, 1, 'T1 the order completes once');
+    same($order->get_status(), 'processing', 'T1 the order is paid');
+    same($order->get_transaction_id(), T1_PAYMENT, 'T1 the provider payment ID is the transaction ID');
+    same($order->get_meta('_supcheckout_payment_id'), T1_PAYMENT, 'T1 the payment ID is written under the new key');
+    same($order->get_meta('UPayments_PaymentID'), T1_PAYMENT, 'T1 the window model mirrors the payment ID under the legacy key');
+    same((string) $order->get_meta('_supcheckout_verified_capture'), '1', 'T1 the verified-capture barrier is written under the new key');
+    same((string) $order->get_meta('_upay_verified_capture'), '1', 'T1 and mirrored under the legacy key');
+    same($order->get_meta('UPayments_order_id'), 'merchant-order-' . T1_ORDER, 'T1 the legacy provider identity is unchanged');
+    same($order->get_meta('_supcheckout_provider_order_id'), '', 'T1 the provider identity is read through the legacy fallback, never copied by the callback');
+    same($order->get_payment_method(), 'upayments', 'T1 historical payment_method is never rewritten');
+    $t1_calls = \Simplixi\SUPCheckout\Payment\state()['remote_get_calls'];
+    same($t1_calls, 1, 'T1 exactly one authenticated status lookup');
+    $replay = PaymentLifecycle::route_callback($gateway, $order, T1_TRACK, 'merchant-order-' . T1_ORDER, 'webhook');
+    same($replay['state'], 'captured', 'T1 a replayed webhook sees the verified capture');
+    same($order->payment_complete_calls, 1, 'T1 a replayed webhook never completes the order again');
+    same(\Simplixi\SUPCheckout\Payment\state()['remote_get_calls'], $t1_calls, 'T1 a replayed webhook makes no provider call');
+
+    // T1 route parity: the same webhook, its replay and the browser return, dispatched
+    // through the real woocommerce_api_{route} listeners on each route, produce
+    // byte-identical responses and order state; a webhook on one route and its replay on
+    // the other still complete the order once.
+    $t1_dir = sys_get_temp_dir() . '/supcheckout-t1-' . getmypid();
+    @mkdir($t1_dir, 0777, true);
+    $t1_save = function ($name, $state) use ($t1_dir) {
+        $path = $t1_dir . '/' . $name . '.json';
+        file_put_contents($path, json_encode($state));
+        return $path;
+    };
+    $t1_runs = array();
+    foreach (array('wc_upayments', 'supcheckout') as $route) {
+        $first = t1_run_route_child($route, 'webhook');
+        $again = t1_run_route_child($route, 'webhook', $t1_save($route . '-first', $first['state']));
+        $browser = t1_run_route_child($route, 'browser', $t1_save($route . '-again', $again['state']));
+        $t1_runs[$route] = array($first, $again, $browser);
+        foreach (array('webhook' => $first, 'replayed webhook' => $again, 'browser return' => $browser) as $label => $run) {
+            if ($run['stderr'] !== '' || $run['exit'] !== 0) {
+                echo '  child [' . $route . ' ' . $label . '] exit=' . $run['exit'] . ' stderr: ' . trim($run['stderr']) . "\n  stdout: " . trim($run['stdout']) . "\n";
+            }
+            ok($run['exit'] === 0 && $run['stderr'] === '', "T1 {$route} {$label} terminates through the production exit");
+            ok(strpos($run['stdout'], "LISTENERS:1\n") !== false, "T1 {$route} {$label} has one priority-5 lifecycle listener (the gateway's priority-10 fallback is not constructed here)");
+            ok(strpos($run['stdout'], 'ROUTE_RETURNED_UNEXPECTEDLY') === false && strpos($run['stdout'], 'HEADER:') === false, "T1 {$route} {$label} is a callback, not a probe");
+            ok(is_array($run['state']), "T1 {$route} {$label} reports the order state");
+        }
+        ok(strpos($first['stdout'], "NOCACHE_HEADERS\nSTATUS:200\n") !== false, "T1 {$route} webhook answers 200 under the no-cache policy");
+        same(is_array($first['state']) ? $first['state']['status'] : null, 'processing', "T1 {$route} webhook pays the pre-switch order");
+        same(is_array($first['state']) ? $first['state']['payment_complete_calls'] : null, 1, "T1 {$route} webhook completes it once");
+        same(is_array($first['state']) ? $first['state']['meta']['_supcheckout_payment_id'] : null, T1_PAYMENT, "T1 {$route} webhook writes the new payment ID");
+        same(is_array($first['state']) ? $first['state']['meta']['UPayments_PaymentID'] : null, T1_PAYMENT, "T1 {$route} webhook mirrors the legacy payment ID");
+        same(is_array($first['state']) ? $first['state']['meta']['UPayments_order_id'] : null, 'merchant-order-' . T1_ORDER, "T1 {$route} webhook keeps the legacy provider identity");
+        ok(strpos($first['stdout'], 'REMOTE_CALLS:1') !== false, "T1 {$route} webhook makes one authenticated status lookup");
+        ok(strpos($again['stdout'], "NOCACHE_HEADERS\nSTATUS:200\n") !== false && strpos($again['stdout'], 'REMOTE_CALLS:0') !== false, "T1 {$route} replayed webhook answers locally with no provider call");
+        same(is_array($again['state']) ? $again['state']['payment_complete_calls'] : null, 1, "T1 {$route} replayed webhook never completes again");
+        ok(strpos($browser['stdout'], "NOCACHE_HEADERS\nREDIRECT:https://shop.test/checkout/order-received/600/\n") !== false, "T1 {$route} browser return reaches order-received under the no-cache policy");
+        same($again['state'], $browser['state'], "T1 {$route} browser return leaves the paid order unchanged");
+    }
+    foreach (array(0 => 'webhook', 1 => 'replayed webhook', 2 => 'browser return') as $step => $label) {
+        same($t1_runs['supcheckout'][$step]['stdout'], $t1_runs['wc_upayments'][$step]['stdout'], "T1 route parity: the {$label} is byte-identical on wc_upayments and supcheckout (response and order state)");
+    }
+    $cross = t1_run_route_child('supcheckout', 'webhook', $t1_save('cross', $t1_runs['wc_upayments'][0]['state']));
+    same(is_array($cross['state']) ? $cross['state']['payment_complete_calls'] : null, 1, 'T1 a webhook paid on wc_upayments and replayed on supcheckout completes the order once');
+    ok(strpos($cross['stdout'], 'REMOTE_CALLS:0') !== false, 'T1 the cross-route replay makes no provider call');
+    array_map('unlink', (array) glob($t1_dir . '/*.json'));
+    @rmdir($t1_dir);
+    \Simplixi\SUPCheckout\Payment\reset_state();
+    \Simplixi\SUPCheckout\Takeover\TakeoverState::flush_cache();
 
     // Static architecture/safety guards.
     $root = dirname(__DIR__, 2);

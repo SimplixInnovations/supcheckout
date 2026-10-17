@@ -80,4 +80,12 @@ if (!function_exists('wp_remote_retrieve_body')) {
     }
 }
 
+if (!function_exists('wp_remote_retrieve_headers')) {
+    function wp_remote_retrieve_headers($response) {
+        return is_array($response) && isset($response['headers']) && is_array($response['headers'])
+            ? $response['headers']
+            : array();
+    }
+}
+
 supcheckout_test_reset_wp_http();

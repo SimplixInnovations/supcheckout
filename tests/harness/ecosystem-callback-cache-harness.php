@@ -96,6 +96,7 @@ namespace {
         }
 
         function add_action($hook, $callback, $priority = 10, $accepted_args = 1) {
+            $GLOBALS['r2_actions'][] = array((string) $hook, $callback, (int) $priority);
             return true;
         }
 
@@ -338,6 +339,71 @@ namespace {
         exit(65);
     }
 
+    /**
+     * 0b Task 8: one request dispatched through every listener PaymentLifecycle::bootstrap()
+     * attached to woocommerce_api_{route}, in priority order (the gateway's priority-10
+     * fallback is not constructed here; architecture-legacy-callback-routing-harness covers
+     * it). The order's state is printed at shutdown, after the production exit().
+     */
+    function r2_child_route($route, $scenario) {
+        r2_define_common_stubs();
+        $GLOBALS['r2_actions'] = array();
+        $GLOBALS['r2_nocache_calls'] = 0;
+        $GLOBALS['r2_order'] = new R2Order();
+        WC()->cart = new R2Cart();
+        $_GET = array();
+        $_POST = array();
+        $_SERVER = array('REQUEST_METHOD' => 'GET');
+
+        $requests = array(
+            'browser-invalid' => array('page' => 'success'),
+            'webhook-invalid' => array(),
+            'public-status-unavailable' => array('get_order_status' => '1'),
+            'public-status-success' => array('get_order_status' => '1', 'wc_order_id' => '42', 'key' => 'wc_order_key_test'),
+            'probe' => array('supcheckout_probe' => '1'),
+        );
+        if (!isset($requests[$scenario]) || !in_array($route, array('wc_upayments', 'supcheckout'), true)) {
+            echo "UNKNOWN_SCENARIO\n";
+            exit(64);
+        }
+        $_GET = $requests[$scenario];
+        if ($scenario === 'webhook-invalid') {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+        }
+        if ($scenario === 'public-status-success') {
+            $GLOBALS['r2_order']->meta['UPayments_WHS'] = 'pending';
+        }
+
+        // The CLI SAPI keeps no headers; record the probe's own.
+        eval('namespace Simplixi\SUPCheckout\Takeover; function header($line) { echo "HEADER:" . $line . "\n"; } function headers_sent() { return false; }');
+        register_shutdown_function(function () {
+            $order = $GLOBALS['r2_order'];
+            echo 'ORDER_STATE:' . json_encode(array($order->status, $order->meta)) . "\n";
+        });
+
+        require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
+        require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
+        require_once dirname(__DIR__, 2) . '/src/Payment/PaymentLifecycle.php';
+        \Simplixi\SUPCheckout\Payment\PaymentLifecycle::bootstrap();
+
+        $queue = array();
+        foreach ($GLOBALS['r2_actions'] as $index => $action) {
+            if ($action[0] === 'woocommerce_api_' . $route) {
+                $queue[] = array($action[2], $index, $action[1]);
+            }
+        }
+        usort($queue, function ($left, $right) {
+            return $left[0] === $right[0] ? $left[1] <=> $right[1] : $left[0] <=> $right[0];
+        });
+        echo 'LISTENERS:' . count($queue) . "\n";
+        foreach ($queue as $entry) {
+            call_user_func($entry[2]);
+        }
+
+        echo "CALLBACK_RETURNED_UNEXPECTEDLY\n";
+        exit(65);
+    }
+
     function r2_child_direct_return() {
         r2_define_common_stubs();
         $GLOBALS['r2_nocache_calls'] = 0;
@@ -403,6 +469,10 @@ namespace {
         }
         if ($scenario === 'direct-webhook') {
             r2_child_direct_webhook();
+        }
+        if (strpos($scenario, 'route:') === 0) {
+            $parts = explode(':', $scenario, 3);
+            r2_child_route(isset($parts[1]) ? $parts[1] : '', isset($parts[2]) ? $parts[2] : '');
         }
         r2_child_lifecycle($scenario);
     }
@@ -481,6 +551,62 @@ namespace {
             );
         }
     }
+
+    // 0b Task 8: the same requests on both WC-API routes. Each keeps its no-cache policy
+    // before the terminal response, leaves the order identical, and the two routes'
+    // output (status, redirect, JSON, no-cache emission, order state) is byte-identical.
+    foreach ($cases as $scenario => $expectations) {
+        if (strpos($scenario, 'direct-') === 0) {
+            continue;
+        }
+        $by_route = array();
+        foreach (array('wc_upayments', 'supcheckout') as $route) {
+            $result = r2_run_child('route:' . $route . ':' . $scenario);
+            $by_route[$route] = $result;
+            if ($result['stderr'] !== '') {
+                echo '  child stderr [' . $route . ':' . $scenario . ']: ' . trim($result['stderr']) . "\n";
+            }
+            r2_assert($result['exit'] === 0 && $result['stderr'] === '', "{$route} {$scenario} exits cleanly through its route listener");
+            r2_assert(r2_contains($result['stdout'], "LISTENERS:1\n"), "{$route} {$scenario} has exactly one lifecycle listener on woocommerce_api_{$route}");
+            foreach ($expectations['must'] as $needle) {
+                r2_assert(r2_contains($result['stdout'], $needle), "{$route} {$scenario} emits {$needle}");
+            }
+            r2_assert(r2_not_contains($result['stdout'], 'CALLBACK_RETURNED_UNEXPECTEDLY'), "{$route} {$scenario} terminates");
+            r2_assert(r2_not_contains($result['stdout'], 'HEADER:'), "{$route} {$scenario} is not answered as a probe");
+            $nocache_pos = strpos($result['stdout'], 'NOCACHE_HEADERS');
+            $terminal_pos = strpos($result['stdout'], 'REDIRECT:');
+            if ($terminal_pos === false) {
+                $terminal_pos = strpos($result['stdout'], 'STATUS:');
+            }
+            r2_assert($nocache_pos !== false && $terminal_pos !== false && $nocache_pos < $terminal_pos, "{$route} {$scenario} emits no-cache before the terminal response");
+        }
+        r2_assert($by_route['wc_upayments'] === $by_route['supcheckout'], "route parity {$scenario}: wc_upayments and supcheckout are byte-identical, order state included");
+    }
+
+    // The preflight probe on the new route: no-cache, explicit no-store and the
+    // acknowledgement before the 200, no log line, no order change.
+    $probe = r2_run_child('route:supcheckout:probe');
+    $untouched = 'ORDER_STATE:' . json_encode(array('pending', array('UPayments_order_id' => 'merchant-42')));
+    r2_assert($probe['exit'] === 0 && $probe['stderr'] === '', 'supcheckout probe exits cleanly');
+    r2_assert(
+        trim($probe['stdout']) === implode("\n", array(
+            'LISTENERS:1',
+            'NOCACHE_HEADERS',
+            'HEADER:Cache-Control: no-cache, must-revalidate, max-age=0, no-store, private',
+            'HEADER:X-SUPCheckout-Probe: 1',
+            'STATUS:200',
+            $untouched,
+        )),
+        'supcheckout probe: no-cache, no-store and the acknowledgement before a 200, nothing logged, the order untouched'
+    );
+    $legacy_probe = r2_run_child('route:wc_upayments:probe');
+    r2_assert(
+        r2_not_contains($legacy_probe['stdout'], 'HEADER:')
+            && r2_contains($legacy_probe['stdout'], 'NOCACHE_HEADERS')
+            && r2_contains($legacy_probe['stdout'], 'STATUS:200')
+            && r2_contains($legacy_probe['stdout'], $untouched),
+        'wc_upayments answers the probe argument as before: an invalid webhook under the no-cache policy, no acknowledgement'
+    );
 
     echo "\nEcosystem callback/cache harness: {$r2_pass} PASS / {$r2_fail} FAIL\n";
     echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";

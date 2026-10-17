@@ -69,4 +69,5 @@ parameters:
         - src/Takeover/UserMetaCopier.php
         - src/Takeover/BillingTableCopier.php
         - src/Takeover/CopyRunner.php
+        - src/Takeover/LegacyCallbackListener.php
     tmpDir: .cache/phpstan

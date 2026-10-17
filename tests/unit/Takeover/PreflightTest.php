@@ -5,6 +5,7 @@ namespace Simplixi\SUPCheckout\Tests\Takeover;
 use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Takeover\Environment;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\LegacyCallbackListener;
 use Simplixi\SUPCheckout\Takeover\Preflight;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 
@@ -364,6 +365,24 @@ final class PreflightTest extends TestCase {
         )));
         self::assertNull(PreflightFixtures::find($listener['blocking'], 'callback_unreachable'));
 
+        // Task 8 tightening: a 200 without the acknowledgement did not come from the
+        // listener (a cached page, a maintenance or login page answering 200, a host
+        // rewriting every request): the callback route is not proven reachable.
+        foreach (array(array(), array(Preflight::PROBE_ACK_HEADER => '0'), array(Preflight::PROBE_ACK_HEADER => '')) as $headers) {
+            $unproven = Preflight::run_with(PreflightFixtures::env(array(
+                'http_get' => static function ($url) use ($headers) {
+                    return array('status' => 200, 'headers' => $headers + array('cache-control' => 'no-store'));
+                },
+            )));
+            $finding = PreflightFixtures::find($unproven['blocking'], 'callback_unreachable');
+            self::assertNotNull($finding, 'a 200 without the listener acknowledgement blocks: ' . json_encode($headers));
+            self::assertSame(200, $finding['data']['status']);
+            self::assertFalse($finding['data']['acknowledged']);
+        }
+        self::assertFalse(PreflightFixtures::find($no_listener['blocking'], 'callback_unreachable')['data']['acknowledged']);
+        self::assertSame(LegacyCallbackListener::PROBE_ARG, Preflight::PROBE_ARG, 'Preflight probes the argument the listener answers');
+        self::assertSame(LegacyCallbackListener::PROBE_ACK_HEADER, Preflight::PROBE_ACK_HEADER, 'Preflight requires the header the listener sends');
+
         $unacked = Preflight::run_with(PreflightFixtures::env(array(
             'http_get' => static function ($url) {
                 return array('status' => 302, 'headers' => array('location' => 'https://shop.example/login'));
@@ -631,7 +650,12 @@ final class PreflightTest extends TestCase {
         $GLOBALS['supcheckout_test_options']['woocommerce_upayments_settings'] = array('api_key' => 'test-api-key-123', 'test_mode' => 'yes');
         $GLOBALS['wpdb'] = PreflightFixtures::db();
         \supcheckout_test_reset_wp_http();
-        $GLOBALS['supcheckout_test_http_response'] = array('response' => array('code' => 200), 'body' => '-1');
+        // The listener's acknowledgement (LegacyCallbackListener::answer_probe()).
+        $GLOBALS['supcheckout_test_http_response'] = array(
+            'response' => array('code' => 200),
+            'headers' => array('X-SUPCheckout-Probe' => '1', 'Cache-Control' => 'no-cache, must-revalidate, max-age=0, no-store, private'),
+            'body' => '',
+        );
         $options_before = $GLOBALS['supcheckout_test_options'];
 
         $report = Preflight::run();

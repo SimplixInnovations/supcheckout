@@ -27,15 +27,14 @@ defined('ABSPATH') || exit;
  *
  * Callback probe: GET of the WC-API URL for Keys::CALLBACK_ROUTE plus
  * `supcheckout_probe=1`, with TLS verification on, because UPayments verifies the
- * certificate too. WooCommerce answers a WC-API route that has no listener with
- * `status_header(400)` and "-1" and runs no handler. Nothing listens on the new route
- * until Task 8 (LegacyCallbackListener), so on a real store callback_unreachable is
- * BLOCKING with status 400 until Task 8 lands. That is correct: a callback UPayments
- * sent there today would be lost. The probe has no side effect on a live store:
- * WooCommerce only fires its generic `woocommerce_api_request` action. Task 8's
- * listener must answer the probe argument with a no-op 200, `Cache-Control: no-store`
- * and the PROBE_ACK_HEADER header, touch no order and read no other argument.
- * Requiring that acknowledgement is a Task 8 tightening of callback_unreachable.
+ * certificate too. LegacyCallbackListener (Task 8) answers it on that route before any
+ * callback processing with a no-op 200, `Cache-Control: no-store` and the
+ * PROBE_ACK_HEADER header, touching no order and reading no other argument.
+ * callback_unreachable is BLOCKING unless the first response is a 200 that carries
+ * that acknowledgement: a 200 without it came from something else (a cached copy, a
+ * maintenance or login page, a host answering every request), so a callback
+ * UPayments sent there could still be lost. WooCommerce answers a WC-API route that
+ * has no listener with `status_header(400)` and "-1" and runs no handler.
  */
 final class Preflight {
     public const OFFICIAL_PLUGIN_ACTIVE = 'official_plugin_active';
@@ -59,10 +58,12 @@ final class Preflight {
     public const WARNING = 'warning';
     public const FACT = 'fact';
 
-    /** Query argument the callback probe carries (Task 8's listener answers it). */
-    public const PROBE_ARG = 'supcheckout_probe';
-    /** Response header Task 8's listener sets on a probe. */
-    public const PROBE_ACK_HEADER = 'x-supcheckout-probe';
+    /** Query argument the callback probe carries (LegacyCallbackListener answers it). */
+    public const PROBE_ARG = LegacyCallbackListener::PROBE_ARG;
+    /** Response header LegacyCallbackListener sets on a probe (lower-case). */
+    public const PROBE_ACK_HEADER = LegacyCallbackListener::PROBE_ACK_HEADER;
+    /** The acknowledgement's only accepted value. */
+    private const PROBE_ACK_VALUE = '1';
 
     /** At most this many orders are compared for hpos_meta_disagreement. */
     public const SAMPLE_LIMIT = 200;
@@ -578,12 +579,15 @@ final class Preflight {
      */
     private static function callback_unreachable(array $probe) {
         $first = $probe[0];
-        if ($first !== null && $first['status'] === 200) {
+        $acknowledged = $first !== null
+            && isset($first['headers'][self::PROBE_ACK_HEADER])
+            && trim($first['headers'][self::PROBE_ACK_HEADER]) === self::PROBE_ACK_VALUE;
+        if ($first !== null && $first['status'] === 200 && $acknowledged) {
             return null;
         }
         return self::finding(self::BLOCKING, self::CALLBACK_UNREACHABLE,
-            __('The SUPCheckout payment callback address did not answer a test request with success, so UPayments could not reach it either. Check firewalls, maintenance mode, login walls and security plugins.', 'supcheckout'),
-            array('status' => $first === null ? 0 : $first['status']));
+            __('The SUPCheckout payment callback address did not answer a test request with success, so UPayments could not reach it either. Check firewalls, maintenance mode, login walls, caches and security plugins.', 'supcheckout'),
+            array('status' => $first === null ? 0 : $first['status'], 'acknowledged' => $acknowledged));
     }
 
     /**

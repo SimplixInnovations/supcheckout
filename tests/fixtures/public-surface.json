@@ -153,6 +153,22 @@
     },
     {
         "kind": "action",
+        "hook": "woocommerce_api_supcheckout",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "gateway_constructor",
+        "contexts": "admin cli frontend"
+    },
+    {
+        "kind": "action",
+        "hook": "woocommerce_api_supcheckout",
+        "priority": 5,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
         "hook": "woocommerce_api_wc_upayments",
         "priority": 10,
         "accepted_args": 1,
@@ -820,6 +836,22 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "woocommerce_api_supcheckout",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "woocommerce_api_supcheckout",
+        "priority": 5,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "woocommerce_api_wc_upayments",
         "priority": 5,
         "accepted_args": 1,
@@ -1281,6 +1313,11 @@
         "hook": "simplixpay_upayments_reconcile_order",
         "args": "[0:int]",
         "contexts": "static"
+    },
+    {
+        "kind": "wc_api_route",
+        "route": "supcheckout",
+        "contexts": "admin cli frontend no_woocommerce"
     },
     {
         "kind": "wc_api_route",
