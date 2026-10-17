@@ -9,9 +9,12 @@ const { registerPaymentMethod } = wc.wcBlocksRegistry;
 
     // The server registers this method under the gateway id: the legacy id until the
     // takeover cutover, 'supcheckout' after, when it also localizes the name and the Store
-    // API extensions namespace to use. Only one of the two is ever registered.
-    const settings = window.wc.wcSettings.getPaymentMethodData('upayments')
-        || window.wc.wcSettings.getPaymentMethodData('supcheckout')
+    // API extensions namespace to use. Only one of the two is ever registered, and
+    // getPaymentMethodData() returns a truthy {} default for the other, so only a
+    // registration that carries data counts.
+    const withData = (data) => (data !== null && typeof data === 'object' && Object.keys(data).length > 0 ? data : null);
+    const settings = withData(window.wc.wcSettings.getPaymentMethodData('upayments'))
+        || withData(window.wc.wcSettings.getPaymentMethodData('supcheckout'))
         || {};
     const PAYMENT_METHOD_NAME = typeof settings.payment_method_name === 'string' && settings.payment_method_name !== ''
         ? settings.payment_method_name

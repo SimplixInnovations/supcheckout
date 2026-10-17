@@ -49,6 +49,7 @@ function createScene(overrides, cutOver) {
 
     let registered = null;
     let extensionData = cutOver ? { supcheckout: {} } : { upayments: {} };
+    const queried = [];
 
     const wc = {
         wcBlocksRegistry: {
@@ -57,15 +58,16 @@ function createScene(overrides, cutOver) {
             }
         },
         wcSettings: {
-            getPaymentMethodData(name) {
+            getPaymentMethodData(name, defaultValue = {}) {
                 // Before the takeover cutover only 'upayments' is registered; after it only
-                // 'supcheckout', with the name and namespace localized (0b Task 7).
+                // 'supcheckout', with the name and namespace localized (0b Task 7). Like
+                // WooCommerce's wcSettings, an unregistered name returns the truthy {} default.
+                queried.push(name);
+                if (name !== 'upayments' && name !== 'supcheckout') throw new Error('Unexpected payment method: ' + name);
                 if (cutOver) {
-                    if (name === 'upayments') return null;
-                    if (name === 'supcheckout') return Object.assign({ payment_method_name: 'supcheckout', extension_namespace: 'supcheckout' }, settings);
+                    return name === 'supcheckout' ? Object.assign({ payment_method_name: 'supcheckout', extension_namespace: 'supcheckout' }, settings) : defaultValue;
                 }
-                if (name !== 'upayments') throw new Error('Unexpected payment method: ' + name);
-                return settings;
+                return name === 'upayments' ? settings : defaultValue;
             }
         }
     };
@@ -117,6 +119,7 @@ function createScene(overrides, cutOver) {
 
     return {
         registered,
+        queried: () => queried.slice(),
         extensionData() {
             return extensionData;
         },
@@ -173,8 +176,11 @@ console.log('Running e1-blocks-live-props-harness.js');
 {
     const legacy = createScene();
     record(legacy.registered.name === 'upayments', 'before cutover the Blocks method registers as upayments');
+    record(legacy.queried().join(',') === 'upayments', 'before cutover only the upayments registration is read');
     const scene = createScene({}, true);
     record(scene.registered.name === 'supcheckout', 'after cutover the Blocks method registers under the localized supcheckout id');
+    record(scene.queried().join(',') === 'upayments,supcheckout',
+        'after cutover the {} default for the absent upayments registration is skipped for the supcheckout data');
     record(scene.registered.canMakePayment({ cartTotals: { currency_code: 'KWD' } }) === true,
         'the cut-over method reads its server data from the supcheckout registration');
     const tree = scene.render({ cartData: { cartItems: [{ type: 'custom_type' }] } });
