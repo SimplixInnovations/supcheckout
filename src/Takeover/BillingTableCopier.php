@@ -39,6 +39,8 @@ final class BillingTableCopier {
     public const ERROR_REGRESSIVE = 'regressive_rows';
     /** Rollback: the new table lacks legacy rows it must hold. */
     public const ERROR_NEW_SHORT = 'new_table_short';
+    /** Rollback: the authoritative new table does not exist next to a legacy table. */
+    public const ERROR_NEW_MISSING = 'new_table_missing';
     /** CycleClaim's states, in the only order a row moves. */
     private const STATE_ORDER = array('claimed', 'dispatching', 'held', 'resolved');
     public const CHECKSUM = 'checksum';
@@ -134,14 +136,14 @@ final class BillingTableCopier {
      */
     public static function back_sync_batch(RollbackStore $store, $cursor) {
         $cursor = (string) $cursor;
+        if (!$store->table_exists(CopyStore::TABLE_NEW)) {
+            return self::copied(true, $cursor, 0, self::new_table_missing($store));
+        }
         if ($cursor === '') {
             $short = self::new_table_short($store);
             if ($short !== null) {
                 return self::copied(true, $cursor, 0, $short);
             }
-        }
-        if (!$store->table_exists(CopyStore::TABLE_NEW)) {
-            return self::copied(true, $cursor, 0, null);
         }
         if (!$store->table_exists(CopyStore::TABLE_LEGACY) && !$store->create_table(CopyStore::TABLE_LEGACY)) {
             return self::copied(true, $cursor, 0, self::ERROR_CREATE);
@@ -192,6 +194,20 @@ final class BillingTableCopier {
     }
 
     /**
+     * While cut over the new table is the authoritative one, and the copy phase creates it
+     * whenever a legacy table exists. A legacy table without it means the authoritative rows
+     * are lost (dropped or never restored): a cycle resolved only there would fall back to a
+     * stale legacy `claimed` row and become claimable again, so nothing is synced or deleted.
+     * With neither table there is nothing to back-sync.
+     *
+     * @param RollbackStore $store Store.
+     * @return string|null ERROR_NEW_MISSING, or null when there is no legacy table either.
+     */
+    private static function new_table_missing(RollbackStore $store) {
+        return $store->table_exists(CopyStore::TABLE_LEGACY) ? self::ERROR_NEW_MISSING : null;
+    }
+
+    /**
      * Keys whose new row is not at least as far along as its legacy row
      * (claimed < dispatching < held < resolved); an unknown state counts as behind.
      *
@@ -231,7 +247,8 @@ final class BillingTableCopier {
     public static function back_verify_batch(RollbackStore $store, $cursor) {
         $cursor = (string) $cursor;
         if (!$store->table_exists(CopyStore::TABLE_NEW)) {
-            return self::verified(true, $cursor, 0, array());
+            $missing = self::new_table_missing($store);
+            return self::verified(true, $cursor, $missing === null ? 0 : 1, $missing === null ? array() : array($missing));
         }
         $columns = self::columns($store, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY);
         if (!is_array($columns)) {
