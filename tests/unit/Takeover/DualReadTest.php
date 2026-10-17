@@ -468,11 +468,23 @@ final class DualReadTest extends TestCase {
 
         self::state('finalized');
         self::assertSame(array('supcheckout_order_lock_v1_77'), Keys::ephemeral_names('simplixpay_upay_order_lock_v1_77'));
-        self::assertSame(array('sup_ctkboot_b1'), Keys::advisory_lock_names('upay_ctk_bootstrap_b1'), 'GET_LOCK names switch at Finalize');
+        self::assertSame(array('upay_ctk_bootstrap_b1'), Keys::advisory_lock_names('upay_ctk_bootstrap_b1'), 'GET_LOCK names never switch, not even at Finalize');
         self::state('copying');
         self::assertSame(array('upay_ctk_bootstrap_b1'), Keys::advisory_lock_names('upay_ctk_bootstrap_b1'), 'never two GET_LOCK names at once (MySQL < 5.7.5)');
         self::state('invalid');
         self::assertCount(2, Keys::ephemeral_names('simplixpay_upay_order_lock_v1_77'), 'an unreadable state contends on both names');
+    }
+
+    public function test_advisory_lock_names_stay_legacy_in_every_state_so_requests_on_both_sides_of_finalize_contend(): void {
+        // A request that read cut_over and one that read finalized must exclude each other on
+        // the H12 bootstrap/migration (upay_ctk_*) and payment-methods (upay_pm_) locks. The
+        // names are never stored, so nothing needs them renamed.
+        foreach (array('idle', 'preflight_ok', 'copying', 'verified', 'cut_over', 'finalized', 'rolled_back', 'invalid') as $status) {
+            self::state($status);
+            foreach (array('upay_ctk_bootstrap_b1', 'upay_ctk_' . str_repeat('a', 32) . '_7', 'upay_pm_0123456789abcdef') as $name) {
+                self::assertSame(array($name), Keys::advisory_lock_names($name), "{$status}: {$name}");
+            }
+        }
     }
 
     public function test_in_copying_a_post_cutover_holder_blocks_a_legacy_first_worker_on_the_new_name(): void {

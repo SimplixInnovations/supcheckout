@@ -254,8 +254,9 @@ upay_test_state()['usermeta'][1][$new_prefix . $scope_b] = array(h12dp_record($s
 $scan = CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $generation);
 h12dp_assert($scan['state'] === 'secret_generation_mismatch', 'mixed scan: a new-prefix record of another generation is seen (' . $scan['state'] . ')');
 
-// --- 5. Customer-token GET_LOCK names: one name at a time (MySQL < 5.7.5 holds one). ---
-foreach (array('idle' => 'upay_ctk_bootstrap_b1', 'copying' => 'upay_ctk_bootstrap_b1', 'cut_over' => 'upay_ctk_bootstrap_b1', 'finalized' => 'sup_ctkboot_b1') as $status => $held) {
+// --- 5. Customer-token GET_LOCK names: one name at a time (MySQL < 5.7.5 holds one), the
+//        legacy name in every state, so requests on both sides of Finalize contend. ---
+foreach (array('idle' => 'upay_ctk_bootstrap_b1', 'copying' => 'upay_ctk_bootstrap_b1', 'cut_over' => 'upay_ctk_bootstrap_b1', 'finalized' => 'upay_ctk_bootstrap_b1') as $status => $held) {
     h12dp_reset($status);
     h12dp_assert(CustomerTokenIdentity::acquire_lock('upay_ctk_bootstrap_b1') === true
         && array_keys(upay_test_state()['locks']) === array($held), "{$status}: the bootstrap lock takes exactly {$held}");
@@ -264,7 +265,7 @@ foreach (array('idle' => 'upay_ctk_bootstrap_b1', 'copying' => 'upay_ctk_bootstr
 }
 
 // --- 6. The Phase 9I executor takes the runtime's lock names. ---
-foreach (array('copying' => 'upay_ctk_bootstrap_b1', 'finalized' => 'sup_ctkboot_b1') as $status => $held) {
+foreach (array('copying' => 'upay_ctk_bootstrap_b1', 'finalized' => 'upay_ctk_bootstrap_b1') as $status => $held) {
     h12dp_reset($status);
     h12dp_assert(CustomerTokenIdentity::acquire_lock('upay_ctk_bootstrap_b1') === true, "{$status}: runtime holds the bootstrap lock");
     h12dp_assert(h12dp_private('acquireLock', array('upay_ctk_bootstrap_b1'), \Simplixi\SUPCheckout\Migration\MigrationExecutor::class) === false, "{$status}: the migration executor is excluded by the runtime's {$held}");

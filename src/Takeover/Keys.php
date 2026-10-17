@@ -926,27 +926,25 @@ final class Keys {
     }
 
     /**
-     * MySQL GET_LOCK() names (the `upay_pm_` and `upay_ctk_` families). The legacy name
-     * until `finalized`, the new name after; never both at once.
+     * MySQL GET_LOCK() names (the `upay_pm_` and `upay_ctk_` families): the legacy name in
+     * EVERY state, finalized included (amended in the Task 11 review), never two at once.
      *
-     * Before MySQL 5.7.5 a connection holds at most one named lock: GET_LOCK() silently
-     * releases any lock it already holds. WordPress 6.9 still accepts MySQL 5.5.5, so a
-     * second name taken during the window would drop the first. These names are never
-     * stored, so the legacy name stays authoritative through the whole window; the only
-     * gap is an in-flight request that crosses Finalize (30 days after cutover), which
-     * the stored order locks and gates still cover.
-     *
-     * Release recomputes the name. If Finalize lands between acquire and release, the
-     * release targets the new name and the legacy GET_LOCK stays held until the
-     * connection closes at the end of the request. That is harmless: no post-Finalize
-     * worker asks for the legacy name, and MySQL frees it with the connection.
+     * These names are never stored, so nothing needs them renamed, and switching them at any
+     * transition would let a request that read the old state and one that read the new state
+     * hold different names and exclude neither other: `upay_ctk_*` guards the H12
+     * token-identity bootstrap and the Phase 9I migration, `upay_pm_` the payment-methods
+     * refresh. Before MySQL 5.7.5 a connection holds at most one named lock (GET_LOCK()
+     * silently releases any lock it already holds), and WordPress 6.9 still accepts MySQL
+     * 5.5.5, so a second name is never taken either. The new prefixes in
+     * Keys::ephemeral_prefixes() are kept for the registry but never used for GET_LOCK().
      *
      * @param string $legacy_name Full legacy GET_LOCK name.
      * @return list<string>
+     * @throws \InvalidArgumentException When the name is not under an ephemeral prefix.
      */
     public static function advisory_lock_names($legacy_name) {
-        $names = self::ephemeral_names($legacy_name);
-        return array($names[0]);
+        self::ephemeral_names($legacy_name);
+        return array((string) $legacy_name);
     }
 
     /**
