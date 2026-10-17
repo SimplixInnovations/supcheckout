@@ -55,4 +55,6 @@ parameters:
         - src/Blocks/PaymentMethodType.php
         - src/Subscription/Checkout/Fields.php
         - src/Subscription/Helpers/Utils.php
+        - src/Takeover/Keys.php
+        - src/Takeover/TakeoverState.php
     tmpDir: .cache/phpstan
