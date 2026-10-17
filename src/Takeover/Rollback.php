@@ -470,6 +470,14 @@ final class Rollback {
         $this->pass = isset($progress['pass']) ? max(1, (int) $progress['pass']) : 1;
         $this->found = isset($progress['found']) ? (int) $progress['found'] : 0;
         $this->transitioned_at = isset($progress['transitioned_at']) ? (int) $progress['transitioned_at'] : $this->system->now();
+        if ($this->pass > 1) {
+            // A rerun after `removal_unsettled` (or a crash mid-rescan): start a fresh rescan
+            // cycle. The settle reference time is kept, so the wait is not repeated; the
+            // removal completes once a full rescan comes back clean.
+            $this->pass = 2;
+            $this->found = 0;
+            $removal = CopyRemoval::start();
+        }
         $locked = 0;
         while (true) {
             $was = isset($removal['phase']) ? $removal['phase'] : CopyRemoval::PHASE_CRON;

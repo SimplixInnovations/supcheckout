@@ -413,6 +413,37 @@ final class RollbackTest extends TestCase {
         self::assertTrue(Rollback::removal_pending(TakeoverState::get()));
     }
 
+    public function test_a_rerun_after_removal_unsettled_starts_a_fresh_rescan_and_completes(): void {
+        foreach (array('rollback', 'abort') as $mode) {
+            $this->setUp();
+            if ($mode === 'rollback') {
+                $this->seed_cut_over();
+            } else {
+                \Simplixi\SUPCheckout\Takeover\OrderCopier::copy($this->seed_verified(), false);
+            }
+            $order = $GLOBALS['supcheckout_test_status_orders'][7];
+            $this->system->on_step = static function ($step) use ($order) {
+                if ($step === 'copies_removed' || $step === 'rescanned') {
+                    $order->external_write('_supcheckout_payment_id', array('late'));
+                }
+            };
+            $first = $mode === 'rollback' ? $this->rollback()->run(false) : $this->rollback()->abort(false);
+            self::assertSame('removal_unsettled', $first['error'], $mode);
+            $settled_at = $this->system->now;
+
+            // The late writer has stopped.
+            $this->system->on_step = null;
+            $again = $mode === 'rollback' ? $this->rollback()->run(false) : $this->rollback()->abort(false);
+
+            self::assertTrue($again['ok'], $mode . ': ' . json_encode($again));
+            self::assertNotContains('settling', $again['steps'], $mode . ': the settle reference time is kept');
+            self::assertSame($settled_at, $this->system->now, $mode . ': no second settle wait');
+            self::assertFalse(Rollback::removal_pending(TakeoverState::get()), $mode . ': completion recorded');
+            self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status'], $mode);
+            self::assertSame(array(), $order->persisted_values('_supcheckout_payment_id'), $mode);
+        }
+    }
+
     public function test_an_abort_also_settles_before_recording_completion(): void {
         $order = $this->seed_verified();
         \Simplixi\SUPCheckout\Takeover\OrderCopier::copy($order, false);
