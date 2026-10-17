@@ -6,8 +6,8 @@ name: Takeover Migration Matrix
 # Official-plugin cells: the real official UPayments plugin, downloaded from
 # github.com/upaymentskwt/woocommerce at a pinned commit (provenance below), on HPOS
 # (compatibility sync off) and legacy storage. Each cell runs plan steps 1-8 and, as a
-# separately guarded phase, step 9 (finalize, 0b Task 11): it runs only on a build whose
-# `wp supcheckout takeover` has `finalize`.
+# separately guarded phase, step 9 (finalize, 0b Task 11): it runs whenever the checkout
+# ships src/Takeover/Finalize.php, and is skipped (with a note) only without that file.
 #
 # WCML dimension: WPML/WCML are paid and licensed and are never installed in CI (AGENTS.md).
 # The HPOS cells seed WCML's gateway-restriction option shapes and assert the takeover's
@@ -25,29 +25,37 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/Takeover/**'
+      # Every runtime path reads identities through Keys, so any runtime change can break
+      # the switch: all of src/, the bootstrap, packaging and the integration fixtures.
+      - 'src/**'
+      - 'includes/**'
       - 'supcheckout.php'
-      - '.github/workflows/takeover-migration-matrix.yml'
-      - 'tests/integration/Takeover*'
-      - 'tests/integration/takeover-matrix.sh'
-      - 'tests/integration/lib/takeover-matrix-lib.php'
-      - 'tests/integration/fixtures/official-plugin-seed.php'
-      - 'tests/integration/fixtures/takeover-matrix-mu-plugin.php'
-      - 'scripts/install-wp-test-environment.sh'
+      - 'UPayments.php'
+      - 'uninstall.php'
+      - 'templates/**'
+      - 'tests/integration/**'
+      - '.distignore'
+      - 'composer.json'
+      - 'composer.lock'
       - 'scripts/build-release.sh'
+      - 'scripts/install-wp-test-environment.sh'
+      - '.github/workflows/takeover-migration-matrix.yml'
   push:
     branches: [main]
     paths:
-      - 'src/Takeover/**'
+      - 'src/**'
+      - 'includes/**'
       - 'supcheckout.php'
-      - '.github/workflows/takeover-migration-matrix.yml'
-      - 'tests/integration/Takeover*'
-      - 'tests/integration/takeover-matrix.sh'
-      - 'tests/integration/lib/takeover-matrix-lib.php'
-      - 'tests/integration/fixtures/official-plugin-seed.php'
-      - 'tests/integration/fixtures/takeover-matrix-mu-plugin.php'
-      - 'scripts/install-wp-test-environment.sh'
+      - 'UPayments.php'
+      - 'uninstall.php'
+      - 'templates/**'
+      - 'tests/integration/**'
+      - '.distignore'
+      - 'composer.json'
+      - 'composer.lock'
       - 'scripts/build-release.sh'
+      - 'scripts/install-wp-test-environment.sh'
+      - '.github/workflows/takeover-migration-matrix.yml'
   workflow_dispatch:
 
 permissions:
@@ -210,8 +218,8 @@ jobs:
       - name: 9. Verify the second switch (same result)
         run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" rerun_verify
 
-      # Step 9, finalize (0b Task 11): skipped with a note when this build has no
-      # `wp supcheckout takeover finalize`; active as soon as Task 11 is merged.
+      # Step 9, finalize (0b Task 11): skipped with a note only when this checkout has no
+      # src/Takeover/Finalize.php; with the file present, a missing or broken command fails.
       - name: 9. Finalize forced after review (guarded)
         run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" finalize
 
