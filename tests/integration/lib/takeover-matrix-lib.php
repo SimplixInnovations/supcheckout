@@ -178,7 +178,9 @@ function supcheckout_matrix_snapshot(array $order_ids, array $user_ids, array $e
     $orders = array();
     foreach ($order_ids as $order_id) {
         $order = wc_get_order((int) $order_id);
-        supcheckout_cert_assert($order instanceof WC_Order, 'snapshot: order ' . $order_id . ' loads');
+        if (!$order instanceof WC_Order) {
+            throw new RuntimeException('FAIL: snapshot: order ' . $order_id . ' does not load');
+        }
         $orders[(string) $order_id] = array(
             'payment_method' => $order->get_payment_method(),
             'status' => $order->get_status(),
@@ -211,6 +213,16 @@ function supcheckout_matrix_snapshot(array $order_ids, array $user_ids, array $e
  */
 function supcheckout_matrix_assert_restored(array $before, array $after, array $touched) {
     foreach ($before['options'] as $name => $value) {
+        if ($value === null && $after['options'][$name] !== null && array_key_exists($name, Keys::options())) {
+            // SUPCheckout-owned state the runtime first created after the cutover (for
+            // example the billing schema version, with the new billing table) is back-synced
+            // to its legacy name, so the legacy runtime sees the same state. Not a pre-switch value.
+            supcheckout_cert_note('option ' . $name . ' did not exist before the switch; created after the cutover and back-synced');
+            if ($name === 'upay_billing_cycle_schema_version') {
+                supcheckout_cert_assert(is_array($after['billing_legacy']), 'the back-synced billing schema version comes with the legacy billing table');
+            }
+            continue;
+        }
         supcheckout_cert_assert($after['options'][$name] === $value, 'option ' . $name . ' restored byte for byte');
     }
     $checked = 0;
