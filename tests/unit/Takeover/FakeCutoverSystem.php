@@ -23,6 +23,8 @@ final class FakeCutoverSystem implements CutoverSystem {
     public $on_schedule = null;
     /** @var callable|null function (): void, called on each sleep. */
     public $on_sleep = null;
+    /** @var callable|null function (): void, called on each clock read. */
+    public $on_now = null;
     /** @var callable|null function (string $step): void, called when the cutover reaches a step. */
     public $on_step = null;
 
@@ -50,6 +52,9 @@ final class FakeCutoverSystem implements CutoverSystem {
     }
 
     public function now() {
+        if (is_callable($this->on_now)) {
+            call_user_func($this->on_now);
+        }
         return $this->now;
     }
 

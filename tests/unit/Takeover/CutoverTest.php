@@ -326,6 +326,28 @@ final class CutoverTest extends TestCase {
         self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
     }
 
+    public function test_a_status_that_changes_before_the_lease_is_taken_stops_the_cutover(): void {
+        $this->seed_store();
+        $this->system->on_now = static function () {
+            // Another operator's cutover completes between the status read and the lease.
+            CutoverTest::state('cut_over', false);
+        };
+        $steps = array();
+        $this->system->on_step = static function ($step) use (&$steps) {
+            $steps[] = $step;
+        };
+
+        $result = $this->cutover()->run(false);
+
+        self::assertFalse($result['ok']);
+        self::assertSame('not_verified', $result['error']);
+        self::assertSame(array(), $steps, 'nothing ran under the lease');
+        self::assertFalse(get_option(Keys::SETTINGS_OPTION, false), 'no writes');
+        self::assertSame(array(), Journal::entries());
+        self::assertSame(array(), $this->store->tables['new'], 'the table was not synced');
+        self::assertFalse(Quiesce::is_active($this->system->now), 'the lease is released');
+    }
+
     public function test_a_store_already_cut_over_only_finishes_the_tail(): void {
         self::state('cut_over');
         $result = $this->cutover()->run(true);
@@ -347,8 +369,11 @@ final class CutoverTest extends TestCase {
         return new Cutover($this->store, $this->system);
     }
 
-    private static function state(string $status): void {
+    /** @param bool $flush Flush this process's cache (false: another process wrote it). */
+    public static function state(string $status, bool $flush = true): void {
         $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => $status, 'cut_over_at' => $status === 'cut_over' ? 1 : 0, 'cursor' => 0, 'totals' => array()));
-        TakeoverState::flush_cache();
+        if ($flush) {
+            TakeoverState::flush_cache();
+        }
     }
 }

@@ -103,6 +103,11 @@ final class Cutover {
             return $this->result('busy');
         }
         try {
+            // The status read above was unlocked: re-read it under the lease.
+            TakeoverState::refresh();
+            if (TakeoverState::get()['status'] !== TakeoverState::VERIFIED) {
+                return $this->result('not_verified');
+            }
             $this->step('quiesced');
             $error = $this->switch_identities();
             if ($error !== null) {
