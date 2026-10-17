@@ -1084,8 +1084,10 @@ arch2_assert(
         && $compactBody($pluginBoot['body']) === 'if(self::$main_file!==null){return;}self::$main_file=(string)$main_file;GatewayRegistration::register();'
             . 'Requirements::register();WooCommerceDeclarations::register();PaymentMethodRegistration::register();'
             . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();'
+            // 0b Task 6: the takeover copy runner, registered only while copying.
+            . 'CopyRunner::register();'
             . 'self::load_runtime(self::$main_file);',
-    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then loads the former main-file runtime'
+    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner, then loads the former main-file runtime'
 );
 // The former main-file runtime block (constants, ordered loads, release constants) is pinned
 // exactly: before Task 5 the main-file byte ratchet guarded it, so a dropped or reordered

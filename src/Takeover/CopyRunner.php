@@ -29,9 +29,9 @@ defined('ABSPATH') || exit;
  * Only one runner works at a time: a self-expiring lock option (LOCK_OPTION, compare-and-
  * swap through OrderLock's primitives) makes a second runner return `busy`.
  *
- * Scheduling is not wired here: registering the `supcheckout_takeover_copy_batch` Action
- * Scheduler hook adds to the frozen public surface (tests/fixtures/public-surface.json
- * records every add_action and as_* call statically) and is left to an approved re-record.
+ * Scheduling: the Action Scheduler action HOOK (group GROUP, no arguments) is registered
+ * only while the takeover is copying (register()), and each action queues its own
+ * continuation once (schedule(), unique).
  */
 final class CopyRunner {
     public const ORDER_BATCH = 50;
@@ -40,6 +40,14 @@ final class CopyRunner {
 
     public const LOCK_OPTION = 'supcheckout_takeover_copy_runner_v1';
     public const LOCK_TTL = 300;
+
+    /** Action Scheduler hook and group of the batch action. */
+    public const HOOK = 'supcheckout_takeover_copy_batch';
+    public const GROUP = 'supcheckout';
+    /** Seconds one batch action keeps running steps. */
+    public const ACTION_TIME_BUDGET = 20;
+    /** Seconds before an action retries a contended order lock. */
+    public const RETRY_DELAY = 60;
 
     public const PHASE_ORDERS = 'orders';
     public const PHASE_USERS = 'users';
@@ -60,6 +68,9 @@ final class CopyRunner {
     private const BLOCKING = array('orders', 'disagreements', 'users', 'products', 'table');
     /** Report code for an order whose single save() failed. */
     private const SAVE_FAILED = 'save_failed';
+
+    /** @var bool One continuation per request at most. */
+    private static $continuation_queued = false;
 
     /** @var CopyStore */
     private $store;
@@ -83,6 +94,76 @@ final class CopyRunner {
     public static function run_batch() {
         $runner = new self();
         return $runner->run();
+    }
+
+    /**
+     * Register the batch action, only while the takeover is copying: an idle store (and
+     * every other status) registers nothing. Called from Plugin::boot(), which a paused
+     * SUPCheckout (official plugin active) never reaches.
+     *
+     * @return void
+     */
+    public static function register() {
+        if (TakeoverState::get()['status'] === TakeoverState::COPYING) {
+            add_action(self::HOOK, array(self::class, 'handle_action'));
+        }
+    }
+
+    /**
+     * Queue the next batch action, at most one: a pending or running action counts, and the
+     * schedule itself is unique. Nothing is queued outside `copying`.
+     *
+     * @param int $delay Seconds from now.
+     * @return bool True when an action is queued (now or already).
+     */
+    public static function schedule($delay = 0) {
+        if (!function_exists('as_schedule_single_action') || !function_exists('as_has_scheduled_action')) {
+            return false;
+        }
+        if (TakeoverState::get()['status'] !== TakeoverState::COPYING) {
+            return false;
+        }
+        if (as_has_scheduled_action(self::HOOK, array(), self::GROUP)) {
+            return true;
+        }
+        return as_schedule_single_action(time() + max(0, (int) $delay), self::HOOK, array(), self::GROUP, true) > 0;
+    }
+
+    /**
+     * The Action Scheduler callback: run steps until the time budget is spent or the runner
+     * stops continuing, then queue the continuation.
+     *
+     * The continuation is queued at shutdown, not here: while this action runs it is
+     * `in-progress`, which as_has_scheduled_action() and the unique schedule both count, so
+     * queueing it from inside the callback would be refused and the chain would end. At
+     * shutdown the action is complete. A process killed outright queues nothing; the cursor
+     * keeps the progress and the next schedule() resumes it.
+     *
+     * @return void
+     */
+    public static function handle_action() {
+        $deadline = time() + self::ACTION_TIME_BUDGET;
+        do {
+            $status = self::run_batch();
+        } while ($status === self::CONTINUE_RUN && time() < $deadline);
+        $delay = self::continuation_delay($status);
+        if ($delay !== null && !self::$continuation_queued) {
+            self::$continuation_queued = true;
+            register_shutdown_function(array(self::class, 'schedule'), $delay);
+        }
+    }
+
+    /**
+     * @param string $status A run() status.
+     * @return int|null Seconds until the next batch, or null when nothing follows: a
+     *                  finished, stopped or idle runner ends the chain, and a busy one
+     *                  leaves it to the runner holding the lock.
+     */
+    public static function continuation_delay($status) {
+        if ($status === self::CONTINUE_RUN) {
+            return 0;
+        }
+        return $status === self::RETRY ? self::RETRY_DELAY : null;
     }
 
     /**
