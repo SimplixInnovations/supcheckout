@@ -515,24 +515,37 @@ final class Keys {
     }
 
     /**
-     * add_option() on every name of a copied option. The first (legacy, before
-     * `finalized`) add decides creation exactly as one add_option() did; every other
-     * name must then be added or already hold the identical value, else the call fails
-     * closed (a conflicting copy is never overwritten).
+     * add_option() on every name of a copied option, all or nothing.
+     *
+     * Every other window name is probed first: if one already holds a different value
+     * nothing is added and the call fails closed (a conflicting copy is never
+     * overwritten, and no partial result is left behind). Then the first name decides
+     * creation exactly as one add_option() did, and each other name is added unless it
+     * already holds the identical value. Should a later add still lose to a concurrent
+     * writer with a different value, the value this call added is deleted again.
      *
      * @param string $legacy   Legacy option name.
      * @param mixed  $value    Value.
      * @param string $autoload Autoload flag, passed through.
-     * @return bool True only when this call created the value under every name.
+     * @return bool True only when this call created the value and every name holds it.
      */
     public static function add_copied_option($legacy, $value, $autoload = 'no') {
         self::assert_option($legacy);
         $names = self::write_keys($legacy);
+        $others = array_slice($names, 1);
+        $missing = new \stdClass();
+        foreach ($others as $name) {
+            $existing = get_option($name, $missing);
+            if ($existing !== $missing && $existing !== $value) {
+                return false;
+            }
+        }
         if (!add_option($names[0], $value, '', $autoload)) {
             return false;
         }
-        foreach (array_slice($names, 1) as $name) {
-            if (!add_option($name, $value, '', $autoload) && get_option($name, null) !== $value) {
+        foreach ($others as $name) {
+            if (!add_option($name, $value, '', $autoload) && get_option($name, $missing) !== $value) {
+                delete_option($names[0]);
                 return false;
             }
         }
@@ -748,6 +761,11 @@ final class Keys {
      * stored, so the legacy name stays authoritative through the whole window; the only
      * gap is an in-flight request that crosses Finalize (30 days after cutover), which
      * the stored order locks and gates still cover.
+     *
+     * Release recomputes the name. If Finalize lands between acquire and release, the
+     * release targets the new name and the legacy GET_LOCK stays held until the
+     * connection closes at the end of the request. That is harmless: no post-Finalize
+     * worker asks for the legacy name, and MySQL frees it with the connection.
      *
      * @param string $legacy_name Full legacy GET_LOCK name.
      * @return list<string>

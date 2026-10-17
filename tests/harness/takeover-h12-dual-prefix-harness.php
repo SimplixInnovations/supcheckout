@@ -283,9 +283,9 @@ h12dp_reset('rolled_back');
 $minted = h12dp_private('get_or_create_secret_record');
 h12dp_assert(is_array($minted) && !array_key_exists('supcheckout_token_identity_secret_v2', upay_test_state()['options']), 'rolled_back: the secret is minted under the legacy name only');
 
-foreach (array('copying' => array(true, true), 'idle' => array(true, false), 'finalized' => array(false, true)) as $status => $expect) {
+foreach (array('copying' => array(true, true), 'idle' => array(true, false), 'cut_over' => array(true, true), 'finalized' => array(false, true)) as $status => $expect) {
     h12dp_reset($status);
-    $option = $status === 'finalized' ? 'supcheckout_token_identity_secret_v2' : 'upayments_token_identity_secret_v2';
+    $option = ($status === 'finalized' || $status === 'cut_over') ? 'supcheckout_token_identity_secret_v2' : 'upayments_token_identity_secret_v2';
     upay_test_state()['options'][$option] = $secret;
     $created = CustomerTokenIdentity::create_provenance(1, $api_key, false, $scope, $generation,
         CustomerTokenIdentity::KIND_CANONICAL, '12345678', CustomerTokenIdentity::SOURCE_CREATE_201);
@@ -294,6 +294,25 @@ foreach (array('copying' => array(true, true), 'idle' => array(true, false), 'fi
     h12dp_assert($created === true && $has_legacy === $expect[0] && $has_new === $expect[1]
         && CustomerTokenIdentity::read_provenance(1, $scope, $generation)['state'] === 'valid',
         "{$status}: new provenance is written under exactly the window names and verifies");
+}
+
+// cut_over: the primary key is the new name and the mirror is the legacy name.
+h12dp_reset('cut_over');
+h12dp_assert(CustomerTokenIdentity::get_user_meta_key('1', $scope) === $new_prefix . $scope, 'cut_over: the primary provenance key is the new name');
+
+// A mirror that fails verification rolls back the mirror AND the primary: nothing of
+// this call survives, and a concurrent writer's value is never deleted.
+foreach (array('copying' => $new_prefix, 'cut_over' => $legacy_prefix) as $status => $mirror_prefix) {
+    h12dp_reset($status);
+    upay_test_state()['options'][$status === 'cut_over' ? 'supcheckout_token_identity_secret_v2' : 'upayments_token_identity_secret_v2'] = $secret;
+    $concurrent = h12dp_record($scope, $generation, '23456789');
+    upay_test_state()['inject_user_meta_after_add'] = array('user_id' => 1, 'key' => $mirror_prefix . $scope, 'value' => $concurrent);
+    $created = CustomerTokenIdentity::create_provenance(1, $api_key, false, $scope, $generation,
+        CustomerTokenIdentity::KIND_CANONICAL, '12345678', CustomerTokenIdentity::SOURCE_CREATE_201);
+    $primary_prefix = $mirror_prefix === $new_prefix ? $legacy_prefix : $new_prefix;
+    h12dp_assert($created === false, "{$status}: a mirror that fails readback fails the creation");
+    h12dp_assert(!isset(upay_test_state()['usermeta'][1][$primary_prefix . $scope]), "{$status}: the primary record is rolled back exactly");
+    h12dp_assert(isset(upay_test_state()['usermeta'][1][$mirror_prefix . $scope]) && upay_test_state()['usermeta'][1][$mirror_prefix . $scope] === array($concurrent), "{$status}: only this call's mirror is removed; the concurrent value stays");
 }
 
 $GLOBALS['wpdb'] = new WpdbStub();

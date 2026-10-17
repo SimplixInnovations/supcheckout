@@ -5,6 +5,7 @@ namespace Simplixi\SUPCheckout\Subscription\Cron;
 defined('ABSPATH') || exit;
 
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\TakeoverState;
 
 /**
  * Per-billing-cycle atomic attempt journal.
@@ -251,6 +252,9 @@ class CycleClaim
         string $cycle_due_gmt
     ): bool {
         global $wpdb;
+        // A claim starts a cycle: re-read the takeover state so a long-running queue
+        // worker never claims in the table it saw before a cutover or rollback.
+        TakeoverState::flush_cache();
         $table = self::table_name();
 
         $now_gmt = current_time('mysql', true);
@@ -303,6 +307,9 @@ class CycleClaim
         string $expected_currency
     ): bool {
         global $wpdb;
+        // A claim starts a cycle: re-read the takeover state so a long-running queue
+        // worker never claims in the table it saw before a cutover or rollback.
+        TakeoverState::flush_cache();
         $table = self::table_name();
 
         if ($parent_order_id <= 0

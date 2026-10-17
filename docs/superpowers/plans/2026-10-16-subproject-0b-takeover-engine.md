@@ -734,7 +734,7 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 **Interfaces:**
 - Produces: `Cutover::run(bool $deactivate_official): array{ok:bool, steps:list<string>}`. In order:
-  0. **(amended after the review of `401be1d`) `verified → cut_over` runs under a quiesce:** pause the subscription scheduler and the `supcheckout` Action Scheduler group, and hold a global takeover lock. Run a final verify pass over every copied order, user and option, and re-sync the billing-attempts table (`REPLACE`, then count and checksum). Any mismatch fails the cutover and leaves the state at `verified`. Options are copied last;
+  0. **(amended after the review of `401be1d`) `verified → cut_over` runs under a quiesce:** pause the subscription scheduler and the `supcheckout` Action Scheduler group, hold a global takeover lock, and drain in-flight billing-cycle claim holders (no `claimed`/`dispatching` row may be mid-flight when the table switches). Run a final verify pass over every copied order, user and option, and re-sync the billing-attempts table (`REPLACE`, then count and checksum). Any mismatch fails the cutover and leaves the state at `verified`. Options are copied last;
   1. copy settings from the first non-empty `Keys::settings_sources()` entry to `woocommerce_supcheckout_settings`, and the `Keys::options()` values verbatim (including the token-identity secret, so H12 provenance hashes stay valid);
   2. translate `woocommerce_gateway_order`, the `woocommerce_default_gateway` value, WCML gateway country/currency rules and FunnelKit gateway lists. Each is recorded in the `Journal` **before** the write, passing both the current value and the value about to be written (`Journal::record($target, $path, $before_value, $after_value, $restore_source)`). A third-party original is kept in a takeover-owned backup option named as its `restore_source`, because the journal holds fingerprints only;
   3. reschedule the `Keys::cron_hooks()` events to the new names. Old events are kept until Finalize, and their callbacks stay registered as aliases. Already-canonical hooks (`supcheckout_reconciliation_sweep`, `supcheckout_process_due_parent`) are left alone;
@@ -823,8 +823,15 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
     - `Keys::options()` (new → legacy when the new option is present);
     - the billing-attempts table, with prepared `REPLACE INTO {legacy} SELECT … FROM {new} WHERE id > %d ORDER BY id LIMIT 500` batches over **all** rows, so rows updated after cutover are restored too.
   - It is batched and resumable through the same runner and cursors as Task 6, and the state stays `cut_over` until back-sync verifies.
-  - After back-sync verifies, Rollback removes the new-name copies (journaled), so a later run starts clean.
-  - It transitions to `rolled_back` and, if consented, reactivates the official plugin.
+  - **(amended after the review of `d4bfad4`) Rollback runs under the same quiesce as Cutover.** The billing-attempts table is single-written (the new table while `cut_over`), so a row written between its back-sync and the transition would be lost from the legacy table, and a cycle claim could become re-claimable: a double auto-deduction. Rollback therefore:
+    1. pauses the subscription scheduler and the `supcheckout` Action Scheduler group, takes the takeover lock, and drains in-flight claim holders;
+    2. back-syncs meta, users, products and options;
+    3. back-syncs the billing-attempts table **last**, verifying count and checksum;
+    4. transitions to `rolled_back` while still quiesced, then releases the quiesce.
+
+    `CycleClaim::acquire()` / `acquire_with_snapshot()` re-read the takeover state (`TakeoverState::flush_cache()`) at the start of every claim, so a long-running queue worker never claims in the table it saw before a transition (done in Task 2).
+  - **(amended after the review of `d4bfad4`) Transition first, then remove the copies.** Once the state is `rolled_back`, reads are legacy-only and runtime writes stop touching new names, so stale copies are unreachable and cannot be recreated. Only then does the journaled, resumable removal of the new-name copies run. `rolled_back → preflight_ok` requires that removal to be complete, so a later run starts clean.
+  - If consented, it reactivates the official plugin after the transition.
 
 - [ ] **Step 1: Write the failing test** (Review Focus 5).
   - After cutover, an order **created** through SUPCheckout (new keys, `payment_method=supcheckout`, status `processing`) gets `payment_method=upayments` on rollback. This is the only `payment_method` write the takeover ever makes; it is journaled, and it is needed so the reactivated official plugin recognises the order. Pre-switch orders were never rewritten, so they need nothing.

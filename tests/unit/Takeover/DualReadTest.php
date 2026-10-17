@@ -123,14 +123,11 @@ final class DualReadTest extends TestCase {
         $found = array();
         foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root . '/src', \FilesystemIterator::SKIP_DOTS)) as $file) {
             $source = (string) file_get_contents((string) $file);
-            $calls = preg_match_all('/\bwc_get_orders\(\s*(?:array\(|\[)/', $source);
+            $calls = self::wc_get_orders_calls($source, (string) $file);
             if ($calls === 0) {
                 continue;
             }
             $relative = str_replace('\\', '/', substr((string) $file, strlen($root) + 1));
-            if ($relative === 'src/Takeover/Keys.php') {
-                continue; // the registry documents the call in a comment
-            }
             $found[$relative] = $calls;
             self::assertSame($calls, substr_count($source, "'payment_method' => Keys::payment_method_query(),"), "$relative: every order query filters through Keys");
         }
@@ -176,6 +173,28 @@ final class DualReadTest extends TestCase {
         \update_option('supcheckout_token_identity_secret_v2', array('foreign'));
         self::assertFalse(Keys::add_copied_option('upayments_token_identity_secret_v2', array('mine')), 'a differing copy is never overwritten: fail closed');
         self::assertSame(array('foreign'), $GLOBALS['supcheckout_test_options']['supcheckout_token_identity_secret_v2']);
+        self::assertArrayNotHasKey('upayments_token_identity_secret_v2', $GLOBALS['supcheckout_test_options'], 'all or nothing: the legacy side is not added either');
+
+        \delete_option('supcheckout_token_identity_secret_v2');
+        \update_option('supcheckout_token_identity_secret_v2', array('mine'));
+        self::assertTrue(Keys::add_copied_option('upayments_token_identity_secret_v2', array('mine')), 'an identical copy counts as present');
+        self::assertSame(array('mine'), $GLOBALS['supcheckout_test_options']['upayments_token_identity_secret_v2']);
+        self::assertFalse(Keys::add_copied_option('upayments_token_identity_secret_v2', array('mine')), 'the first name already exists: nothing is created');
+    }
+
+    public function test_update_copied_option_reports_success_only_when_every_name_was_written(): void {
+        self::state('copying');
+        self::assertTrue(Keys::update_copied_option('upay_billing_cycle_schema_version', '2', false));
+        self::assertSame('2', $GLOBALS['supcheckout_test_options']['upay_billing_cycle_schema_version']);
+        self::assertSame('2', $GLOBALS['supcheckout_test_options']['supcheckout_billing_cycle_schema_version']);
+
+        $GLOBALS['supcheckout_test_update_option_result'] = false;
+        self::assertFalse(Keys::update_copied_option('upay_billing_cycle_schema_version', '3', false), 'a failed write is reported');
+        $GLOBALS['supcheckout_test_update_option_result'] = true;
+
+        self::state('idle');
+        self::assertTrue(Keys::update_copied_option('upay_billing_cycle_schema_version', '4', false));
+        self::assertSame('2', $GLOBALS['supcheckout_test_options']['supcheckout_billing_cycle_schema_version'], 'idle writes the legacy name only');
     }
 
     public function test_a_value_written_in_copying_after_the_copy_is_read_correctly_after_cutover(): void {
@@ -451,6 +470,36 @@ final class DualReadTest extends TestCase {
         $order->set_meta($meta);
         $order->set_items(array(array('type' => 'custom_type')));
         return $order;
+    }
+
+    /**
+     * Executable wc_get_orders( calls in a PHP source (comments and strings ignored).
+     * Every call must take a literal array, so its 'payment_method' filter is visible:
+     * a call with a variable or any other expression fails the test.
+     */
+    private static function wc_get_orders_calls(string $source, string $file): int {
+        $tokens = array_values(array_filter(token_get_all($source), static function ($token) {
+            return !is_array($token) || !in_array($token[0], array(T_WHITESPACE, T_COMMENT, T_DOC_COMMENT), true);
+        }));
+        $calls = 0;
+        foreach ($tokens as $i => $token) {
+            if (!is_array($token) || $token[0] !== T_STRING || strtolower($token[1]) !== 'wc_get_orders'
+                || !isset($tokens[$i + 1]) || $tokens[$i + 1] !== '('
+            ) {
+                continue;
+            }
+            $previous = $tokens[$i - 1] ?? null;
+            if (is_array($previous) && in_array($previous[0], array(T_FUNCTION, T_OBJECT_OPERATOR, T_DOUBLE_COLON), true)) {
+                continue;
+            }
+            $argument = $tokens[$i + 2] ?? null;
+            self::assertTrue(
+                (is_array($argument) && $argument[0] === T_ARRAY) || $argument === '[',
+                $file . ':' . $token[2] . ' calls wc_get_orders() with a non-literal argument'
+            );
+            ++$calls;
+        }
+        return $calls;
     }
 
     /**
