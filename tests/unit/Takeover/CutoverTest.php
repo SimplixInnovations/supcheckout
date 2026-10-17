@@ -245,6 +245,87 @@ final class CutoverTest extends TestCase {
         self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
     }
 
+    public function test_a_slow_final_verify_keeps_the_lease_renewed_on_the_wall_clock(): void {
+        $this->seed_store();
+        for ($id = 100; $id < 112; $id++) {
+            $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)));
+        }
+        $system = $this->system;
+        // Each order load takes 100 s: far fewer than RENEW_EVERY objects outlast the TTL.
+        $this->store->on_load_order = static function () use ($system) {
+            $system->now += 100;
+        };
+
+        $result = $this->cutover()->run(false);
+
+        self::assertTrue($result['ok'], json_encode($result));
+        self::assertGreaterThan(Quiesce::TTL, $this->system->now - 1800000000);
+    }
+
+    public function test_slow_product_and_table_batches_and_slow_switch_steps_keep_the_lease(): void {
+        $this->seed_store();
+        $system = $this->system;
+        for ($id = 500; $id < 512; $id++) {
+            $this->store->products[$id] = new FakeCrudObject($id, '', array('_upay_disable_subscription' => array('yes')));
+        }
+        for ($i = 0; $i < 1200; $i++) {
+            $this->store->add_legacy_row(array('cycle_key' => sprintf('%064d', $i + 10), 'parent_order_id' => 7, 'owner_token' => 'o', 'state' => 'resolved', 'payment_id' => 'p'));
+        }
+        $this->store->on_load_product = static function () use ($system) {
+            $system->now += 100;
+        };
+        $this->store->on_table_insert = static function () use ($system) {
+            $system->now += 400;
+        };
+        $this->system->on_step = static function ($step) use ($system) {
+            if (in_array($step, array('settings_copied', 'cron_rescheduled', 'third_party_translated'), true)) {
+                $system->now += 500;
+            }
+        };
+
+        $result = $this->cutover()->run(false);
+
+        self::assertTrue($result['ok'], json_encode($result));
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+    }
+
+    public function test_a_lease_lost_inside_the_final_verify_stops_at_once_and_reports_lease_lost(): void {
+        $this->seed_store();
+        for ($id = 100; $id < 160; $id++) {
+            $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)));
+        }
+        $system = $this->system;
+        $loaded = array();
+        $this->store->on_load_order = static function ($order_id) use ($system, &$loaded) {
+            $loaded[$order_id] = true;
+            if ($order_id === 110) {
+                $GLOBALS['supcheckout_test_options'][Quiesce::OPTION] = '0:released';
+                $system->now += 61;
+            }
+        };
+
+        $result = $this->cutover()->run(false);
+
+        self::assertSame('lease_lost', $result['error']);
+        self::assertArrayNotHasKey(112, $loaded, 'no further work once the lease is gone');
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+        self::assertFalse(get_option(Keys::SETTINGS_OPTION, false));
+    }
+
+    public function test_a_lease_lost_after_the_last_verify_refuses_the_transition(): void {
+        $this->seed_store();
+        $this->system->on_step = static function ($step) {
+            if ($step === 'rechecked') {
+                $GLOBALS['supcheckout_test_options'][Quiesce::OPTION] = '0:released';
+            }
+        };
+
+        $result = $this->cutover()->run(false);
+
+        self::assertSame('lease_lost', $result['error']);
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+    }
+
     public function test_a_store_already_cut_over_only_finishes_the_tail(): void {
         self::state('cut_over');
         $result = $this->cutover()->run(true);

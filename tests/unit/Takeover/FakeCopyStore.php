@@ -31,6 +31,8 @@ final class FakeCopyStore implements CopyStore {
     public $new_columns = array('cycle_key', 'parent_order_id', 'owner_token', 'state', 'payment_id');
     /** @var callable|null function (int $order_id): void, called before an order is loaded. */
     public $on_load_order = null;
+    /** @var callable|null function (int $product_id): void, called before a product is loaded. */
+    public $on_load_product = null;
     /** @var callable|null function (string $after, string $upto): void, called before an insert. */
     public $on_table_insert = null;
     /** @var callable|null function (int $user_id, string $key): void, called before a user meta add. */
@@ -131,6 +133,9 @@ final class FakeCopyStore implements CopyStore {
     }
 
     public function load_product($product_id) {
+        if (is_callable($this->on_load_product)) {
+            call_user_func($this->on_load_product, $product_id);
+        }
         return isset($this->products[$product_id]) ? $this->products[$product_id] : null;
     }
 

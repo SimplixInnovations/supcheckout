@@ -58,8 +58,8 @@ final class Cutover {
     public const STALE_SECONDS = 600;
     /** Attempts on an order whose lock a payment request holds. */
     private const LOCK_ATTEMPTS = 3;
-    /** Objects verified between lease renewals. */
-    private const RENEW_EVERY = 50;
+    /** Wall-clock seconds between lease renewals (well inside Quiesce::TTL). */
+    public const RENEW_INTERVAL = 60;
 
     /** @var CopyStore */
     private $store;
@@ -67,6 +67,8 @@ final class Cutover {
     private $system;
     /** @var string|null */
     private $lease = null;
+    /** @var int When the lease was last taken or renewed. */
+    private $renewed_at = 0;
     /** @var list<string> */
     private $steps = array();
     /** @var array<string, mixed> */
@@ -95,7 +97,8 @@ final class Cutover {
         if ($status !== TakeoverState::VERIFIED) {
             return $this->result('not_verified');
         }
-        $this->lease = Quiesce::acquire($this->system->now());
+        $this->renewed_at = $this->system->now();
+        $this->lease = Quiesce::acquire($this->renewed_at);
         if ($this->lease === null) {
             return $this->result('busy');
         }
@@ -127,25 +130,34 @@ final class Cutover {
         }
         $this->step('drained');
         if (!$this->verify_objects()) {
-            return 'verify_mismatch';
+            return $this->lease === null ? 'lease_lost' : 'verify_mismatch';
         }
         $this->step('verified_objects');
-        if (!$this->renew() || !$this->sync_table()) {
+        if (!$this->maybe_renew() || !$this->sync_table()) {
             return $this->lease === null ? 'lease_lost' : 'table_mismatch';
         }
         $this->step('table_synced');
+        if (!$this->maybe_renew()) {
+            return 'lease_lost';
+        }
         $settings = SettingsCopier::copy();
         if (!$settings['ok']) {
             $this->report['settings_mismatches'] = $settings['mismatches'];
             return 'settings_mismatch';
         }
         $this->step('settings_copied');
+        if (!$this->maybe_renew()) {
+            return 'lease_lost';
+        }
         $cron = CronRescheduler::reschedule($this->system);
         $this->report['cron'] = $cron;
         if (!$cron['ok']) {
             return 'cron_failed';
         }
         $this->step('cron_rescheduled');
+        if (!$this->maybe_renew()) {
+            return 'lease_lost';
+        }
         $third_party = ThirdPartyTranslator::translate();
         $this->report['third_party'] = $third_party;
         if (!$third_party['ok']) {
@@ -157,6 +169,10 @@ final class Cutover {
             return $recheck;
         }
         $this->step('rechecked');
+        // Immediately before the compare-and-swap: the lease must still be ours.
+        if (!$this->holds()) {
+            return 'lease_lost';
+        }
         if (!TakeoverState::transition(TakeoverState::CUT_OVER)) {
             return 'transition_refused';
         }
@@ -180,14 +196,14 @@ final class Cutover {
             return $drain;
         }
         if (!$this->verify_table()) {
-            return 'table_mismatch';
+            return $this->lease === null ? 'lease_lost' : 'table_mismatch';
         }
         $settings = SettingsCopier::verify();
         if (!$settings['ok'] || !ThirdPartyTranslator::is_translated()) {
             $this->report['settings_mismatches'] = $settings['mismatches'];
             return 'settings_mismatch';
         }
-        return null;
+        return $this->holds() ? null : 'lease_lost';
     }
 
     /**
@@ -218,6 +234,9 @@ final class Cutover {
                 return 'claims_in_flight';
             }
             $this->system->sleep(self::DRAIN_POLL);
+            if (!$this->maybe_renew()) {
+                return 'lease_lost';
+            }
         }
     }
 
@@ -229,14 +248,13 @@ final class Cutover {
     private function verify_objects() {
         $mismatches = array('orders' => 0, 'disagreements' => 0, 'locked' => 0, 'users' => 0, 'products' => 0);
         $post_meta = $this->store->order_post_meta_reader();
-        $seen = 0;
         $cursor = 0;
         do {
             $ids = $this->store->order_ids_after($cursor, CopyRunner::ORDER_BATCH);
             foreach ($ids as $order_id) {
                 $cursor = $order_id;
                 $mismatches = $this->verify_order($order_id, $post_meta, $mismatches);
-                if (++$seen % self::RENEW_EVERY === 0 && !$this->renew()) {
+                if (!$this->maybe_renew()) {
                     return false;
                 }
             }
@@ -249,6 +267,9 @@ final class Cutover {
                 $copy = UserMetaCopier::copy_user($this->store, $user_id);
                 $verify = UserMetaCopier::verify_user($this->store, $user_id);
                 $mismatches['users'] += ($copy['mismatches'] !== array() || !$verify['ok']) ? 1 : 0;
+                if (!$this->maybe_renew()) {
+                    return false;
+                }
             }
         } while (count($ids) === CopyRunner::USER_BATCH);
         $cursor = 0;
@@ -256,17 +277,28 @@ final class Cutover {
             $ids = $this->store->product_ids_after($cursor, CopyRunner::PRODUCT_BATCH);
             foreach ($ids as $product_id) {
                 $cursor = $product_id;
-                $product = $this->store->load_product($product_id);
-                if ($product === null) {
-                    continue;
+                $mismatches['products'] += $this->verify_product($product_id) ? 0 : 1;
+                if (!$this->maybe_renew()) {
+                    return false;
                 }
-                $copy = OrderCopier::copy_meta($product, Keys::product_meta(), null, true);
-                $verify = OrderCopier::verify_meta($this->store->load_product($product_id), Keys::product_meta());
-                $mismatches['products'] += ($copy['status'] === OrderCopier::FAILED || $copy['mismatches'] !== array() || !$verify['ok']) ? 1 : 0;
             }
         } while (count($ids) === CopyRunner::PRODUCT_BATCH);
         $this->report['mismatches'] = $mismatches;
         return array_sum($mismatches) === 0;
+    }
+
+    /**
+     * @param int $product_id Product ID.
+     * @return bool True when the product converged and verifies (or no longer exists).
+     */
+    private function verify_product($product_id) {
+        $product = $this->store->load_product($product_id);
+        if ($product === null) {
+            return true;
+        }
+        $copy = OrderCopier::copy_meta($product, Keys::product_meta(), null, true);
+        $verify = OrderCopier::verify_meta($this->store->load_product($product_id), Keys::product_meta());
+        return $copy['status'] !== OrderCopier::FAILED && $copy['mismatches'] === array() && $verify['ok'];
     }
 
     /**
@@ -320,6 +352,9 @@ final class Cutover {
                 return false;
             }
             $cursor = $step['cursor'];
+            if (!$this->maybe_renew()) {
+                return false;
+            }
         } while (!$step['done']);
         return $this->verify_table();
     }
@@ -340,6 +375,9 @@ final class Cutover {
             $step = BillingTableCopier::verify_batch($this->store, $cursor);
             $mismatches += $step['mismatches'];
             $cursor = $step['cursor'];
+            if (!$this->maybe_renew()) {
+                return false;
+            }
         } while (!$step['done']);
         if ($mismatches > 0) {
             $this->report['table'] = 'mismatch';
@@ -348,11 +386,38 @@ final class Cutover {
         return true;
     }
 
-    /** @return bool True while the lease is still ours (now renewed). */
+    /** @return bool True while the lease is still ours (now renewed). A lost lease stays lost. */
     private function renew() {
-        $renewed = $this->lease === null ? null : Quiesce::renew($this->lease, $this->system->now());
+        $now = $this->system->now();
+        $renewed = $this->lease === null ? null : Quiesce::renew($this->lease, $now);
         $this->lease = $renewed;
+        $this->renewed_at = $now;
         return $renewed !== null;
+    }
+
+    /**
+     * Renew on the wall clock: every RENEW_INTERVAL seconds, from inside every batch loop
+     * and between the switch steps, so no stretch of work outlasts Quiesce::TTL.
+     *
+     * @return bool False once the lease is lost (the caller aborts with lease_lost).
+     */
+    private function maybe_renew() {
+        if ($this->lease === null) {
+            return false;
+        }
+        if ($this->system->now() - $this->renewed_at < self::RENEW_INTERVAL) {
+            return true;
+        }
+        return $this->renew();
+    }
+
+    /** @return bool True while the stored lease is still ours and unexpired (no write). */
+    private function holds() {
+        if ($this->lease === null || !Quiesce::holds($this->lease, $this->system->now())) {
+            $this->lease = null;
+            return false;
+        }
+        return true;
     }
 
     /**
