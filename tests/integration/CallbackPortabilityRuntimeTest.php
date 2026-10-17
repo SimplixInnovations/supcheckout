@@ -118,10 +118,15 @@ try {
     $adapter_source = is_string($main_source) && is_string($gateway_source) ? $main_source . "\n" . $gateway_source : false;
     supcheckout_cert_assert(is_string($orchestrator_source), 'CheckoutOrchestrator source is readable');
     supcheckout_cert_assert(is_string($adapter_source), 'gateway adapter source is readable');
+    // 0b Task 2: the route literal moved behind Keys::callback_route(), which is 'wc_upayments'
+    // until cutover; the gateway adapter still owns the single api_request_url call.
     supcheckout_cert_assert(
-        strpos($gateway_source, "api_request_url('wc_upayments')") !== false
-        || strpos($gateway_source, 'api_request_url("wc_upayments")') !== false,
+        strpos($gateway_source, 'api_request_url(Keys::callback_route())') !== false,
         'gateway platform adapter owns WooCommerce api_request_url'
+    );
+    supcheckout_cert_assert(
+        \Simplixi\SUPCheckout\Takeover\Keys::callback_route() === 'wc_upayments',
+        'before the takeover the callback route resolves to the legacy wc_upayments route'
     );
     supcheckout_cert_assert(
         strpos($orchestrator_source, 'api_request_url') === false,
