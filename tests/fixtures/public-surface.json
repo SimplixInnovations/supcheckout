@@ -1020,6 +1020,14 @@
     {
         "kind": "hook_reference",
         "type": "filter",
+        "hook": "rest_request_before_callbacks",
+        "priority": 10,
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
         "hook": "wc_get_template",
         "priority": 5,
         "accepted_args": 5,
@@ -1045,6 +1053,14 @@
         "kind": "hook_reference",
         "type": "filter",
         "hook": "woocommerce_checkout_fields",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_checkout_posted_data",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"

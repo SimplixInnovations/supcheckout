@@ -1116,8 +1116,10 @@ arch2_assert(
 arch2_assert(
     $registrationRegister['found']
         && $compactBody($registrationRegister['body']) === 'add_filter(woocommerce_payment_gateways,array(self::class,filter_gateways));'
-            . 'add_filter(woocommerce_available_payment_gateways,array(self::class,filter_available));',
-    'WooCommerce gateway and availability registrations are direct executable hook/callback pairs'
+            . 'add_filter(woocommerce_available_payment_gateways,array(self::class,filter_available));'
+            // 0b Task 7: stale pre-cutover gateway choices; registers nothing before cut_over.
+            . 'StaleGatewayChoice::register();',
+    'WooCommerce gateway and availability registrations are direct executable hook/callback pairs, then the post-cutover stale-choice translation'
 );
 arch2_assert(
     $registrationFilter['found']

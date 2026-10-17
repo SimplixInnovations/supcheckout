@@ -207,6 +207,7 @@ $ownership_categories = array(
     'current_id_compare' => "compares a request or screen value with the gateway's own current id, not an order's; correct for either identity when the caller passes the current id",
     'display_only' => 'only shows the payment method; no ownership decision',
     'third_party_gateway' => 'intentionally compares with another gateway',
+    'stale_choice_translation' => 'a posted pre-cutover gateway choice, re-pointed from exactly the legacy id to Keys::GATEWAY within the grace window (Task 7); never an order identity',
 );
 
 /**
@@ -222,6 +223,7 @@ $ownership_sites = array(
     'src/Admin/GatewaySettings.php' => array('$gateway_id' => array('current_id_compare')),
     'src/Subscription/Checkout/Fields.php' => array("['payment_method']" => array_fill(0, 3, 'captured_for_check')),
     'src/Subscription/Cron/Scheduler.php' => array('get_payment_method()' => array('captured_for_check')),
+    'src/Takeover/StaleGatewayChoice.php' => array("['payment_method']" => array_fill(0, 3, 'stale_choice_translation')),
 );
 
 /**

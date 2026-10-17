@@ -120,7 +120,7 @@ namespace Simplixi\SUPCheckout\Tests\Gateway {
             $GLOBALS['supcheckout_test_gateway_availability_context']['is_checkout'] = true;
             $GLOBALS['supcheckout_test_gateway_availability_context']['wc'] = (object) array('session' => $session);
             \update_option('woocommerce_supcheckout_settings', array('enabled' => 'yes', 'api_key' => 'cert-key', 'make_default_gateway' => 'yes'));
-            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => 'cut_over', 'cut_over_at' => 1, 'cursor' => 0, 'totals' => array()));
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => 'cut_over', 'cut_over_at' => time() - 3600, 'cursor' => 0, 'totals' => array()));
             TakeoverState::flush_cache();
 
             $ours = self::our_gateway();
@@ -132,6 +132,21 @@ namespace Simplixi\SUPCheckout\Tests\Gateway {
             $session->set('chosen_payment_method', 'cod');
             Availability::filter(array('cod' => (object) array('id' => 'cod'), 'supcheckout' => $ours));
             self::assertSame('cod', $session->get('chosen_payment_method'), 'another gateway choice is untouched');
+        }
+
+        /** The session re-pointing shares the stale posted-value grace window. */
+        #[RunInSeparateProcess]
+        #[PreserveGlobalState(false)]
+        public function test_a_stale_session_choice_is_left_alone_after_the_grace_window(): void {
+            $session = self::session('upayments');
+            $GLOBALS['supcheckout_test_gateway_availability_context']['is_checkout'] = true;
+            $GLOBALS['supcheckout_test_gateway_availability_context']['wc'] = (object) array('session' => $session);
+            \update_option('woocommerce_supcheckout_settings', array('enabled' => 'yes', 'api_key' => 'cert-key', 'make_default_gateway' => 'yes'));
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => 'cut_over', 'cut_over_at' => time() - \Simplixi\SUPCheckout\Takeover\StaleGatewayChoice::GRACE_SECONDS - 1, 'cursor' => 0, 'totals' => array()));
+            TakeoverState::flush_cache();
+
+            Availability::filter(array('supcheckout' => self::our_gateway()));
+            self::assertSame('upayments', $session->get('chosen_payment_method'));
         }
 
         #[RunInSeparateProcess]
