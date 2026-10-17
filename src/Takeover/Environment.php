@@ -5,7 +5,6 @@ namespace Simplixi\SUPCheckout\Takeover;
 use Simplixi\SUPCheckout\Gateway\Gateway;
 use Simplixi\SUPCheckout\Provider\EndpointResolver;
 use Simplixi\SUPCheckout\Provider\PaymentMethodAvailability;
-use Simplixi\SUPCheckout\Release\Identity;
 
 defined('ABSPATH') || exit;
 
@@ -526,15 +525,24 @@ final class Environment {
         return (string) add_query_arg(Preflight::PROBE_ARG, '1', $base);
     }
 
-    /** @return string */
+    /**
+     * SUPCheckout's own install directory, from its main file's location (as
+     * WordPressCutoverSystem finds the official plugin), so it is right whatever the
+     * directory is named and works from the paused boot. No runtime class is loaded:
+     * Release/Identity.php registers the payment lifecycle when it loads, which a paused
+     * SUPCheckout must never do while the official plugin owns `wc_upayments`.
+     *
+     * @return string
+     */
     private static function own_plugin_dir_from_wordpress() {
-        if (defined('SUPCHECKOUT_PLUGIN_FILE') && function_exists('plugin_basename')) {
-            $dir = dirname(str_replace('\\', '/', (string) plugin_basename((string) constant('SUPCHECKOUT_PLUGIN_FILE'))));
+        $root = dirname(__DIR__, 2);
+        if (function_exists('plugin_basename')) {
+            $dir = dirname(str_replace('\\', '/', (string) plugin_basename($root . '/supcheckout.php')));
             if ($dir !== '.' && $dir !== '') {
                 return $dir;
             }
         }
-        return Identity::SLUG;
+        return basename($root);
     }
 
     /** @return list<string> */

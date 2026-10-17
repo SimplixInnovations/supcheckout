@@ -98,6 +98,16 @@ if ($phase === 'paused') {
     global $wpdb;
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Certification fixture: clear the availability rate gate earlier steps may have set.
     $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '%payment\\_methods\\_rate\\_gate\\_%'");
+    // Earlier steps of this shared cell may leave fresh claimed/dispatching billing rows,
+    // which Cutover's drain would wait on and refuse (exit 4). This disposable cell's rows
+    // are fixture data: clear the in-flight ones and prove none is left.
+    $billing_table = $wpdb->prefix . 'upayments_billing_attempts';
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($billing_table))) === $billing_table) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Certification fixture cleanup on a disposable runtime.
+        $wpdb->query($wpdb->prepare('DELETE FROM %i WHERE state IN (%s, %s)', $billing_table, 'claimed', 'dispatching'));
+        $open = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i WHERE state IN (%s, %s)', $billing_table, 'claimed', 'dispatching'));
+        supcheckout_cert_assert($open === 0, 'no open billing claim is left before the takeover');
+    }
     update_option('woocommerce_currency', 'KWD');
     update_option('woocommerce_upayments_settings', array('enabled' => 'yes', 'test_mode' => 'yes', 'api_key' => 'takeover-cli-certification-key-' . wp_generate_password(12, false)));
     $order_ids = array();
@@ -122,6 +132,16 @@ if ($phase === 'paused') {
         }
     }
     supcheckout_cert_assert(is_array($official_fact), 'preflight reports the active official plugin');
+
+    // The same Preflight in this paused process: it must load no runtime that registers
+    // payment hooks (Release/Identity.php would bootstrap the lifecycle on wc_upayments).
+    $in_process = \Simplixi\SUPCheckout\Takeover\Preflight::run();
+    supcheckout_cert_assert($in_process['blocking'] === array(), 'an in-process paused Preflight reports nothing blocking');
+    supcheckout_cert_assert(
+        supcheckout_takeover_cert_own_hooks() === array('admin_notices'),
+        'after a paused Preflight, SUPCheckout still has no woocommerce_api_wc_upayments, reconcile cron or other hook: ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
+    );
+    supcheckout_cert_assert(!class_exists('Simplixi\\SUPCheckout\\Payment\\PaymentLifecycle', false), 'the payment lifecycle was never loaded while paused');
 
     $status = supcheckout_takeover_cert_wp('supcheckout takeover status --format=json');
     $status_json = json_decode(trim($status->stdout), true);
