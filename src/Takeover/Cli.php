@@ -124,15 +124,18 @@ final class Cli {
      * [--yes]
      * : Do not ask for confirmation.
      *
+     * [--deactivate-official]
+     * : Deactivate an active official UPayments plugin first (this site only). Without it, an active official plugin refuses the rollback (exit 2): it writes the same legacy data the rollback back-syncs.
+     *
      * [--reactivate-official]
-     * : Reactivate the official UPayments plugin (this site only) once rolled back.
+     * : Once rolled back, reactivate the official UPayments install the takeover deactivated (this site only; it boots on the next request and SUPCheckout pauses itself).
      *
      * @param array<int, string>    $args       Positional arguments.
      * @param array<string, string> $assoc_args Options.
      * @return void
      */
     public function rollback($args, $assoc_args) {
-        self::finish(self::commands()->rollback(isset($assoc_args['yes']), isset($assoc_args['reactivate-official'])));
+        self::finish(self::commands()->rollback(isset($assoc_args['yes']), isset($assoc_args['reactivate-official']), isset($assoc_args['deactivate-official'])));
     }
 
     /**
@@ -145,7 +148,7 @@ final class Cli {
      * : Do not ask for confirmation.
      *
      * [--reactivate-official]
-     * : Reactivate the official UPayments plugin (this site only), e.g. after `run` deactivated it.
+     * : Reactivate the official UPayments install `run` deactivated (this site only; it boots on the next request and SUPCheckout pauses itself).
      *
      * @param array<int, string>    $args       Positional arguments.
      * @param array<string, string> $assoc_args Options.

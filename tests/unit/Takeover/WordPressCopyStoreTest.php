@@ -176,8 +176,8 @@ final class WordPressCopyStoreTest extends TestCase {
 
         self::assertSame('REPLACE INTO %i (%i, %i) SELECT %i, %i FROM %i WHERE %i IN (%s)', $this->db->prepared[0]['query']);
         self::assertSame(array('wp_upayments_billing_attempts', 'cycle_key', 'state', 'cycle_key', 'state', 'wp_supcheckout_billing_attempts', 'cycle_key', 'k1'), $this->db->prepared[0]['args'], 'into legacy, from new');
-        self::assertSame('DELETE t FROM %i t LEFT JOIN %i s ON s.cycle_key = t.cycle_key WHERE t.cycle_key > %s AND s.cycle_key IS NULL', $this->db->prepared[1]['query']);
-        self::assertSame(array('wp_upayments_billing_attempts', 'wp_supcheckout_billing_attempts', 'aa'), $this->db->prepared[1]['args']);
+        self::assertSame('DELETE t FROM %i t LEFT JOIN %i s ON s.cycle_key = t.cycle_key WHERE t.cycle_key > %s AND s.cycle_key IS NULL AND t.state = %s', $this->db->prepared[1]['query']);
+        self::assertSame(array('wp_upayments_billing_attempts', 'wp_supcheckout_billing_attempts', 'aa', 'claimed'), $this->db->prepared[1]['args'], 'only a released claim is ever deleted');
         self::assertSame('DELETE FROM %i WHERE %i IN (%s, %s)', $this->db->prepared[2]['query']);
         self::assertSame(array('wp_supcheckout_billing_attempts', 'cycle_key', 'k1', 'k2'), $this->db->prepared[2]['args']);
         self::assertCount(3, $this->db->prepared);

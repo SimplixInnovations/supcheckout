@@ -119,9 +119,7 @@ final class TakeoverState {
 
         // Defense in depth (Task 10): a rolled-back store re-enters preflight_ok only once
         // Rollback recorded its copy removal complete, whoever asks for the transition.
-        if ($current['status'] === self::ROLLED_BACK && $to === self::PREFLIGHT_OK
-            && !(isset($current[self::ROLLBACK_PROGRESS]['removal_pending']) && $current[self::ROLLBACK_PROGRESS]['removal_pending'] === false)
-        ) {
+        if ($current['status'] === self::ROLLED_BACK && $to === self::PREFLIGHT_OK && !self::removal_complete($current)) {
             return false;
         }
 
@@ -183,6 +181,14 @@ final class TakeoverState {
             return true;
         }
         return self::write($raw, $next);
+    }
+
+    /**
+     * @param array<string, mixed> $state Decoded state.
+     * @return bool True once Rollback recorded its copy removal complete.
+     */
+    private static function removal_complete(array $state) {
+        return isset($state[self::ROLLBACK_PROGRESS]['removal_pending']) && $state[self::ROLLBACK_PROGRESS]['removal_pending'] === false;
     }
 
     /**

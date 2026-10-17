@@ -59,7 +59,10 @@ final class QuiesceLease {
         return $this->renew();
     }
 
-    /** @return bool True while the stored lease is still ours and unexpired (no write). */
+    /**
+     * @phpstan-impure
+     * @return bool True while the stored lease is still ours and unexpired (no write).
+     */
     public function holds() {
         if ($this->record === null || !Quiesce::holds($this->record, $this->system->now())) {
             $this->record = null;

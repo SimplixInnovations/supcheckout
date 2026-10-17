@@ -86,6 +86,7 @@ final class CliCommands {
         'claims_in_flight' => self::BUSY,
         'transition_refused' => self::BUSY,
         'removal_busy' => self::BUSY,
+        'official_active' => self::BLOCKED,
         'stale_claims' => self::STALE_CLAIMS,
         'not_cut_over' => self::STATE,
         'not_verified' => self::STATE,
@@ -236,6 +237,7 @@ final class CliCommands {
         if (!$this->system->deactivate_plugin($official)) {
             return $this->fail(self::ERROR, 'the official UPayments plugin (' . $official . ') could not be deactivated; the store was not switched');
         }
+        Rollback::record_official_deactivated($official);
         $this->line('official plugin deactivated: ' . $official . ' (SUPCheckout serves the store from the next request)');
         return self::OK;
     }
@@ -336,13 +338,14 @@ final class CliCommands {
      * cut_over → rolled_back → preflight_ok (Task 10); resumes an interrupted rollback.
      *
      * @param bool $yes                 Skip the confirmation.
-     * @param bool $reactivate_official Owner consent to reactivate the official plugin afterwards.
+     * @param bool $reactivate_official Owner consent to reactivate the official install the takeover deactivated.
+     * @param bool $deactivate_official Owner consent to deactivate an active official plugin first.
      * @return int Exit code.
      */
-    public function rollback($yes, $reactivate_official) {
+    public function rollback($yes, $reactivate_official, $deactivate_official = false) {
         $question = 'Roll the store back to the UPayments identities' . ($reactivate_official ? ' and reactivate the official UPayments plugin' : '')
             . '? Orders paid through SUPCheckout stay paid and keep their payment IDs.';
-        return $this->rewind(Rollback::MODE_ROLLBACK, (bool) $yes, (bool) $reactivate_official, $question);
+        return $this->rewind(Rollback::MODE_ROLLBACK, (bool) $yes, (bool) $reactivate_official, $question, (bool) $deactivate_official);
     }
 
     /**
@@ -362,9 +365,10 @@ final class CliCommands {
      * @param bool   $yes        Skip the confirmation.
      * @param bool   $reactivate Consent.
      * @param string $question   Confirmation question.
+     * @param bool   $deactivate Consent to deactivate an active official plugin (rollback only).
      * @return int Exit code.
      */
-    private function rewind($mode, $yes, $reactivate, $question) {
+    private function rewind($mode, $yes, $reactivate, $question, $deactivate = false) {
         if (!$this->store instanceof RollbackStore || !$this->system instanceof RollbackSystem) {
             return $this->fail(self::ERROR, $mode . ' needs a rollback-capable store and system');
         }
@@ -380,11 +384,57 @@ final class CliCommands {
         if (!$yes && !call_user_func($this->confirm, $question)) {
             return $this->fail(self::ERROR, 'aborted; nothing changed');
         }
+        if ($mode === Rollback::MODE_ROLLBACK && $state['status'] === TakeoverState::CUT_OVER) {
+            $official = $this->retire_official_for_rollback($deactivate);
+            if ($official !== self::OK) {
+                return $official;
+            }
+        }
         $rollback = new Rollback($this->store, $this->system);
         $result = $mode === Rollback::MODE_ROLLBACK ? $rollback->run($reactivate) : $rollback->abort($reactivate);
+        return $this->rewind_result($mode, $result);
+    }
+
+    /**
+     * A rollback back-syncs legacy names, which a running official plugin writes too (its
+     * own renewal cron ignores the Quiesce lease): it must be inactive first. Deactivated
+     * with consent (every install, this site only) and recorded for a later reactivation.
+     *
+     * @param bool $deactivate Consent.
+     * @return int Exit code.
+     */
+    private function retire_official_for_rollback($deactivate) {
+        $official = $this->system->official_plugin();
+        if ($official === null) {
+            return self::OK;
+        }
+        if (!$deactivate) {
+            return $this->fail(self::BLOCKED, 'the official UPayments plugin (' . $official . ') is active; nothing was rolled back. Rerun with --deactivate-official, or deactivate it first');
+        }
+        if (!$this->system->deactivate_plugin($official)) {
+            return $this->fail(self::ERROR, 'the official UPayments plugin (' . $official . ') could not be deactivated; nothing was rolled back');
+        }
+        Rollback::record_official_deactivated($official);
+        $this->line('official plugin deactivated: ' . $official);
+        return self::OK;
+    }
+
+    /**
+     * Exit-code precedence: an error first (its own code), then conflicts (8), then a failed
+     * reactivation (9). Every conflict and the reactivation warning are printed first.
+     *
+     * @param string               $mode   Mode.
+     * @param array<string, mixed> $result Rollback result.
+     * @return int Exit code.
+     */
+    private function rewind_result($mode, array $result) {
         $this->line('takeover ' . $mode . ' steps: ' . implode(', ', $result['steps']));
         foreach ($result['conflicts'] as $conflict) {
-            $this->line('conflict: seq ' . $conflict['seq'] . ' ' . $conflict['target'] . ' ' . $conflict['path'] . ' (a later edit; the newer value was kept)');
+            $this->line('conflict: seq ' . $conflict['seq'] . ' ' . $conflict['target'] . ' ' . $conflict['path'] . ' (kept; the owner decides)');
+        }
+        $not_reactivated = in_array('official_not_reactivated', $result['warnings'], true);
+        if ($not_reactivated) {
+            $this->line('warning: official_not_reactivated');
         }
         if ($result['error'] !== null) {
             $error = (string) $result['error'];
@@ -392,15 +442,17 @@ final class CliCommands {
             if ($error === 'stale_claims') {
                 $this->line('run `wp supcheckout takeover release-stale-claims`, then rerun');
             }
+            if ($error === 'official_active') {
+                $this->line('deactivate the official UPayments plugin (or rerun rollback with --deactivate-official), then rerun');
+            }
             $code = isset(self::ROLLBACK_EXIT[$error]) ? self::ROLLBACK_EXIT[$error] : self::ERROR;
             return $this->fail($code, $mode . ' stopped: ' . $error . '; rerun to resume');
         }
         $done = $mode === Rollback::MODE_ROLLBACK ? 'rolled back' : 'aborted';
         if ($result['conflicts'] !== array()) {
-            return $this->fail(self::CONFLICTS, $done . ', but ' . count($result['conflicts']) . ' later edit(s) were kept; review them');
+            return $this->fail(self::CONFLICTS, $done . ', but ' . count($result['conflicts']) . ' conflict(s) were kept; review them');
         }
-        if (in_array('official_not_reactivated', $result['warnings'], true)) {
-            $this->line('warning: official_not_reactivated');
+        if ($not_reactivated) {
             return $this->fail(self::OFFICIAL_NOT_REACTIVATED, $done . ', but the official UPayments plugin was not reactivated; activate it yourself');
         }
         return $this->done($done . ' (restored ' . $result['restored'] . ')');

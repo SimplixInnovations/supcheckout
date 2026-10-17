@@ -24,7 +24,8 @@ interface RollbackSystem extends CutoverSystem {
     public function installed_official_plugins();
 
     /**
-     * Activate a plugin on this site only (never network-wide).
+     * Activate an installed official plugin on this site only (never network-wide), without
+     * loading its code in this process: it boots on the next request.
      *
      * @param string $basename Plugin basename.
      * @return bool True when it is active afterwards.

@@ -83,7 +83,8 @@ interface RollbackStore extends CopyStore {
 
     /**
      * Delete $target's rows with $after_key < key <= $upto_key that have no row in the
-     * other table.
+     * other table and are still `claimed` (a released claim; never a `dispatching`, `held`
+     * or `resolved` row, which nothing legitimately deletes).
      *
      * @param string      $target    TABLE_LEGACY or TABLE_NEW.
      * @param string      $after_key Exclusive lower bound.
@@ -98,6 +99,20 @@ interface RollbackStore extends CopyStore {
      * @return bool
      */
     public function table_delete_keys($which, array $keys);
+
+    /**
+     * @param string       $which TABLE_LEGACY or TABLE_NEW.
+     * @param list<string> $keys  Primary keys.
+     * @return array<string, string> Key => `state` for the keys that exist.
+     */
+    public function table_states($which, array $keys);
+
+    /**
+     * @param string $which TABLE_LEGACY or TABLE_NEW.
+     * @param string $state Claim state.
+     * @return int|null Rows in that state (0 when the table does not exist), or null when unreadable.
+     */
+    public function table_count_state($which, $state);
 
     /**
      * In-flight claim holders in $which: rows `claimed` or `dispatching` updated at or after

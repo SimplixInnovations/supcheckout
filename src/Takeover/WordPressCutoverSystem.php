@@ -47,6 +47,10 @@ final class WordPressCutoverSystem implements RollbackSystem {
         return wp_schedule_event((int) $timestamp, (string) $schedule, (string) $hook, $args, true) === true;
     }
 
+    /**
+     * @phpstan-impure
+     * @return string|null
+     */
     public function official_plugin() {
         return OfficialPluginConflict::conflicting_plugin(dirname(__DIR__, 2) . '/supcheckout.php');
     }
@@ -91,13 +95,42 @@ final class WordPressCutoverSystem implements RollbackSystem {
         return $found;
     }
 
+    /**
+     * Reactivate the official plugin WITHOUT loading it. activate_plugin() includes the main
+     * file in this process, where SUPCheckout's runtime may be booted; the official plugin
+     * declares globals SUPCheckout historically declared too (woocommerceUpaymentsInit(),
+     * WC_Upayments), and any such collision is a fatal "Cannot redeclare" after the rollback
+     * already moved the state. So the basename is validated (an installed official plugin,
+     * no official install active, a readable main file with a Plugin Name header) and added to
+     * this site's `active_plugins` directly, never network-wide. WordPress loads it on the
+     * next request, where SUPCheckout pauses itself (OfficialPluginConflict). Its activation
+     * hook does not run (it is the plugin's own code); a previously active install already
+     * has its data, and the owner can re-save its settings if it schedules work only there.
+     *
+     * @param string $basename Plugin basename.
+     * @return bool True when it is the active official plugin afterwards.
+     */
     public function activate_plugin($basename) {
-        if (!function_exists('activate_plugin')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        $basename = (string) $basename;
+        if (!in_array($basename, $this->installed_official_plugins(), true) || $this->official_plugin() !== null) {
+            return false;
         }
-        // This site only, exactly as the owner would from wp-admin: never network-wide.
-        $result = activate_plugin((string) $basename, '', false, false);
-        return !is_wp_error($result) && $this->official_plugin() === (string) $basename;
+        $file = defined('WP_PLUGIN_DIR') ? constant('WP_PLUGIN_DIR') . '/' . $basename : '';
+        if ($file === '' || strpos($basename, '..') !== false || !is_file($file) || !is_readable($file)) {
+            return false;
+        }
+        $header = get_file_data($file, array('name' => 'Plugin Name'), 'plugin');
+        if (!isset($header['name']) || trim((string) $header['name']) === '') {
+            return false;
+        }
+        $active = get_option('active_plugins', array());
+        $active = is_array($active) ? array_values(array_filter($active, 'is_string')) : array();
+        if (!in_array($basename, $active, true)) {
+            $active[] = $basename;
+            sort($active);
+            update_option('active_plugins', $active);
+        }
+        return $this->official_plugin() === $basename;
     }
 
     public function now() {

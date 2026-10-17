@@ -27,8 +27,8 @@ defined('ABSPATH') || exit;
  *   new Keys::order_meta() key and Keys::takeover_markers() meta is deleted, in one save();
  * - users: every new user key, including H12 provenance under the new prefix;
  * - products: new Keys::product_meta() keys and takeover markers;
- * - options: each new-name option copy that JournalReplay::removable_copy() confirms; a later
- *   edit is a conflict and kept;
+ * - options: every new-name option copy, except gateway settings kept for a
+ *   `settings_diverged` conflict (the pre-transition back-sync filled or reported the rest);
  * - table: every row of the new billing-attempts table (the table itself stays).
  *
  * Records: per option and cron event, and one entry per object batch, all audit-only
@@ -63,11 +63,11 @@ final class CopyRemoval {
      * @param RollbackStore              $store    Store.
      * @param RollbackSystem             $system   Cron.
      * @param array<string, mixed>       $progress {phase, cursor}.
-     * @param list<array<string, mixed>> $entries  Cycle journal entries.
+     * @param list<string>               $keep     Option copies kept (gateway settings with a `settings_diverged` conflict).
      * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
      * @throws \RuntimeException When an audit entry cannot be stored.
      */
-    public static function step(RollbackStore $store, RollbackSystem $system, array $progress, array $entries) {
+    public static function step(RollbackStore $store, RollbackSystem $system, array $progress, array $keep = array()) {
         $phase = isset($progress['phase']) && in_array($progress['phase'], self::ORDER, true) ? (string) $progress['phase'] : self::PHASE_CRON;
         $cursor = isset($progress['cursor']) ? $progress['cursor'] : 0;
         switch ($phase) {
@@ -80,7 +80,7 @@ final class CopyRemoval {
             case self::PHASE_PRODUCTS:
                 return self::products($store, (int) $cursor);
             case self::PHASE_OPTIONS:
-                return self::options($entries);
+                return self::options($keep);
             case self::PHASE_TABLE:
                 return self::table($store);
             default:
@@ -221,19 +221,20 @@ final class CopyRemoval {
     }
 
     /**
-     * @param list<array<string, mixed>> $entries Cycle entries.
+     * Every new-name option copy is deleted: after the transition reads are legacy-only, the
+     * pre-transition back-sync already filled or reported each one, and a leftover copy would
+     * block the next copy run. Only names in $keep (gateway settings the owner must reconcile,
+     * `settings_diverged`) stay.
+     *
+     * @param list<string> $keep Option names kept.
      * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int}
      */
-    private static function options(array $entries) {
+    private static function options(array $keep) {
         $result = self::result(self::CONTINUE_RUN, self::PHASE_TABLE, '');
         $missing = new \stdClass();
         foreach (array_merge(array(Keys::SETTINGS_OPTION), array_values(Keys::options())) as $name) {
             $current = get_option($name, $missing);
-            if ($current === $missing) {
-                continue;
-            }
-            if (!JournalReplay::removable_copy($entries, $name)) {
-                $result['conflicts'][] = array('seq' => JournalReplay::latest_seq($entries, 'option', $name), 'target' => 'option', 'path' => $name);
+            if ($current === $missing || in_array($name, $keep, true)) {
                 continue;
             }
             Journal::record('option', $name, $current, null, self::AUDIT);

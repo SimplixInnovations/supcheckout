@@ -83,19 +83,29 @@ final class WordPressCutoverSystemTest extends TestCase {
             $own . '/supcheckout.php' => array(),
             'hello.php' => array(),
         );
+        $GLOBALS['cutover_system_installed']['upayments-old/UPayments.php'] = array();
+        // Including the official main file in a process where SUPCheckout is booted can fatal
+        // ("Cannot redeclare"): this one throws if anything ever includes it.
+        file_put_contents(WP_PLUGIN_DIR . '/upayments/UPayments.php', "<?php\n/**\n * Plugin Name: UPayments\n */\nthrow new \\Error('the official main file was included');\n");
         $GLOBALS['cutover_system_activations'] = array();
         eval('function get_plugins($folder = "") { return $GLOBALS["cutover_system_installed"]; }
         function activate_plugin($plugin, $redirect = "", $network_wide = false, $silent = false) {
-            $GLOBALS["cutover_system_activations"][] = array($plugin, $redirect, $network_wide, $silent);
-            $GLOBALS["supcheckout_test_options"]["active_plugins"][] = $plugin;
+            $GLOBALS["cutover_system_activations"][] = $plugin;
             return null;
         }');
 
         $system = new WordPressCutoverSystem();
-        self::assertSame(array('upayments/UPayments.php'), $system->installed_official_plugins(), 'the own-directory shim is never the official plugin');
+        self::assertSame(array('upayments-old/UPayments.php', 'upayments/UPayments.php'), $system->installed_official_plugins(), 'the own-directory shim is never the official plugin');
+        self::assertFalse($system->activate_plugin('upayments-old/UPayments.php'), 'a main file without a plugin header is refused');
+        self::assertFalse($system->activate_plugin('other/UPayments.php'), 'only an installed official plugin');
+        self::assertSame(array(), $GLOBALS['supcheckout_test_options']['active_plugins']);
+
         self::assertTrue($system->activate_plugin('upayments/UPayments.php'));
-        self::assertSame(array(array('upayments/UPayments.php', '', false, false)), $GLOBALS['cutover_system_activations'], 'network_wide is explicitly false');
+        self::assertSame(array(), $GLOBALS['cutover_system_activations'], 'activate_plugin() (which includes the file) is never called');
+        self::assertSame(array('upayments/UPayments.php'), $GLOBALS['supcheckout_test_options']['active_plugins'], 'this site only');
+        self::assertArrayNotHasKey('active_sitewide_plugins', $GLOBALS['supcheckout_test_site_options']);
         self::assertSame('upayments/UPayments.php', $system->official_plugin());
+        self::assertFalse($system->activate_plugin('upayments/UPayments.php'), 'never twice');
     }
 
     private static function boot(bool $network): void {

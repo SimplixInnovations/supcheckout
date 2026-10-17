@@ -64,10 +64,12 @@ final class RollbackTest extends TestCase {
         $this->store->user_meta[3] = array(self::SCOPE_KEY => array('provenance-record'));
         $this->store->products[40] = new FakeCrudObject(40, '', array('_upay_disable_subscription' => array('yes')));
         $this->store->new_table_exists = true;
-        $this->store->add_legacy_row(array('cycle_key' => self::key('1'), 'parent_order_id' => 7, 'owner_token' => 'o', 'state' => 'resolved', 'payment_id' => 'pay-r'));
+        $this->store->add_legacy_row(array('cycle_key' => self::key('1'), 'parent_order_id' => 7, 'owner_token' => 'o', 'state' => 'dispatching', 'payment_id' => 'pay-r'));
         $this->system->events[] = array('timestamp' => self::T0 + 600, 'hook' => 'simplixpay_upayments_reconcile_order', 'args' => array(7), 'schedule' => false);
         $this->system->events[] = array('timestamp' => self::T0 + 3600, 'hook' => 'upay_process_subscriptions', 'args' => array(), 'schedule' => 'hourly');
         $this->system->official = null;
+        // `run --deactivate-official` records which install it deactivated.
+        self::assertTrue(TakeoverState::patch(array('official_deactivated' => 'upayments/UPayments.php')));
         return $order;
     }
 
@@ -84,8 +86,9 @@ final class RollbackTest extends TestCase {
         // A customer bootstrapped H12 provenance after cutover, and the cursor moved.
         $this->store->user_meta[5] = array(self::LATE_SCOPE_KEY => array('late-provenance'));
         $GLOBALS['supcheckout_test_options']['supcheckout_subscription_enrollment_cursor'] = 25;
+        $GLOBALS['supcheckout_test_options']['upay_subscription_enrollment_cursor'] = 25;
         // Billing attempts written after cutover land in the new table only.
-        $this->store->tables['new'][self::key('1')]['state'] = 'paid';
+        $this->store->tables['new'][self::key('1')]['state'] = 'resolved';
         $this->store->tables['new'][self::key('2')] = array('cycle_key' => self::key('2'), 'parent_order_id' => 8, 'owner_token' => 'p', 'state' => 'resolved', 'payment_id' => 'pay-8r');
         return $paid;
     }
@@ -154,7 +157,7 @@ final class RollbackTest extends TestCase {
         self::assertSame('upayments', get_option('woocommerce_default_gateway'));
 
         // Table: the post-cutover insert and the post-cutover status change both reach legacy.
-        self::assertSame('paid', $this->store->tables['legacy'][self::key('1')]['state']);
+        self::assertSame('resolved', $this->store->tables['legacy'][self::key('1')]['state']);
         self::assertSame('pay-8r', $this->store->tables['legacy'][self::key('2')]['payment_id']);
         self::assertSame(array(), $this->store->tables['new'], 'new-table copies removed');
 
@@ -177,18 +180,177 @@ final class RollbackTest extends TestCase {
 
         self::assertFalse($result['ok']);
         self::assertNull($result['error'], 'conflicts are not an error: the rollback completed');
-        $paths = array_column($result['conflicts'], 'path');
-        sort($paths);
-        self::assertSame(array('woocommerce_gateway_order', Keys::SETTINGS_OPTION), $paths);
-        foreach ($result['conflicts'] as $conflict) {
-            self::assertSame('option', $conflict['target']);
-            self::assertIsInt($conflict['seq']);
-        }
+        self::assertSame(array(array('seq' => $result['conflicts'][0]['seq'], 'target' => 'option', 'path' => 'woocommerce_gateway_order')), $result['conflicts']);
+        self::assertIsInt($result['conflicts'][0]['seq']);
         self::assertSame($merchant_order, get_option('woocommerce_gateway_order'), 'the newer value is kept');
-        self::assertSame($merchant_settings, get_option(Keys::SETTINGS_OPTION), 'never removed');
         self::assertSame('upayments', get_option('woocommerce_default_gateway'), 'untouched journaled values restored');
+        // The legacy settings were unchanged since cutover: the merchant's later edit reaches them.
+        self::assertSame($merchant_settings, get_option('woocommerce_upayments_settings'));
+        self::assertFalse(get_option(Keys::SETTINGS_OPTION, false));
         self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
         self::assertSame(array(), $this->system->activated, 'no consent, no reactivation');
+    }
+
+    public function test_settings_edited_under_both_names_since_cutover_are_a_settings_conflict(): void {
+        $this->seed_cut_over();
+        $merchant_settings = array('enabled' => 'yes', 'api_key' => 'test-api-key-123', 'title' => 'Edited');
+        $GLOBALS['supcheckout_test_options'][Keys::SETTINGS_OPTION] = $merchant_settings;
+        $legacy_edit = array('enabled' => 'no', 'api_key' => 'test-api-key-123');
+        $GLOBALS['supcheckout_test_options']['woocommerce_upayments_settings'] = $legacy_edit;
+
+        $result = $this->rollback()->run(false);
+
+        self::assertNull($result['error'], (string) json_encode($result));
+        self::assertSame(array(array('seq' => -1, 'target' => 'settings_diverged', 'path' => 'woocommerce_upayments_settings')), $result['conflicts']);
+        self::assertSame($legacy_edit, get_option('woocommerce_upayments_settings'), 'legacy kept');
+        self::assertSame($merchant_settings, get_option(Keys::SETTINGS_OPTION), 'the merchant edit is kept for the owner to reconcile');
+        self::assertStringNotContainsString('test-api-key-123', (string) json_encode(array($result, Journal::entries())));
+    }
+
+    public function test_back_sync_never_regresses_a_legacy_value_written_outside_supcheckout(): void {
+        $this->seed_cut_over();
+        $order = $GLOBALS['supcheckout_test_status_orders'][7];
+        // Dual-written by SUPCheckout while cut over, then the legacy name moved on alone.
+        $order->external_write('_supcheckout_last_billed_at', array('2026-09-10'));
+        $order->external_write('_upay_last_billed_at', array('2026-10-10'));
+        $this->store->user_meta[3][self::NEW_SCOPE_KEY] = array('other-record');
+        $this->store->products[40]->external_write('_supcheckout_disable_subscription', array('no'));
+        $GLOBALS['supcheckout_test_options']['upay_subscription_enrollment_cursor'] = 30;
+
+        $result = $this->rollback()->run(false);
+
+        self::assertNull($result['error'], (string) json_encode($result));
+        self::assertFalse($result['ok']);
+        $paths = array_column($result['conflicts'], 'path');
+        sort($paths);
+        self::assertSame(array(
+            'option:upay_subscription_enrollment_cursor',
+            'order_meta:7/_upay_last_billed_at',
+            'product_meta:40/_upay_disable_subscription',
+            'user_meta:3/_upay_customer_token_v2_b#' . substr(hash('sha256', self::SCOPE_KEY), 0, 16),
+        ), $paths);
+        self::assertSame(array('divergent'), array_values(array_unique(array_column($result['conflicts'], 'target'))));
+        self::assertSame(array('2026-10-10'), $order->persisted_values('_upay_last_billed_at'), 'the newer legacy value is kept');
+        self::assertSame(array('provenance-record'), $this->store->user_meta[3][self::SCOPE_KEY]);
+        self::assertSame(array('yes'), $this->store->products[40]->persisted_values('_upay_disable_subscription'));
+        self::assertSame(30, get_option('upay_subscription_enrollment_cursor'));
+        // Absent legacy names are still filled: the Review Focus 5 order keeps its payment ID.
+        self::assertSame(array('pay-8'), $GLOBALS['supcheckout_test_status_orders'][8]->persisted_values('UPayments_PaymentID'));
+        self::assertSame(array(self::LATE_LEGACY_SCOPE_KEY => array('late-provenance')), $this->store->user_meta[5]);
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+        self::assertFalse(get_option('supcheckout_subscription_enrollment_cursor', false), 'the stale new copy is removed');
+    }
+
+    public function test_an_active_official_plugin_refuses_the_rollback(): void {
+        foreach (array('start', 'rechecked') as $when) {
+            $this->setUp();
+            $paid = $this->seed_cut_over();
+            if ($when === 'start') {
+                $this->system->official = 'upayments/UPayments.php';
+            } else {
+                $system = $this->system;
+                $this->system->on_step = static function ($step) use ($system) {
+                    if ($step === 'rechecked') {
+                        $system->official = 'upayments/UPayments.php';
+                    }
+                };
+            }
+
+            $result = $this->rollback()->run(false);
+
+            self::assertSame('official_active', $result['error'], $when);
+            self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status'], $when);
+            self::assertFalse(Rollback::removal_pending(TakeoverState::get()), $when);
+            if ($when === 'start') {
+                self::assertSame('supcheckout', $paid->get_payment_method(), 'nothing back-synced while the official plugin runs');
+            }
+        }
+    }
+
+    public function test_the_token_secret_agreement_is_checked_before_any_write(): void {
+        $this->seed_cut_over();
+        $GLOBALS['supcheckout_test_options']['supcheckout_token_identity_secret_v2'] = hash('sha256', 'other');
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame('options_mismatch', $result['error']);
+        self::assertArrayNotHasKey(self::LATE_LEGACY_SCOPE_KEY, $this->store->user_meta[5], 'no provenance written');
+        self::assertSame('supcheckout', $GLOBALS['supcheckout_test_status_orders'][8]->get_payment_method(), 'nothing written');
+    }
+
+    public function test_a_lease_lost_right_before_the_switch_leaves_no_progress_record(): void {
+        $this->seed_cut_over();
+        $this->system->on_step = static function ($step) {
+            if ($step === 'rechecked') {
+                $GLOBALS['supcheckout_test_options'][Quiesce::OPTION] = (self::T0 + 900) . ':' . str_repeat('f', 32);
+            }
+        };
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame('lease_lost', $result['error']);
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+        self::assertNull(Rollback::mode_of(TakeoverState::get()), 'no removal_pending record in a store that is still cut over');
+    }
+
+    public function test_a_legacy_only_option_write_after_the_transition_is_not_a_conflict(): void {
+        $this->seed_cut_over();
+        $this->system->on_step = static function ($step) {
+            if ($step === 'cron_restored') {
+                // The runtime writes legacy names only once rolled back.
+                $GLOBALS['supcheckout_test_options']['upay_subscription_enrollment_cursor'] = 31;
+            }
+        };
+
+        $result = $this->rollback()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(31, get_option('upay_subscription_enrollment_cursor'));
+        self::assertFalse(get_option('supcheckout_subscription_enrollment_cursor', false), 'the stale copy is removed, so the next copy starts clean');
+    }
+
+    public function test_the_billing_back_sync_fails_closed(): void {
+        $cases = array(
+            'legacy row without a new row' => function () {
+                $this->store->tables['legacy'][self::key('5')] = array('cycle_key' => self::key('5'), 'parent_order_id' => 7, 'owner_token' => 'x', 'state' => 'resolved', 'payment_id' => 'pay-5');
+            },
+            'new row behind its legacy row' => function () {
+                $this->store->tables['legacy'][self::key('1')]['state'] = 'resolved';
+                $this->store->tables['new'][self::key('1')]['state'] = 'dispatching';
+            },
+            'empty new table' => function () {
+                $this->store->tables['new'] = array();
+            },
+        );
+        foreach ($cases as $case => $arrange) {
+            $this->setUp();
+            $this->seed_cut_over();
+            $arrange();
+            $legacy_before = $this->store->tables['legacy'];
+
+            $result = $this->rollback()->run(false);
+
+            self::assertSame('table_mismatch', $result['error'], $case . ': ' . json_encode($result));
+            self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status'], $case);
+            foreach ($legacy_before as $key => $row) {
+                if ($row['state'] !== 'claimed') {
+                    self::assertArrayHasKey($key, $this->store->tables['legacy'], $case . ': a non-claimed legacy row is never deleted');
+                    $order = array('claimed', 'dispatching', 'held', 'resolved');
+                    self::assertGreaterThanOrEqual(array_search($row['state'], $order, true), array_search($this->store->tables['legacy'][$key]['state'], $order, true), $case . ': never moved backwards');
+                }
+            }
+        }
+    }
+
+    public function test_a_released_claim_still_claimed_in_legacy_is_deleted_by_the_back_sync(): void {
+        $this->seed_cut_over();
+        // Claimed in legacy before cutover (copied), released from the new table after it.
+        $this->store->tables['legacy'][self::key('6')] = array('cycle_key' => self::key('6'), 'parent_order_id' => 7, 'owner_token' => 'r', 'state' => 'claimed', 'payment_id' => null);
+
+        $result = $this->rollback()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertArrayNotHasKey(self::key('6'), $this->store->tables['legacy']);
     }
 
     public function test_audit_only_billing_claim_entries_are_never_replayed(): void {
@@ -315,7 +477,7 @@ final class RollbackTest extends TestCase {
             self::assertSame(array('pay-8'), $paid->persisted_values('UPayments_PaymentID'), $crash_at);
             self::assertSame(array('bacs' => 0, 'upayments' => 1), get_option('woocommerce_gateway_order'), $crash_at);
             self::assertSame('upayments', get_option('woocommerce_default_gateway'), $crash_at);
-            self::assertSame('paid', $this->store->tables['legacy'][self::key('1')]['state'], $crash_at);
+            self::assertSame('resolved', $this->store->tables['legacy'][self::key('1')]['state'], $crash_at);
             self::assertSame(array(), $this->store->tables['new'], $crash_at);
             self::assertCount(1, array_filter(Journal::entries(), static function ($entry) {
                 return $entry['path'] === '8/payment_method';
@@ -357,10 +519,8 @@ final class RollbackTest extends TestCase {
 
         $result = $this->rollback()->run(false);
 
-        self::assertNull($result['error'], (string) json_encode($result));
-        // Nothing back-synced the cursor written after cutover, so its copy is a later edit: kept.
-        self::assertSame(array('supcheckout_subscription_enrollment_cursor'), array_column($result['conflicts'], 'path'));
-        self::assertSame(25, get_option('supcheckout_subscription_enrollment_cursor'));
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertFalse(get_option('supcheckout_subscription_enrollment_cursor', false), 'every option copy is removed');
         self::assertLessThan(array_search('preflight_ok', $result['steps'], true), array_search('copies_removed', $result['steps'], true));
         self::assertSame(array(), $this->store->tables['new']);
         self::assertSame(array(), $GLOBALS['supcheckout_test_status_orders'][7]->persisted_values('_supcheckout_payment_id'));
@@ -435,17 +595,37 @@ final class RollbackTest extends TestCase {
         self::assertSame(hash('sha256', 'secret'), get_option('upayments_token_identity_secret_v2'), 'never overwritten');
     }
 
-    public function test_reactivation_needs_exactly_one_installed_official_plugin(): void {
+    public function test_only_the_install_the_takeover_deactivated_is_reactivated(): void {
         $this->seed_cut_over();
         $this->system->installed = array('upayments/UPayments.php', 'upayments-old/UPayments.php');
 
         $result = $this->rollback()->run(true);
 
-        self::assertFalse($result['ok']);
-        self::assertNull($result['error']);
-        self::assertSame(array('official_not_reactivated'), $result['warnings']);
-        self::assertSame(array(), $this->system->activated);
-        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status'], 'the rollback itself completed');
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(array('upayments/UPayments.php'), $this->system->activated, 'the recorded one, although two are installed');
+        self::assertArrayNotHasKey('official_deactivated', array_filter(TakeoverState::get(), static function ($value) {
+            return $value !== null;
+        }), 'the record is cleared once reactivated');
+    }
+
+    public function test_without_a_deactivation_record_or_an_install_nothing_is_reactivated(): void {
+        foreach (array('no record', 'not installed') as $case) {
+            $this->setUp();
+            $this->seed_cut_over();
+            if ($case === 'no record') {
+                self::assertTrue(TakeoverState::patch(array('official_deactivated' => null)));
+            } else {
+                $this->system->installed = array('upayments-old/UPayments.php');
+            }
+
+            $result = $this->rollback()->run(true);
+
+            self::assertFalse($result['ok'], $case);
+            self::assertNull($result['error'], $case);
+            self::assertSame(array('official_not_reactivated'), $result['warnings'], $case);
+            self::assertSame(array(), $this->system->activated, $case);
+            self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status'], $case . ': the rollback itself completed');
+        }
     }
 
     public function test_rollback_requires_a_cut_over_store_and_abort_a_verified_one(): void {
@@ -477,7 +657,7 @@ final class RollbackTest extends TestCase {
             return array();
         })['ok']);
         // A legacy row changed after the copy; abort must not push the stale copy back.
-        $this->store->tables['legacy'][self::key('1')]['state'] = 'paid';
+        $this->store->tables['legacy'][self::key('1')]['state'] = 'resolved';
         $legacy_before = $this->store->tables['legacy'];
 
         $result = $this->rollback()->abort(true);

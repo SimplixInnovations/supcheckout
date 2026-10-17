@@ -213,15 +213,47 @@ final class WordPressCopyStore implements RollbackStore {
         global $wpdb;
         $sql = 'DELETE t FROM %i t LEFT JOIN %i s ON s.cycle_key = t.cycle_key WHERE t.cycle_key > %s'
             . ($upto_key === null ? '' : ' AND t.cycle_key <= %s')
-            . ' AND s.cycle_key IS NULL';
+            . ' AND s.cycle_key IS NULL AND t.state = %s';
         $args = array(self::table($target), self::table(self::other($target)), (string) $after_key);
         if ($upto_key !== null) {
             $args[] = (string) $upto_key;
         }
+        $args[] = 'claimed';
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
         $prepared = $wpdb->prepare($sql, $args);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; mirrors the plugin-owned billing tables row for row.
         return $wpdb->query($prepared) !== false;
+    }
+
+    public function table_states($which, array $keys) {
+        global $wpdb;
+        if ($keys === array()) {
+            return array();
+        }
+        $sql = 'SELECT %i AS row_key, state AS row_state FROM %i WHERE %i IN (' . self::placeholders(count($keys), '%s') . ')';
+        $args = array_merge(array(self::KEY_COLUMN, self::table($which), self::KEY_COLUMN), array_map('strval', $keys));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
+        $prepared = $wpdb->prepare($sql, $args);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above with a dynamic placeholder list; the back-sync must compare live claim states.
+        $rows = $wpdb->get_results($prepared, defined('ARRAY_A') ? constant('ARRAY_A') : 'ARRAY_A');
+        $states = array();
+        foreach (is_array($rows) ? $rows : array() as $row) {
+            if (is_array($row) && isset($row['row_key'], $row['row_state'])) {
+                $states[(string) $row['row_key']] = (string) $row['row_state'];
+            }
+        }
+        return $states;
+    }
+
+    public function table_count_state($which, $state) {
+        global $wpdb;
+        if (!$this->table_exists($which)) {
+            return 0;
+        }
+        $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i WHERE state = %s', self::table($which), (string) $state);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the back-sync precheck must count live rows.
+        $count = $wpdb->get_var($prepared);
+        return is_numeric($count) ? (int) $count : null;
     }
 
     public function table_delete_keys($which, array $keys) {

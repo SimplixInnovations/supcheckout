@@ -13,8 +13,9 @@ defined('ABSPATH') || exit;
  *   (re-creating a released `claimed` row would block or re-open a cycle), and Rollback's
  *   own writes are journaled this way too;
  * - a new-name option copy (Keys::SETTINGS_OPTION and the Keys::options() new names): not
- *   restored here; the copy removal deletes it after the transition when it is still a copy
- *   (removable_copy()), otherwise it is a later edit and kept;
+ *   restored here; BackSync absent-fills or reports the legacy name before the transition
+ *   (gateway settings by the copy entry's after-fingerprint) and the copy removal deletes the
+ *   copy after it;
  * - `cron` twins: moved back by the copy removal after the transition;
  * - any other `option` entry (WooCommerce's gateway order / default gateway): restored here
  *   from its restore source, but only while is_current_after() confirms the path still holds
@@ -98,46 +99,6 @@ final class JournalReplay {
     }
 
     /**
-     * Whether a new-name option copy may be removed: absent, equal to its source (the legacy
-     * option, or the first non-empty settings source), or holding a value the takeover
-     * journaled as written. Anything else is a later edit.
-     *
-     * @param list<array<string, mixed>> $entries Cycle entries.
-     * @param string                     $path    New-name option.
-     * @return bool
-     */
-    public static function removable_copy(array $entries, $path) {
-        $missing = new \stdClass();
-        $current = get_option($path, $missing);
-        if ($current === $missing || $current === self::copy_source($path, $missing)) {
-            return true;
-        }
-        $fingerprint = Journal::fingerprint($current);
-        foreach ($entries as $entry) {
-            if ($entry['target'] === 'option' && $entry['path'] === $path && hash_equals($entry['after_fingerprint'], $fingerprint)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $entries Cycle entries.
-     * @param string                     $target  Target.
-     * @param string                     $path    Path.
-     * @return int The newest entry's seq for that path, or -1.
-     */
-    public static function latest_seq(array $entries, $target, $path) {
-        $seq = -1;
-        foreach ($entries as $entry) {
-            if ($entry['target'] === $target && $entry['path'] === $path) {
-                $seq = (int) $entry['seq'];
-            }
-        }
-        return $seq;
-    }
-
-    /**
      * @param array<string, mixed> $entry Option entry.
      * @return string 'restored', 'already', 'conflict' or 'failed'.
      */
@@ -162,25 +123,6 @@ final class JournalReplay {
         Journal::record('option', $entry['path'], $current_value, $original, self::AUDIT_RESTORE);
         update_option($entry['path'], $original);
         return get_option($entry['path'], $missing) === $original ? 'restored' : 'failed';
-    }
-
-    /**
-     * @param string    $path    New-name option.
-     * @param \stdClass $missing Sentinel.
-     * @return mixed The value the copy was taken from, or $missing.
-     */
-    private static function copy_source($path, $missing) {
-        if ($path === Keys::SETTINGS_OPTION) {
-            foreach (Keys::settings_sources() as $name) {
-                $value = get_option($name, null);
-                if (is_array($value) && $value !== array()) {
-                    return $value;
-                }
-            }
-            return $missing;
-        }
-        $legacy = array_search($path, Keys::options(), true);
-        return $legacy === false ? $missing : get_option((string) $legacy, $missing);
     }
 
     /**

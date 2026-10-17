@@ -89,5 +89,13 @@ function get_plugins($plugin_folder = '') {}
  */
 function activate_plugin($plugin, $redirect = '', $network_wide = false, $silent = false) {}
 
+/**
+ * @param string                $file
+ * @param array<string, string> $default_headers
+ * @param string                $context
+ * @return mixed Header values (an array in WordPress).
+ */
+function get_file_data($file, $default_headers, $context = '') {}
+
 /** wpdb result shape (0b Task 9 stale-claims store). */
 define('ARRAY_A', 'ARRAY_A');

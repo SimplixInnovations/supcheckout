@@ -543,6 +543,42 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
     }
 
+    public function test_rollback_refuses_an_active_official_plugin_without_consent_and_deactivates_it_with(): void {
+        $this->seed();
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $this->system->official = 'upayments/UPayments.php';
+        $this->system->deactivated = array();
+
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->rollback(true, false));
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+        self::assertStringContainsString('--deactivate-official', $this->printed());
+
+        $this->out = array();
+        self::assertSame(CliCommands::OK, $this->cli()->rollback(true, true, true), $this->printed());
+        self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated, 'deactivated before the lease');
+        self::assertSame(array('upayments/UPayments.php'), $this->system->activated, 'and the recorded install reactivated afterwards');
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+    }
+
+    public function test_run_records_the_official_install_it_deactivated(): void {
+        $this->seed();
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        self::assertSame('upayments/UPayments.php', TakeoverState::get()['official_deactivated']);
+    }
+
+    public function test_a_conflict_still_prints_the_reactivation_warning_before_exit_8(): void {
+        $this->seed();
+        $GLOBALS['supcheckout_test_options']['woocommerce_gateway_order'] = array('bacs' => 0, 'upayments' => 1);
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $GLOBALS['supcheckout_test_options']['woocommerce_gateway_order'] = array('supcheckout' => 0);
+        $this->system->activate_fails = true;
+        $this->out = array();
+
+        self::assertSame(CliCommands::CONFLICTS, $this->cli()->rollback(true, true));
+
+        self::assertStringContainsString('warning: official_not_reactivated', $this->printed());
+    }
+
     public function test_abort_moves_a_verified_store_back_to_preflight_ok(): void {
         $orders = $this->seed();
         self::assertSame(CliCommands::BLOCKED, $this->cli()->run(true, false), 'official active, no consent: verified');

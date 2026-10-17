@@ -35,6 +35,12 @@ final class BillingTableCopier {
     public const ERROR_SCHEMA = 'schema_mismatch';
     public const ERROR_CREATE = 'table_create_failed';
     public const ERROR_READ = 'table_unreadable';
+    /** Rollback: a REPLACE would move a legacy row backwards. */
+    public const ERROR_REGRESSIVE = 'regressive_rows';
+    /** Rollback: the new table lacks legacy rows it must hold. */
+    public const ERROR_NEW_SHORT = 'new_table_short';
+    /** CycleClaim's states, in the only order a row moves. */
+    private const STATE_ORDER = array('claimed', 'dispatching', 'held', 'resolved');
     public const CHECKSUM = 'checksum';
     public const ROW_COUNT = 'row_count';
 
@@ -128,6 +134,12 @@ final class BillingTableCopier {
      */
     public static function back_sync_batch(RollbackStore $store, $cursor) {
         $cursor = (string) $cursor;
+        if ($cursor === '') {
+            $short = self::new_table_short($store);
+            if ($short !== null) {
+                return self::copied(true, $cursor, 0, $short);
+            }
+        }
         if (!$store->table_exists(CopyStore::TABLE_NEW)) {
             return self::copied(true, $cursor, 0, null);
         }
@@ -143,6 +155,10 @@ final class BillingTableCopier {
         $last = $keys === array() ? $cursor : (string) end($keys);
         if ($keys !== array()) {
             $stale = self::differing($store, $columns, $cursor, $last, false, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY);
+            if (self::regressive($store, $stale) !== array()) {
+                // A REPLACE would move a legacy row backwards: keep it and refuse (fail closed).
+                return self::copied(true, $cursor, 0, self::ERROR_REGRESSIVE);
+            }
             if ($stale !== array() && !$store->table_replace_into(CopyStore::TABLE_LEGACY, $columns, $stale)) {
                 return self::copied(true, $cursor, 0, self::ERROR_READ);
             }
@@ -151,6 +167,56 @@ final class BillingTableCopier {
             return self::copied(true, $cursor, 0, self::ERROR_READ);
         }
         return self::copied($done, $last, count($keys), null);
+    }
+
+    /**
+     * The cut-over invariant: every legacy row that is not `claimed` still exists in the new
+     * table (only CycleClaim::release_claimed() deletes rows, and only `claimed` ones). A new
+     * table that is missing, empty or smaller than that breaks it, and the back-sync refuses
+     * before writing anything rather than deleting legacy rows.
+     *
+     * @param RollbackStore $store Store.
+     * @return string|null Error code, or null when the new table can be authoritative.
+     */
+    private static function new_table_short(RollbackStore $store) {
+        if (!$store->table_exists(CopyStore::TABLE_LEGACY)) {
+            return null;
+        }
+        $legacy = $store->table_count(CopyStore::TABLE_LEGACY);
+        $claimed = $store->table_count_state(CopyStore::TABLE_LEGACY, self::STATE_ORDER[0]);
+        $new = $store->table_exists(CopyStore::TABLE_NEW) ? $store->table_count(CopyStore::TABLE_NEW) : 0;
+        if ($legacy === null || $claimed === null || $new === null) {
+            return self::ERROR_READ;
+        }
+        return $legacy - $claimed > 0 && ($new === 0 || $new < $legacy - $claimed) ? self::ERROR_NEW_SHORT : null;
+    }
+
+    /**
+     * Keys whose new row is not at least as far along as its legacy row
+     * (claimed < dispatching < held < resolved); an unknown state counts as behind.
+     *
+     * @param RollbackStore $store Store.
+     * @param list<string>  $keys  Keys about to be replaced.
+     * @return list<string>
+     */
+    private static function regressive(RollbackStore $store, array $keys) {
+        if ($keys === array()) {
+            return array();
+        }
+        $legacy = $store->table_states(CopyStore::TABLE_LEGACY, $keys);
+        $new = $store->table_states(CopyStore::TABLE_NEW, $keys);
+        $behind = array();
+        foreach ($keys as $key) {
+            if (!isset($legacy[$key])) {
+                continue;
+            }
+            $from = array_search($legacy[$key], self::STATE_ORDER, true);
+            $to = isset($new[$key]) ? array_search($new[$key], self::STATE_ORDER, true) : false;
+            if ($from === false || $to === false || $to < $from) {
+                $behind[] = $key;
+            }
+        }
+        return $behind;
     }
 
     /**

@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Takeover;
 
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
+
 defined('ABSPATH') || exit;
 
 /**
@@ -11,27 +13,35 @@ defined('ABSPATH') || exit;
  * (Review Focus 5).
  *
  * run(): rollback, under the Quiesce lease (claims and the scheduler defer):
- *  1. take the lease and re-read the state under it (must be cut_over);
- *  2. read the journal: a malformed journal throws here, before anything is written;
+ *  1. take the lease and re-read the state under it (must be cut_over); an active official
+ *     plugin refuses (`official_active`: it writes legacy names and ignores the lease);
+ *  2. read the journal: a malformed journal throws here, before anything is written; the
+ *     token-identity secrets must agree before any write (`options_mismatch`);
  *  3. drain the NEW billing-attempts table (the one claims are pinned to while cut over):
  *     wait, bounded, until no row is `claimed` or `dispatching` with a recent update; a
  *     stale `claimed` row refuses at once (`stale_claims`), an older `dispatching` row belongs
  *     to a dead worker and is synced as it is (it stays held in legacy, never re-claimable);
- *  4. back-sync new → legacy (BackSync): order meta plus the payment_method rewrite of
- *     post-cutover orders, user meta including H12 provenance, product meta, Keys::options();
- *  5. replay the journal in reverse (JournalReplay): WooCommerce's gateway order and default
- *     gateway; a later edit is kept and reported as a conflict;
- *  6. back-sync the billing-attempts table LAST: REPLACE / orphan delete / count and
- *     checksum over the whole table (BillingTableCopier::back_sync_batch()), never bounded
- *     by `max_copied_key`;
- *  7. recheck: renew, drain once more, verify the table again;
- *  8. persist the conflicts and the removal start, check holds() right before the
- *     compare-and-swap, transition cut_over → rolled_back, flush caches, release the lease;
+ *  4. back-sync new → legacy (BackSync), absent-fill only: order meta plus the
+ *     payment_method rewrite of post-cutover orders, user meta including H12 provenance,
+ *     product meta, Keys::options(); a differing legacy value is newer (SUPCheckout
+ *     dual-writes while cut over), so it is kept and reported `divergent`; gateway settings
+ *     only while the legacy settings are unchanged since cutover, else `settings_diverged`;
+ *  5. back-sync the billing-attempts table: REPLACE / orphan delete (claimed rows only) /
+ *     count and checksum over the whole table (BillingTableCopier::back_sync_batch()), never
+ *     bounded by `max_copied_key`, refusing to move a row backwards or to trust a new table
+ *     that lost legacy rows;
+ *  6. recheck: renew, drain once more, verify the table again;
+ *  7. replay the journal in reverse (JournalReplay): WooCommerce's gateway order and default
+ *     gateway; a later edit is kept and reported as a conflict; recheck the official plugin;
+ *  8. check holds(), persist the conflicts and the removal start, check holds() again right
+ *     before the compare-and-swap, transition cut_over → rolled_back, flush caches, release
+ *     the lease;
  *  9. remove the new-name copies (CopyRemoval: cron back to legacy names, payment_method of
  *     orders an in-flight cut-over request still created, order/user/product meta and
  *     markers, option copies, new-table rows), persisting progress after every unit;
  * 10. record the journal floor and transition rolled_back → preflight_ok;
- * 11. if consented, reactivate the official plugin (site only).
+ * 11. if consented, reactivate the official install the takeover recorded as deactivated
+ *     (site only, without loading it in this process; see reactivate_official()).
  *
  * abort(): verified → preflight_ok, under the same lease. Only entries of a cutover that
  * died after its steps 5-7 can exist (options, cron twins, third-party): the third-party
@@ -43,11 +53,13 @@ defined('ABSPATH') || exit;
  * overwrites a differing new key (H12 provenance), so a stale user copy would block the next
  * run. Until the removal completes the state carries `removal_pending`, and
  * CopyRunner::begin() refuses to start a copy. If `run` deactivated the official plugin,
- * a consented abort reactivates it.
+ * a consented abort reactivates it. Abort has no official-plugin guard: `run` without consent
+ * legitimately leaves `verified` with it active, and abort only removes copies the official
+ * plugin never reads and restores third-party values to their originals.
  *
  * Claim pinning across rollback: a worker that claimed a cycle before step 1 keeps writing
  * its pinned (new) table. The drain (3) waits for every such recent holder before the table
- * back-sync (6), and the recheck (7) drains again right before the switch, so its final
+ * back-sync (5), and the recheck (6) drains again before the switch, so its final
  * state reaches the legacy table. A new claim cannot start meanwhile (the lease is live;
  * CycleClaim re-checks it after claiming). After the transition every claim lands in the
  * legacy table. The one residual case is a worker silent for over Cutover::STALE_SECONDS
@@ -70,6 +82,8 @@ final class Rollback {
     public const PROGRESS = TakeoverState::ROLLBACK_PROGRESS;
     /** State field: first journal seq of the current takeover cycle. */
     public const FLOOR = 'journal_floor';
+    /** State field: the official install the takeover deactivated (basename), until reactivated. */
+    public const OFFICIAL_RECORD = 'official_deactivated';
 
     /** Attempts on an order whose lock a payment request holds. */
     private const LOCK_ATTEMPTS = 3;
@@ -145,7 +159,10 @@ final class Rollback {
      * @return bool
      */
     public static function removal_pending(array $state) {
-        return isset($state[self::PROGRESS]['removal_pending']) && $state[self::PROGRESS]['removal_pending'] === true;
+        // Only after a transition: a record left in cut_over or verified by a refused switch
+        // (lease lost, transition refused) never blocks a run.
+        return in_array($state['status'], array(TakeoverState::ROLLED_BACK, TakeoverState::PREFLIGHT_OK), true)
+            && isset($state[self::PROGRESS]['removal_pending']) && $state[self::PROGRESS]['removal_pending'] === true;
     }
 
     /**
@@ -183,6 +200,9 @@ final class Rollback {
             if ($state['status'] !== $expected) {
                 return $this->result($this->mode === self::MODE_ROLLBACK ? 'not_cut_over' : 'not_verified');
             }
+            if ($this->mode === self::MODE_ROLLBACK && $this->official_active()) {
+                return $this->result('official_active');
+            }
             $this->step('quiesced');
             try {
                 $entries = JournalReplay::cycle_entries($state);
@@ -209,6 +229,11 @@ final class Rollback {
      * @return string|null Error code, or null once rolled back.
      */
     private function roll_back_data(array $entries) {
+        // H12: never write a user or provenance value while the two secrets disagree.
+        if (!BackSync::secret_agrees()) {
+            $this->report['options_mismatches'] = array(Keys::options()[CustomerTokenIdentity::SECRET_OPTION]);
+            return 'options_mismatch';
+        }
         $drain = $this->drain(true);
         if ($drain !== null) {
             return $drain;
@@ -221,19 +246,11 @@ final class Rollback {
             }
             $this->step($kind . '_synced');
         }
-        if (!$this->lease->maybe_renew()) {
-            return 'lease_lost';
-        }
-        $options = BackSync::options();
-        if (!$options['ok']) {
-            $this->report['options_mismatches'] = $options['mismatches'];
-            return 'options_mismatch';
-        }
-        $this->step('options_synced');
-        $error = $this->replay($entries);
+        $error = $this->back_sync_options($entries);
         if ($error !== null) {
             return $error;
         }
+        $this->step('options_synced');
         if (!$this->lease->maybe_renew() || !$this->sync_table()) {
             return $this->lease->is_lost() ? 'lease_lost' : 'table_mismatch';
         }
@@ -249,7 +266,65 @@ final class Rollback {
             return $this->lease->is_lost() ? 'lease_lost' : 'table_mismatch';
         }
         $this->step('rechecked');
+        // Third-party values last, so a refused rollback leaves them pointing at the gateway
+        // still registered (supcheckout) while the store stays cut over.
+        $error = $this->replay($entries);
+        if ($error !== null) {
+            return $error;
+        }
+        if ($this->official_active()) {
+            return 'official_active';
+        }
         return $this->switch_state(TakeoverState::CUT_OVER, TakeoverState::ROLLED_BACK, 'rolled_back');
+    }
+
+    /**
+     * Keys::options() and the gateway settings (absent-fill / unchanged-since-cutover only).
+     *
+     * @param list<array<string, mixed>> $entries Cycle entries.
+     * @return string|null Error code.
+     */
+    private function back_sync_options(array $entries) {
+        if (!$this->lease->maybe_renew()) {
+            return 'lease_lost';
+        }
+        $options = BackSync::options();
+        $this->add_divergent($options['divergent']);
+        if (!$options['ok']) {
+            $this->report['options_mismatches'] = $options['failed'];
+            return 'options_mismatch';
+        }
+        $settings = BackSync::settings($entries);
+        if ($settings['failed']) {
+            $this->report['options_mismatches'] = array(Keys::SETTINGS_OPTION);
+            return 'options_mismatch';
+        }
+        if ($settings['conflict'] !== null) {
+            $this->add_conflicts(array(array('seq' => -1, 'target' => BackSync::SETTINGS_DIVERGED, 'path' => $settings['conflict'])));
+        }
+        return null;
+    }
+
+    /** @return bool True (and reported) while an official plugin install is active. */
+    private function official_active() {
+        $official = $this->system->official_plugin();
+        if ($official === null) {
+            return false;
+        }
+        $this->report['official'] = $official;
+        return true;
+    }
+
+    /**
+     * @param list<string> $names `<kind>:<path>` names kept under their legacy value.
+     * @return void
+     */
+    private function add_divergent(array $names) {
+        $conflicts = array();
+        foreach ($names as $name) {
+            $conflicts[] = array('seq' => -1, 'target' => BackSync::DIVERGENT, 'path' => (string) $name);
+        }
+        $this->add_conflicts($conflicts);
     }
 
     /**
@@ -294,6 +369,10 @@ final class Rollback {
      * @return string|null
      */
     private function switch_state($from, $to, $step) {
+        // No removal record is written for a lease that is already lost.
+        if (!$this->lease->holds()) {
+            return 'lease_lost';
+        }
         $progress = array(
             'mode' => $this->mode,
             'conflicts' => $this->conflicts,
@@ -364,16 +443,17 @@ final class Rollback {
      */
     private function remove(array $state, array $progress) {
         $status = $state['status'];
-        try {
-            $entries = JournalReplay::cycle_entries($state);
-        } catch (\Throwable $e) {
-            return 'journal_unreadable';
+        $keep = array();
+        foreach ($this->conflicts as $conflict) {
+            if ($conflict['target'] === BackSync::SETTINGS_DIVERGED) {
+                $keep[] = Keys::SETTINGS_OPTION;
+            }
         }
         $removal = isset($progress['removal']) && is_array($progress['removal']) ? $progress['removal'] : CopyRemoval::start();
         $locked = 0;
         while (true) {
             $was = isset($removal['phase']) ? $removal['phase'] : CopyRemoval::PHASE_CRON;
-            $out = CopyRemoval::step($this->store, $this->system, $removal, $entries);
+            $out = CopyRemoval::step($this->store, $this->system, $removal, $keep);
             $this->add_conflicts($out['conflicts']);
             $this->restored += $out['restored'];
             if ($out['status'] === CopyRemoval::LOCKED) {
@@ -423,25 +503,51 @@ final class Rollback {
         return TakeoverState::patch($fields, $status);
     }
 
-    /** @return void Step 11. */
+    /**
+     * Step 11: only the install the takeover itself deactivated (recorded under
+     * OFFICIAL_RECORD by `run` / `rollback --deactivate-official` / Cutover) is reactivated,
+     * and only while it is still installed. No record, a missing install or a failed
+     * activation is the `official_not_reactivated` warning: the owner activates it.
+     *
+     * @return void
+     */
     private function reactivate_official() {
         if ($this->system->official_plugin() !== null) {
             $this->report['official'] = 'already_active';
             return;
         }
-        $installed = $this->system->installed_official_plugins();
-        if (count($installed) !== 1) {
-            // None, or several copies: the owner chooses which one to activate.
-            $this->report['official'] = count($installed) === 0 ? 'not_installed' : 'ambiguous';
+        $recorded = self::recorded_official(TakeoverState::get());
+        if ($recorded === null || !in_array($recorded, $this->system->installed_official_plugins(), true)) {
+            $this->report['official'] = $recorded === null ? 'not_deactivated_by_takeover' : 'not_installed';
             $this->warnings[] = 'official_not_reactivated';
             return;
         }
-        if ($this->system->activate_plugin($installed[0])) {
+        if ($this->system->activate_plugin($recorded)) {
+            TakeoverState::patch(array(self::OFFICIAL_RECORD => null));
             $this->step('official_reactivated');
             return;
         }
         $this->report['official'] = 'activation_failed';
         $this->warnings[] = 'official_not_reactivated';
+    }
+
+    /**
+     * @param array<string, mixed> $state TakeoverState::get().
+     * @return string|null The official install the takeover deactivated, if recorded.
+     */
+    private static function recorded_official(array $state) {
+        return isset($state[self::OFFICIAL_RECORD]) && is_string($state[self::OFFICIAL_RECORD]) ? $state[self::OFFICIAL_RECORD] : null;
+    }
+
+    /**
+     * Record which official install the takeover deactivated, so a rollback or abort
+     * reactivates exactly that one.
+     *
+     * @param string $basename Plugin basename.
+     * @return void
+     */
+    public static function record_official_deactivated($basename) {
+        TakeoverState::patch(array(self::OFFICIAL_RECORD => (string) $basename));
     }
 
     /**
@@ -464,8 +570,9 @@ final class Rollback {
             }
             foreach ($ids as $id) {
                 $cursor = $id;
-                $status = $this->back_sync_one($kind, $id);
-                $mismatches += ($status === BackSync::SYNCED || $status === BackSync::MISSING) ? 0 : 1;
+                $outcome = $this->back_sync_one($kind, $id);
+                $this->add_divergent($outcome['divergent']);
+                $mismatches += ($outcome['status'] === BackSync::SYNCED || $outcome['status'] === BackSync::MISSING) ? 0 : 1;
                 if (!$this->lease->maybe_renew()) {
                     return 'lease_lost';
                 }
@@ -481,7 +588,7 @@ final class Rollback {
     /**
      * @param string $kind Kind.
      * @param int    $id   Object ID.
-     * @return string A BackSync status.
+     * @return array{status:string, divergent:list<string>} A BackSync outcome.
      */
     private function back_sync_one($kind, $id) {
         if ($kind === 'users') {
@@ -490,16 +597,17 @@ final class Rollback {
         if ($kind === 'products') {
             return BackSync::product($this->store, $id);
         }
+        $outcome = array('status' => BackSync::LOCKED, 'divergent' => array());
         for ($attempt = 1; $attempt <= self::LOCK_ATTEMPTS; $attempt++) {
-            $status = BackSync::order($id, true);
-            if ($status !== BackSync::LOCKED) {
-                return $status;
+            $outcome = BackSync::order($id, true);
+            if ($outcome['status'] !== BackSync::LOCKED) {
+                return $outcome;
             }
             if ($attempt < self::LOCK_ATTEMPTS) {
                 $this->system->sleep(1);
             }
         }
-        return BackSync::LOCKED;
+        return $outcome;
     }
 
     /**

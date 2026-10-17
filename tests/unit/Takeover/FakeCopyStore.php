@@ -348,12 +348,35 @@ final class FakeCopyStore implements RollbackStore {
 
     public function table_delete_orphans_from($target, $after_key, $upto_key) {
         $source = $target === self::TABLE_LEGACY ? self::TABLE_NEW : self::TABLE_LEGACY;
-        foreach (array_keys($this->tables[$target]) as $key) {
-            if ($this->in_range($key, (string) $after_key, $upto_key) && !isset($this->tables[$source][$key])) {
+        foreach ($this->tables[$target] as $key => $row) {
+            if ($this->in_range($key, (string) $after_key, $upto_key) && !isset($this->tables[$source][$key])
+                && isset($row['state']) && $row['state'] === 'claimed'
+            ) {
                 unset($this->tables[$target][$key]);
             }
         }
         return true;
+    }
+
+    public function table_states($which, array $keys) {
+        $states = array();
+        foreach ($keys as $key) {
+            if (isset($this->tables[$which][$key])) {
+                $states[(string) $key] = (string) $this->tables[$which][$key]['state'];
+            }
+        }
+        return $states;
+    }
+
+    public function table_count_state($which, $state) {
+        if (!$this->table_exists($which)) {
+            return 0;
+        }
+        $count = 0;
+        foreach ($this->tables[$which] as $row) {
+            $count += isset($row['state']) && $row['state'] === $state ? 1 : 0;
+        }
+        return $count;
     }
 
     public function table_delete_keys($which, array $keys) {
