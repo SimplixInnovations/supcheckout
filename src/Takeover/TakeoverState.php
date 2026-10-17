@@ -100,7 +100,8 @@ final class TakeoverState {
      *
      * @param mixed $to    Target status.
      * @param bool  $force Only for cut_over → finalized before 30 days: the CLI sets it
-     *                     with --force-after-review. It unlocks nothing else.
+     *                     with --force-after-review. It unlocks nothing else, and never a
+     *                     store whose cut_over_at is missing or in the future.
      * @return bool True only when this call persisted the transition.
      */
     public static function transition($to, $force = false) {
@@ -124,9 +125,14 @@ final class TakeoverState {
         }
 
         $now = time();
-        $finalize_due =$current['cut_over_at'] > 0
+        $finalize_due = $current['cut_over_at'] > 0
             && $now - $current['cut_over_at'] >= self::FINALIZE_AFTER_DAYS * self::day_in_seconds();
         if ($to === self::FINALIZED && !$finalize_due && $force !== true) {
+            return false;
+        }
+        // The force flag only bypasses the 30 days: a missing or future cut_over_at always
+        // refuses (Finalize's straggler guard compares legacy rows with it).
+        if ($to === self::FINALIZED && ($current['cut_over_at'] <= 0 || $current['cut_over_at'] > $now)) {
             return false;
         }
 

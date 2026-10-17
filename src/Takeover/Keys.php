@@ -31,6 +31,11 @@ final class Keys {
      * and Finalize delete it (Keys::takeover_markers()).
      */
     public const TAKEOVER_COPY_MARKER = '_supcheckout_takeover_copy_v1';
+    /**
+     * Official 3.0.0 activation option holding the "Checkout (Block)" page ID (one of
+     * Keys::official_only()). Finalize removes the option but only reports the page.
+     */
+    public const OFFICIAL_BLOCK_CHECKOUT_PAGE_OPTION = 'upayments_block_checkout_page_id';
 
     /**
      * Both gateway identities, for wc_get_orders(array('payment_method' => ...)) queries.
@@ -144,8 +149,9 @@ final class Keys {
     }
 
     /**
-     * Recreated, never copied. During the switch window lock helpers take BOTH names
-     * (legacy first) so a pre-cutover and a post-cutover worker still contend (Task 2).
+     * Recreated, never copied. During the switch window stored lock helpers take BOTH names
+     * (legacy first) so a pre-cutover and a post-cutover worker still contend (Task 2);
+     * GET_LOCK() names stay legacy-only in every state (advisory_lock_names()).
      *
      * Storage differs per family, which Finalize must respect: order locks, status
      * gates and the payment-methods rate gate are plain options; the payment-methods
@@ -153,8 +159,10 @@ final class Keys {
      * and `upay_ctk_` families are MySQL GET_LOCK() names and never touch a table.
      *
      * Ordered longest match first: no legacy prefix is a prefix of a later one. The
-     * customer-token lock names stay short because GET_LOCK() names are limited to 64
-     * characters (prefix + 32-hex scope + '_' + a 20-digit user ID).
+     * GET_LOCK() families keep their legacy names in every state (advisory_lock_names()), so
+     * their new prefixes are registry entries only; they are kept short anyway, because
+     * GET_LOCK() names are limited to 64 characters (prefix + 32-hex scope + '_' + a 20-digit
+     * user ID).
      *
      * @return array<string,string>
      */
@@ -167,6 +175,27 @@ final class Keys {
             'upay_pm_' => 'supcheckout_pmlock_',
             'upay_ctk_bootstrap_b' => 'sup_ctkboot_b',
             'upay_ctk_' => 'sup_ctk_',
+        );
+    }
+
+    /**
+     * How each Keys::ephemeral_prefixes() family is stored, which decides how Finalize
+     * removes its legacy rows: `option` rows are deleted by name, a `transient` through
+     * delete_transient() (its `_transient_` and `_transient_timeout_` rows), and an
+     * `advisory_lock` (MySQL GET_LOCK()) has no rows at all.
+     *
+     * @return array<string,string> Legacy prefix => option|transient|advisory_lock, in
+     *                              Keys::ephemeral_prefixes() order.
+     */
+    public static function ephemeral_storage() {
+        return array(
+            'simplixpay_upay_order_lock_v1_' => 'option',
+            'simplixpay_upay_status_v1_' => 'option',
+            'upayments_payment_methods_rate_gate_' => 'option',
+            'upay_pm_v3_' => 'transient',
+            'upay_pm_' => 'advisory_lock',
+            'upay_ctk_bootstrap_b' => 'advisory_lock',
+            'upay_ctk_' => 'advisory_lock',
         );
     }
 
@@ -184,7 +213,7 @@ final class Keys {
      */
     public static function official_only() {
         return array(
-            'options' => array('your_gateway_version', 'upayments_block_checkout_page_id',
+            'options' => array('your_gateway_version', self::OFFICIAL_BLOCK_CHECKOUT_PAGE_OPTION,
                 'woocommerce_upayments_enable_block_checkout', 'upayments_maat', 'upay_subscription_settings'),
             'option_prefixes' => array('external_updates-upayments'),
             'transients' => array('upayments_cron_lock'),
@@ -519,7 +548,7 @@ final class Keys {
      *   names, legacy first, so a value written or a marker deleted after the takeover
      *   copied an order can never be shadowed or resurrected by that copy at cutover,
      *   and the legacy name stays current for a rollback;
-     * - finalized: the new name only.
+     * - finalized: the new name only (a delete removes both: Keys::delete_names()).
      *
      * Reads stay legacy-only until is_cut_over() (Keys::read()).
      *
@@ -541,12 +570,21 @@ final class Keys {
     }
 
     /**
-     * Names a delete must remove: the same window model as writes.
+     * Names a delete must remove: the same window model as writes, except `finalized`,
+     * which removes BOTH names (amended in Task 11). Reads after cutover fall back to the
+     * legacy name when the new one is absent, and Finalize removes a legacy key only where
+     * the new key verifies equal (an unequal one is kept for the owner, and the removal
+     * pass reaches each object only after the transition). A new-name-only delete would
+     * therefore let a read resurrect the legacy leftover.
      *
      * @param string $legacy Legacy name.
      * @return list<string>
      */
     public static function delete_names($legacy) {
+        if (self::takeover_status() === TakeoverState::FINALIZED) {
+            list($new_key, $legacy) = self::meta_names($legacy);
+            return array($legacy, $new_key);
+        }
         return self::write_keys($legacy);
     }
 
@@ -891,27 +929,25 @@ final class Keys {
     }
 
     /**
-     * MySQL GET_LOCK() names (the `upay_pm_` and `upay_ctk_` families). The legacy name
-     * until `finalized`, the new name after; never both at once.
+     * MySQL GET_LOCK() names (the `upay_pm_` and `upay_ctk_` families): the legacy name in
+     * EVERY state, finalized included (amended in the Task 11 review), never two at once.
      *
-     * Before MySQL 5.7.5 a connection holds at most one named lock: GET_LOCK() silently
-     * releases any lock it already holds. WordPress 6.9 still accepts MySQL 5.5.5, so a
-     * second name taken during the window would drop the first. These names are never
-     * stored, so the legacy name stays authoritative through the whole window; the only
-     * gap is an in-flight request that crosses Finalize (30 days after cutover), which
-     * the stored order locks and gates still cover.
-     *
-     * Release recomputes the name. If Finalize lands between acquire and release, the
-     * release targets the new name and the legacy GET_LOCK stays held until the
-     * connection closes at the end of the request. That is harmless: no post-Finalize
-     * worker asks for the legacy name, and MySQL frees it with the connection.
+     * These names are never stored, so nothing needs them renamed, and switching them at any
+     * transition would let a request that read the old state and one that read the new state
+     * hold different names and exclude neither other: `upay_ctk_*` guards the H12
+     * token-identity bootstrap and the Phase 9I migration, `upay_pm_` the payment-methods
+     * refresh. Before MySQL 5.7.5 a connection holds at most one named lock (GET_LOCK()
+     * silently releases any lock it already holds), and WordPress 6.9 still accepts MySQL
+     * 5.5.5, so a second name is never taken either. The new prefixes in
+     * Keys::ephemeral_prefixes() are kept for the registry but never used for GET_LOCK().
      *
      * @param string $legacy_name Full legacy GET_LOCK name.
      * @return list<string>
+     * @throws \InvalidArgumentException When the name is not under an ephemeral prefix.
      */
     public static function advisory_lock_names($legacy_name) {
-        $names = self::ephemeral_names($legacy_name);
-        return array($names[0]);
+        self::ephemeral_names($legacy_name);
+        return array((string) $legacy_name);
     }
 
     /**

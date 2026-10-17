@@ -15,18 +15,21 @@ defined('ABSPATH') || exit;
  *                          active (without --deactivate-official, or reactivated during the
  *                          cutover: Cutover's `official_active`); not cut over;
  *  3 MISMATCH              verification found a mismatch (copy runner or cutover); the
- *                          store is not cut over; fix the reported names and rerun;
+ *                          store is not cut over; fix the reported names and rerun (for
+ *                          `finalize`: its pre-transition verification refused);
  *  4 BUSY                  another process holds the copy-runner lock or the takeover
  *                          lease, the lease was lost, or claims stayed in flight; rerun later;
  *  5 STALE_CLAIMS          a billing claim is stuck in `claimed` past 600 s; run
  *                          `release-stale-claims`, then rerun;
  *  6 STATE                 the takeover state does not allow this (rolled_back, finalized,
- *                          unreadable, or changed by another process);
+ *                          unreadable, or changed by another process; `finalize` before
+ *                          30 days without --force-after-review);
  *  7 OFFICIAL_STILL_ACTIVE a store already cut over whose official plugin is active again:
  *                          without --deactivate-official, or the deactivation failed;
  *                          SUPCheckout stays paused; deactivate it and rerun;
  *  8 CONFLICTS             `rollback`/`abort` completed, but later edits were kept
- *                          (journal "later edits win"); review the printed paths;
+ *                          (journal "later edits win"), or `finalize` completed but kept
+ *                          legacy values that did not verify equal; review the printed names;
  *  9 OFFICIAL_NOT_REACTIVATED `rollback`/`abort --reactivate-official` completed, but the
  *                          official plugin could not be reactivated (none or several
  *                          installed, or activation failed); activate it yourself.
@@ -39,6 +42,8 @@ defined('ABSPATH') || exit;
  * After their transition both wait in-process for CopyRemoval::SETTLE_SECONDS (120 s, a
  * `settling` line every 10 s) before the final rescans, so a late writer's copy is removed
  * before completion is recorded.
+ *
+ * `finalize` (cut_over → finalized, irreversible) runs FinalizeCommand / Finalize.
  *
  * `run` is rerunnable after a crash at any step: every step resumes from persisted state.
  * idle → preflight_ok → copying (CopyRunner, cursor per object) → verified → official
@@ -270,6 +275,10 @@ final class CliCommands {
         if (self::mismatch_count($state) > 0) {
             $warnings[] = 'mismatches';
         }
+        $finalize = (new FinalizeCommand($this->store, $this->system, $this->out, $this->confirm))->status_field($state);
+        if ($finalize['pending']) {
+            $warnings[] = 'finalize_pending';
+        }
         $rollback = self::rollback_summary($state);
         if ($rollback !== null && $rollback['removal_pending']) {
             $warnings[] = 'removal_pending';
@@ -282,6 +291,7 @@ final class CliCommands {
             'cut_over_at' => $state['cut_over_at'],
             'rolled_back_at' => self::field($state, 'rolled_back_at', 0),
             'rollback' => $rollback,
+            'finalize' => $finalize,
             'phase' => self::field($state, 'phase', null),
             'cursor' => $state['cursor'],
             'cursors' => self::field($state, 'cursors', array()),
@@ -301,7 +311,7 @@ final class CliCommands {
         foreach (array('status', 'phase', 'cursor', 'quiesced', 'official_plugin') as $field) {
             $this->line($field . ': ' . self::scalar($status[$field]));
         }
-        foreach (array('cursors', 'totals', 'mismatches', 'anomalies', 'journal', 'rollback') as $field) {
+        foreach (array('cursors', 'totals', 'mismatches', 'anomalies', 'journal', 'rollback', 'finalize') as $field) {
             $this->line($field . ': ' . (string) wp_json_encode($status[$field]));
         }
         foreach ($stale as $claim) {
@@ -461,6 +471,20 @@ final class CliCommands {
             return $this->fail(self::OFFICIAL_NOT_REACTIVATED, $done . ', but the official UPayments plugin was not reactivated; activate it yourself');
         }
         return $this->done($done . ' (restored ' . $result['restored'] . ')');
+    }
+
+    /**
+     * cut_over → finalized (Task 11, irreversible); resumes an interrupted finalize and
+     * sweeps a finalized store again.
+     *
+     * @param bool $yes                Skip the confirmation.
+     * @param bool $force_after_review Allow it before 30 days (owner consent after review).
+     * @param bool $dry_run            Print what would be removed and kept; write nothing.
+     * @param bool $json               Dry run only: print one JSON document.
+     * @return int Exit code.
+     */
+    public function finalize($yes, $force_after_review, $dry_run, $json = false) {
+        return (new FinalizeCommand($this->store, $this->system, $this->out, $this->confirm))->run((bool) $yes, (bool) $force_after_review, (bool) $dry_run, (bool) $json);
     }
 
     /**

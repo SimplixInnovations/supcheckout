@@ -26,6 +26,9 @@ final class WordPressCopyStoreTest extends TestCase {
             public $posts = 'wp_posts';
             public $postmeta = 'wp_postmeta';
             public $usermeta = 'wp_usermeta';
+            public $options = 'wp_options';
+            /** @var string */
+            public $last_error = '';
             /** @var list<array{query:string,args:list<mixed>}> */
             public $prepared = array();
             /** @var list<string> */
@@ -207,6 +210,117 @@ final class WordPressCopyStoreTest extends TestCase {
         foreach ($this->db->prepared as $statement) {
             self::assertSame(substr_count($statement['query'], '%'), count($statement['args']), 'one argument per placeholder');
         }
+    }
+
+    public function test_finalize_selects_orders_and_products_by_legacy_keys_and_markers_alone(): void {
+        $this->db->col = array('4', '8');
+
+        self::assertSame(array(4, 8), (new WordPressCopyStore())->finalize_order_ids_after(3, 50));
+
+        $statement = $this->db->prepared[0];
+        self::assertStringNotContainsString('_payment_method', $statement['query'], 'a historical payment_method alone never selects an order');
+        self::assertStringEndsWith('ORDER BY p.ID ASC LIMIT %d', $statement['query']);
+        self::assertSame(array('wp_posts', 3, 'shop_order', 'wp_postmeta'), array_slice($statement['args'], 0, 4));
+        self::assertSame(array_merge(array_keys(Keys::order_meta()), Keys::takeover_markers()), array_slice($statement['args'], 4, count(Keys::order_meta()) + 1));
+        self::assertSame(substr_count($statement['query'], '%'), count($statement['args']));
+
+        (new WordPressCopyStore())->finalize_product_ids_after(0, 50);
+        $products = $this->db->prepared[1];
+        self::assertSame(array_merge(array_keys(Keys::product_meta()), Keys::takeover_markers()), array_slice($products['args'], 3, 2));
+    }
+
+    public function test_option_names_are_listed_by_escaped_prefix_ascending_after_a_cursor(): void {
+        $this->db->col = array('upay_pm_v3_a', 'upay_pm_v3_b');
+
+        $names = (new WordPressCopyStore())->option_names_with_prefix('_transient_upay_pm_v3_', 'upay_pm_v3_0', 500);
+
+        self::assertSame(array('upay_pm_v3_a', 'upay_pm_v3_b'), $names);
+        $statement = $this->db->prepared[0];
+        self::assertSame('SELECT option_name FROM %i WHERE option_name LIKE %s AND option_name > %s ORDER BY option_name ASC LIMIT %d', $statement['query']);
+        self::assertSame(array('wp_options', '\_transient\_upay\_pm\_v3\_%', 'upay_pm_v3_0', 500), $statement['args']);
+    }
+
+    public function test_only_the_legacy_billing_table_is_ever_dropped_and_newer_rows_are_counted(): void {
+        $this->db->var = null;
+
+        self::assertTrue((new WordPressCopyStore())->drop_legacy_table(), 'gone afterwards');
+
+        self::assertSame(array('query' => 'DROP TABLE IF EXISTS %i', 'args' => array('wp_upayments_billing_attempts')), $this->db->prepared[0]);
+        self::assertCount(1, array_filter($this->db->prepared, static function ($statement) {
+            return strpos($statement['query'], 'DROP') === 0;
+        }), 'one drop, of the legacy role only');
+
+        $this->db->prepared = array();
+        $this->db->var = 'wp_upayments_billing_attempts';
+        self::assertFalse((new WordPressCopyStore())->drop_legacy_table(), 'still there: refused');
+
+        $this->db->prepared = array();
+        $this->db->var = 'wp_upayments_billing_attempts';
+        self::assertNull((new WordPressCopyStore())->table_rows_updated_after(CopyStore::TABLE_LEGACY, '2026-10-01 00:00:00'));
+        self::assertSame(array('query' => 'SELECT COUNT(*) FROM %i WHERE updated_gmt > %s', 'args' => array('wp_upayments_billing_attempts', '2026-10-01 00:00:00')), end($this->db->prepared));
+    }
+
+    public function test_a_database_error_on_a_table_read_is_reported_once(): void {
+        $store = new WordPressCopyStore();
+        $this->db->col = array();
+        $store->table_keys_after(CopyStore::TABLE_LEGACY, '', 500);
+        self::assertFalse($store->table_read_failed());
+
+        $this->db->last_error = 'Lost connection to MySQL server during query';
+        self::assertSame(array(), $store->table_keys_after(CopyStore::TABLE_LEGACY, '', 500));
+        $this->db->last_error = '';
+        $store->table_count(CopyStore::TABLE_LEGACY);
+
+        self::assertTrue($store->table_read_failed(), 'an error on any read since the last check');
+        self::assertFalse($store->table_read_failed(), 'reset by the check');
+    }
+
+    public function test_transient_presence_is_read_from_its_rows_never_through_the_expiring_read(): void {
+        // get_transient() deletes an expired transient's rows: a dry run must never call it.
+        \supcheckout_test_reset_availability();
+        $GLOBALS['wpdb'] = $this->db;
+        $GLOBALS['supcheckout_test_ext_object_cache'] = false;
+        $this->db->var = '2';
+        $store = new WordPressCopyStore();
+
+        self::assertTrue($store->transient_exists('upayments_cron_lock'), 'an expired transient still has its rows');
+
+        self::assertSame(array(
+            'query' => 'SELECT COUNT(*) FROM %i WHERE option_name IN (%s, %s)',
+            'args' => array('wp_options', '_transient_upayments_cron_lock', '_transient_timeout_upayments_cron_lock'),
+        ), end($this->db->prepared));
+        foreach ($this->db->prepared as $statement) {
+            self::assertStringStartsWith('SELECT ', $statement['query'], 'read-only');
+        }
+        $this->db->var = '0';
+        self::assertFalse($store->transient_exists('upayments_cron_lock'));
+    }
+
+    public function test_with_an_external_object_cache_transient_presence_is_a_cache_lookup_without_deletion(): void {
+        \supcheckout_test_reset_availability();
+        $GLOBALS['wpdb'] = $this->db;
+        $GLOBALS['supcheckout_test_ext_object_cache'] = true;
+        $GLOBALS['supcheckout_test_object_cache'] = array('transient' => array('upayments_cron_lock' => '1'));
+        $store = new WordPressCopyStore();
+
+        self::assertTrue($store->transient_exists('upayments_cron_lock'));
+        self::assertFalse($store->transient_exists('upay_pm_v3_0123456789abcdef'));
+        self::assertSame(array(), $this->db->prepared, 'no options-table read');
+        self::assertSame(array('transient' => array('upayments_cron_lock' => '1')), $GLOBALS['supcheckout_test_object_cache'], 'nothing deleted');
+        $GLOBALS['supcheckout_test_ext_object_cache'] = false;
+    }
+
+    public function test_a_deleted_transient_is_confirmed_gone_from_its_rows(): void {
+        \supcheckout_test_reset_availability();
+        $GLOBALS['wpdb'] = $this->db;
+        $GLOBALS['supcheckout_test_ext_object_cache'] = false;
+        set_transient('upayments_cron_lock', '1', 60);
+        $this->db->var = '0';
+
+        self::assertTrue((new WordPressCopyStore())->delete_transient('upayments_cron_lock'));
+        self::assertFalse(get_transient('upayments_cron_lock'));
+        $this->db->var = '1';
+        self::assertFalse((new WordPressCopyStore())->delete_transient('upayments_cron_lock'), 'a row left behind is not deleted');
     }
 
     public function test_an_unsafe_column_name_makes_the_column_list_unreadable(): void {

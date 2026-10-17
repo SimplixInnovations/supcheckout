@@ -21,7 +21,8 @@ use Simplixi\SUPCheckout\Takeover\TakeoverState;
  *
  * Window model: idle/preflight_ok/rolled_back write and delete the legacy name only;
  * copying/verified/cut_over (and an unreadable record) write and delete BOTH names;
- * finalized writes only the new name. Reads stay legacy-only until is_cut_over().
+ * finalized writes only the new name and deletes both. Reads stay legacy-only until
+ * is_cut_over().
  *
  * Tests that need the WC_Order fixture run in a separate process: the payment unit tests
  * declare a different global WC_Order. H12 provenance under both prefixes runs in
@@ -154,8 +155,30 @@ final class DualReadTest extends TestCase {
         foreach ($expected as $status => $names) {
             self::state($status);
             self::assertSame($names, Keys::write_keys('UPayments_PaymentID'), "$status writes");
-            self::assertSame($names, Keys::delete_names('UPayments_PaymentID'), "$status deletes");
+            // Amended in Task 11: a delete after finalize also removes a legacy leftover, so
+            // the new-first read can never fall back to it (see the next test).
+            $deletes = $status === 'finalized' ? array('UPayments_PaymentID', '_supcheckout_payment_id') : $names;
+            self::assertSame($deletes, Keys::delete_names('UPayments_PaymentID'), "$status deletes");
         }
+    }
+
+    public function test_a_runtime_delete_after_finalize_never_resurrects_a_legacy_leftover(): void {
+        // Finalize removes legacy keys only where the new key verifies equal, after the
+        // transition: until it reaches an order (or forever, for a kept unequal value) the
+        // legacy twin is still there, and reads after cutover fall back to it when the new
+        // key is absent.
+        $order = new FakeCrudObject(31, 'upayments', array(
+            '_simplixpay_upayments_secondary_pending_v1' => array('1'),
+            '_supcheckout_secondary_pending_v1' => array('1'),
+        ));
+        self::state('finalized');
+
+        Keys::delete_order_meta($order, '_simplixpay_upayments_secondary_pending_v1');
+        $order->save();
+
+        self::assertSame('', Keys::read_order_meta($order, '_simplixpay_upayments_secondary_pending_v1'), 'the deleted value stays deleted');
+        self::assertSame(array(), $order->persisted_values('_simplixpay_upayments_secondary_pending_v1'));
+        self::assertSame(array('_supcheckout_payment_id'), Keys::write_keys('UPayments_PaymentID'), 'writes stay new-only');
     }
 
     public function test_copied_options_follow_the_window_model(): void {
@@ -445,11 +468,23 @@ final class DualReadTest extends TestCase {
 
         self::state('finalized');
         self::assertSame(array('supcheckout_order_lock_v1_77'), Keys::ephemeral_names('simplixpay_upay_order_lock_v1_77'));
-        self::assertSame(array('sup_ctkboot_b1'), Keys::advisory_lock_names('upay_ctk_bootstrap_b1'), 'GET_LOCK names switch at Finalize');
+        self::assertSame(array('upay_ctk_bootstrap_b1'), Keys::advisory_lock_names('upay_ctk_bootstrap_b1'), 'GET_LOCK names never switch, not even at Finalize');
         self::state('copying');
         self::assertSame(array('upay_ctk_bootstrap_b1'), Keys::advisory_lock_names('upay_ctk_bootstrap_b1'), 'never two GET_LOCK names at once (MySQL < 5.7.5)');
         self::state('invalid');
         self::assertCount(2, Keys::ephemeral_names('simplixpay_upay_order_lock_v1_77'), 'an unreadable state contends on both names');
+    }
+
+    public function test_advisory_lock_names_stay_legacy_in_every_state_so_requests_on_both_sides_of_finalize_contend(): void {
+        // A request that read cut_over and one that read finalized must exclude each other on
+        // the H12 bootstrap/migration (upay_ctk_*) and payment-methods (upay_pm_) locks. The
+        // names are never stored, so nothing needs them renamed.
+        foreach (array('idle', 'preflight_ok', 'copying', 'verified', 'cut_over', 'finalized', 'rolled_back', 'invalid') as $status) {
+            self::state($status);
+            foreach (array('upay_ctk_bootstrap_b1', 'upay_ctk_' . str_repeat('a', 32) . '_7', 'upay_pm_0123456789abcdef') as $name) {
+                self::assertSame(array($name), Keys::advisory_lock_names($name), "{$status}: {$name}");
+            }
+        }
     }
 
     public function test_in_copying_a_post_cutover_holder_blocks_a_legacy_first_worker_on_the_new_name(): void {

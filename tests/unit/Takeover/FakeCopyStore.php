@@ -2,8 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
+use Simplixi\SUPCheckout\Takeover\FinalizeStore;
 use Simplixi\SUPCheckout\Takeover\Keys;
-use Simplixi\SUPCheckout\Takeover\RollbackStore;
 
 /**
  * In-memory CopyStore for the copy-runner tests.
@@ -12,9 +12,11 @@ use Simplixi\SUPCheckout\Takeover\RollbackStore;
  * ($GLOBALS['supcheckout_test_status_orders']) as FakeCrudObject instances, so the
  * copier's re-read under the lock sees exactly what the runner selected. User meta keeps
  * every row in order and unslashes added values as add_metadata() does. The two
- * billing-attempts tables are arrays of rows keyed by cycle_key.
+ * billing-attempts tables are arrays of rows keyed by cycle_key. Options and transients
+ * (Finalize) live in the unit bootstrap's option store, a transient as its
+ * `_transient_<name>` and `_transient_timeout_<name>` rows, as without an object cache.
  */
-final class FakeCopyStore implements RollbackStore {
+final class FakeCopyStore implements FinalizeStore {
     /** @var bool replace_user_meta() fails. */
     public $fail_user_replace = false;
 
@@ -161,6 +163,9 @@ final class FakeCopyStore implements RollbackStore {
 
     public function table_keys_after($which, $after_key, $limit) {
         $this->selections[] = array('table_' . $which, $limit);
+        if ($this->fail_legacy_keys && $which === self::TABLE_LEGACY) {
+            return array();
+        }
         $keys = array();
         foreach (array_keys($this->tables[$which]) as $key) {
             if (strcmp((string) $key, (string) $after_key) > 0) {
@@ -413,6 +418,98 @@ final class FakeCopyStore implements RollbackStore {
             }
         }
         return $stale;
+    }
+
+    /** @var array<string, bool> Other tables by unprefixed name (Finalize reports them). */
+    public $named_tables = array();
+    /** @var array<int, string> Post ID => status. */
+    public $post_statuses = array();
+    /** @var bool drop_legacy_table() leaves the table in place. */
+    public $fail_drop = false;
+    /** @var int */
+    public $drops = 0;
+    /** @var bool table_keys_after() on the legacy table returns nothing (a read error). */
+    public $fail_legacy_keys = false;
+    /** @var bool table_read_failed() reports a read error. */
+    public $read_error = false;
+
+    public function table_read_failed() {
+        return $this->read_error;
+    }
+
+    public function finalize_order_ids_after($after_id, $limit) {
+        $this->selections[] = array('finalize_orders', $limit);
+        $keys = array_merge(array_keys(Keys::order_meta()), Keys::takeover_markers());
+        $ids = array();
+        foreach ($GLOBALS['supcheckout_test_status_orders'] as $id => $order) {
+            if ($id > $after_id && $order instanceof FakeCrudObject && self::holds_any($order, $keys)) {
+                $ids[] = (int) $id;
+            }
+        }
+        sort($ids);
+        return array_slice($ids, 0, $limit);
+    }
+
+    public function finalize_product_ids_after($after_id, $limit) {
+        $keys = array_merge(array_keys(Keys::product_meta()), Keys::takeover_markers());
+        $ids = array();
+        foreach ($this->products as $id => $product) {
+            if ($id > $after_id && self::holds_any($product, $keys)) {
+                $ids[] = (int) $id;
+            }
+        }
+        sort($ids);
+        return array_slice($ids, 0, $limit);
+    }
+
+    public function option_names_with_prefix($prefix, $after_name, $limit) {
+        $names = array();
+        foreach (array_keys($GLOBALS['supcheckout_test_options']) as $name) {
+            $name = (string) $name;
+            if (strpos($name, (string) $prefix) === 0 && strcmp($name, (string) $after_name) > 0) {
+                $names[] = $name;
+            }
+        }
+        sort($names, SORT_STRING);
+        return array_slice($names, 0, $limit);
+    }
+
+    public function transient_exists($name) {
+        return array_key_exists('_transient_' . $name, $GLOBALS['supcheckout_test_options']);
+    }
+
+    public function delete_transient($name) {
+        unset($GLOBALS['supcheckout_test_options']['_transient_' . $name], $GLOBALS['supcheckout_test_options']['_transient_timeout_' . $name]);
+        return true;
+    }
+
+    public function named_table_exists($unprefixed) {
+        return !empty($this->named_tables[$unprefixed]);
+    }
+
+    public function table_rows_updated_after($which, $since_gmt) {
+        if (!$this->table_exists($which)) {
+            return 0;
+        }
+        $count = 0;
+        foreach ($this->tables[$which] as $row) {
+            $updated = isset($row['updated_gmt']) ? (string) $row['updated_gmt'] : '';
+            $count += strcmp($updated, (string) $since_gmt) > 0 ? 1 : 0;
+        }
+        return $count;
+    }
+
+    public function drop_legacy_table() {
+        ++$this->drops;
+        if (!$this->fail_drop) {
+            $this->legacy_table_exists = false;
+            $this->tables[self::TABLE_LEGACY] = array();
+        }
+        return !$this->legacy_table_exists;
+    }
+
+    public function post_status($post_id) {
+        return isset($this->post_statuses[$post_id]) ? $this->post_statuses[$post_id] : null;
     }
 
     /** @param list<string> $keys */

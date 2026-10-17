@@ -653,4 +653,185 @@ final class CliCommandsTest extends TestCase {
         self::assertSame(CliCommands::BUSY, $this->cli()->release_stale_claims(true));
         self::assertCount(1, $this->claims->rows);
     }
+
+    // --- finalize (Task 11). ---
+
+    /** @return list<FakeCrudObject> A store cut over through `run`. */
+    private function cut_over(): array {
+        $orders = $this->seed();
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $this->out = array();
+        $this->questions = array();
+        return $orders;
+    }
+
+    private static function age(int $days): void {
+        $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+        $state['cut_over_at'] = time() - $days * 86400;
+        $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+        TakeoverState::flush_cache();
+    }
+
+    public function test_finalize_before_30_days_exits_6_with_the_days_left_and_changes_nothing(): void {
+        $orders = $this->cut_over();
+        self::age(12);
+
+        self::assertSame(CliCommands::STATE, $this->cli()->finalize(true, false, false));
+
+        self::assertStringContainsString('18 day(s)', $this->printed());
+        self::assertStringContainsString('--force-after-review', $this->printed());
+        self::assertSame(array(), $this->questions);
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+        self::assertSame(array('pay-1'), $orders[0]->persisted_values('UPayments_PaymentID'));
+    }
+
+    public function test_finalize_warns_that_it_is_irreversible_and_a_no_changes_nothing(): void {
+        $orders = $this->cut_over();
+        $this->answer = false;
+
+        self::assertSame(CliCommands::ERROR, $this->cli()->finalize(false, true, false));
+
+        self::assertCount(1, $this->questions);
+        self::assertStringContainsString('IRREVERSIBLE', $this->questions[0]);
+        self::assertStringContainsString('rollback', $this->questions[0]);
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+        self::assertSame(array('pay-1'), $orders[0]->persisted_values('UPayments_PaymentID'));
+    }
+
+    public function test_finalize_yes_after_review_finalizes_and_rollback_then_exits_6(): void {
+        $orders = $this->cut_over();
+
+        self::assertSame(CliCommands::OK, $this->cli()->finalize(true, true, false), $this->printed());
+
+        self::assertSame(array(), $this->questions, '--yes asks nothing');
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
+        self::assertSame(array(), $orders[0]->persisted_values('UPayments_PaymentID'));
+        self::assertSame(array('pay-1'), $orders[0]->persisted_values('_supcheckout_payment_id'));
+        self::assertStringContainsString('takeover finalize steps:', $this->printed());
+        self::assertStringContainsString('Success: finalized', $this->printed());
+        self::assertSame(CliCommands::STATE, $this->cli()->rollback(true, false), 'irreversible');
+        self::assertSame(CliCommands::STATE, $this->cli()->run(true, false), 'run cannot continue from finalized');
+    }
+
+    public function test_finalize_exit_codes_for_official_busy_and_kept_values(): void {
+        self::assertSame(CliCommands::STATE, $this->cli()->finalize(true, true, false), 'idle');
+        $orders = $this->cut_over();
+
+        $this->system->official = 'upayments/UPayments.php';
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->finalize(true, true, false));
+        $this->system->official = null;
+
+        $lease = Quiesce::acquire($this->system->now);
+        self::assertSame(CliCommands::BUSY, $this->cli()->finalize(true, true, false));
+        Quiesce::release($lease);
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+
+        $orders[1]->external_write('UPayments_PaymentID', array('pay-2-newer'));
+        $this->out = array();
+        self::assertSame(CliCommands::CONFLICTS, $this->cli()->finalize(true, true, false));
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status'], 'finalized regardless');
+        self::assertStringContainsString('kept: order_meta UPayments_PaymentID unequal', $this->printed());
+        self::assertStringNotContainsString('pay-2-newer', $this->printed(), 'never a value');
+    }
+
+    public function test_finalize_settles_with_progress_lines_and_a_writer_that_never_stops_exits_4(): void {
+        $orders = $this->cut_over();
+        $writes = 0;
+        $this->system->on_step = static function ($step) use ($orders, &$writes) {
+            if ($step === 'legacy_swept' || $step === 'rescanned') {
+                ++$writes;
+                $orders[0]->external_write('UPayments_TrackID', array('t-' . $writes));
+                $orders[0]->external_write('_supcheckout_track_id', array('t-' . $writes));
+            }
+        };
+
+        self::assertSame(CliCommands::BUSY, $this->cli()->finalize(true, true, false));
+
+        self::assertStringContainsString('removal_unsettled', $this->printed());
+        self::assertStringContainsString('settling', $this->printed(), 'the settle wait is visible');
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
+        $this->system->on_step = null;
+        self::assertSame(CliCommands::OK, $this->cli()->finalize(true, false, false), 'a rerun completes');
+    }
+
+    public function test_finalize_on_a_finalized_store_refuses_an_active_official_plugin_before_asking(): void {
+        $orders = $this->cut_over();
+        self::assertSame(CliCommands::OK, $this->cli()->finalize(true, true, false));
+        $this->system->official = 'upayments/UPayments.php';
+        $this->questions = array();
+        $this->out = array();
+        $orders[0]->external_write('UPayments_TrackID', array('t-official'));
+        $orders[0]->external_write('_supcheckout_track_id', array('t-official'));
+        $GLOBALS['supcheckout_test_options']['_transient_upayments_cron_lock'] = '1';
+        $options = $GLOBALS['supcheckout_test_options'];
+        $GLOBALS['supcheckout_test_option_calls'] = array();
+
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->finalize(true, false, false), '--yes changes nothing either');
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->finalize(false, false, false));
+
+        self::assertSame(array(), $this->questions, 'refused before the confirmation');
+        self::assertStringContainsString('official UPayments plugin', $this->printed());
+        self::assertSame($options, $GLOBALS['supcheckout_test_options'], 'nothing written: no lease, state, journal or option');
+        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls']);
+        self::assertSame(array('t-official'), $orders[0]->persisted_values('UPayments_TrackID'));
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
+    }
+
+    public function test_finalize_with_a_missing_cut_over_time_exits_3_even_when_forced(): void {
+        $this->cut_over();
+        $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+        $state['cut_over_at'] = 0;
+        $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+        TakeoverState::flush_cache();
+
+        self::assertSame(CliCommands::MISMATCH, $this->cli()->finalize(true, true, false));
+
+        self::assertStringContainsString('--force-after-review never overrides it', $this->printed());
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+    }
+
+    public function test_finalize_dry_run_writes_nothing_and_prints_the_plan(): void {
+        $this->cut_over();
+        self::age(3);
+        $options = $GLOBALS['supcheckout_test_options'];
+        $GLOBALS['supcheckout_test_option_calls'] = array();
+
+        self::assertSame(CliCommands::OK, $this->cli()->finalize(false, false, true));
+
+        self::assertSame(array(), $this->questions, 'a dry run asks nothing');
+        self::assertSame($options, $GLOBALS['supcheckout_test_options']);
+        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls']);
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+        self::assertStringContainsString('would refuse: too_early', $this->printed());
+        self::assertStringContainsString('finalize allowed in 27 day(s)', $this->printed());
+        self::assertStringContainsString('would remove: ', $this->printed());
+        self::assertStringContainsString('order_meta=2', $this->printed());
+
+        $this->out = array();
+        self::assertSame(CliCommands::OK, $this->cli()->finalize(false, false, true, true));
+        self::assertCount(1, $this->out, 'json mode prints exactly one document');
+        $plan = json_decode($this->out[0], true);
+        self::assertSame(array('too_early'), $plan['would_refuse']);
+        self::assertSame(2, $plan['removed']['order_meta']);
+    }
+
+    public function test_status_shows_the_days_until_finalize_and_a_dry_run_hint_without_scanning(): void {
+        $this->cut_over();
+        self::age(25);
+        $this->store->selections = array();
+
+        self::assertSame(CliCommands::OK, $this->cli()->status(true));
+
+        self::assertSame(array(), $this->store->selections, 'status scans no order, user, product or table rows');
+        $status = json_decode($this->out[0], true);
+        self::assertSame(5, $status['finalize']['days_left']);
+        self::assertFalse($status['finalize']['allowed']);
+        self::assertNull($status['finalize']['planned'], 'the plan is the dry run, not status');
+        self::assertStringContainsString('finalize --dry-run', $status['finalize']['hint']);
+
+        $this->out = array();
+        self::assertSame(CliCommands::OK, $this->cli()->status(false));
+        self::assertStringContainsString('finalize: ', $this->printed());
+        self::assertSame(array(), $this->store->selections);
+    }
 }

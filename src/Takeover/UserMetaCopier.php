@@ -103,10 +103,12 @@ final class UserMetaCopier {
     }
 
     /**
+     * The name a report may carry: an H12 scope never leaves this class (Finalize too).
+     *
      * @param string $legacy Legacy key.
      * @return string The key itself, or its legacy prefix.
      */
-    private static function report_name($legacy) {
+    public static function report_name($legacy) {
         foreach (array_keys(Keys::user_meta_prefixes()) as $prefix) {
             if (strpos($legacy, $prefix) === 0) {
                 return $prefix;

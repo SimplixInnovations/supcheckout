@@ -2512,8 +2512,8 @@ class CustomerTokenIdentity {
     // ────────────────────────────────────────────────────────
 
     /**
-     * Take a customer-token advisory lock under its current name
-     * (Keys::advisory_lock_names(): the legacy name until Finalize, the new one after;
+     * Take a customer-token advisory lock under its name (Keys::advisory_lock_names():
+     * the legacy name in every state, so callers on both sides of Finalize contend;
      * never two GET_LOCK names at once, see there). Public so the Phase 9I migration
      * executor takes exactly the same names. All or nothing.
      *

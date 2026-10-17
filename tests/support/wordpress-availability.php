@@ -88,6 +88,28 @@ if (!function_exists('set_transient')) {
     }
 }
 
+if (!function_exists('delete_transient')) {
+    function delete_transient($name) {
+        $existed = array_key_exists($name, $GLOBALS['supcheckout_test_availability']['transients']);
+        unset($GLOBALS['supcheckout_test_availability']['transients'][$name], $GLOBALS['supcheckout_test_availability']['transient_ttls'][$name]);
+        return $existed;
+    }
+}
+
+if (!function_exists('wp_using_ext_object_cache')) {
+    function wp_using_ext_object_cache($using = null) {
+        return !empty($GLOBALS['supcheckout_test_ext_object_cache']);
+    }
+}
+
+if (!function_exists('wp_cache_get')) {
+    function wp_cache_get($key, $group = '', $force = false, &$found = null) {
+        $cache = isset($GLOBALS['supcheckout_test_object_cache']) && is_array($GLOBALS['supcheckout_test_object_cache']) ? $GLOBALS['supcheckout_test_object_cache'] : array();
+        $found = isset($cache[$group]) && array_key_exists($key, $cache[$group]);
+        return $found ? $cache[$group][$key] : false;
+    }
+}
+
 if (!function_exists('get_current_blog_id')) {
     function get_current_blog_id() {
         return 7;

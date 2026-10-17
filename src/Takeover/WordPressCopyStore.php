@@ -15,13 +15,16 @@ defined('ABSPATH') || exit;
  * legacy storage, whichever is authoritative. The direct queries are deliberate: a copy
  * cursor must see the live rows, never a cached page.
  */
-final class WordPressCopyStore implements RollbackStore {
+final class WordPressCopyStore implements FinalizeStore {
     /** Keys::tables() legacy name of the billing-attempts journal (CycleClaim). */
     private const LEGACY_TABLE = 'upayments_billing_attempts';
     private const KEY_COLUMN = 'cycle_key';
     private const COLUMN_PATTERN = '/^[A-Za-z0-9_]{1,64}$/D';
     /** Rows a checksum read without an upper bound returns at most. */
     private const OPEN_RANGE_LIMIT = 1001;
+
+    /** @var bool A billing-table read hit a database error since table_read_failed() last ran. */
+    private $read_failed = false;
 
     public function order_ids_after($after_id, $limit) {
         return $this->orders_with_keys_after($after_id, $limit, array_keys(Keys::order_meta()));
@@ -30,6 +33,10 @@ final class WordPressCopyStore implements RollbackStore {
     public function rollback_order_ids_after($after_id, $limit) {
         $keys = array_merge(array_keys(Keys::order_meta()), array_values(Keys::order_meta()), Keys::takeover_markers());
         return $this->orders_with_keys_after($after_id, $limit, $keys);
+    }
+
+    public function finalize_order_ids_after($after_id, $limit) {
+        return $this->orders_holding_keys_after($after_id, $limit, array_merge(array_keys(Keys::order_meta()), Keys::takeover_markers()));
     }
 
     /**
@@ -55,6 +62,32 @@ final class WordPressCopyStore implements RollbackStore {
                 . " AND ((m.meta_key = '_payment_method' AND m.meta_value IN (" . $gateway_list . ')) OR m.meta_key IN (' . $key_list . ')))'
                 . ' ORDER BY p.ID ASC LIMIT %d';
             $args = array_merge(array($wpdb->posts, (int) $after_id, 'shop_order', $wpdb->postmeta), $gateways, $legacy_keys, array((int) $limit));
+        }
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
+        return self::ids($wpdb->prepare($sql, $args));
+    }
+
+    /**
+     * Orders holding any of $keys, whatever their payment_method (Finalize).
+     *
+     * @param int          $after_id Exclusive lower bound.
+     * @param int          $limit    Maximum count.
+     * @param list<string> $keys     Meta keys.
+     * @return list<int>
+     */
+    private function orders_holding_keys_after($after_id, $limit, array $keys) {
+        global $wpdb;
+        $key_list = self::placeholders(count($keys), '%s');
+        if (Environment::hpos_enabled()) {
+            $sql = 'SELECT o.id FROM %i o WHERE o.id > %d AND o.type = %s'
+                . ' AND EXISTS (SELECT 1 FROM %i m WHERE m.order_id = o.id AND m.meta_key IN (' . $key_list . '))'
+                . ' ORDER BY o.id ASC LIMIT %d';
+            $args = array_merge(array($wpdb->prefix . 'wc_orders', (int) $after_id, 'shop_order', $wpdb->prefix . 'wc_orders_meta'), $keys, array((int) $limit));
+        } else {
+            $sql = 'SELECT p.ID FROM %i p WHERE p.ID > %d AND p.post_type = %s'
+                . ' AND EXISTS (SELECT 1 FROM %i m WHERE m.post_id = p.ID AND m.meta_key IN (' . $key_list . '))'
+                . ' ORDER BY p.ID ASC LIMIT %d';
+            $args = array_merge(array($wpdb->posts, (int) $after_id, 'shop_order', $wpdb->postmeta), $keys, array((int) $limit));
         }
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql holds only literal SQL and placeholders.
         return self::ids($wpdb->prepare($sql, $args));
@@ -141,6 +174,10 @@ final class WordPressCopyStore implements RollbackStore {
 
     public function rollback_product_ids_after($after_id, $limit) {
         return $this->products_with_keys_after($after_id, $limit, array_merge(array_values(Keys::product_meta()), Keys::takeover_markers()));
+    }
+
+    public function finalize_product_ids_after($after_id, $limit) {
+        return $this->products_with_keys_after($after_id, $limit, array_merge(array_keys(Keys::product_meta()), Keys::takeover_markers()));
     }
 
     public function product_ids_after($after_id, $limit) {
@@ -236,6 +273,7 @@ final class WordPressCopyStore implements RollbackStore {
         $prepared = $wpdb->prepare($sql, $args);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above with a dynamic placeholder list; the back-sync must compare live claim states.
         $rows = $wpdb->get_results($prepared, defined('ARRAY_A') ? constant('ARRAY_A') : 'ARRAY_A');
+        $this->note_read();
         $states = array();
         foreach (is_array($rows) ? $rows : array() as $row) {
             if (is_array($row) && isset($row['row_key'], $row['row_state'])) {
@@ -253,6 +291,7 @@ final class WordPressCopyStore implements RollbackStore {
         $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i WHERE state = %s', self::table($which), (string) $state);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the back-sync precheck must count live rows.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
     }
 
@@ -277,6 +316,7 @@ final class WordPressCopyStore implements RollbackStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; live schema read.
         $columns = $wpdb->get_col($prepared);
+        $this->note_read();
         if (!is_array($columns)) {
             return array();
         }
@@ -303,6 +343,7 @@ final class WordPressCopyStore implements RollbackStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the cursor must see live rows.
         $keys = $wpdb->get_col($prepared);
+        $this->note_read();
         return is_array($keys) ? array_values(array_map('strval', $keys)) : array();
     }
 
@@ -380,6 +421,7 @@ final class WordPressCopyStore implements RollbackStore {
         $prepared = $wpdb->prepare($sql, $args);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above; verification must read live rows.
         $rows = $wpdb->get_results($prepared, defined('ARRAY_A') ? constant('ARRAY_A') : 'ARRAY_A');
+        $this->note_read();
         $sums = array();
         foreach (is_array($rows) ? $rows : array() as $row) {
             if (is_array($row) && isset($row['row_key'], $row['row_sum'])) {
@@ -394,6 +436,7 @@ final class WordPressCopyStore implements RollbackStore {
         $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i', self::table($which));
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; verification must read live rows.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
     }
 
@@ -419,6 +462,7 @@ final class WordPressCopyStore implements RollbackStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the drain must see live claim state.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
     }
 
@@ -435,7 +479,100 @@ final class WordPressCopyStore implements RollbackStore {
         );
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the drain must see live claim state.
         $count = $wpdb->get_var($prepared);
+        $this->note_read();
         return is_numeric($count) ? (int) $count : null;
+    }
+
+    public function option_names_with_prefix($prefix, $after_name, $limit) {
+        global $wpdb;
+        $prepared = $wpdb->prepare(
+            'SELECT option_name FROM %i WHERE option_name LIKE %s AND option_name > %s ORDER BY option_name ASC LIMIT %d',
+            $wpdb->options,
+            $wpdb->esc_like((string) $prefix) . '%',
+            (string) $after_name,
+            (int) $limit
+        );
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; Finalize enumerates live option names by prefix (no API lists them).
+        $names = $wpdb->get_col($prepared);
+        return is_array($names) ? array_values(array_map('strval', $names)) : array();
+    }
+
+    /**
+     * Read-only presence (Finalize::plan() and the removal): never get_transient(), which
+     * deletes an expired transient's rows. Without an external object cache, the value or
+     * timeout row in the options table; with one, a cache lookup (wp_cache_get() never deletes).
+     *
+     * @param string $name Transient name.
+     * @return bool
+     */
+    public function transient_exists($name) {
+        global $wpdb;
+        if (function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache()) {
+            $found = false;
+            wp_cache_get((string) $name, 'transient', false, $found);
+            return (bool) $found;
+        }
+        $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i WHERE option_name IN (%s, %s)', $wpdb->options, '_transient_' . $name, '_transient_timeout_' . $name);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; a read-only presence check that must not expire (delete) the transient as get_transient() does.
+        $count = $wpdb->get_var($prepared);
+        return is_numeric($count) && (int) $count > 0;
+    }
+
+    public function delete_transient($name) {
+        delete_transient((string) $name);
+        return !$this->transient_exists($name);
+    }
+
+    public function named_table_exists($unprefixed) {
+        global $wpdb;
+        $table = $wpdb->prefix . (string) $unprefixed;
+        $prepared = $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; schema-existence probe must not be cached.
+        return $wpdb->get_var($prepared) === $table;
+    }
+
+    public function table_rows_updated_after($which, $since_gmt) {
+        global $wpdb;
+        if (!$this->table_exists($which)) {
+            return 0;
+        }
+        $prepared = $wpdb->prepare('SELECT COUNT(*) FROM %i WHERE updated_gmt > %s', self::table($which), (string) $since_gmt);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; Finalize must count live rows.
+        $count = $wpdb->get_var($prepared);
+        $this->note_read();
+        return is_numeric($count) ? (int) $count : null;
+    }
+
+    public function drop_legacy_table() {
+        global $wpdb;
+        $prepared = $wpdb->prepare('DROP TABLE IF EXISTS %i', self::table(self::TABLE_LEGACY));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared above with the identifier through %i. Schema change by design: Finalize retires the plugin-owned legacy billing-attempts table (never the table in use) only under the Quiesce lease, after the drain, when no legacy row is claimed, dispatching or newer than the cutover and every legacy row is covered by an equal or later state in the new table (Finalize::table_verdict(), BillingTableCopier::covers()).
+        $wpdb->query($prepared);
+        return !$this->table_exists(self::TABLE_LEGACY);
+    }
+
+    public function post_status($post_id) {
+        $status = function_exists('get_post_status') ? get_post_status((int) $post_id) : false;
+        return is_string($status) && $status !== '' ? $status : null;
+    }
+
+    public function table_read_failed() {
+        $failed = $this->read_failed;
+        $this->read_failed = false;
+        return $failed;
+    }
+
+    /**
+     * Remember a database error on the billing-table read just made: wpdb returns an empty
+     * list or null on an error, which must never pass for "no rows" (Finalize's table drop).
+     *
+     * @return void
+     */
+    private function note_read() {
+        global $wpdb;
+        if (isset($wpdb->last_error) && is_string($wpdb->last_error) && $wpdb->last_error !== '') {
+            $this->read_failed = true;
+        }
     }
 
     /**

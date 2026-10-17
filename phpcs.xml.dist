@@ -74,6 +74,10 @@
     <file>src/Takeover/CliCommands.php</file>
     <file>src/Takeover/Cli.php</file>
     <file>src/Takeover/PausedBoot.php</file>
+    <file>src/Takeover/FinalizeStore.php</file>
+    <file>src/Takeover/FinalizeRemoval.php</file>
+    <file>src/Takeover/Finalize.php</file>
+    <file>src/Takeover/FinalizeCommand.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 
