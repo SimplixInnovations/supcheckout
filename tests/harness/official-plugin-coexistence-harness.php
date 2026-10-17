@@ -53,15 +53,47 @@ file_put_contents($plugins_dir . '/supcheckout/UPayments.php', "<?php
 ");
 putenv('SUPCHECKOUT_COEXISTENCE_PLUGIN_DIR=' . $plugins_dir);
 
-// A minimal stand-in for the official 3.1.1 main file: same global names, same constants.
+// A stand-in for the official 3.1.1 plugin's global surface (Sub-project 0a Task 8): the
+// path constants, the global bootstrap and product-data functions, the global gateway and
+// Blocks classes, and the UPayments\Subscription classes from its includes/. The names are
+// the ones SUPCheckout's pre-0a fork declared with the official plugin's naming
+// (UPayments.php before 0a Task 2, includes/ before 0a Task 6); SUPCheckout declares none
+// of them any more.
 $official_stub = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'supcheckout-official-upayments-stub-' . getmypid() . '.php';
 file_put_contents($official_stub, <<<'PHP'
 <?php
-define("UP_PLUGIN_URL", 'https://merchant.example.test/wp-content/plugins/upayments/');
-function woocommerceUpaymentsInit() {}
-function upaymentsMissingWcNotice() {}
-function addUpaymentsGatewayClass($methods) { return $methods; }
-echo "OFFICIAL_LOADED\n";
+namespace UPayments\Subscription {
+    class Manager {}
+}
+namespace UPayments\Subscription\Checkout {
+    class Fields {}
+}
+namespace UPayments\Subscription\Helpers {
+    class Utils {}
+}
+namespace UPayments\Subscription\Cron {
+    class Scheduler {}
+}
+namespace {
+    define("UP_PLUGIN_URL", 'https://merchant.example.test/wp-content/plugins/upayments/');
+    define("UP_PLUGIN_PATH", '/srv/www/wp-content/plugins/upayments/');
+    function woocommerceUpaymentsInit() {}
+    function upaymentsMissingWcNotice() {}
+    function addUpaymentsGatewayClass($methods) { return $methods; }
+    function enableUpaymentsGateway($available_gateways) { return $available_gateways; }
+    function addCustomProductType($types) { return $types; }
+    function mapCustomProductClass($classname, $product_type) { return $classname; }
+    function customProductTypes() {}
+    function addCustomDataTab($tabs) { return $tabs; }
+    function addCustomDataPanel() {}
+    function saveCustomFieldData($post_id) {}
+    function displayCustomFieldOnFrontend() {}
+    function displayCustomDataInCart($item_data, $cart_item) { return $item_data; }
+    function saveCustomDataToOrderItems($item, $cart_item_key, $values, $order) {}
+    class WC_Upayments {}
+    class WCGatewayUPaymentsBlocks {}
+    echo "OFFICIAL_LOADED\n";
+}
 PHP
 );
 
@@ -121,6 +153,53 @@ $shim_official = coexistence_run($root, 'shim_official', $official_stub);
 coexistence_assert($shim_official['code'] === 0 && strpos($shim_official['out'], 'DECLARED:no') !== false && strpos($shim_official['out'], 'NOTICES:1') !== false, 'loading through the shim while the official plugin is active still pauses SUPCheckout');
 coexistence_assert(strpos($shim_official['out'], 'ACTIVE:["supcheckout/supcheckout.php","upayments/UPayments.php"]') !== false, 'the shim moves only SUPCheckout\'s entry; the official upayments/UPayments.php entry is untouched');
 
+// Sub-project 0a Task 8: the official plugin's full global surface (constants, global
+// functions and classes, UPayments\Subscription classes) next to SUPCheckout, in both
+// load orders, while SUPCheckout is paused.
+coexistence_assert(strpos($ours_first['out'], 'SUPCHECKOUT_VERSION:undefined') !== false, 'SUPCheckout loaded first: SUPCheckout stays paused');
+$both_namespaces = coexistence_run($root, 'official_namespaces', $official_stub);
+coexistence_assert($both_namespaces['code'] === 0, 'official UPayments\\Subscription classes never collide with SUPCheckout classes');
+$both_namespaces_ours_first = coexistence_run($root, 'official_namespaces_ours_first', $official_stub);
+coexistence_assert($both_namespaces_ours_first['code'] === 0, 'SUPCheckout loaded first: the official UPayments\\Subscription classes then load without a redeclaration fatal');
+foreach (array(
+    'official_first' => $official_first,
+    'ours_first' => $ours_first,
+    'official_namespaces' => $both_namespaces,
+    'official_namespaces_ours_first' => $both_namespaces_ours_first,
+) as $scenario => $result) {
+    coexistence_assert(strpos($result['out'], 'OFFICIAL_LOADED') !== false, "paused ({$scenario}): the official plugin's global surface loads");
+    coexistence_assert(strpos($result['out'], 'SUPCHECKOUT_VERSION:undefined') !== false && strpos($result['out'], 'NOTICES:1') !== false, "paused ({$scenario}): SUPCheckout stays paused with one conflict notice");
+    coexistence_assert(strpos($result['out'], 'CLASSES:official=yes,ours=yes') !== false, "paused ({$scenario}): official UPayments\\Subscription and SUPCheckout Simplixi\\SUPCheckout\\Subscription classes resolve in one process");
+    coexistence_assert(strpos($result['out'], 'UP_PLUGIN_URL:official') !== false && strpos($result['out'], 'UP_PLUGIN_PATH:official') !== false, "paused ({$scenario}): the official plugin's path constants are its own");
+    coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "paused ({$scenario}): no PHP warning, notice or deprecation");
+}
+
+// Characterization (not a support claim): the official plugin's files load while
+// SUPCheckout is NOT paused, because no active entry ends in UPayments.php (for example a
+// renamed or must-use copy, or the dual-load Sub-project 0b needs). With no shared global
+// functions or classes left there is no redeclaration fatal in either order, but
+// Plugin::load_runtime() still defines UP_PLUGIN_URL and UP_PLUGIN_PATH, which the official
+// plugin also defines. Whichever plugin loads second gets PHP's "already defined" warning
+// ("will be an error in PHP 9") and the first plugin's value. Renaming these constants is a
+// Sub-project 0b decision (templates and the gateway icon read UP_PLUGIN_URL); this pins
+// the current behavior so a change is deliberate.
+foreach (array('both_running_official_first', 'both_running_ours_first') as $scenario) {
+    $result = coexistence_run($root, $scenario, $official_stub);
+    coexistence_assert($result['code'] === 0, "both running ({$scenario}): no redeclaration fatal");
+    coexistence_assert(strpos($result['out'], 'OFFICIAL_LOADED') !== false && strpos($result['out'], 'SUPCHECKOUT_VERSION:defined') !== false, "both running ({$scenario}): both plugins load");
+    coexistence_assert(strpos($result['out'], 'CLASSES:official=yes,ours=yes') !== false, "both running ({$scenario}): both class families resolve");
+    coexistence_assert(
+        strpos($result['out'], 'DIAGNOSTICS:["Constant UP_PLUGIN_URL already defined') !== false
+            && strpos($result['out'], 'Constant UP_PLUGIN_PATH already defined') !== false
+            && substr_count($result['out'], 'already defined') === 2,
+        "both running ({$scenario}): characterized collision: exactly UP_PLUGIN_URL and UP_PLUGIN_PATH are defined twice"
+    );
+    $first_wins = $scenario === 'both_running_official_first' ? 'official' : 'other';
+    coexistence_assert(
+        strpos($result['out'], 'UP_PLUGIN_URL:' . $first_wins) !== false && strpos($result['out'], 'UP_PLUGIN_PATH:' . $first_wins) !== false,
+        "both running ({$scenario}): characterized collision: the first plugin to load keeps UP_PLUGIN_URL and UP_PLUGIN_PATH"
+    );
+}
 // The 'upayments' gateway identity is shared with the official plugin until 0b, so a
 // paused SUPCheckout must register no gateway, availability or wc_upayments hook
 // (Plugin::boot() runs only after the pause early-return). A running one registers all three.
@@ -151,6 +230,7 @@ foreach (array(
         strpos($result['out'], $all_gateway_hooks) !== false,
         "running ({$scenario}): SUPCheckout registers both gateway filters and the wc_upayments route"
     );
+    coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "running ({$scenario}): no PHP warning, notice or deprecation");
 }
 
 @unlink($official_stub);
@@ -168,12 +248,21 @@ exit($fail === 0 ? 0 : 1);
  * Child process: minimal WordPress surface, then load the plugin main file(s).
  */
 function coexistence_child($root, $scenario, $official_stub) {
+    // Every PHP diagnostic (warning, notice, deprecation) is recorded and reported, so a
+    // scenario cannot pass while PHP complains about a redefined constant or symbol.
+    $GLOBALS['coexistence_diagnostics'] = array();
+    set_error_handler(function ($errno, $errstr) {
+        $GLOBALS['coexistence_diagnostics'][] = $errstr;
+        return true;
+    });
     define('ABSPATH', __DIR__ . '/');
     define('WP_PLUGIN_DIR', (string) getenv('SUPCHECKOUT_COEXISTENCE_PLUGIN_DIR'));
     $own = 'supcheckout/supcheckout.php';
     $active = array($own);
     $sitewide = array();
-    if (in_array($scenario, array('official_first', 'ours_first', 'notice_admin', 'notice_shopper'), true)) {
+    $official_loads_first = in_array($scenario, array('official_first', 'official_namespaces', 'both_running_official_first'), true);
+    $official_loads_second = in_array($scenario, array('ours_first', 'official_namespaces_ours_first', 'both_running_ours_first'), true);
+    if (in_array($scenario, array('official_first', 'ours_first', 'notice_admin', 'notice_shopper', 'official_namespaces', 'official_namespaces_ours_first'), true)) {
         $active = array($own, 'upayments/UPayments.php');
     } elseif ($scenario === 'sitewide') {
         $sitewide = array('upayments/UPayments.php' => time());
@@ -202,7 +291,7 @@ function coexistence_child($root, $scenario, $official_stub) {
 
     coexistence_define_wordpress_stubs($root);
 
-    if ($scenario === 'official_first') {
+    if ($official_loads_first) {
         require $official_stub;
     }
     if ($scenario === 'shim' || $scenario === 'shim_official') {
@@ -231,7 +320,7 @@ function coexistence_child($root, $scenario, $official_stub) {
     }
     $gateway_hooks = array_values(array_unique($gateway_hooks));
     sort($gateway_hooks);
-    if ($scenario === 'ours_first') {
+    if ($official_loads_second) {
         require $official_stub;
     }
 
@@ -248,7 +337,13 @@ function coexistence_child($root, $scenario, $official_stub) {
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
     echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
     echo 'UP_PLUGIN_URL:' . (defined('UP_PLUGIN_URL') && strpos(UP_PLUGIN_URL, '/upayments/') !== false ? 'official' : 'other') . "\n";
+    echo 'UP_PLUGIN_PATH:' . (defined('UP_PLUGIN_PATH') && strpos(UP_PLUGIN_PATH, '/upayments/') !== false ? 'official' : 'other') . "\n";
     echo 'SUPCHECKOUT_VERSION:' . (defined('SUPCHECKOUT_VERSION') ? 'defined' : 'undefined') . "\n";
+    // Both class families resolve in one process: the official UPayments\Subscription
+    // classes and SUPCheckout's own (autoloaded) Simplixi\SUPCheckout classes.
+    echo 'CLASSES:official=' . (class_exists('UPayments\Subscription\Manager', false) ? 'yes' : 'no')
+        . ',ours=' . (class_exists('Simplixi\SUPCheckout\Subscription\Manager') && class_exists('Simplixi\SUPCheckout\Subscription\Checkout\Fields') ? 'yes' : 'no') . "\n";
+    echo 'DIAGNOSTICS:' . json_encode($GLOBALS['coexistence_diagnostics'], JSON_UNESCAPED_SLASHES) . "\n";
     echo 'ACTIVE:' . json_encode(array_values((array) $GLOBALS['coexistence']['options']['active_plugins']), JSON_UNESCAPED_SLASHES) . "\n";
 }
 
