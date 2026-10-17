@@ -126,6 +126,46 @@ foreach (array('idle', 'copying', 'cut_over', 'finalized', 'rolled_back') as $ta
     }
 }
 echo "Callback routes: wc_upayments and supcheckout each carry the lifecycle at 5 and the gateway fallback at 10 in idle, copying, cut_over, finalized and rolled_back boots.\n";
+// Cron routing (0b Task 7): the static scan sees the hook names only as variables, so the
+// routing is pinned per takeover state here (checked, never recorded). Before copying only
+// the legacy names listen; from copying on both names run the same callbacks (the cutover
+// keeps legacy events until Finalize); the hourly tick is scheduled under the current name.
+$cron_pairs = array(
+    'upay_process_subscriptions' => 'supcheckout_process_subscriptions',
+    'simplixpay_upayments_reconcile_order' => 'supcheckout_reconcile_order',
+    'simplixpay_upayments_reconcile_secondary' => 'supcheckout_reconcile_secondary',
+);
+foreach (array('idle' => false, 'preflight_ok' => false, 'copying' => true, 'verified' => true, 'cut_over' => true, 'rolled_back' => true, 'finalized' => true) as $takeover_status => $both) {
+    $listened = array();
+    $scheduled = array();
+    foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
+        if ($entry['kind'] === 'action') {
+            $listened[$entry['hook']] = isset($listened[$entry['hook']]) ? $listened[$entry['hook']] + 1 : 1;
+        }
+        if ($entry['kind'] === 'schedule_call' && $entry['function'] === 'wp_schedule_event') {
+            $scheduled[] = $entry['hook'];
+        }
+    }
+    $expected_schedule = in_array($takeover_status, array('cut_over', 'finalized'), true) ? array('supcheckout_process_subscriptions') : array('upay_process_subscriptions');
+    $problems = array();
+    foreach ($cron_pairs as $legacy => $new) {
+        if ((isset($listened[$legacy]) ? $listened[$legacy] : 0) !== 1) {
+            $problems[] = "{$legacy} listened " . (isset($listened[$legacy]) ? $listened[$legacy] : 0) . ' time(s)';
+        }
+        if ((isset($listened[$new]) ? $listened[$new] : 0) !== ($both ? 1 : 0)) {
+            $problems[] = "{$new} listened " . (isset($listened[$new]) ? $listened[$new] : 0) . ' time(s)';
+        }
+    }
+    if ($scheduled !== $expected_schedule) {
+        $problems[] = 'hourly tick scheduled as ' . json_encode($scheduled);
+    }
+    if ($problems !== array()) {
+        echo "FAIL: cron routing in a {$takeover_status} boot: " . implode('; ', $problems) . "\n";
+        echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
+        exit(1);
+    }
+}
+echo "Cron routing: legacy names only before copying, both names from copying on; the hourly tick is scheduled under the new name once cut over.\n";
 
 $json = json_encode($entries, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 

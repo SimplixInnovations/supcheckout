@@ -628,6 +628,30 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "<dynamic:$hook>",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "<dynamic:$hook>",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "<dynamic:$hook>",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "<dynamic:'woocommerce_update_options_payment_gateways_'.$this->id>",
         "priority": 10,
         "accepted_args": 1,
@@ -748,22 +772,6 @@
     {
         "kind": "hook_reference",
         "type": "action",
-        "hook": "simplixpay_upayments_reconcile_order",
-        "priority": 10,
-        "accepted_args": 1,
-        "contexts": "static"
-    },
-    {
-        "kind": "hook_reference",
-        "type": "action",
-        "hook": "simplixpay_upayments_reconcile_secondary",
-        "priority": 10,
-        "accepted_args": 1,
-        "contexts": "static"
-    },
-    {
-        "kind": "hook_reference",
-        "type": "action",
         "hook": "supcheckout_process_due_parent",
         "priority": 10,
         "accepted_args": 3,
@@ -781,14 +789,6 @@
         "kind": "hook_reference",
         "type": "action",
         "hook": "supcheckout_takeover_copy_batch",
-        "priority": 10,
-        "accepted_args": 1,
-        "contexts": "static"
-    },
-    {
-        "kind": "hook_reference",
-        "type": "action",
-        "hook": "upay_process_subscriptions",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"
@@ -1210,43 +1210,36 @@
     {
         "kind": "schedule_reference",
         "function": "wp_clear_scheduled_hook",
-        "hook": "upay_hourly_cron_job",
+        "hook": "<dynamic:$hook>",
         "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_clear_scheduled_hook",
-        "hook": "upay_process_subscriptions",
+        "hook": "upay_hourly_cron_job",
         "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_next_scheduled",
-        "hook": "simplixpay_upayments_reconcile_order",
-        "args": "[0:int]",
+        "hook": "<dynamic:$current_hook>",
+        "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_next_scheduled",
-        "hook": "simplixpay_upayments_reconcile_order",
-        "args": "[0:int]",
+        "hook": "<dynamic:$hook>",
+        "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_next_scheduled",
-        "hook": "simplixpay_upayments_reconcile_order",
-        "args": "[0:int]",
-        "contexts": "static"
-    },
-    {
-        "kind": "schedule_reference",
-        "function": "wp_next_scheduled",
-        "hook": "simplixpay_upayments_reconcile_secondary",
-        "args": "[0:int]",
+        "hook": "<dynamic:$hook>",
+        "args": "<param:array $args>",
         "contexts": "static"
     },
     {
@@ -1258,43 +1251,29 @@
     },
     {
         "kind": "schedule_reference",
-        "function": "wp_next_scheduled",
-        "hook": "upay_process_subscriptions",
-        "args": "(omitted)",
-        "contexts": "static"
-    },
-    {
-        "kind": "schedule_reference",
-        "function": "wp_next_scheduled",
-        "hook": "upay_process_subscriptions",
-        "args": "(omitted)",
-        "contexts": "static"
-    },
-    {
-        "kind": "schedule_reference",
         "function": "wp_schedule_event",
-        "hook": "upay_process_subscriptions",
+        "hook": "<dynamic:$current_hook>",
         "args": "(omitted)",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_schedule_single_event",
-        "hook": "simplixpay_upayments_reconcile_order",
+        "hook": "<dynamic:Keys::cron_hook(self::RECONCILE_HOOK)>",
         "args": "[0:int]",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_schedule_single_event",
-        "hook": "simplixpay_upayments_reconcile_secondary",
+        "hook": "<dynamic:Keys::cron_hook(self::SECONDARY_RECONCILE_HOOK)>",
         "args": "[0:int]",
         "contexts": "static"
     },
     {
         "kind": "schedule_reference",
         "function": "wp_unschedule_event",
-        "hook": "simplixpay_upayments_reconcile_order",
+        "hook": "<dynamic:$next[1]>",
         "args": "[0:int]",
         "contexts": "static"
     },

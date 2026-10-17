@@ -71,14 +71,23 @@ class Scheduler
         // never enabled them carries no event (and no table checks) at all.
         $settings = Keys::get_settings(array());
         $enabled = is_array($settings) && isset($settings['enable_subscriptions']) && $settings['enable_subscriptions'] === 'yes';
+        // Takeover (0b Task 7): scheduled under the current name (the new one after
+        // cutover); from `copying` on both names run process() and a disabled store clears
+        // both, because the cutover keeps the legacy event until Finalize.
+        $hooks = Keys::cron_hook_names(self::CRON_HOOK);
+        $current_hook = Keys::cron_hook(self::CRON_HOOK);
         if (!$enabled) {
-            if (wp_next_scheduled(self::CRON_HOOK)) {
-                wp_clear_scheduled_hook(self::CRON_HOOK);
+            foreach ($hooks as $hook) {
+                if (wp_next_scheduled($hook)) {
+                    wp_clear_scheduled_hook($hook);
+                }
             }
-        } elseif (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time(), 'hourly', self::CRON_HOOK);
+        } elseif (!wp_next_scheduled($current_hook)) {
+            wp_schedule_event(time(), 'hourly', $current_hook);
         }
-        add_action(self::CRON_HOOK, [__CLASS__, 'process']);
+        foreach ($hooks as $hook) {
+            add_action($hook, [__CLASS__, 'process']);
+        }
         DueParentWorker::register();
         LifecycleScheduler::register();
     }

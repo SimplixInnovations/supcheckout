@@ -63,8 +63,14 @@ final class PaymentLifecycle {
 
         add_action(self::CALLBACK_HOOK, array(__CLASS__, 'handle_callback'), 5);
         LegacyCallbackListener::register();
-        add_action(self::RECONCILE_HOOK, array(__CLASS__, 'reconcile_order'), 10, 1);
-        add_action(self::SECONDARY_RECONCILE_HOOK, array(__CLASS__, 'reconcile_secondary'), 10, 1);
+        // Takeover (0b Task 7): from `copying` on, both cron names run the callbacks; the
+        // cutover keeps legacy events until Finalize and schedules new-name twins.
+        foreach (Keys::cron_hook_names(self::RECONCILE_HOOK) as $hook) {
+            add_action($hook, array(__CLASS__, 'reconcile_order'), 10, 1);
+        }
+        foreach (Keys::cron_hook_names(self::SECONDARY_RECONCILE_HOOK) as $hook) {
+            add_action($hook, array(__CLASS__, 'reconcile_secondary'), 10, 1);
+        }
         ReconciliationSweep::register();
     }
 
@@ -86,7 +92,24 @@ final class PaymentLifecycle {
      * @return bool
      */
     public static function has_scheduled_reconciliation($order_id) {
-        return wp_next_scheduled(self::RECONCILE_HOOK, array((int) $order_id)) !== false;
+        return self::next_scheduled(self::RECONCILE_HOOK, array((int) $order_id)) !== false;
+    }
+
+    /**
+     * The first pending event of a cron hook under any of its current names.
+     *
+     * @param string     $legacy Legacy hook name (Keys::cron_hooks()).
+     * @param array<int> $args   Event arguments.
+     * @return array{0:int,1:string}|false [timestamp, hook name], or false.
+     */
+    private static function next_scheduled($legacy, array $args) {
+        foreach (Keys::cron_hook_names($legacy) as $hook) {
+            $timestamp = wp_next_scheduled($hook, $args);
+            if ($timestamp !== false) {
+                return array((int) $timestamp, $hook);
+            }
+        }
+        return false;
     }
 
     /**
@@ -874,12 +897,12 @@ final class PaymentLifecycle {
 
     private static function schedule_secondary($order_id, $attempt) {
         $args = array((int) $order_id);
-        if ((int) $order_id <= 0 || wp_next_scheduled(self::SECONDARY_RECONCILE_HOOK, $args) !== false) {
+        if ((int) $order_id <= 0 || self::next_scheduled(self::SECONDARY_RECONCILE_HOOK, $args) !== false) {
             return;
         }
         $delays = array(60, 120, 240, 480);
         $delay = $delays[max(0, min((int) $attempt, count($delays) - 1))];
-        if (wp_schedule_single_event(time() + $delay, self::SECONDARY_RECONCILE_HOOK, $args) === false) {
+        if (wp_schedule_single_event(time() + $delay, Keys::cron_hook(self::SECONDARY_RECONCILE_HOOK), $args) === false) {
             self::log('secondary_schedule_failed', 'warning');
         }
     }
@@ -1226,7 +1249,7 @@ final class PaymentLifecycle {
         }
 
         $args = array($order_id);
-        if (wp_next_scheduled(self::RECONCILE_HOOK, $args) !== false) {
+        if (self::next_scheduled(self::RECONCILE_HOOK, $args) !== false) {
             return true;
         }
 
@@ -1241,7 +1264,7 @@ final class PaymentLifecycle {
         $next_attempt = $attempt + 1;
 
         // Schedule first: an attempt is consumed only once WP-Cron has accepted it.
-        $scheduled = wp_schedule_single_event(time() + $delay, self::RECONCILE_HOOK, $args);
+        $scheduled = wp_schedule_single_event(time() + $delay, Keys::cron_hook(self::RECONCILE_HOOK), $args);
         if ($scheduled === false) {
             self::log('reconcile_schedule_failed', 'warning');
             self::note_reconciliation_unschedulable($order);
@@ -1317,12 +1340,12 @@ final class PaymentLifecycle {
 
     private static function unschedule_reconciliation($order) {
         $args = array((int) $order->get_id());
-        for ($i = 0; $i < self::MAX_RECONCILE_ATTEMPTS + 2; $i++) {
-            $timestamp = wp_next_scheduled(self::RECONCILE_HOOK, $args);
-            if ($timestamp === false) {
+        for ($i = 0; $i < 2 * (self::MAX_RECONCILE_ATTEMPTS + 2); $i++) {
+            $next = self::next_scheduled(self::RECONCILE_HOOK, $args);
+            if ($next === false) {
                 break;
             }
-            wp_unschedule_event($timestamp, self::RECONCILE_HOOK, $args);
+            wp_unschedule_event($next[0], $next[1], $args);
         }
     }
 

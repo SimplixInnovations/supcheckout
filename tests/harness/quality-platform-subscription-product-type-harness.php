@@ -80,7 +80,7 @@ q12_assert(q12_contains($existing_fixture, "return 'existing_type';"), 'pre-exis
 q12_assert(q12_contains($stubs, 'class WC_Product_Simple'), 'analysis stubs declare only the WooCommerce parent boundary');
 q12_assert(!q12_contains($stubs, 'WCProductCustomType'), 'analysis stubs do not mask the production child class');
 
-q12_assert(q12_git_blob_sha($q12_root . '/src/Subscription/Cron/Scheduler.php') === '0b71d3bb04fd2a1f0a87a7f8d41c57d49430cca5', 'protected Scheduler blob remains exact');
+q12_assert(q12_git_blob_sha($q12_root . '/src/Subscription/Cron/Scheduler.php') === '843b28b6d7b79b55767ba444dc37dfc7612bc6d2', 'protected Scheduler blob remains exact');
 q12_assert(q12_git_blob_sha($q12_root . '/src/Subscription/Cron/CycleClaim.php') === '2484a298d13d79088b0e6221001894c99cfde79b', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q12_assert(q12_contains($workflow, 'quality-platform-subscription-product-type-harness.php'), 'Q12 harness is mandatory in Quality Gates');

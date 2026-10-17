@@ -752,6 +752,52 @@ final class Keys {
         return $first;
     }
 
+    /**
+     * The name a Keys::cron_hooks() event is scheduled under right now: the legacy name
+     * until cutover, the new name after.
+     *
+     * @param string $legacy Legacy hook name.
+     * @return string
+     * @throws \InvalidArgumentException When the hook is not a registered cron hook.
+     */
+    public static function cron_hook($legacy) {
+        $new_hook = self::new_cron_hook($legacy);
+        return TakeoverState::is_cut_over() ? $new_hook : (string) $legacy;
+    }
+
+    /**
+     * Every name a Keys::cron_hooks() callback listens on, and every name a "scheduled
+     * already?" check or an unschedule must cover: the legacy name only before `copying`
+     * (exactly today), both names (legacy first) from `copying` on. The cutover keeps the
+     * legacy events until Finalize and schedules a twin under the new name, so both run
+     * the same callback; a runtime unschedule inside the window removes both.
+     *
+     * @param string $legacy Legacy hook name.
+     * @return list<string>
+     * @throws \InvalidArgumentException When the hook is not a registered cron hook.
+     */
+    public static function cron_hook_names($legacy) {
+        $new_hook = self::new_cron_hook($legacy);
+        $status = self::takeover_status();
+        if ($status === TakeoverState::IDLE || $status === TakeoverState::PREFLIGHT_OK) {
+            return array((string) $legacy);
+        }
+        return array((string) $legacy, $new_hook);
+    }
+
+    /**
+     * @param string $legacy Legacy hook name.
+     * @return string
+     * @throws \InvalidArgumentException When the hook is not a registered cron hook.
+     */
+    private static function new_cron_hook($legacy) {
+        $hooks = self::cron_hooks();
+        if (!isset($hooks[$legacy])) {
+            throw new \InvalidArgumentException('Unregistered cron hook: ' . esc_html((string) $legacy));
+        }
+        return $hooks[$legacy];
+    }
+
     /** @return string The gateway id in use right now ('upayments' until cutover). */
     public static function gateway_id() {
         return TakeoverState::is_cut_over() ? self::GATEWAY : self::GATEWAY_LEGACY;

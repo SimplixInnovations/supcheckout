@@ -296,7 +296,7 @@ a4_assert(strpos($composition, 'register_presentation_hooks') !== false && strpo
 // earlier: #71 bfadff3). This harness exited silently before reaching these pins, so they
 // still named the #67 / pre-#71 blobs; they now match the pins in the H12, Q13, Q14, Q16
 // and Q17 harnesses.
-a4_same('0b71d3bb04fd2a1f0a87a7f8d41c57d49430cca5', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
+a4_same('843b28b6d7b79b55767ba444dc37dfc7612bc6d2', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
 a4_same('2484a298d13d79088b0e6221001894c99cfde79b', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
 
 echo "\nArchitecture Subscription Presentation: {$pass} PASS / {$fail} FAIL\n";
