@@ -44,6 +44,9 @@ final class TakeoverState {
     /** Reported by get() for an unreadable stored record; never stored. */
     public const INVALID = 'invalid';
 
+    /** Rollback's progress field (Rollback::PROGRESS). */
+    public const ROLLBACK_PROGRESS = 'rollback';
+
     /** Finalize waits this many days after cut_over unless forced. */
     public const FINALIZE_AFTER_DAYS = 30;
 
@@ -114,8 +117,16 @@ final class TakeoverState {
             return false;
         }
 
+        // Defense in depth (Task 10): a rolled-back store re-enters preflight_ok only once
+        // Rollback recorded its copy removal complete, whoever asks for the transition.
+        if ($current['status'] === self::ROLLED_BACK && $to === self::PREFLIGHT_OK
+            && !(isset($current[self::ROLLBACK_PROGRESS]['removal_pending']) && $current[self::ROLLBACK_PROGRESS]['removal_pending'] === false)
+        ) {
+            return false;
+        }
+
         $now = time();
-        $finalize_due = $current['cut_over_at'] > 0
+        $finalize_due =$current['cut_over_at'] > 0
             && $now - $current['cut_over_at'] >= self::FINALIZE_AFTER_DAYS * self::day_in_seconds();
         if ($to === self::FINALIZED && !$finalize_due && $force !== true) {
             return false;

@@ -67,7 +67,7 @@ final class Rollback {
     public const MODE_ROLLBACK = 'rollback';
     public const MODE_ABORT = 'abort';
     /** State field holding the progress of the current rollback or abort. */
-    public const PROGRESS = 'rollback';
+    public const PROGRESS = TakeoverState::ROLLBACK_PROGRESS;
     /** State field: first journal seq of the current takeover cycle. */
     public const FLOOR = 'journal_floor';
 

@@ -63,7 +63,7 @@ final class TakeoverStateTest extends TestCase {
         foreach (self::STATUSES as $from) {
             foreach (self::STATUSES as $to) {
                 \supcheckout_test_reset_wp_options();
-                self::seed(array('status' => $from, 'cut_over_at' => time() - 31 * self::DAY, 'cursor' => 0, 'totals' => array()));
+                self::seed(array('status' => $from, 'cut_over_at' => time() - 31 * self::DAY, 'cursor' => 0, 'totals' => array(), 'rollback' => array('removal_pending' => false)));
 
                 $expected = in_array($to, self::ALLOWED[$from], true);
                 self::assertSame($expected, TakeoverState::transition($to), "{$from} -> {$to}");
@@ -151,9 +151,24 @@ final class TakeoverStateTest extends TestCase {
         $rolled_back_at = TakeoverState::get()['rolled_back_at'];
         self::assertGreaterThanOrEqual($before, $rolled_back_at);
 
+        self::assertTrue(TakeoverState::patch(array('rollback' => array('removal_pending' => false))));
         self::assertTrue(TakeoverState::transition('preflight_ok'));
         self::assertSame($rolled_back_at, TakeoverState::get()['rolled_back_at'], 'kept as history');
         self::assertFalse(TakeoverState::patch(array('rolled_back_at' => 1)), 'a lifecycle field');
+    }
+
+    public function test_rolled_back_leaves_for_preflight_ok_only_once_the_copy_removal_is_recorded_complete(): void {
+        foreach (array(null, array(), array('removal_pending' => true), array('removal_pending' => 'no'), 'garbage') as $progress) {
+            $state = array('status' => 'rolled_back', 'cut_over_at' => 1, 'cursor' => 0, 'totals' => array());
+            if ($progress !== null) {
+                $state['rollback'] = $progress;
+            }
+            self::seed($state);
+            self::assertFalse(TakeoverState::transition('preflight_ok'), (string) json_encode($progress));
+            self::assertSame('rolled_back', TakeoverState::get()['status']);
+        }
+        self::assertTrue(TakeoverState::patch(array('rollback' => array('removal_pending' => false))));
+        self::assertTrue(TakeoverState::transition('preflight_ok'));
     }
 
     public function test_abort_moves_a_verified_store_back_to_preflight_ok(): void {
