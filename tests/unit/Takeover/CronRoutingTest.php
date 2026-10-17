@@ -40,6 +40,25 @@ final class CronRoutingTest extends TestCase {
         }
     }
 
+    public function test_every_cron_hook_keeps_its_legacy_schedule_name_until_cutover(): void {
+        $hooks = array(
+            'upay_process_subscriptions' => 'supcheckout_process_subscriptions',
+            'simplixpay_upayments_reconcile_order' => 'supcheckout_reconcile_order',
+            'simplixpay_upayments_reconcile_secondary' => 'supcheckout_reconcile_secondary',
+        );
+        $states = array('idle' => false, 'preflight_ok' => false, 'copying' => false, 'verified' => false, 'rolled_back' => false, 'invalid' => false, 'cut_over' => true, 'finalized' => true);
+        foreach ($states as $status => $cut_over) {
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = $status === 'invalid'
+                ? 'not-a-state-record'
+                : (string) json_encode(array('status' => $status, 'cut_over_at' => $cut_over ? 1 : 0, 'cursor' => 0, 'totals' => array()));
+            TakeoverState::flush_cache();
+            self::assertSame($status, TakeoverState::get()['status']);
+            foreach ($hooks as $legacy => $new) {
+                self::assertSame($cut_over ? $new : $legacy, Keys::cron_hook($legacy), $status . ' schedules ' . $legacy);
+            }
+        }
+    }
+
     public function test_only_registered_cron_hooks_are_routed(): void {
         foreach (array('simplixpay_upayments_reconcile_order' => 'supcheckout_reconcile_order', 'simplixpay_upayments_reconcile_secondary' => 'supcheckout_reconcile_secondary') as $legacy => $new) {
             self::assertSame(array($legacy), Keys::cron_hook_names($legacy));

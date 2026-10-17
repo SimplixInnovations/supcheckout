@@ -138,16 +138,20 @@ $cron_pairs = array(
 foreach (array('idle' => false, 'preflight_ok' => false, 'copying' => true, 'verified' => true, 'cut_over' => true, 'rolled_back' => true, 'finalized' => true) as $takeover_status => $both) {
     $listened = array();
     $scheduled = array();
+    $problems_shape = array();
     foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
         if ($entry['kind'] === 'action') {
             $listened[$entry['hook']] = isset($listened[$entry['hook']]) ? $listened[$entry['hook']] + 1 : 1;
         }
         if ($entry['kind'] === 'schedule_call' && $entry['function'] === 'wp_schedule_event') {
             $scheduled[] = $entry['hook'];
+            if ($entry['recurrence'] !== 'hourly' || $entry['args'] !== '[]') {
+                $problems_shape[] = "{$entry['hook']} scheduled with recurrence {$entry['recurrence']} and args {$entry['args']}";
+            }
         }
     }
     $expected_schedule = in_array($takeover_status, array('cut_over', 'finalized'), true) ? array('supcheckout_process_subscriptions') : array('upay_process_subscriptions');
-    $problems = array();
+    $problems = $problems_shape;
     foreach ($cron_pairs as $legacy => $new) {
         if ((isset($listened[$legacy]) ? $listened[$legacy] : 0) !== 1) {
             $problems[] = "{$legacy} listened " . (isset($listened[$legacy]) ? $listened[$legacy] : 0) . ' time(s)';
