@@ -286,7 +286,12 @@ jobs:
           SUPCHECKOUT_CERT_PHASE: verify
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
 
-      # Sub-project 0b Task 10: roll the switched store back, reactivating the stand-in.
+      # Sub-project 0b Task 10: roll the switched store back, reactivating the stand-in. The
+      # stand-in is first replaced by the variant that declares the official plugin's global
+      # symbols, so loading it into the booted rollback process would fatal.
+      - name: Install the official-plugin stand-in that declares the official globals
+        run: cp tests/integration/fixtures/official-upayments-stub-globals.php "$RUNNER_TEMP/wordpress/wp-content/plugins/upayments/UPayments.php"
+
       - name: Roll the switched store back
         env:
           SUPCHECKOUT_CERT_PHASE: rollback
@@ -295,6 +300,11 @@ jobs:
       - name: Verify the rolled-back store
         env:
           SUPCHECKOUT_CERT_PHASE: rolled_back
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Abort a verified copy, then roll back with a later edit (exit 8)
+        env:
+          SUPCHECKOUT_CERT_PHASE: second_cycle
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
 
       - name: Remove takeover fixtures

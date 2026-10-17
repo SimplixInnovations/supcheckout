@@ -92,8 +92,8 @@ if ($phase === 'paused') {
     // never resolvable in this process; check it the way an operator runs it, in a fresh one.
     $help = supcheckout_takeover_cert_wp('help supcheckout takeover');
     supcheckout_cert_assert(
-        $help->return_code === 0 && strpos($help->stdout, 'preflight') !== false && strpos($help->stdout, 'release-stale-claims') !== false,
-        '`wp supcheckout takeover` (preflight, release-stale-claims) is registered by the paused boot: ' . trim($help->stderr)
+        $help->return_code === 0 && strpos($help->stdout, 'preflight') !== false && strpos($help->stdout, 'release-stale-claims') !== false && strpos($help->stdout, 'rollback') !== false && strpos($help->stdout, 'abort') !== false,
+        '`wp supcheckout takeover` (preflight, release-stale-claims, rollback, abort) is registered by the paused boot: ' . trim($help->stderr)
     );
     $crons = function_exists('_get_cron_array') ? (array) _get_cron_array() : array();
     $own_crons = array();
@@ -242,6 +242,41 @@ if ($phase === 'rollback') {
         supcheckout_cert_assert(strpos($rollback->stdout, $step) !== false, 'the rollback reached ' . $step);
     }
     supcheckout_cert_assert(strpos($rollback->stdout, 'rolled_back') < strpos($rollback->stdout, 'copies_removed'), 'the transition happens before the copies are removed');
+    supcheckout_cert_assert(strpos($rollback->stdout . $rollback->stderr, 'Cannot redeclare') === false, 'the reactivation never loaded the official main file into the booted process');
+    // The next fresh process loads the official stand-in (which declares the official
+    // globals) and SUPCheckout pauses itself first.
+    $next = supcheckout_takeover_cert_wp('eval "echo defined(\'SUPCHECKOUT_VERSION\') ? \'booted\' : \'paused\'; echo function_exists(\'woocommerceUpaymentsInit\') ? \' official\' : \' none\';"');
+    supcheckout_cert_assert($next->return_code === 0 && trim($next->stdout) === 'paused official', 'the next fresh wp process runs the official plugin with SUPCheckout paused: ' . $next->stdout . $next->stderr);
+    return;
+}
+
+if ($phase === 'second_cycle') {
+    // Abort out of `verified`, then a rollback with a later edit (exit 8), on the rolled-back
+    // store with the official stand-in (global symbols) active again.
+    supcheckout_cert_assert(is_plugin_active(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL), 'the official plugin stand-in is active');
+    $blocked = supcheckout_takeover_cert_wp('supcheckout takeover run --yes');
+    supcheckout_cert_assert($blocked->return_code === CliCommands::BLOCKED && strpos($blocked->stdout, 'takeover copy: verified') !== false, 'a second run without consent copies and stops at verified (exit 2): ' . $blocked->stdout . $blocked->stderr);
+    $abort = supcheckout_takeover_cert_wp('supcheckout takeover abort --yes');
+    supcheckout_cert_note('abort output: ' . $abort->stdout);
+    supcheckout_cert_assert($abort->return_code === CliCommands::OK && strpos($abort->stdout, 'copies_removed') !== false, 'abort exits 0 and removes the copies: ' . $abort->stdout . $abort->stderr);
+    $status = json_decode(trim(supcheckout_takeover_cert_wp('supcheckout takeover status --format=json')->stdout), true);
+    supcheckout_cert_assert(is_array($status) && $status['status'] === 'preflight_ok' && $status['rollback']['mode'] === 'abort' && !$status['rollback']['removal_pending'], 'the aborted store is preflight_ok with its removal complete');
+
+    $order = supcheckout_takeover_cert_wp('eval "update_option(\'woocommerce_gateway_order\', array(\'bacs\' => 0, \'upayments\' => 1));"');
+    supcheckout_cert_assert($order->return_code === 0, 'gateway order seeded');
+    $run = supcheckout_takeover_cert_wp('supcheckout takeover run --yes --deactivate-official');
+    supcheckout_cert_assert($run->return_code === CliCommands::OK, 'run after the abort cuts over again: ' . $run->stdout . $run->stderr);
+    $edit = supcheckout_takeover_cert_wp('eval "update_option(\'woocommerce_gateway_order\', array(\'supcheckout\' => 0, \'bacs\' => 1, \'upayments\' => 2));"');
+    supcheckout_cert_assert($edit->return_code === 0, 'the merchant reorders the gateways after the cutover');
+    $rollback = supcheckout_takeover_cert_wp('supcheckout takeover rollback --yes --reactivate-official');
+    supcheckout_cert_note('conflict rollback output: ' . $rollback->stdout);
+    supcheckout_cert_assert($rollback->return_code === CliCommands::CONFLICTS, 'a later edit makes the rollback exit 8: ' . $rollback->stdout . $rollback->stderr);
+    supcheckout_cert_assert(preg_match('/conflict: seq [0-9]+ option woocommerce_gateway_order/', $rollback->stdout) === 1, 'the conflict is printed');
+    supcheckout_cert_assert(strpos($rollback->stdout, 'official_reactivated') !== false, 'the recorded official install is reactivated');
+    $kept = supcheckout_takeover_cert_wp('option get woocommerce_gateway_order --format=json');
+    supcheckout_cert_assert(json_decode(trim($kept->stdout), true) === array('supcheckout' => 0, 'bacs' => 1, 'upayments' => 2), 'the newer gateway order is kept: ' . $kept->stdout);
+    $status = json_decode(trim(supcheckout_takeover_cert_wp('supcheckout takeover status --format=json')->stdout), true);
+    supcheckout_cert_assert(is_array($status) && $status['status'] === 'preflight_ok' && in_array('rollback_conflicts', $status['warnings'], true), 'status reports the completed rollback and its conflict');
     return;
 }
 
@@ -294,4 +329,4 @@ if ($phase === 'rolled_back') {
     return;
 }
 
-throw new RuntimeException('Set SUPCHECKOUT_CERT_PHASE to paused, verify, rollback or rolled_back.');
+throw new RuntimeException('Set SUPCHECKOUT_CERT_PHASE to paused, verify, rollback, rolled_back or second_cycle.');
