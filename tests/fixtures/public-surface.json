@@ -1004,6 +1004,14 @@
     {
         "kind": "hook_reference",
         "type": "filter",
+        "hook": "<dynamic:'woocommerce_settings_api_sanitized_fields_'.$this->id>",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
         "hook": "product_type_selector",
         "priority": 10,
         "accepted_args": 1,
@@ -1117,14 +1125,6 @@
         "kind": "hook_reference",
         "type": "filter",
         "hook": "woocommerce_product_data_tabs",
-        "priority": 10,
-        "accepted_args": 1,
-        "contexts": "static"
-    },
-    {
-        "kind": "hook_reference",
-        "type": "filter",
-        "hook": "woocommerce_settings_api_sanitized_fields_upayments",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"

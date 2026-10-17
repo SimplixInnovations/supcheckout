@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Gateway;
 
 use Simplixi\SUPCheckout\Release\Identity;
 use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Takeover\Keys;
 
 defined('ABSPATH') || exit;
 
@@ -134,12 +135,20 @@ final class CheckoutAssets {
      * Single owner for both the canonical gateway enqueue and the embedded
      * template enqueue, so the two paths cannot drift.
      *
+     * After cutover it also carries `gatewayId`, the current gateway id the script
+     * compares the checked payment radio with (0b Task 7); before cutover the payload is
+     * unchanged and the script keeps its `upayments` default.
+     *
      * @return array<string, string>
      */
     public static function new_design_i18n() {
-        return array(
+        $data = array(
             'loginRequired' => __('Please log in to save or use a saved card.', 'supcheckout'),
         );
+        if (Keys::gateway_id() !== Keys::GATEWAY_LEGACY) {
+            $data['gatewayId'] = Keys::gateway_id();
+        }
+        return $data;
     }
 
     /**

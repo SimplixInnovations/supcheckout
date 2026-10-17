@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Admin;
 
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
+use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
  * Gateway settings schema, validation and admin presentation adapter.
@@ -206,18 +207,21 @@ final class GatewaySettings {
      * WooCommerce's generic checkbox validator can normalize it to "yes".
      *
      * @param array $post_data WooCommerce gateway post data.
+     * @param string $gateway_id The current gateway id (Keys::gateway_id()); the legacy id by default.
      * @return array{post_data: array, api_key_missing: bool, multimerchant_missing: bool, multimerchant_invalid: bool}
      */
-    public static function prepare_post_data(array $post_data) {
-        $api_key = array_key_exists('woocommerce_upayments_api_key', $post_data)
-            ? $post_data['woocommerce_upayments_api_key']
+    public static function prepare_post_data(array $post_data, $gateway_id = Keys::GATEWAY_LEGACY) {
+        // WC_Settings_API posts plugin_id . gateway id . "_" . field (0b Task 7: the current id).
+        $prefix = 'woocommerce_' . $gateway_id . '_';
+        $api_key = array_key_exists($prefix . 'api_key', $post_data)
+            ? $post_data[$prefix . 'api_key']
             : null;
         $api_key_missing = !is_string($api_key) || trim($api_key) === '';
         $multimerchant_missing = false;
         $multimerchant_invalid = false;
 
         if (!$api_key_missing) {
-            $checkbox_key = 'woocommerce_upayments_enable_multimerchant';
+            $checkbox_key = $prefix . 'enable_multimerchant';
             $checkbox_present = array_key_exists($checkbox_key, $post_data);
 
             if ($checkbox_present && $post_data[$checkbox_key] !== '1') {
@@ -228,11 +232,11 @@ final class GatewaySettings {
                 $multimerchant_missing = true;
             } elseif ($checkbox_present) {
                 $required = array(
-                    'woocommerce_upayments_iban_number',
-                    'woocommerce_upayments_cc_charge',
-                    'woocommerce_upayments_cc_charge_type',
-                    'woocommerce_upayments_knet_charge',
-                    'woocommerce_upayments_knet_charge_type',
+                    $prefix . 'iban_number',
+                    $prefix . 'cc_charge',
+                    $prefix . 'cc_charge_type',
+                    $prefix . 'knet_charge',
+                    $prefix . 'knet_charge_type',
                 );
                 foreach ($required as $key) {
                     if (!array_key_exists($key, $post_data)
@@ -244,11 +248,11 @@ final class GatewaySettings {
                     }
                 }
                 if (!$multimerchant_missing) {
-                    $iban = $post_data['woocommerce_upayments_iban_number'];
-                    $cc_charge = $post_data['woocommerce_upayments_cc_charge'];
-                    $cc_charge_type = $post_data['woocommerce_upayments_cc_charge_type'];
-                    $knet_charge = $post_data['woocommerce_upayments_knet_charge'];
-                    $knet_charge_type = $post_data['woocommerce_upayments_knet_charge_type'];
+                    $iban = $post_data[$prefix . 'iban_number'];
+                    $cc_charge = $post_data[$prefix . 'cc_charge'];
+                    $cc_charge_type = $post_data[$prefix . 'cc_charge_type'];
+                    $knet_charge = $post_data[$prefix . 'knet_charge'];
+                    $knet_charge_type = $post_data[$prefix . 'knet_charge_type'];
 
                     if (!MultiMerchantContract::is_valid_iban($iban)
                         || !MultiMerchantContract::is_valid_commission_token($cc_charge)
@@ -261,11 +265,11 @@ final class GatewaySettings {
                     }
                 }
             } else {
-                $post_data['woocommerce_upayments_iban_number'] = null;
-                $post_data['woocommerce_upayments_cc_charge'] = null;
-                $post_data['woocommerce_upayments_cc_charge_type'] = null;
-                $post_data['woocommerce_upayments_knet_charge'] = null;
-                $post_data['woocommerce_upayments_knet_charge_type'] = null;
+                $post_data[$prefix . 'iban_number'] = null;
+                $post_data[$prefix . 'cc_charge'] = null;
+                $post_data[$prefix . 'cc_charge_type'] = null;
+                $post_data[$prefix . 'knet_charge'] = null;
+                $post_data[$prefix . 'knet_charge_type'] = null;
             }
         }
 
@@ -347,19 +351,19 @@ final class GatewaySettings {
                         </thead>
                         <tbody>
                             <tr>
-                                <td><input type="text" name="woocommerce_upayments_iban_number" data-field="iban_number" value="<?php echo esc_attr(call_user_func($get_option, 'iban_number')); ?>" placeholder="<?php esc_html_e('KWK00445...', 'supcheckout'); ?>" style="width: 400px;"/></td>
-                                <td><input type="number" name="woocommerce_upayments_knet_charge" data-field="knet_charge" value="<?php echo esc_attr(call_user_func($get_option, 'knet_charge')); ?>" placeholder="<?php esc_html_e('0.000', 'supcheckout'); ?>" min="0.000" max="10.000" step="0.010"/></td>
+                                <td><input type="text" name="woocommerce_<?php echo esc_attr($gateway_id); ?>_iban_number" data-field="iban_number" value="<?php echo esc_attr(call_user_func($get_option, 'iban_number')); ?>" placeholder="<?php esc_html_e('KWK00445...', 'supcheckout'); ?>" style="width: 400px;"/></td>
+                                <td><input type="number" name="woocommerce_<?php echo esc_attr($gateway_id); ?>_knet_charge" data-field="knet_charge" value="<?php echo esc_attr(call_user_func($get_option, 'knet_charge')); ?>" placeholder="<?php esc_html_e('0.000', 'supcheckout'); ?>" min="0.000" max="10.000" step="0.010"/></td>
                                 <td>
-                                    <select data-field="knet_charge_type" name="woocommerce_upayments_knet_charge_type">
+                                    <select data-field="knet_charge_type" name="woocommerce_<?php echo esc_attr($gateway_id); ?>_knet_charge_type">
                                         <option value=""><?php esc_html_e('Select', 'supcheckout'); ?></option>
                                         <?php foreach ($conditions as $value => $label) : ?>
                                             <option value="<?php echo esc_attr($value); ?>" <?php selected($value, call_user_func($get_option, 'knet_charge_type')); ?>><?php echo esc_html($label); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 </td>
-                                <td><input type="number" name="woocommerce_upayments_cc_charge" data-field="cc_charge" value="<?php echo esc_attr(call_user_func($get_option, 'cc_charge')); ?>" placeholder="<?php esc_html_e('0.000', 'supcheckout'); ?>" min="0.000" max="10.000" step="0.010"/></td>
+                                <td><input type="number" name="woocommerce_<?php echo esc_attr($gateway_id); ?>_cc_charge" data-field="cc_charge" value="<?php echo esc_attr(call_user_func($get_option, 'cc_charge')); ?>" placeholder="<?php esc_html_e('0.000', 'supcheckout'); ?>" min="0.000" max="10.000" step="0.010"/></td>
                                 <td>
-                                    <select data-field="cc_charge_type" name="woocommerce_upayments_cc_charge_type">
+                                    <select data-field="cc_charge_type" name="woocommerce_<?php echo esc_attr($gateway_id); ?>_cc_charge_type">
                                         <option value=""><?php esc_html_e('Select', 'supcheckout'); ?></option>
                                         <?php foreach ($conditions as $value => $label) : ?>
                                             <option value="<?php echo esc_attr($value); ?>" <?php selected($value, call_user_func($get_option, 'cc_charge_type')); ?>><?php echo esc_html($label); ?></option>
@@ -413,11 +417,11 @@ final class GatewaySettings {
         );
 
         $hidden_compatibility_rows = implode(', ', array(
-            '.woocommerce table.form-table tr:has(#woocommerce_upayments_iban_number)',
-            '.woocommerce table.form-table tr:has(#woocommerce_upayments_cc_charge)',
-            '.woocommerce table.form-table tr:has(#woocommerce_upayments_cc_charge_type)',
-            '.woocommerce table.form-table tr:has(#woocommerce_upayments_knet_charge)',
-            '.woocommerce table.form-table tr:has(#woocommerce_upayments_knet_charge_type)',
+            '.woocommerce table.form-table tr:has(#woocommerce_' . $gateway_id . '_iban_number)',
+            '.woocommerce table.form-table tr:has(#woocommerce_' . $gateway_id . '_cc_charge)',
+            '.woocommerce table.form-table tr:has(#woocommerce_' . $gateway_id . '_cc_charge_type)',
+            '.woocommerce table.form-table tr:has(#woocommerce_' . $gateway_id . '_knet_charge)',
+            '.woocommerce table.form-table tr:has(#woocommerce_' . $gateway_id . '_knet_charge_type)',
         ));
         wp_add_inline_style(
             'woocommerce_admin_styles',

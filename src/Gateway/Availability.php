@@ -51,13 +51,16 @@ final class Availability {
 
             if ($is_checkout) {
                 $wc = function_exists('WC') ? WC() : null;
-                if ($wc
-                    && $wc->session
-                    && Keys::is_our_gateway($wc->session->get('chosen_payment_method'))
+                $chosen = $wc && $wc->session ? $wc->session->get('chosen_payment_method') : null;
+                if (Keys::is_our_gateway($chosen)
                     && isset($settings['make_default_gateway'])
                     && $settings['make_default_gateway'] !== 'yes'
                 ) {
                     $wc->session->set('chosen_payment_method', null);
+                } elseif (Keys::is_our_gateway($chosen) && $chosen !== $registered_key) {
+                    // A session started before cutover still holds `upayments` (up to
+                    // 48 h): re-point it to our gateway's current id (0b Task 7).
+                    $wc->session->set('chosen_payment_method', $registered_key);
                 }
             }
         }

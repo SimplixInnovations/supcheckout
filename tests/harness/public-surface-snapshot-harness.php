@@ -166,6 +166,37 @@ foreach (array('idle' => false, 'preflight_ok' => false, 'copying' => true, 'ver
     }
 }
 echo "Cron routing: legacy names only before copying, both names from copying on; the hourly tick is scheduled under the new name once cut over.\n";
+// Gateway identity (0b Task 7): the gateway, its Settings-API hooks and the Blocks method
+// carry the current gateway id: upayments in every state before cut_over, supcheckout
+// from cut_over on (checked, never recorded).
+foreach (array('copying' => 'upayments', 'verified' => 'upayments', 'rolled_back' => 'upayments', 'cut_over' => 'supcheckout', 'finalized' => 'supcheckout') as $takeover_status => $gateway_id) {
+    $seen = array('gateway' => array(), 'blocks' => array(), 'fields' => 0, 'hooks' => array());
+    foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
+        if ($entry['kind'] === 'gateway') {
+            $seen['gateway'][] = $entry['id'];
+        } elseif ($entry['kind'] === 'blocks_payment_method') {
+            $seen['blocks'][] = $entry['name'];
+        } elseif ($entry['kind'] === 'gateway_form_field' && $entry['gateway'] === $gateway_id) {
+            $seen['fields']++;
+        } elseif (in_array($entry['kind'], array('action', 'filter'), true) && $entry['registered_in'] === 'gateway_constructor'
+            && preg_match('/^woocommerce_(settings_api_sanitized_fields|update_options_payment_gateways|thankyou)_/', $entry['hook']) === 1
+        ) {
+            $seen['hooks'][] = $entry['hook'];
+        }
+    }
+    sort($seen['hooks']);
+    $expected_hooks = array(
+        'woocommerce_settings_api_sanitized_fields_' . $gateway_id,
+        'woocommerce_thankyou_' . $gateway_id,
+        'woocommerce_update_options_payment_gateways_' . $gateway_id,
+    );
+    if ($seen['gateway'] !== array($gateway_id) || $seen['blocks'] !== array($gateway_id) || $seen['fields'] === 0 || $seen['hooks'] !== $expected_hooks) {
+        echo "FAIL: gateway identity in a {$takeover_status} boot: " . json_encode($seen) . "\n";
+        echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
+        exit(1);
+    }
+}
+echo "Gateway identity: upayments before cut_over, supcheckout (gateway, settings fields, Settings-API hooks, Blocks method) from cut_over on.\n";
 
 $json = json_encode($entries, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 

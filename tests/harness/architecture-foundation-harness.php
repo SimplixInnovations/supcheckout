@@ -392,7 +392,10 @@ function arch_direct_top_level_filter_callback(array $tokens, array $filterSeque
     return array('found' => false, 'body' => array());
 }
 
-$gatewayIdSequence = array('variable:$this', '->', 'name:id', '=', 'string:upayments', ';');
+// 0b Task 7: the id is Keys::gateway_id(), exactly 'upayments' until cutover (pinned by
+// tests/unit/Takeover/DualReadTest.php and the public-surface harness's per-takeover-state
+// gateway-identity check).
+$gatewayIdSequence = array('variable:$this', '->', 'name:id', '=', 'name:Keys', '::', 'name:gateway_id', '(', ')', ';');
 $callbackWithTrailingComma = array(
     'name:add_action', '(', 'string:woocommerce_api_', '.', 'name:strtolower', '(', 'string:WC_UPayments', ')', ',',
     '[', 'variable:$this', ',', 'string:check_ipn_response', ',', ']', ')', ';',
@@ -700,7 +703,7 @@ $constructor = arch_direct_public_method($gatewayClassTokens, '__construct');
 arch_assert($constructor['found'], 'Gateway constructor remains public and executable');
 arch_assert(
     arch_has_token_sequence($constructor['body'], $gatewayIdSequence),
-    'gateway ID remains executable in Gateway::__construct and bound to upayments'
+    'gateway ID remains executable in Gateway::__construct and bound to Keys::gateway_id() (upayments until cutover)'
 );
 arch_assert(
     arch_has_token_sequence($constructor['body'], $callbackWithTrailingComma)

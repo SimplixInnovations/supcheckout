@@ -23,10 +23,13 @@ class PaymentMethodType extends AbstractPaymentMethodType {
 
     public function __construct( $pluginFile ) {
         $this->pluginFile = $pluginFile;
+        // The Blocks / Store API identity is the gateway id: 'upayments' until the takeover
+        // cutover, 'supcheckout' after (0b Task 7).
+        $this->name = Keys::gateway_id();
     }
 
     public function get_name() {
-        return 'upayments';
+        return $this->name;
     }
 
     public function initialize() {
@@ -312,6 +315,23 @@ class PaymentMethodType extends AbstractPaymentMethodType {
                 'other_options_label'   => __('Other Options', 'supcheckout'),
             ],
             'supports'    => [ 'products' ],
+        ] + self::takeover_identity();
+    }
+
+    /**
+     * After cutover the client registers under the current gateway id and posts its
+     * checkout data under the current Store API extensions namespace; both are localized
+     * here. Before cutover nothing is added and the client keeps its `upayments` defaults.
+     *
+     * @return array<string, string>
+     */
+    private static function takeover_identity() {
+        if ( Keys::gateway_id() === Keys::GATEWAY_LEGACY ) {
+            return [];
+        }
+        return [
+            'payment_method_name' => Keys::gateway_id(),
+            'extension_namespace' => Keys::extension_namespace(),
         ];
     }
 }

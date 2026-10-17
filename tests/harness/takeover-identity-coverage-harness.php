@@ -164,21 +164,15 @@ $gateway_sites = array(
     // What remains is either permanent or derives from the gateway id itself, which
     // switches at cutover (Task 7): the gateway declarations, the Settings-API names and
     // classes, and the client scripts that post or compare that id.
-    'src/Admin/GatewaySettings.php' => array(
-        'woocommerce_upayments_api_key' => array_fill(0, 2, 'settings_field'),
-        'woocommerce_upayments_enable_multimerchant' => array('settings_field'),
-        'woocommerce_upayments_iban_number' => array_fill(0, 5, 'settings_field'),
-        'woocommerce_upayments_cc_charge' => array_fill(0, 5, 'settings_field'),
-        'woocommerce_upayments_cc_charge_type' => array_fill(0, 5, 'settings_field'),
-        'woocommerce_upayments_knet_charge' => array_fill(0, 5, 'settings_field'),
-        'woocommerce_upayments_knet_charge_type' => array_fill(0, 5, 'settings_field'),
-    ),
+    // Task 7 derived every WC_Settings_API name (GatewaySettings POST fields, row inputs and
+    // admin selectors; the sanitized-fields hook) and the gateway / Blocks registration id
+    // from the current gateway id (Keys::gateway_id()), so those literals are gone. The
+    // client scripts keep only their pre-cutover defaults and the legacy lookup.
     'src/Blocks/PaymentMethodType.php' => array(
-        'upayments' => array('gateway_declaration', 'gateway_declaration', 'logger_source'),
+        'upayments' => array('gateway_declaration', 'logger_source'),
     ),
     'src/Gateway/Gateway.php' => array(
-        'upayments' => array('legacy_text_domain', 'gateway_declaration', 'logger_source'),
-        'woocommerce_settings_api_sanitized_fields_upayments' => array('snapshot_hook'),
+        'upayments' => array('legacy_text_domain', 'logger_source'),
     ),
     'src/Migration/MigrationSettings.php' => array('woocommerce_upayments_settings' => array('compat_constant')),
     'src/Payment/CheckoutPayload.php' => array('upayments' => array('payment_type_sentinel')),
@@ -194,15 +188,12 @@ $gateway_sites = array(
     ),
     'templates/new-design-form.php' => array('upayments' => array('payment_type_sentinel')),
     'assets/js/admin-settings.js' => array(
-        'woocommerce_upayments_use_new_design' => array('settings_field'),
-        'woocommerce_upayments_enable_save_card' => array('settings_field'),
-        'woocommerce_upayments_enable_multimerchant' => array('settings_field'),
+        'woocommerce_upayments_' => array('settings_field'),
     ),
     'assets/js/new-upay.js' => array(
-        'payment_method_upayments' => array('css_class'),
         'upayments' => array('ownership_check'),
     ),
-    'assets/js/upayments-block.js' => array('upayments' => array('gateway_declaration', 'extension_namespace', 'gateway_declaration')),
+    'assets/js/upayments-block.js' => array('upayments' => array('gateway_declaration', 'gateway_declaration', 'extension_namespace')),
 );
 
 /**
