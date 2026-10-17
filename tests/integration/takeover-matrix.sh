@@ -12,7 +12,8 @@
 #                       SHA-256 manifest digest, install it as wp-content/plugins/upayments.
 #                       Nothing from the archive is executed here: it is only copied, and
 #                       WordPress later loads it as a plugin inside this disposable runtime.
-#   sinkhole            resolve every UPayments host to 0.0.0.0 / :: (IPv4 and IPv6), so
+#   sinkhole            resolve every UPayments host to 0.0.0.0 / :: (IPv4 and IPv6) and prove
+#                       a raw HTTPS request to each fails, so
 #                       the official plugin's raw cURL can never reach the provider
 #   start-server        serve the store on http://127.0.0.1:8080 (PHP built-in server)
 #   phase <name>        run one TakeoverMatrixTest.php phase
@@ -82,6 +83,15 @@ case "$step" in
       done
       [[ -n "$addresses" ]] || { echo "Sinkhole failed: $host does not resolve" >&2; exit 74; }
       echo "SINKHOLE: $host -> $addresses"
+    done
+    # Proof, not just resolution: a raw HTTPS request to every UPayments host (live and
+    # sandbox API included) must fail to connect.
+    for host in "${hosts[@]}"; do
+      if curl -sS --max-time 5 -o /dev/null "https://${host}/" 2>/dev/null; then
+        echo "Sinkhole failed: a raw request to https://${host}/ succeeded" >&2
+        exit 75
+      fi
+      echo "SINKHOLE: https://${host}/ is unreachable"
     done
     ;;
 
