@@ -93,7 +93,9 @@ function supcheckout_matrix_assert_cut_over_store(array $manifest) {
     }
     supcheckout_cert_note(count($manifest['orders']) . ' seeded orders verify, legacy and new row lists equal');
     $whs = wc_get_order((int) $manifest['roles']['whs_multi']);
-    supcheckout_cert_assert(OrderCopier::values($whs, '_supcheckout_public_status') === array('failed', 'completed'), 'the multi-valued UPayments_WHS kept both rows, in order');
+    $whs_legacy = OrderCopier::values($whs, 'UPayments_WHS');
+    $whs_new = OrderCopier::values($whs, '_supcheckout_public_status');
+    supcheckout_cert_assert(is_array($whs_legacy) && count($whs_legacy) >= 2 && $whs_new === $whs_legacy, 'the multi-valued UPayments_WHS kept every row, in order: legacy ' . wp_json_encode($whs_legacy) . ' new ' . wp_json_encode($whs_new));
     supcheckout_cert_assert(get_option(Keys::SETTINGS_OPTION) === get_option('woocommerce_upayments_settings'), 'settings copied verbatim from woocommerce_upayments_settings, the legacy option kept');
     supcheckout_cert_assert(has_action('woocommerce_api_wc_upayments') !== false && has_action('woocommerce_api_supcheckout') !== false, 'both callback routes are served');
     foreach (array('UP_PLUGIN_URL', 'UP_PLUGIN_PATH', 'UPAYMENTS_PLUGIN_FILE', 'UPayments_PLUGIN_URL', 'UPayments_PLUGIN_PATH') as $constant) {
@@ -209,6 +211,8 @@ if ($phase === 'seed') {
         supcheckout_matrix_save('block-page.json', array('page' => $page));
     }
     supcheckout_cert_assert(count($manifest['orders']) === SUPCHECKOUT_MATRIX_ORDER_TARGET, 'seeded ' . count($manifest['orders']) . ' official orders');
+    $whs_rows = supcheckout_matrix_raw_order_meta((int) $manifest['roles']['whs_multi'], array('UPayments_WHS'));
+    supcheckout_cert_assert(count($whs_rows) >= 2, 'the WHS order holds several UPayments_WHS rows in storage: ' . wp_json_encode($whs_rows));
     return;
 }
 
