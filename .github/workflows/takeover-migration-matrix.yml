@@ -1,0 +1,424 @@
+name: Takeover Migration Matrix
+
+# Sub-project 0b Task 12: the real-WordPress migration matrix for the takeover engine
+# (docs/superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md, Task 12).
+#
+# Official-plugin cells: the real official UPayments plugin, downloaded from
+# github.com/upaymentskwt/woocommerce at a pinned commit (provenance below), on HPOS
+# (compatibility sync off) and legacy storage. Each cell runs plan steps 1-8 and, as a
+# separately guarded phase, step 9 (finalize, 0b Task 11): it runs only on a build whose
+# `wp supcheckout takeover` has `finalize`.
+#
+# WCML dimension: WPML/WCML are paid and licensed and are never installed in CI (AGENTS.md).
+# The HPOS cells seed WCML's gateway-restriction option shapes and assert the takeover's
+# actual contract for them (reported by Preflight for review, never written, journaled or
+# restored); the legacy cells run without them. 4 refs x 2 storage modes covers WCML on and
+# off for every ref and both storage modes for every ref in 8 cells instead of 16. Real WCML
+# is covered by the owner's staging rehearsal (the staging store runs WPML/WCML).
+#
+# Provider traffic: none. Every UPayments host is sinkholed in /etc/hosts (the official
+# plugin calls the provider with raw cURL), and tests/integration/fixtures/
+# takeover-matrix-mu-plugin.php answers SUPCheckout's WordPress HTTP API requests from
+# per-step fixtures and refuses everything else.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/Takeover/**'
+      - 'supcheckout.php'
+      - '.github/workflows/takeover-migration-matrix.yml'
+      - 'tests/integration/Takeover*'
+      - 'tests/integration/takeover-matrix.sh'
+      - 'tests/integration/lib/takeover-matrix-lib.php'
+      - 'tests/integration/fixtures/official-plugin-seed.php'
+      - 'tests/integration/fixtures/takeover-matrix-mu-plugin.php'
+      - 'scripts/install-wp-test-environment.sh'
+      - 'scripts/build-release.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'src/Takeover/**'
+      - 'supcheckout.php'
+      - '.github/workflows/takeover-migration-matrix.yml'
+      - 'tests/integration/Takeover*'
+      - 'tests/integration/takeover-matrix.sh'
+      - 'tests/integration/lib/takeover-matrix-lib.php'
+      - 'tests/integration/fixtures/official-plugin-seed.php'
+      - 'tests/integration/fixtures/takeover-matrix-mu-plugin.php'
+      - 'scripts/install-wp-test-environment.sh'
+      - 'scripts/build-release.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MATRIX_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+  WP_VERSION: '7.1.3'
+  WC_VERSION: '11.1.2'
+  # Last main commit before Sub-project 0b Task 1 (#173): the last pre-0b SUPCheckout.
+  PRE_0B_SHA: '0cef28dbcf35d3ec5e669f3c0b46f580069c4c31'
+
+concurrency:
+  group: takeover-matrix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  official-matrix:
+    name: Official ${{ matrix.ref }} / ${{ matrix.storage }} / WCML ${{ matrix.wcml }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: [V2.0.5, upayments-V2.2.1, '3.0.0', '3.1.1']
+        storage: [hpos, legacy]
+        include:
+          # Provenance: github.com/upaymentskwt/woocommerce, resolved with `git ls-remote`
+          # on 2026-10-18 (2.x exist only as branches; 3.x are tags). `tree` is the SHA-256 of
+          # the sorted `sha256sum` list of every file in the codeload archive of that commit.
+          - ref: V2.0.5
+            commit: 830ae6abbe9f8e7a0b0e477db91832705c9dc1de
+            tree: 729de85cece1727da1fd7de9a733eae937908e42c19083603dc65948bda8496d
+            version: '2.0.5'
+          - ref: upayments-V2.2.1
+            commit: fe02cf65809ad4eccc519de22a7a4c2f1659a96a
+            tree: 0ee281e21a9eecdc2295a1947ce94864ca98587c665843281f90972335a01081
+            version: '2.2.1'
+          - ref: '3.0.0'
+            commit: 5a2efd4d859db2b8d583f3f9fe230eac300d2dc7
+            tree: c00e144ea436e0fb00f0b4d52023a33f5adb3d224899701501799cbed8df7bf9
+            version: '3.0.0'
+          - ref: '3.1.1'
+            commit: 0916b6d8b7adcbf02983e534db1c89bf6029f143
+            tree: d95581891b709091987d8897d64c1a469d38ceed6731bae5562b5b67c890024f
+            version: '3.1.1'
+          - storage: hpos
+            wcml: 'yes'
+          - storage: legacy
+            wcml: 'no'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      SUPCHECKOUT_MATRIX_OFFICIAL_VERSION: ${{ matrix.version }}
+      SUPCHECKOUT_MATRIX_STORAGE: ${{ matrix.storage }}
+      SUPCHECKOUT_MATRIX_WCML: ${{ matrix.wcml }}
+      WP_CLI_BIN: /tmp/wp-cli.phar
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.MATRIX_SOURCE_SHA }}
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip, posix
+          coverage: none
+          tools: none
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+
+      - name: Install real WordPress and WooCommerce
+        run: bash scripts/install-wp-test-environment.sh "$WP_VERSION" "$WC_VERSION" "$RUNNER_TEMP/wordpress"
+
+      - name: Sinkhole every UPayments host (no provider traffic)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for host in upayments.com www.upayments.com api.upayments.com apiv2api.upayments.com sandboxapi.upayments.com uapi.upayments.com sandbox.upayments.com; do
+            echo "0.0.0.0 $host" | sudo tee -a /etc/hosts >/dev/null
+          done
+          getent hosts sandboxapi.upayments.com | grep -q '^0\.0\.0\.0'
+
+      - name: Configure the disposable runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          wp() { /tmp/wp-cli.phar "$@" --path="$RUNNER_TEMP/wordpress"; }
+          # No WP-Cron request may run the official plugin's hourly renewal job.
+          wp config set DISABLE_WP_CRON true --raw
+          wp option update woocommerce_coming_soon no
+          if [[ "${{ matrix.storage }}" == "hpos" ]]; then
+            wp option update woocommerce_custom_orders_table_enabled yes
+          else
+            wp option update woocommerce_custom_orders_table_enabled no
+          fi
+          wp option update woocommerce_custom_orders_table_data_sync_enabled no
+          mkdir -p "$RUNNER_TEMP/wordpress/wp-content/mu-plugins" "$RUNNER_TEMP/matrix"
+          cp tests/integration/fixtures/takeover-matrix-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-matrix.php"
+          echo "SUPCHECKOUT_MATRIX_DIR=$RUNNER_TEMP/matrix" >> "$GITHUB_ENV"
+          bash tests/integration/takeover-matrix.sh start-server "$RUNNER_TEMP/wordpress"
+
+      - name: 1. Install and activate the official plugin ${{ matrix.ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/takeover-matrix.sh install-official "$RUNNER_TEMP/wordpress" "${{ matrix.commit }}" "${{ matrix.tree }}" "${{ matrix.version }}"
+          /tmp/wp-cli.phar plugin activate upayments --path="$RUNNER_TEMP/wordpress"
+
+      - name: 2. Seed the official store
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" seed
+
+      - name: 3-4. Activate SUPCheckout (paused) and run preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
+          bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" paused
+
+      - name: 5 + 7. Kill the copy runner mid-batch, then resume run --yes --deactivate-official
+        run: bash tests/integration/takeover-matrix.sh interrupted-run "$RUNNER_TEMP/wordpress"
+
+      - name: 6. Verify the switched store, a new order and the renewal
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" verify
+
+      - name: 6. Legacy-route webhook pays the pending pre-switch order once
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/integration/takeover-matrix.sh webhook "$RUNNER_TEMP/wordpress"
+          bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" webhook
+
+      - name: 8. Roll back and reactivate the official plugin
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" rollback
+
+      - name: 8. Verify the rolled-back store byte for byte
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" rolled_back
+
+      - name: 9. Run again (same result)
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" rerun
+
+      # Step 9, finalize (0b Task 11): skipped with a note when this build has no
+      # `wp supcheckout takeover finalize`; active as soon as Task 11 is merged.
+      - name: 9. Finalize forced after review (guarded)
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" finalize
+
+      - name: 9. Verify the finalized store (guarded)
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" finalized
+
+      - name: Web server log
+        if: ${{ failure() }}
+        run: tail -n 200 "$RUNNER_TEMP/takeover-matrix-http.log" || true
+
+  pre-0b-lane:
+    name: Pre-0b SUPCheckout in-place update / hpos
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      SUPCHECKOUT_MATRIX_STORAGE: hpos
+      WP_CLI_BIN: /tmp/wp-cli.phar
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.MATRIX_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip, posix
+          coverage: none
+          tools: none
+
+      - name: Build the pre-0b and the current packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRE_SOURCE="$RUNNER_TEMP/pre-0b-source"
+          mkdir -p "$RUNNER_TEMP/pre-0b-output" "$RUNNER_TEMP/current-output"
+          git worktree add --detach "$PRE_SOURCE" "$PRE_0B_SHA"
+          (cd "$PRE_SOURCE" && bash scripts/build-release.sh "$RUNNER_TEMP/pre-0b-output")
+          git worktree remove --force "$PRE_SOURCE"
+          bash scripts/build-release.sh "$RUNNER_TEMP/current-output"
+          PRE_ZIP="$(find "$RUNNER_TEMP/pre-0b-output" -maxdepth 1 -name 'supcheckout-*.zip' -print -quit)"
+          CURRENT_ZIP="$(find "$RUNNER_TEMP/current-output" -maxdepth 1 -name 'supcheckout-*.zip' -print -quit)"
+          test -n "$PRE_ZIP" && test -n "$CURRENT_ZIP"
+          if unzip -Z1 "$PRE_ZIP" | grep -q '^supcheckout/src/Takeover/'; then
+            echo 'The pre-0b package unexpectedly ships the takeover engine' >&2
+            exit 1
+          fi
+          unzip -Z1 "$CURRENT_ZIP" | grep -Fqx 'supcheckout/src/Takeover/Cli.php'
+          echo "PRE_ZIP=$PRE_ZIP" >> "$GITHUB_ENV"
+          echo "CURRENT_ZIP=$CURRENT_ZIP" >> "$GITHUB_ENV"
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+
+      - name: Install the pre-0b package as the active installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUPCHECKOUT_PLUGIN_ZIP="$PRE_ZIP" bash scripts/install-wp-test-environment.sh "$WP_VERSION" "$WC_VERSION" "$RUNNER_TEMP/wordpress"
+          wp() { /tmp/wp-cli.phar "$@" --path="$RUNNER_TEMP/wordpress"; }
+          wp config set DISABLE_WP_CRON true --raw
+          wp option update woocommerce_coming_soon no
+          wp option update woocommerce_custom_orders_table_enabled yes
+          wp option update woocommerce_custom_orders_table_data_sync_enabled no
+          for host in upayments.com api.upayments.com apiv2api.upayments.com sandboxapi.upayments.com uapi.upayments.com sandbox.upayments.com; do
+            echo "0.0.0.0 $host" | sudo tee -a /etc/hosts >/dev/null
+          done
+          mkdir -p "$RUNNER_TEMP/wordpress/wp-content/mu-plugins" "$RUNNER_TEMP/matrix"
+          cp tests/integration/fixtures/takeover-matrix-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-matrix.php"
+          echo "SUPCHECKOUT_MATRIX_DIR=$RUNNER_TEMP/matrix" >> "$GITHUB_ENV"
+          wp plugin activate supcheckout
+          bash tests/integration/takeover-matrix.sh start-server "$RUNNER_TEMP/wordpress"
+
+      - name: Seed H12 saved card, subscription parent, billing table and migration ledgers (pre-0b runtime)
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" pre0b_seed
+
+      - name: Update in place to the current package (no deactivation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar plugin install "$CURRENT_ZIP" --force --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar eval '1;' --path="$RUNNER_TEMP/wordpress"
+
+      - name: Take over, then verify saved cards and the renewal under the new names
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" pre0b_switch
+
+      - name: Roll back
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" pre0b_rollback
+
+      - name: Run again (same result)
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" pre0b_rerun
+
+  large-store:
+    name: Official 3.1.1 / legacy / 10,000 orders
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      SUPCHECKOUT_MATRIX_OFFICIAL_VERSION: '3.1.1'
+      SUPCHECKOUT_MATRIX_STORAGE: legacy
+      SUPCHECKOUT_MATRIX_LARGE_ORDERS: '10000'
+      # Seconds for copy + verify + cutover of the 10,000 orders.
+      SUPCHECKOUT_MATRIX_COPY_BUDGET: '1800'
+      WP_CLI_BIN: /tmp/wp-cli.phar
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.MATRIX_SOURCE_SHA }}
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip, posix
+          coverage: none
+          tools: none
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+
+      - name: Install WordPress, WooCommerce and the official plugin 3.1.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install-wp-test-environment.sh "$WP_VERSION" "$WC_VERSION" "$RUNNER_TEMP/wordpress"
+          wp() { /tmp/wp-cli.phar "$@" --path="$RUNNER_TEMP/wordpress"; }
+          wp config set DISABLE_WP_CRON true --raw
+          wp option update woocommerce_coming_soon no
+          wp option update woocommerce_custom_orders_table_enabled no
+          wp option update woocommerce_custom_orders_table_data_sync_enabled no
+          for host in upayments.com api.upayments.com apiv2api.upayments.com sandboxapi.upayments.com uapi.upayments.com sandbox.upayments.com; do
+            echo "0.0.0.0 $host" | sudo tee -a /etc/hosts >/dev/null
+          done
+          mkdir -p "$RUNNER_TEMP/wordpress/wp-content/mu-plugins" "$RUNNER_TEMP/matrix"
+          cp tests/integration/fixtures/takeover-matrix-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-matrix.php"
+          echo "SUPCHECKOUT_MATRIX_DIR=$RUNNER_TEMP/matrix" >> "$GITHUB_ENV"
+          bash tests/integration/takeover-matrix.sh install-official "$RUNNER_TEMP/wordpress" 0916b6d8b7adcbf02983e534db1c89bf6029f143 d95581891b709091987d8897d64c1a469d38ceed6731bae5562b5b67c890024f 3.1.1
+          wp plugin activate upayments
+          bash tests/integration/takeover-matrix.sh start-server "$RUNNER_TEMP/wordpress"
+
+      - name: Seed 10,000 official orders
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_seed
+
+      - name: Activate SUPCheckout (paused) and take over within budget, at most 50 orders per batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
+          bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_run
+
+  takeover-matrix-gate:
+    name: Takeover Migration Matrix Gate
+    if: ${{ always() }}
+    needs: [official-matrix, pre-0b-lane, large-store]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every matrix cell and lane
+        env:
+          OFFICIAL_RESULT: ${{ needs.official-matrix.result }}
+          PRE_0B_RESULT: ${{ needs.pre-0b-lane.result }}
+          LARGE_RESULT: ${{ needs.large-store.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$OFFICIAL_RESULT" = "success"
+          test "$PRE_0B_RESULT" = "success"
+          test "$LARGE_RESULT" = "success"
