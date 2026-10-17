@@ -248,6 +248,52 @@ foreach (array(
     coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "running ({$scenario}): no PHP warning, notice or deprecation");
 }
 
+// Sub-project 0b Task 9: the paused branch (PausedBoot) registers exactly the takeover CLI
+// under WP-CLI and, on a Preflight probe request alone, the probe answer on the new route;
+// nothing else, no global symbol, and only takeover classes load.
+$paused_files = 'SRC_FILES:["Autoloader.php","Gateway/OfficialPluginConflict.php","Takeover/Cli.php","Takeover/LegacyCallbackListener.php","Takeover/PausedBoot.php"]';
+$cli_command = '"supcheckout takeover=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Cli"';
+foreach (array(
+    'official_first' => $official_first,
+    'ours_first' => $ours_first,
+    'notice_admin' => $notice_admin,
+    'notice_shopper' => $notice_shopper,
+    'sitewide' => $sitewide,
+    'shim_official' => $shim_official,
+) as $scenario => $result) {
+    coexistence_assert(strpos($result['out'], 'OTHER_HOOKS:[]') !== false, "paused ({$scenario}): a web request registers nothing but the conflict notice");
+    coexistence_assert(strpos($result['out'], 'CLI_COMMANDS:[]') !== false, "paused ({$scenario}): no command outside WP-CLI");
+    coexistence_assert(strpos($result['out'], 'GLOBALS_ADDED:[]') !== false, "paused ({$scenario}): no global function or class is declared");
+}
+coexistence_assert(strpos($official_first['out'], $paused_files) !== false, 'paused: only the autoloader, the conflict guard and takeover classes load');
+$paused_cli = coexistence_run($root, 'paused_cli', $official_stub);
+coexistence_assert($paused_cli['code'] === 0 && strpos($paused_cli['out'], 'DIAGNOSTICS:[]') !== false, 'paused under WP-CLI: loads without error or diagnostic');
+coexistence_assert(strpos($paused_cli['out'], 'CLI_COMMANDS:[' . $cli_command . ']') !== false, 'paused under WP-CLI: exactly the `wp supcheckout takeover` command is registered');
+coexistence_assert(
+    strpos($paused_cli['out'], 'OTHER_HOOKS:[]') !== false && strpos($paused_cli['out'], 'GATEWAY_HOOKS:[]') !== false && strpos($paused_cli['out'], 'COPY_RUNNER_HOOKS:0') !== false,
+    'paused under WP-CLI: no gateway, route, cron or other hook'
+);
+coexistence_assert(strpos($paused_cli['out'], 'GLOBALS_ADDED:[]') !== false && strpos($paused_cli['out'], 'SUPCHECKOUT_VERSION:undefined') !== false, 'paused under WP-CLI: no global symbol, the runtime stays unloaded');
+coexistence_assert(strpos($paused_cli['out'], $paused_files) !== false, 'paused under WP-CLI: only takeover classes load at boot');
+coexistence_assert(strpos($paused_cli['out'], 'OFFICIAL_LOADED') !== false, 'paused under WP-CLI: the official plugin keeps working');
+$paused_probe = coexistence_run($root, 'paused_probe', $official_stub);
+coexistence_assert(
+    $paused_probe['code'] === 0
+        && strpos($paused_probe['out'], 'OTHER_HOOKS:["woocommerce_api_supcheckout=Simplixi\\\\SUPCheckout\\\\Takeover\\\\LegacyCallbackListener::handle_probe"]') !== false,
+    'paused probe request: only the probe answer on the new, unshared route (never woocommerce_api_wc_upayments, never the lifecycle)'
+);
+coexistence_assert(strpos($paused_probe['out'], 'GLOBALS_ADDED:[]') !== false && strpos($paused_probe['out'], 'CLI_COMMANDS:[]') !== false, 'paused probe request: no global symbol, no command');
+$paused_environment = coexistence_run($root, 'paused_cli_environment', $official_stub);
+coexistence_assert($paused_environment['code'] === 0 && strpos($paused_environment['out'], 'DIAGNOSTICS:[]') !== false, 'paused CLI reading its install directory: no error or diagnostic');
+coexistence_assert(strpos($paused_environment['out'], 'OWN_DIR:supcheckout-main') !== false, 'paused CLI: the own install directory comes from plugin_basename(), whatever the directory is named');
+coexistence_assert(
+    strpos($paused_environment['out'], 'OTHER_HOOKS:[]') !== false && strpos($paused_environment['out'], 'GATEWAY_HOOKS:[]') !== false,
+    'paused CLI reading its install directory: no woocommerce_api_wc_upayments, reconcile cron or other hook is registered (Release/Identity.php never loads)'
+);
+coexistence_assert(strpos($paused_environment['out'], 'Release/Identity.php') === false && strpos($paused_environment['out'], 'Payment/PaymentLifecycle.php') === false, 'paused CLI: neither Identity.php nor PaymentLifecycle.php is loaded');
+$alone_cli = coexistence_run($root, 'alone_cli', $official_stub);
+coexistence_assert(strpos($alone_cli['out'], $cli_command) !== false && strpos($alone_cli['out'], 'SUPCHECKOUT_VERSION:defined') !== false, 'running under WP-CLI: the full boot registers `wp supcheckout takeover` too');
+
 @unlink($official_stub);
 @unlink($plugins_dir . '/upayments/UPayments.php');
 @rmdir($plugins_dir . '/upayments');
@@ -275,9 +321,9 @@ function coexistence_child($root, $scenario, $official_stub) {
     $own = 'supcheckout/supcheckout.php';
     $active = array($own);
     $sitewide = array();
-    $official_loads_first = in_array($scenario, array('official_first', 'official_namespaces', 'both_running_official_first'), true);
+    $official_loads_first = in_array($scenario, array('official_first', 'official_namespaces', 'both_running_official_first', 'paused_cli', 'paused_probe', 'paused_cli_environment'), true);
     $official_loads_second = in_array($scenario, array('ours_first', 'official_namespaces_ours_first', 'both_running_ours_first'), true);
-    if (in_array($scenario, array('official_first', 'ours_first', 'notice_admin', 'notice_shopper', 'official_namespaces', 'official_namespaces_ours_first'), true)) {
+    if (in_array($scenario, array('official_first', 'ours_first', 'notice_admin', 'notice_shopper', 'official_namespaces', 'official_namespaces_ours_first', 'paused_cli', 'paused_probe', 'paused_cli_environment'), true)) {
         $active = array($own, 'upayments/UPayments.php');
     } elseif ($scenario === 'sitewide') {
         $sitewide = array('upayments/UPayments.php' => time());
@@ -310,14 +356,39 @@ function coexistence_child($root, $scenario, $official_stub) {
     );
 
     coexistence_define_wordpress_stubs($root);
-
+    // Sub-project 0b Task 9: WP-CLI (records commands) and the Preflight probe request.
+    $GLOBALS['coexistence']['cli_commands'] = array();
+    if ($scenario === 'paused_cli_environment') {
+        $GLOBALS['coexistence']['install_dir'] = 'supcheckout-main';
+    }
+    if ($scenario === 'paused_cli' || $scenario === 'alone_cli' || $scenario === 'paused_cli_environment') {
+        define('WP_CLI', true);
+        eval('final class WP_CLI { public static function add_command($name, $callable, $args = array()) { $GLOBALS["coexistence"]["cli_commands"][] = array((string) $name, $callable); return true; } }');
+    }
+    if ($scenario === 'paused_probe') {
+        $_GET = array('wc-api' => 'supcheckout', 'supcheckout_probe' => '1');
+    }
     if ($official_loads_first) {
         require $official_stub;
     }
+    // Global symbols right before the main file loads, so the paused branch can be shown
+    // to declare nothing global.
+    $functions_before = get_defined_functions()['user'];
+    $classes_before = array_merge(get_declared_classes(), get_declared_interfaces());
     if ($scenario === 'shim' || $scenario === 'shim_official') {
         require $root . '/UPayments.php';
     } else {
         require $root . '/supcheckout.php';
+    }
+    // 0b Task 9 review: the paused CLI reads its own install directory for Preflight
+    // (Environment::from_wordpress()). That must load nothing that registers payment hooks
+    // and must follow the real install directory, here not named `supcheckout`.
+    if ($scenario === 'paused_cli_environment') {
+        $own_dir = new ReflectionMethod('Simplixi\SUPCheckout\Takeover\Environment', 'own_plugin_dir_from_wordpress');
+        if (PHP_VERSION_ID < 80100) {
+            $own_dir->setAccessible(true);
+        }
+        echo 'OWN_DIR:' . $own_dir->invoke(null) . "\n";
     }
     // Observed before any official stub loads, so only SUPCheckout's own declarations count.
     // The bootstrap is the plugins_loaded requirement check Plugin::boot() registers
@@ -348,6 +419,36 @@ function coexistence_child($root, $scenario, $official_stub) {
             $copy_runner_hooks++;
         }
     }
+    $globals_added = array();
+    foreach (array_diff(get_defined_functions()['user'], $functions_before) as $function) {
+        $globals_added[] = 'function:' . $function;
+    }
+    foreach (array_diff(array_merge(get_declared_classes(), get_declared_interfaces()), $classes_before) as $class) {
+        if (strpos($class, 'Simplixi\\SUPCheckout\\') !== 0 && strpos($class, 'UPayments\\') !== 0 && !in_array($class, array('WC_Upayments', 'WCGatewayUPaymentsBlocks'), true)) {
+            $globals_added[] = 'class:' . $class;
+        }
+    }
+    // SUPCheckout files loaded while the main file ran (relative to src/).
+    $src_files = array();
+    $src = str_replace('\\', '/', $root) . '/src/';
+    foreach (get_included_files() as $file) {
+        $file = str_replace('\\', '/', $file);
+        if (strpos($file, $src) === 0) {
+            $src_files[] = substr($file, strlen($src));
+        }
+    }
+    sort($src_files);
+    // Every hook SUPCheckout registered other than the paused conflict notice.
+    $other_hooks = array();
+    foreach (array_merge($GLOBALS['coexistence']['actions'], $GLOBALS['coexistence']['filters']) as $registration) {
+        if ($registration[0] !== 'admin_notices') {
+            $other_hooks[] = (string) $registration[0] . '=' . (is_array($registration[1]) && is_string($registration[1][0]) ? $registration[1][0] . '::' . $registration[1][1] : 'callable');
+        }
+    }
+    $cli_commands = array();
+    foreach ($GLOBALS['coexistence']['cli_commands'] as $command) {
+        $cli_commands[] = $command[0] . '=' . (is_string($command[1]) ? $command[1] : 'callable');
+    }
     if ($official_loads_second) {
         require $official_stub;
     }
@@ -365,6 +466,10 @@ function coexistence_child($root, $scenario, $official_stub) {
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
     echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
     echo 'COPY_RUNNER_HOOKS:' . $copy_runner_hooks . "\n";
+    echo 'OTHER_HOOKS:' . json_encode($other_hooks, JSON_UNESCAPED_SLASHES) . "\n";
+    echo 'CLI_COMMANDS:' . json_encode($cli_commands, JSON_UNESCAPED_SLASHES) . "\n";
+    echo 'GLOBALS_ADDED:' . json_encode(array_values($globals_added), JSON_UNESCAPED_SLASHES) . "\n";
+    echo 'SRC_FILES:' . json_encode($src_files, JSON_UNESCAPED_SLASHES) . "\n";
     foreach (array('UP_PLUGIN_URL', 'UP_PLUGIN_PATH', 'UPAYMENTS_PLUGIN_FILE', 'SUPCHECKOUT_PLUGIN_URL', 'SUPCHECKOUT_PLUGIN_PATH') as $constant) {
         $owner = !defined($constant) ? 'undefined' : (strpos((string) constant($constant), '/upayments/') !== false ? 'official' : 'ours');
         echo $constant . ':' . $owner . "\n";
@@ -382,7 +487,7 @@ function coexistence_define_wordpress_stubs($root) {
     eval(<<<'PHP'
 function plugin_dir_url($file) { return 'https://merchant.example.test/wp-content/plugins/' . basename(dirname((string) $file)) . '/'; }
 function plugin_dir_path($file) { return dirname((string) $file) . DIRECTORY_SEPARATOR; }
-function plugin_basename($file) { return 'supcheckout/' . basename((string) $file); }
+function plugin_basename($file) { return (isset($GLOBALS['coexistence']['install_dir']) ? $GLOBALS['coexistence']['install_dir'] : 'supcheckout') . '/' . basename((string) $file); }
 function update_option($name, $value, $autoload = null) { $GLOBALS['coexistence']['options'][$name] = $value; return true; }
 function update_site_option($name, $value) { $GLOBALS['coexistence']['site_options'][$name] = $value; return true; }
 function get_option($name, $default = false) { return array_key_exists($name, $GLOBALS['coexistence']['options']) ? $GLOBALS['coexistence']['options'][$name] : $default; }

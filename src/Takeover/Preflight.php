@@ -38,6 +38,7 @@ defined('ABSPATH') || exit;
  */
 final class Preflight {
     public const OFFICIAL_PLUGIN_ACTIVE = 'official_plugin_active';
+    public const OFFICIAL_NETWORK_ACTIVE = 'official_network_active';
     public const CREDENTIAL_UNVERIFIED = 'credential_unverified';
     public const ACCOUNT_MODE = 'account_mode';
     public const CURRENCY_UNSUPPORTED = 'currency_unsupported';
@@ -106,6 +107,7 @@ final class Preflight {
     public static function codes() {
         return array(
             self::OFFICIAL_PLUGIN_ACTIVE => self::FACT,
+            self::OFFICIAL_NETWORK_ACTIVE => self::BLOCKING,
             self::CREDENTIAL_UNVERIFIED => self::BLOCKING,
             self::ACCOUNT_MODE => self::FACT,
             self::CURRENCY_UNSUPPORTED => self::BLOCKING,
@@ -144,6 +146,7 @@ final class Preflight {
 
         $findings = array(
             self::official_plugin_active($official_plugins),
+            self::official_network_active($official_plugins, $env),
             $settings_finding,
             self::credential_unverified($settings, $availability),
             self::account_mode($settings, $availability),
@@ -193,6 +196,30 @@ final class Preflight {
         return self::finding(self::FACT, self::OFFICIAL_PLUGIN_ACTIVE,
             __('The official UPayments plugin is active. SUPCheckout stays paused until the switch deactivates it.', 'supcheckout'),
             array('plugins' => $active));
+    }
+
+    /**
+     * The takeover state, journal and data are per site, but deactivating a network-activated
+     * plugin turns it off on every site of the network. Network takeover is out of scope, so
+     * it blocks (fail closed).
+     *
+     * @param list<array{slug:string, basename:string, path:string, version:string, active:bool}> $plugins
+     * @param Environment $env Environment.
+     * @return array{severity:string, code:string, message:string, data:array<string,mixed>}|null
+     */
+    private static function official_network_active(array $plugins, Environment $env) {
+        $network = array();
+        foreach ($plugins as $plugin) {
+            if (in_array($plugin['basename'], $env->network_active_plugins(), true)) {
+                $network[] = $plugin['basename'];
+            }
+        }
+        if ($network === array()) {
+            return null;
+        }
+        return self::finding(self::BLOCKING, self::OFFICIAL_NETWORK_ACTIVE,
+            __('The official UPayments plugin is network-activated. The switch works one site at a time and deactivating the plugin would turn it off on every site, so it is not supported. Activate the official plugin per site first.', 'supcheckout'),
+            array('plugins' => $network));
     }
 
     /**

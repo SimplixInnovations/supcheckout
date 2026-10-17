@@ -28,10 +28,17 @@ defined('ABSPATH') || exit;
  *  7. third-party: WooCommerce's gateway order / default gateway (ThirdPartyTranslator;
  *     WCML, FunnelKit and anything else are reported only);
  *  8. recheck right before the switch: the lease is still held and renewed, nothing is in
- *     flight, the table and the settings/options still verify;
+ *     flight, the table and the settings/options still verify, and the official plugin is
+ *     inactive (`official_active` otherwise, checked again right before the swap);
  *  9. transition verified → cut_over (compare-and-swap);
- * 10. flush this process's caches (TakeoverState::refresh());
- * 11. if consented, deactivate the official plugin.
+ * 10. flush this process's caches (TakeoverState::refresh()).
+ *
+ * Never with the official plugin active (amended in the Task 9 review): it runs its own
+ * renewal cron and callbacks, ignores the lease and writes legacy-only billing meta, so a
+ * renewal it charged around the switch could be charged again from a stale new-name copy.
+ * The caller deactivates it before the run (CliCommands; 0c later); a fresh switch never
+ * deactivates anything. Deactivation with consent remains only for a store already cut over
+ * whose official plugin is active again (the already_cut_over run).
  * The lease is released in `finally`, on every path.
  *
  * Any mismatch, refusal or exception before step 9 ends the run with `ok: false` and the
@@ -47,7 +54,8 @@ defined('ABSPATH') || exit;
  * rerun converges (the journal may then hold a second entry for a path that a crash left
  * journaled but unwritten; Rollback treats an entry whose path already holds its
  * before-value as restored). A crash after step 9 leaves `cut_over` with all data in
- * place; running Cutover again only performs step 11.
+ * place; running Cutover again only deactivates an official plugin that is active again
+ * (with consent).
  */
 final class Cutover {
     /** Seconds the drain waits for in-flight claim holders at most. */
@@ -86,7 +94,8 @@ final class Cutover {
     }
 
     /**
-     * @param bool $deactivate_official Deactivate the official plugin once cut over (owner consent).
+     * @param bool $deactivate_official For a store already cut over only: deactivate an
+     *                                  official plugin that is active again (owner consent).
      * @return array{ok:bool, steps:list<string>, error:string|null, warnings:list<string>, report:array<string, mixed>}
      */
     public function run($deactivate_official) {
@@ -122,7 +131,7 @@ final class Cutover {
             Quiesce::release($this->lease);
             $this->lease = null;
         }
-        return $this->finish_tail((bool) $deactivate_official);
+        return $this->result(null);
     }
 
     /**
@@ -176,7 +185,11 @@ final class Cutover {
             return $recheck;
         }
         $this->step('rechecked');
-        // Immediately before the compare-and-swap: the lease must still be ours.
+        // Immediately before the compare-and-swap: the official plugin must still be
+        // inactive and the lease must still be ours.
+        if ($this->system->official_plugin() !== null) {
+            return 'official_active';
+        }
         if (!$this->holds()) {
             return 'lease_lost';
         }
@@ -209,6 +222,11 @@ final class Cutover {
         if (!$settings['ok'] || !ThirdPartyTranslator::is_translated()) {
             $this->report['settings_mismatches'] = $settings['mismatches'];
             return 'settings_mismatch';
+        }
+        $official = $this->system->official_plugin();
+        if ($official !== null) {
+            $this->report['official'] = $official;
+            return 'official_active';
         }
         return $this->holds() ? null : 'lease_lost';
     }
@@ -428,7 +446,8 @@ final class Cutover {
     }
 
     /**
-     * Step 11 (and the whole run for a store already cut over).
+     * The whole run for a store already cut over: with consent, deactivate an official
+     * plugin that is active again.
      *
      * @param bool $deactivate_official Consent.
      * @return array{ok:bool, steps:list<string>, error:string|null, warnings:list<string>, report:array<string, mixed>}
@@ -441,8 +460,8 @@ final class Cutover {
             } elseif ($this->system->deactivate_plugin($official)) {
                 $this->step('official_deactivated');
             } else {
-                // Cut over regardless; SUPCheckout stays paused until the owner deactivates it,
-                // so the caller must not report a plain success.
+                // Still cut over; SUPCheckout stays paused until the owner deactivates it, so
+                // the caller must not report a plain success.
                 $this->step('official_still_active');
                 $this->warnings[] = 'official_still_active';
                 $this->report['warnings'] = $this->warnings;

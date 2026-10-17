@@ -1053,9 +1053,9 @@ arch2_assert(
     $gatewayExecutable === 'defined(ABSPATH)||exit;'
         . 'require_once__DIR__./src/Autoloader.php;'
         . '\\Simplixi\\SUPCheckout\\Autoloader::register(__DIR__./src);'
-        . 'if(\\Simplixi\\SUPCheckout\\Gateway\\OfficialPluginConflict::pause_if_active(__FILE__)){return;}'
+        . 'if(\\Simplixi\\SUPCheckout\\Gateway\\OfficialPluginConflict::pause_if_active(__FILE__)){\\Simplixi\\SUPCheckout\\Takeover\\PausedBoot::boot(__FILE__);return;}'
         . '\\Simplixi\\SUPCheckout\\Plugin::boot(__FILE__);',
-    'main file is exactly the bootstrap: ABSPATH guard, autoloader, early-return official-plugin pause guard, Plugin::boot(__FILE__)'
+    'main file is exactly the bootstrap: ABSPATH guard, autoloader, official-plugin pause guard that boots only the takeover entry points (0b Task 9 PausedBoot) and returns early, Plugin::boot(__FILE__)'
 );
 $subscriptionComposition = arch2_read($root, 'src/Subscription/Composition.php');
 
@@ -1086,8 +1086,10 @@ arch2_assert(
             . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();'
             // 0b Task 6: the takeover copy runner, registered only while copying.
             . 'CopyRunner::register();'
+            // 0b Task 9: `wp supcheckout takeover`, registered only under WP-CLI.
+            . 'TakeoverCli::register();'
             . 'self::load_runtime(self::$main_file);',
-    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner, then loads the former main-file runtime'
+    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner and CLI, then loads the former main-file runtime'
 );
 // The former main-file runtime block (constants, ordered loads, release constants) is pinned
 // exactly: before Task 5 the main-file byte ratchet guarded it, so a dropped or reordered

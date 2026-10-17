@@ -57,3 +57,6 @@ function wp_schedule_event($timestamp, $recurrence, $hook, $args = array(), $wp_
  * @return void
  */
 function deactivate_plugins($plugins, $silent = false, $network_wide = null) {}
+
+/** wpdb result shape (0b Task 9 stale-claims store). */
+define('ARRAY_A', 'ARRAY_A');

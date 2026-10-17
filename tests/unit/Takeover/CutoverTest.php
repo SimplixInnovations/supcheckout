@@ -26,6 +26,9 @@ final class CutoverTest extends TestCase {
         self::state('verified');
         $this->store = new FakeCopyStore();
         $this->system = new FakeCutoverSystem();
+        // The official plugin is deactivated before Cutover runs (CliCommands, 0c); a run
+        // with it active is refused (official_active tests below).
+        $this->system->official = null;
     }
 
     protected function tearDown(): void {
@@ -63,7 +66,7 @@ final class CutoverTest extends TestCase {
         $result = $this->cutover()->run(true);
 
         self::assertTrue($result['ok'], json_encode($result));
-        self::assertSame(array('quiesced', 'drained', 'verified_objects', 'table_synced', 'settings_copied', 'cron_rescheduled', 'third_party_translated', 'rechecked', 'cut_over', 'caches_flushed', 'official_deactivated'), $result['steps']);
+        self::assertSame(array('quiesced', 'drained', 'verified_objects', 'table_synced', 'settings_copied', 'cron_rescheduled', 'third_party_translated', 'rechecked', 'cut_over', 'caches_flushed'), $result['steps'], 'no post-switch deactivation: the plugin was inactive before the switch');
         self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
         self::assertTrue(TakeoverState::is_cut_over());
         foreach (array('drained', 'table_synced', 'settings_copied', 'third_party_translated', 'rechecked') as $step) {
@@ -91,7 +94,7 @@ final class CutoverTest extends TestCase {
             'supcheckout_reconcile_order@1800000600:[7]:false',
             'supcheckout_process_subscriptions@1800003600:[]:"hourly"',
         ), $twins, 'legacy events kept, twins scheduled under the new names');
-        self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated);
+        self::assertSame(array(), $this->system->deactivated);
 
         $targets = array_count_values(array_column(Journal::entries(), 'target'));
         self::assertSame(array('option' => 3, 'cron' => 2), $targets);
@@ -348,21 +351,54 @@ final class CutoverTest extends TestCase {
         self::assertFalse(Quiesce::is_active($this->system->now), 'the lease is released');
     }
 
+    public function test_an_active_official_plugin_refuses_the_switch_and_leaves_the_store_verified(): void {
+        $this->seed_store();
+        $this->system->official = 'upayments/UPayments.php';
+
+        $result = $this->cutover()->run(true);
+
+        self::assertFalse($result['ok']);
+        self::assertSame('official_active', $result['error']);
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+        self::assertFalse(TakeoverState::is_cut_over());
+        self::assertNotContains('cut_over', $result['steps']);
+        self::assertSame(array(), $this->system->deactivated, 'Cutover never deactivates on a fresh switch');
+        self::assertFalse(Quiesce::is_active($this->system->now), 'the lease is released');
+    }
+
+    public function test_an_official_plugin_reactivated_after_the_recheck_still_refuses_right_before_the_swap(): void {
+        $this->seed_store();
+        $system = $this->system;
+        $this->system->on_step = static function ($step) use ($system) {
+            if ($step === 'rechecked') {
+                $system->official = 'upayments/UPayments.php';
+            }
+        };
+
+        $result = $this->cutover()->run(true);
+
+        self::assertSame('official_active', $result['error']);
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+        self::assertNotContains('cut_over', $result['steps']);
+    }
+
     public function test_a_store_already_cut_over_only_finishes_the_tail(): void {
         self::state('cut_over');
+        $this->system->official = 'upayments/UPayments.php';
         $result = $this->cutover()->run(true);
         self::assertTrue($result['ok']);
         self::assertSame(array('already_cut_over', 'official_deactivated'), $result['steps']);
         self::assertFalse(Quiesce::is_active(1800000000));
     }
 
-    public function test_an_official_plugin_that_stays_active_is_a_warning_not_a_plain_success(): void {
-        $this->seed_store();
+    public function test_a_cut_over_store_whose_official_plugin_stays_active_is_a_warning_not_a_plain_success(): void {
+        self::state('cut_over');
+        $this->system->official = 'upayments/UPayments.php';
         $this->system->deactivate_fails = true;
 
         $result = $this->cutover()->run(true);
 
-        self::assertTrue($result['ok'], 'the store is cut over regardless');
+        self::assertTrue($result['ok'], 'the store stays cut over');
         self::assertSame(array('official_still_active'), $result['warnings']);
         self::assertSame(array('official_still_active'), $result['report']['warnings']);
         self::assertSame(array(), $this->cutover()->run(false)['warnings'], 'a clean run has no warnings');

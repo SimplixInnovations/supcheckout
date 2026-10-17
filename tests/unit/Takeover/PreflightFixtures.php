@@ -66,6 +66,7 @@ final class PreflightFixtures {
             'plugins_dir' => '',
             'own_plugin_dir' => 'supcheckout',
             'active_plugins' => array(),
+            'network_active_plugins' => array(),
             'object_cache_transient' => static function ($name) {
                 return false;
             },

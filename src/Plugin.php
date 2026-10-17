@@ -12,6 +12,7 @@ use Simplixi\SUPCheckout\Gateway\GatewayRegistration;
 use Simplixi\SUPCheckout\Release\Identity;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\SchedulerBootstrap;
+use Simplixi\SUPCheckout\Takeover\Cli as TakeoverCli;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
 
 /**
@@ -43,6 +44,7 @@ final class Plugin {
         SchedulerBootstrap::register();
         SubscriptionActions::register();
         CopyRunner::register();
+        TakeoverCli::register();
         self::load_runtime(self::$main_file);
     }
 

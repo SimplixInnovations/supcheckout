@@ -37,8 +37,19 @@ final class OfficialPluginConflict {
      * @return string|null Basename of the conflicting active plugin, if any.
      */
     public static function conflicting_plugin($plugin_file) {
+        $conflicts = self::conflicting_plugins($plugin_file);
+        return $conflicts === array() ? null : $conflicts[0];
+    }
+
+    /**
+     * Every conflicting active plugin, in activation order (site entries, then network).
+     *
+     * @param string $plugin_file Absolute path of the SUPCheckout main file.
+     * @return list<string> Basenames.
+     */
+    public static function conflicting_plugins($plugin_file) {
         if (!function_exists('get_option') || !function_exists('plugin_basename')) {
-            return null;
+            return array();
         }
         // Every entry inside SUPCheckout's own directory is ours, including the
         // transitional supcheckout/UPayments.php shim; only other directories count.
@@ -51,16 +62,18 @@ final class OfficialPluginConflict {
                 $active = array_merge($active, array_keys($sitewide));
             }
         }
+        $conflicts = array();
         foreach ($active as $basename) {
             if (is_string($basename)
                 && ($own_dir === '.' || dirname($basename) !== $own_dir)
                 && basename($basename) === self::MAIN_FILE
                 && self::is_loadable($basename)
+                && !in_array($basename, $conflicts, true)
             ) {
-                return $basename;
+                $conflicts[] = $basename;
             }
         }
-        return null;
+        return $conflicts;
     }
 
     /**
