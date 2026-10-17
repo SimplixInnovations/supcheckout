@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Blocks;
 
+defined('ABSPATH') || exit;
+
 // Use the necessary Blocks Interfaces
 use Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType;
 use Simplixi\SUPCheckout\Admin\GatewaySettings;

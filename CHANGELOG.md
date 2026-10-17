@@ -6,6 +6,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Clean core: unused pseudo-crypto helpers removed; Blocks file guarded (Sub-project 0a Task 7)
+
+- The gateway class `Simplixi\SUPCheckout\Gateway\Gateway` no longer has the public methods `encrypt()`, `decrypt()` and `getApiKey()`. They were base64 and bcrypt wrappers that SUPCheckout never called, and their names suggested a protection they did not give. Third-party code that calls them on the `upayments` gateway object must stop doing so.
+- The public compatibility wrapper `getAPIUrlForRetreiveCards()` is unchanged.
+- `src/Blocks/PaymentMethodType.php` now exits when loaded directly outside WordPress (`defined('ABSPATH') || exit;`).
+
 ### Clean core: `includes/` moves into `src/` (Sub-project 0a Task 6)
 
 - The former `includes/` classes now live in `src/` under `Simplixi\SUPCheckout\`. The autoloader loads them. They are:
