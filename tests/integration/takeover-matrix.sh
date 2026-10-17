@@ -12,6 +12,8 @@
 #                       SHA-256 manifest digest, install it as wp-content/plugins/upayments.
 #                       Nothing from the archive is executed here: it is only copied, and
 #                       WordPress later loads it as a plugin inside this disposable runtime.
+#   sinkhole            resolve every UPayments host to 0.0.0.0 / :: (IPv4 and IPv6), so
+#                       the official plugin's raw cURL can never reach the provider
 #   start-server        serve the store on http://127.0.0.1:8080 (PHP built-in server)
 #   phase <name>        run one TakeoverMatrixTest.php phase
 #   interrupted-run     kill `run` mid copy batch (SIGKILL), check, then resume it
@@ -66,6 +68,21 @@ case "$step" in
     rm -rf "$wp_root/wp-content/plugins/upayments"
     cp -R "$top" "$wp_root/wp-content/plugins/upayments"
     rm -rf "$work"
+    ;;
+
+  sinkhole)
+    hosts=(upayments.com www.upayments.com api.upayments.com apiv2api.upayments.com sandboxapi.upayments.com uapi.upayments.com sandbox.upayments.com)
+    for host in "${hosts[@]}"; do
+      printf '0.0.0.0 %s\n:: %s\n' "$host" "$host" | sudo tee -a /etc/hosts >/dev/null
+    done
+    for host in "${hosts[@]}"; do
+      addresses="$(getent ahosts "$host" | awk '{print $1}' | sort -u | tr '\n' ' ')"
+      for address in $addresses; do
+        [[ "$address" == '0.0.0.0' || "$address" == '::' ]] || { echo "Sinkhole failed: $host -> $addresses" >&2; exit 74; }
+      done
+      [[ -n "$addresses" ]] || { echo "Sinkhole failed: $host does not resolve" >&2; exit 74; }
+      echo "SINKHOLE: $host -> $addresses"
+    done
     ;;
 
   start-server)

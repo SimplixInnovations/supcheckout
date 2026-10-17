@@ -147,13 +147,7 @@ jobs:
         run: bash scripts/install-wp-test-environment.sh "$WP_VERSION" "$WC_VERSION" "$RUNNER_TEMP/wordpress"
 
       - name: Sinkhole every UPayments host (no provider traffic)
-        shell: bash
-        run: |
-          set -euo pipefail
-          for host in upayments.com www.upayments.com api.upayments.com apiv2api.upayments.com sandboxapi.upayments.com uapi.upayments.com sandbox.upayments.com; do
-            echo "0.0.0.0 $host" | sudo tee -a /etc/hosts >/dev/null
-          done
-          getent hosts sandboxapi.upayments.com | grep -q '^0\.0\.0\.0'
+        run: bash tests/integration/takeover-matrix.sh sinkhole "$RUNNER_TEMP/wordpress"
 
       - name: Configure the disposable runtime
         shell: bash
@@ -303,9 +297,7 @@ jobs:
           wp option update woocommerce_coming_soon no
           wp option update woocommerce_custom_orders_table_enabled yes
           wp option update woocommerce_custom_orders_table_data_sync_enabled no
-          for host in upayments.com api.upayments.com apiv2api.upayments.com sandboxapi.upayments.com uapi.upayments.com sandbox.upayments.com; do
-            echo "0.0.0.0 $host" | sudo tee -a /etc/hosts >/dev/null
-          done
+          bash tests/integration/takeover-matrix.sh sinkhole "$RUNNER_TEMP/wordpress"
           mkdir -p "$RUNNER_TEMP/wordpress/wp-content/mu-plugins" "$RUNNER_TEMP/matrix"
           cp tests/integration/fixtures/takeover-matrix-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-matrix.php"
           echo "SUPCHECKOUT_MATRIX_DIR=$RUNNER_TEMP/matrix" >> "$GITHUB_ENV"
@@ -388,9 +380,7 @@ jobs:
           wp option update woocommerce_coming_soon no
           wp option update woocommerce_custom_orders_table_enabled no
           wp option update woocommerce_custom_orders_table_data_sync_enabled no
-          for host in upayments.com api.upayments.com apiv2api.upayments.com sandboxapi.upayments.com uapi.upayments.com sandbox.upayments.com; do
-            echo "0.0.0.0 $host" | sudo tee -a /etc/hosts >/dev/null
-          done
+          bash tests/integration/takeover-matrix.sh sinkhole "$RUNNER_TEMP/wordpress"
           mkdir -p "$RUNNER_TEMP/wordpress/wp-content/mu-plugins" "$RUNNER_TEMP/matrix"
           cp tests/integration/fixtures/takeover-matrix-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-matrix.php"
           echo "SUPCHECKOUT_MATRIX_DIR=$RUNNER_TEMP/matrix" >> "$GITHUB_ENV"
