@@ -82,4 +82,46 @@ final class OrderLockTest extends TestCase {
         self::assertNull(OrderLock::acquire(42));
         self::assertSame('malformed', $GLOBALS['supcheckout_test_options'][$name]);
     }
+
+    public function test_conditional_sql_compares_the_stored_value_bytewise(): void {
+        $name = 'simplixpay_upay_order_lock_v1_42';
+        $GLOBALS['supcheckout_test_options'][$name] = '1:' . str_repeat('a', 32);
+        $queries = array();
+        $GLOBALS['wpdb']->before_query = function ($statement) use (&$queries) {
+            $queries[] = $statement['query'];
+        };
+
+        $token = OrderLock::acquire(42);
+        OrderLock::release(42, $token);
+
+        $conditional = array_values(array_filter($queries, function ($query) {
+            return strpos($query, 'UPDATE ') === 0 || strpos($query, 'DELETE ') === 0;
+        }));
+        self::assertCount(2, $conditional, 'stale recovery and release');
+        foreach ($conditional as $query) {
+            self::assertStringContainsString('WHERE option_name = %s AND CAST(option_value AS BINARY) = CAST(%s AS BINARY)', $query);
+        }
+        self::assertArrayNotHasKey($name, $GLOBALS['supcheckout_test_options']);
+    }
+
+    public function test_a_case_or_padding_variant_of_the_expected_value_never_matches(): void {
+        $GLOBALS['supcheckout_test_options']['supcheckout_cas_probe'] = '{"status":"copying"}';
+
+        self::assertFalse(OrderLock::replace_if_current('supcheckout_cas_probe', '{"STATUS":"COPYING"}', 'lost-update'));
+        self::assertFalse(OrderLock::replace_if_current('supcheckout_cas_probe', '{"status":"copying"} ', 'lost-update'));
+        self::assertSame('{"status":"copying"}', $GLOBALS['supcheckout_test_options']['supcheckout_cas_probe']);
+
+        self::assertTrue(OrderLock::replace_if_current('supcheckout_cas_probe', '{"status":"copying"}', '{"status":"verified"}'));
+        self::assertSame('{"status":"verified"}', $GLOBALS['supcheckout_test_options']['supcheckout_cas_probe']);
+    }
+
+    public function test_the_public_compare_and_swap_fails_closed_on_invalid_input(): void {
+        $GLOBALS['supcheckout_test_options']['supcheckout_cas_probe'] = 'a';
+
+        self::assertFalse(OrderLock::replace_if_current('', 'a', 'b'));
+        self::assertFalse(OrderLock::replace_if_current(array('supcheckout_cas_probe'), 'a', 'b'));
+        self::assertFalse(OrderLock::replace_if_current('supcheckout_cas_probe', null, 'b'));
+        self::assertFalse(OrderLock::replace_if_current('supcheckout_cas_probe', 'a', array('b')));
+        self::assertSame('a', $GLOBALS['supcheckout_test_options']['supcheckout_cas_probe']);
+    }
 }

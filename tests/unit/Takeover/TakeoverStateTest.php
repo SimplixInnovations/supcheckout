@@ -112,7 +112,7 @@ final class TakeoverStateTest extends TestCase {
 
         self::assertCount(1, $queries);
         self::assertStringStartsWith('UPDATE ', $queries[0]['query']);
-        self::assertStringContainsString('AND option_value = %s', $queries[0]['query']);
+        self::assertStringContainsString('AND CAST(option_value AS BINARY) = CAST(%s AS BINARY)', $queries[0]['query'], 'bytewise, not collation-equal');
         self::assertSame(self::OPTION, $queries[0]['args'][1]);
         self::assertSame($before, $queries[0]['args'][2], 'the swap is conditional on the value that was read');
         self::assertContains(array(self::OPTION, 'options'), $GLOBALS['supcheckout_test_cache_deletes']);
