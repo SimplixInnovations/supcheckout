@@ -49,6 +49,36 @@ final class QuiesceClaimsTest extends TestCase {
         }
     }
 
+    /**
+     * 0b Task 10 review: a cutover or rollback that switched the table in use between the
+     * claim and its verdict (its lease already released) loses the claim: it is released on
+     * the table it was taken in, so no worker holds a claim in the table no longer in use.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a_claim_taken_in_a_table_that_stopped_being_in_use_is_released(): void {
+        foreach (array('acquire', 'acquire_with_snapshot', 'reclaim_stale_claimed') as $method) {
+            $db = self::boot();
+            $switch = static function () {
+                $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => 'cut_over', 'cut_over_at' => 1, 'cursor' => 0, 'totals' => array()));
+            };
+            if ($method === 'reclaim_stale_claimed') {
+                $db->rows[self::KEY] = self::row('claimed');
+                $db->on_update = $switch;
+                $won = CycleClaim::reclaim_stale_claimed(self::KEY, 10, self::OWNER);
+            } else {
+                $db->on_insert = $switch;
+                $won = $method === 'acquire'
+                    ? CycleClaim::acquire(self::KEY, 10, self::OWNER, '2026-10-17 00:00:00')
+                    : CycleClaim::acquire_with_snapshot(self::KEY, 10, self::OWNER, '2026-10-17 00:00:00', '10.000', 'KWD');
+            }
+            self::assertFalse($won, $method . ': reported as lost');
+            self::assertSame('delete', end($db->log), $method . ': released');
+            self::assertSame('wp_upayments_billing_attempts', end($db->tables), $method . ': on the table it was taken in');
+            self::assertSame(array(), $db->rows, $method);
+        }
+    }
+
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
     public function test_a_reclaim_that_raced_the_lease_is_released_again(): void {

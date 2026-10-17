@@ -354,11 +354,31 @@ class CycleClaim
      */
     private static function won(bool $owned, string $cycle_key, string $owner_token): bool
     {
-        $won = $owned && !self::released_for_quiesce($cycle_key, $owner_token);
+        $won = $owned
+            && !self::released_for_quiesce($cycle_key, $owner_token)
+            && !self::released_for_table_switch($cycle_key, $owner_token);
         if (!$won) {
             self::unpin($cycle_key, $owner_token);
         }
         return $won;
+    }
+
+    /**
+     * A takeover cutover or rollback may have switched the table in use between the claim
+     * and this verdict, its lease already released. The claim (still `claimed`, so no
+     * provider POST was sent) is then released on the table it was taken in and reported
+     * lost: no worker ever proceeds with a claim in the table no longer in use.
+     *
+     * @return bool True when the claim was given up.
+     */
+    private static function released_for_table_switch(string $cycle_key, string $owner_token): bool
+    {
+        TakeoverState::refresh();
+        if (self::table_for($cycle_key, $owner_token) === self::table_name()) {
+            return false;
+        }
+        self::release_claimed($cycle_key, $owner_token);
+        return true;
     }
 
     /**
