@@ -82,4 +82,5 @@ parameters:
         - src/Takeover/WordPressStaleClaimStore.php
         - src/Takeover/CliCommands.php
         - src/Takeover/Cli.php
+        - src/Takeover/PausedBoot.php
     tmpDir: .cache/phpstan

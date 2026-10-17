@@ -842,6 +842,14 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "woocommerce_api_supcheckout",
+        "priority": 5,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "woocommerce_api_wc_upayments",
         "priority": 5,
         "accepted_args": 1,

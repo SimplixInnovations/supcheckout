@@ -1175,7 +1175,9 @@ $gateway = arch3_read($root, 'supcheckout.php');
 // wrapper exception is deleted. The official-plugin pause guard is an early return,
 // and the direct/unconditional rules below apply to the main file as written.
 $gatewayTokens = arch3_tokens($gateway);
-$pauseGuard = 'if(\\Simplixi\\SUPCheckout\\Gateway\\OfficialPluginConflict::pause_if_active(__FILE__)){return;}';
+$pauseGuard = 'if(\\Simplixi\\SUPCheckout\\Gateway\\OfficialPluginConflict::pause_if_active(__FILE__)){\\Simplixi\\SUPCheckout\\Takeover\\PausedBoot::boot(__FILE__);return;}';
+// 0b Task 9: the paused branch boots only PausedBoot (takeover CLI and probe answer), then
+// returns; tests/harness/official-plugin-coexistence-harness.php pins what it registers.
 $gatewayCompact = '';
 foreach ($gatewayTokens as $gatewayToken) {
     $gatewayCompact .= $gatewayToken['text'];

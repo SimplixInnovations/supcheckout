@@ -40,7 +40,9 @@ defined('ABSPATH') || exit;
  * seconds): payment truth is unaffected, because paid state is the WooCommerce order
  * status set only after authenticated provider status by whichever plugin handles the
  * callback, and that field is never renamed or copied; a legacy-only meta written in that
- * window is still read through Keys' legacy fallback when no new value exists.
+ * window is still read through Keys' legacy fallback when no new value exists (a key that
+ * already had a copied value, such as an extra UPayments_WHS row, keeps the copy: the
+ * Task 12 matrix covers a legacy-route webhook in that window).
  */
 final class CliCommands {
     public const OK = 0;
@@ -315,11 +317,7 @@ final class CliCommands {
             $code = isset(self::CUTOVER_EXIT[$error]) ? self::CUTOVER_EXIT[$error] : self::ERROR;
             return $this->fail($code, 'cutover refused: ' . $error . '; the store was not switched');
         }
-        foreach ($result['steps'] as $step) {
-            if ($step === 'official_deactivated') {
-                $this->line('takeover cutover: official_deactivated');
-            }
-        }
+        $this->line('takeover cutover steps: ' . implode(', ', $result['steps']));
         if (in_array('official_still_active', $result['warnings'], true)) {
             $this->line('warning: official_still_active');
             return $this->fail(self::OFFICIAL_STILL_ACTIVE, 'cut over, but the official UPayments plugin is still active; deactivate it (SUPCheckout stays paused until then)');

@@ -265,6 +265,33 @@ jobs:
       - name: Verify staging sanitizer on real WooCommerce storage
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/StagingSanitizerTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      # Sub-project 0b Task 9, after everything else because it switches the store: with an
+      # official-plugin stand-in active (SUPCheckout paused), `wp supcheckout takeover`
+      # runs preflight and run --yes --deactivate-official, then a fresh process verifies.
+      - name: Install official-plugin stand-in and takeover HTTP fixture
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wordpress/wp-content/plugins/upayments" "$RUNNER_TEMP/wordpress/wp-content/mu-plugins"
+          cp tests/integration/fixtures/official-upayments-stub.php "$RUNNER_TEMP/wordpress/wp-content/plugins/upayments/UPayments.php"
+          cp tests/integration/fixtures/takeover-http-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-http.php"
+          /tmp/wp-cli.phar plugin activate upayments --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify takeover CLI while paused, then run the switch
+        env:
+          SUPCHECKOUT_CERT_PHASE: paused
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify the switched store
+        env:
+          SUPCHECKOUT_CERT_PHASE: verify
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Remove takeover fixtures
+        if: ${{ always() }}
+        run: |
+          rm -f "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-http.php"
+          rm -rf "$RUNNER_TEMP/wordpress/wp-content/plugins/upayments"
+
   compatibility-gate:
     name: Compatibility Gate
     if: ${{ always() }}

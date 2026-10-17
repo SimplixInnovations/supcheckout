@@ -96,6 +96,19 @@ final class LegacyCallbackListener {
     }
 
     /**
+     * The probe answer alone, for the paused boot (PausedBoot, official plugin active):
+     * answers a probe and exits; any other request returns without doing anything, and
+     * the payment lifecycle is never reached.
+     *
+     * @return void
+     */
+    public static function handle_probe() {
+        if (self::is_probe()) {
+            self::answer_probe();
+        }
+    }
+
+    /**
      * @return bool True only for exactly `supcheckout_probe=1` in the query string.
      */
     public static function is_probe() {

@@ -562,7 +562,10 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // OfficialPluginConflict require goes (the autoloader loads it); the pause guard
 // becomes an early return because the file declares nothing; the ABSPATH guard takes
 // the plan's one-line form.
-$acceptedGatewayBytes = 938;
+// Sub-project 0b Task 9 adds 160 bytes: inside the pause guard, before its early return,
+// the PausedBoot::boot(__FILE__) call (takeover CLI and probe answer only) and one comment
+// line saying so.
+$acceptedGatewayBytes = 1098;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
 // Sub-project 0a Task 5: on top of the exact ratchet, the main file is held to the
 // bootstrap shape itself, so it can never grow responsibilities again.
