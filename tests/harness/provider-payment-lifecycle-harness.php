@@ -278,6 +278,8 @@ namespace {
     function wp_cache_delete($key, $group = '') { return true; }
     function wc_get_price_decimals() { return 3; }
 
+    require_once __DIR__ . '/../../src/Takeover/TakeoverState.php';
+    require_once __DIR__ . '/../../src/Takeover/Keys.php';
     require_once __DIR__ . '/../../src/Payment/ProviderResult.php';
     require_once __DIR__ . '/../../src/Payment/StatusRateGate.php';
     require_once __DIR__ . '/../../src/Payment/OrderLock.php';
@@ -1026,7 +1028,8 @@ namespace {
     $orchestrator_source = file_get_contents($root . '/src/Payment/CheckoutOrchestrator.php');
     ok(strpos($lifecycle_source, "PRIOR_REQUESTED_META = '_simplixpay_upayments_prior_requested_v1'") !== false, 'H1 lifecycle reads the prior-attempt history key');
     $prior_write = strpos($orchestrator_source, "'_simplixpay_upayments_prior_requested_v1'");
-    $rotation = strpos($orchestrator_source, '$order->delete_meta_data("UPayments_order_id");');
+    // 0b Task 2: the rotation deletes through Keys (the legacy name until cutover).
+    $rotation = strpos($orchestrator_source, 'Keys::delete_order_meta($order, "UPayments_order_id");');
     ok($prior_write !== false && $rotation !== false && $prior_write < $rotation, 'H1 orchestrator records prior identity before rotation');
     ok(strpos($orchestrator_source, 'MAX_PRIOR_PROVIDER_ATTEMPTS = 5') !== false, 'H1 prior-attempt history is bounded');
 

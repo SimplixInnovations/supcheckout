@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Payment;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Bearer-authenticated Get Payment Status client + strict order binding.
  */
@@ -170,7 +172,7 @@ final class StatusVerifier {
         }
 
         $local_upay_order_id = $expected_requested_order_id === null
-            ? $order->get_meta('UPayments_order_id')
+            ? Keys::read_order_meta($order, 'UPayments_order_id')
             : $expected_requested_order_id;
         if (!is_string($local_upay_order_id) || $local_upay_order_id === '') {
             $result['reason'] = 'missing_local_upay_order_id';

@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Subscription\Checkout;
 
 use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Takeover\Keys;
 
 defined('ABSPATH') || exit;
 
@@ -132,8 +133,8 @@ class Fields
             return;
         }
 
-        $order->update_meta_data('_upay_subscription_plan', $plan);
-        $order->update_meta_data('_upay_subscription_interval', $interval);
+        $order->update_meta_data(Keys::write_key('_upay_subscription_plan'), $plan);
+        $order->update_meta_data(Keys::write_key('_upay_subscription_interval'), $interval);
     }
 
     private static function parse_interval($value): int {
@@ -165,7 +166,7 @@ class Fields
         if (isset($post['payment_method']) && is_scalar($post['payment_method'])) {
             $selected_gateway = sanitize_key(wp_unslash($post['payment_method']));
         }
-        if ($selected_gateway !== 'upayments') {
+        if (!Keys::is_our_gateway($selected_gateway)) {
             return false;
         }
         if (!Utils::cartHasCustomType()) {
@@ -201,6 +202,6 @@ class Fields
 
         $gateways = WC()->payment_gateways()->get_available_payment_gateways();
 
-        return $gateways['upayments'] ?? null;
+        return Keys::find_gateway($gateways);
     }
 }

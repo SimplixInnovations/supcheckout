@@ -38,6 +38,8 @@ class WC_Order {
     }
 }
 
+require_once $root . '/src/Takeover/TakeoverState.php';
+require_once $root . '/src/Takeover/Keys.php';
 require $root . '/src/Gateway/OrderPresentation.php';
 
 $rows = \Simplixi\SUPCheckout\Gateway\OrderPresentation::add_order_item_totals(

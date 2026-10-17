@@ -1,0 +1,250 @@
+<?php
+/**
+ * H12 provenance under both prefixes (Sub-project 0b Task 2).
+ *
+ * The takeover copies `_upay_customer_token_v2_b{blog}_{scope}` user meta to
+ * `_supcheckout_customer_token_v2_b{blog}_{scope}` and the token-identity secret to
+ * `supcheckout_token_identity_secret_v2`; Finalize later deletes the legacy rows. The
+ * legacy prefix is 25 characters and the new one 32, so every scope is sliced by the
+ * prefix that matched. The presence probe must never conclude "absent" (and mint a new
+ * secret, orphaning every saved-card provenance record) while either prefix has rows.
+ *
+ * Runs the real CustomerTokenIdentity inside the H12 sandbox (_bootstrap.php). The
+ * takeover status comes from tests/support/takeover-state-double.php, which implements
+ * the API this task relies on and Task 3 provides (TakeoverState::get()['status'],
+ * TakeoverState::is_cut_over()).
+ */
+
+require_once dirname(__DIR__) . '/support/takeover-state-double.php';
+require __DIR__ . '/_bootstrap.php';
+
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
+
+$pass = 0;
+$fail = 0;
+
+function h12dp_assert($condition, $message) {
+    global $pass, $fail;
+    if ($condition) {
+        ++$pass;
+        echo "PASS: {$message}\n";
+        return;
+    }
+    ++$fail;
+    echo "FAIL: {$message}\n";
+}
+
+/**
+ * The H12 WpdbStub only ever matches the legacy prefix. This one evaluates the LIKE
+ * patterns the production SQL actually carries, so both prefixes are exercised.
+ */
+class Takeover_Dual_Prefix_Wpdb extends WpdbStub {
+    public $last_error = '';
+    public $sql_log = array();
+
+    private function like_patterns($sql) {
+        preg_match_all("/LIKE '((?:[^']|'')*)'/", (string) $sql, $matches);
+        $patterns = array();
+        foreach ($matches[1] as $raw) {
+            $patterns[] = str_replace("''", "'", $raw);
+        }
+        return $patterns;
+    }
+
+    private function key_matches($key, array $patterns) {
+        foreach ($patterns as $pattern) {
+            if (supcheckout_h12dp_like($pattern, $key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function query($sql) {
+        $this->sql_log[] = (string) $sql;
+        if (is_string($sql) && stripos($sql, 'usermeta') !== false) {
+            $patterns = $this->like_patterns($sql);
+            $state =& upay_test_state();
+            foreach ($state['usermeta'] as $keys) {
+                foreach (array_keys($keys) as $key) {
+                    if ($this->key_matches($key, $patterns)) {
+                        return 1;
+                    }
+                }
+            }
+            return 0;
+        }
+        return parent::query($sql);
+    }
+
+    public function get_col($sql = null) {
+        $this->sql_log[] = (string) $sql;
+        $patterns = $this->like_patterns($sql);
+        $user_id = preg_match('/user_id = ([0-9]+)/', (string) $sql, $m) ? (int) $m[1] : 0;
+        $state =& upay_test_state();
+        $found = array();
+        if (isset($state['usermeta'][$user_id])) {
+            foreach (array_keys($state['usermeta'][$user_id]) as $key) {
+                if ($this->key_matches($key, $patterns)) {
+                    $found[] = $key;
+                }
+            }
+        }
+        return $found;
+    }
+}
+
+function supcheckout_h12dp_like($pattern, $subject) {
+    $regex = '';
+    $length = strlen($pattern);
+    for ($i = 0; $i < $length; $i++) {
+        $char = $pattern[$i];
+        if ($char === '\\' && $i + 1 < $length) {
+            $regex .= preg_quote($pattern[++$i], '/');
+        } elseif ($char === '%') {
+            $regex .= '.*';
+        } elseif ($char === '_') {
+            $regex .= '.';
+        } else {
+            $regex .= preg_quote($char, '/');
+        }
+    }
+    return preg_match('/^' . $regex . '$/s', (string) $subject) === 1;
+}
+
+function h12dp_secret() {
+    $secret = str_repeat('ab', 32);
+    $generation = str_repeat('c', 32);
+    return array(
+        'version' => 1,
+        'secret' => $secret,
+        'generation_id' => $generation,
+        'verifier' => hash_hmac('sha256', 'upayments_token_identity_secret_record_v1|1|' . $generation, $secret),
+    );
+}
+
+function h12dp_record($scope, $generation, $token = '12345678') {
+    return array(
+        'version' => CustomerTokenIdentity::SCHEMA_VERSION,
+        'kind' => CustomerTokenIdentity::KIND_CANONICAL,
+        'token' => $token,
+        'source' => CustomerTokenIdentity::SOURCE_CREATE_201,
+        'scope' => $scope,
+        'secret_generation_id' => $generation,
+        'established_at_gmt' => 1700000000,
+    );
+}
+
+function h12dp_reset($status) {
+    upay_reset_state();
+    $GLOBALS['wpdb'] = new Takeover_Dual_Prefix_Wpdb();
+    $GLOBALS['supcheckout_test_takeover_status'] = $status;
+}
+
+function h12dp_private($method, array $args = array()) {
+    $reflection = new ReflectionMethod(CustomerTokenIdentity::class, $method);
+    if (PHP_VERSION_ID < 80100) {
+        $reflection->setAccessible(true);
+    }
+    return $reflection->invokeArgs(null, $args);
+}
+
+$api_key = 'h12-dual-prefix-key';
+$secret = h12dp_secret();
+$generation = $secret['generation_id'];
+$legacy_prefix = '_upay_customer_token_v2_b1_';
+$new_prefix = '_supcheckout_customer_token_v2_b1_';
+h12dp_assert(strlen('_upay_customer_token_v2_b') === 25 && strlen('_supcheckout_customer_token_v2_b') === 32, 'the two provenance prefixes differ in length (25 vs 32)');
+
+// --- 1. Never switched: legacy names only, exactly as before. ---
+h12dp_reset('idle');
+upay_test_state()['options']['upayments_token_identity_secret_v2'] = $secret;
+$ctx = CustomerTokenIdentity::read_existing_identity_context($api_key, false);
+$scope = $ctx['scope'];
+h12dp_assert($ctx['state'] === 'valid' && is_string($scope), 'idle: the legacy secret derives the scope');
+h12dp_assert(CustomerTokenIdentity::get_user_meta_key('1', $scope) === $legacy_prefix . $scope, 'idle: the exact key builder still writes the legacy key');
+upay_test_state()['usermeta'][1][$legacy_prefix . $scope] = array(h12dp_record($scope, $generation));
+h12dp_assert(CustomerTokenIdentity::read_provenance(1, $scope, $generation)['state'] === 'valid', 'idle: legacy provenance verifies');
+h12dp_assert(CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $generation)['state'] === 'same_generation_only', 'idle: the scope scan reads the legacy record');
+
+// --- 2. After Finalize: only the new names remain. ---
+h12dp_reset('finalized');
+upay_test_state()['options']['supcheckout_token_identity_secret_v2'] = $secret;
+upay_test_state()['usermeta'][1][$new_prefix . $scope] = array(h12dp_record($scope, $generation));
+$ctx = CustomerTokenIdentity::read_existing_identity_context($api_key, false);
+h12dp_assert($ctx['state'] === 'valid' && $ctx['scope'] === $scope && $ctx['generation_id'] === $generation, 'finalized: the copied secret yields the same scope and generation');
+h12dp_assert(CustomerTokenIdentity::get_user_meta_key('1', $scope) === $new_prefix . $scope, 'finalized: the exact key builder writes the new key');
+h12dp_assert(CustomerTokenIdentity::read_provenance(1, $scope, $generation)['state'] === 'valid', 'finalized: saved-card provenance still verifies under the new prefix');
+$scan = CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $generation);
+h12dp_assert($scan['state'] === 'same_generation_only', 'finalized: the scope scan slices the 32-character prefix correctly (' . $scan['state'] . ')');
+h12dp_assert(h12dp_private('get_or_create_secret_record') === $secret, 'finalized: the existing (new) secret is returned, never re-minted');
+
+// --- 3. After Finalize with the new secret also gone: fail closed, mint nothing. ---
+h12dp_reset('finalized');
+upay_test_state()['usermeta'][1][$new_prefix . $scope] = array(h12dp_record($scope, $generation));
+$creates_before = upay_test_state()['option_creates'];
+h12dp_assert(h12dp_private('get_or_create_secret_record') === null, 'finalized, secret absent: the presence probe fails closed');
+h12dp_assert(upay_test_state()['option_creates'] === $creates_before
+    && !array_key_exists('supcheckout_token_identity_secret_v2', upay_test_state()['options'])
+    && !array_key_exists('upayments_token_identity_secret_v2', upay_test_state()['options']), 'finalized, secret absent: NO new secret is minted under either name');
+$probe_sql = end($GLOBALS['wpdb']->sql_log);
+h12dp_assert(strpos($probe_sql, "LIKE '\\_upay\\_customer\\_token\\_v2\\_b1\\_%'") !== false
+    && strpos($probe_sql, "LIKE '\\_supcheckout\\_customer\\_token\\_v2\\_b1\\_%'") !== false, 'the probe counts rows under both escaped prefixes');
+
+// Even a lost state (idle) with only new-prefix rows never mints.
+h12dp_reset('idle');
+upay_test_state()['usermeta'][1][$new_prefix . $scope] = array(h12dp_record($scope, $generation));
+h12dp_assert(h12dp_private('get_or_create_secret_record') === null && upay_test_state()['option_creates'] === 0, 'idle with only new-prefix rows: still fails closed and mints nothing');
+
+// A truly empty store still initializes exactly one secret under today's name.
+h12dp_reset('idle');
+$minted = h12dp_private('get_or_create_secret_record');
+h12dp_assert(is_array($minted) && upay_test_state()['options']['upayments_token_identity_secret_v2'] === $minted
+    && !array_key_exists('supcheckout_token_identity_secret_v2', upay_test_state()['options']), 'idle, no provenance anywhere: one secret is minted under the legacy name, as before');
+
+// --- 4. Mixed legacy/new scan during the switch window. ---
+h12dp_reset('copying');
+upay_test_state()['options']['upayments_token_identity_secret_v2'] = $secret;
+$scope_a = str_repeat('a', 32);
+$scope_b = str_repeat('b', 32);
+$scope_c = str_repeat('d', 32);
+upay_test_state()['usermeta'][1][$legacy_prefix . $scope_a] = array(h12dp_record($scope_a, $generation));
+upay_test_state()['usermeta'][1][$new_prefix . $scope_b] = array(h12dp_record($scope_b, $generation));
+upay_test_state()['usermeta'][1][$legacy_prefix . $scope_c] = array(h12dp_record($scope_c, $generation));
+upay_test_state()['usermeta'][1][$new_prefix . $scope_c] = array(h12dp_record($scope_c, $generation));
+$scan = CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $generation);
+h12dp_assert($scan['state'] === 'same_generation_only', 'mixed scan: legacy-only, new-only and an agreeing copy are each one valid record (' . $scan['state'] . ')');
+
+upay_test_state()['usermeta'][1][$new_prefix . $scope_c] = array(h12dp_record($scope_c, $generation, '87654321'));
+$scan = CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $generation);
+h12dp_assert($scan['state'] === 'invalid', 'mixed scan: a copy that disagrees with its legacy record fails closed');
+h12dp_assert(CustomerTokenIdentity::read_provenance(1, $scope_c, $generation)['state'] === 'invalid', 'exact read: disagreeing legacy/new forms fail closed');
+h12dp_assert(CustomerTokenIdentity::read_provenance(1, $scope_b, $generation)['state'] === 'valid', 'exact read before cutover: a scope held only under the new prefix is still found');
+
+$other_generation = str_repeat('e', 32);
+upay_test_state()['usermeta'][1][$new_prefix . $scope_c] = array(h12dp_record($scope_c, $generation));
+upay_test_state()['usermeta'][1][$new_prefix . $scope_b] = array(h12dp_record($scope_b, $other_generation));
+$scan = CustomerTokenIdentity::inspect_current_user_prior_provenance(1, $generation);
+h12dp_assert($scan['state'] === 'secret_generation_mismatch', 'mixed scan: a new-prefix record of another generation is seen (' . $scan['state'] . ')');
+
+// --- 5. Customer-token GET_LOCK names across the window. ---
+h12dp_reset('copying');
+h12dp_assert(h12dp_private('acquire_lock', array('upay_ctk_bootstrap_b1')) === true
+    && isset(upay_test_state()['locks']['upay_ctk_bootstrap_b1'], upay_test_state()['locks']['sup_ctkboot_b1']), 'copying: the bootstrap lock takes the legacy and the short new GET_LOCK name');
+h12dp_private('release_lock', array('upay_ctk_bootstrap_b1'));
+h12dp_assert(upay_test_state()['locks'] === array(), 'copying: release frees both names');
+
+h12dp_reset('copying');
+upay_test_state()['locks']['sup_ctk_' . $scope . '_7'] = true;
+h12dp_assert(h12dp_private('acquire_lock', array('upay_ctk_' . $scope . '_7')) === false
+    && !isset(upay_test_state()['locks']['upay_ctk_' . $scope . '_7']), 'copying: a holder of the new name blocks the worker, which releases the legacy name it took');
+
+h12dp_reset('idle');
+h12dp_assert(h12dp_private('acquire_lock', array('upay_ctk_bootstrap_b1')) === true
+    && array_keys(upay_test_state()['locks']) === array('upay_ctk_bootstrap_b1'), 'idle: exactly the legacy GET_LOCK name, as before');
+
+$GLOBALS['wpdb'] = new WpdbStub();
+
+echo "\nTakeover H12 dual prefix: {$pass} PASS / {$fail} FAIL\n";
+echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
+exit($fail === 0 ? 0 : 1);

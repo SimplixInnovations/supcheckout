@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription\Scheduling;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Bounded historical subscription enrollment (migration / repair / recovery).
  *
@@ -34,7 +36,7 @@ final class HistoricalEnrollment
             'scheduled' => 0,
             'skipped'   => 0,
             'complete'  => false,
-            'cursor'    => (int) get_option(self::OPTION_CURSOR, 0),
+            'cursor'    => (int) Keys::get_option(self::OPTION_CURSOR, 0),
         );
 
         if (!ActionSchedulerBridge::is_ready()) {
@@ -46,7 +48,7 @@ final class HistoricalEnrollment
 
         $orders = wc_get_orders(array(
             'status'         => $paid_statuses,
-            'payment_method' => 'upayments',
+            'payment_method' => Keys::payment_method_query(),
             'limit'          => self::BATCH_SIZE,
             'offset'         => $offset,
             'orderby'        => 'ID',
@@ -64,7 +66,7 @@ final class HistoricalEnrollment
         $stats = self::enroll_slice($orders, $complete);
         $stats['cursor'] = $complete ? 0 : $offset + $count;
         $stats['complete'] = $complete;
-        update_option(self::OPTION_CURSOR, $stats['cursor'], false);
+        update_option(Keys::write_key(self::OPTION_CURSOR), $stats['cursor'], false);
 
         return $stats;
     }
@@ -82,7 +84,7 @@ final class HistoricalEnrollment
             'scheduled' => 0,
             'skipped'   => 0,
             'complete'  => $complete,
-            'cursor'    => (int) get_option(self::OPTION_CURSOR, 0),
+            'cursor'    => (int) Keys::get_option(self::OPTION_CURSOR, 0),
         );
 
         if (!ActionSchedulerBridge::is_ready()) {
@@ -125,7 +127,9 @@ final class HistoricalEnrollment
 
     public static function reset_cursor(): void
     {
-        delete_option(self::OPTION_CURSOR);
+        foreach (Keys::delete_names(self::OPTION_CURSOR) as $option) {
+            delete_option($option);
+        }
     }
 
     /**
@@ -150,20 +154,20 @@ final class HistoricalEnrollment
         if (!$order->has_status(self::paid_statuses())) {
             return false;
         }
-        if ($order->get_meta('UPayments_AutoDeduction') === 'yes') {
+        if (Keys::read_order_meta($order, 'UPayments_AutoDeduction') === 'yes') {
             return false;
         }
-        if ((string) $order->get_payment_method() !== 'upayments') {
+        if (!Keys::is_our_gateway((string) $order->get_payment_method())) {
             return false;
         }
 
-        $status = $order->get_meta('_upay_subscription_status') ?: 'active';
+        $status = Keys::read_order_meta($order, '_upay_subscription_status') ?: 'active';
         if ($status !== 'active') {
             return false;
         }
 
-        $plan = $order->get_meta('_upay_subscription_plan');
-        $interval = (int) $order->get_meta('_upay_subscription_interval');
+        $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
+        $interval = (int) Keys::read_order_meta($order, '_upay_subscription_interval');
         if ($plan === 'daily') {
             $interval = 1;
         }
@@ -185,8 +189,8 @@ final class HistoricalEnrollment
      */
     public static function next_run_at(\WC_Order $order): ?int
     {
-        $plan = $order->get_meta('_upay_subscription_plan');
-        $interval = (int) $order->get_meta('_upay_subscription_interval');
+        $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
+        $interval = (int) Keys::read_order_meta($order, '_upay_subscription_interval');
         if ($plan === 'daily') {
             $interval = 1;
         }
@@ -194,7 +198,7 @@ final class HistoricalEnrollment
             return null;
         }
 
-        $start_date = $order->get_meta('_upay_last_billed_at')
+        $start_date = Keys::read_order_meta($order, '_upay_last_billed_at')
             ?: $order->get_date_paid()
             ?: $order->get_date_completed()
             ?: $order->get_date_created();

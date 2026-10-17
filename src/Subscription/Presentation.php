@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Subscription;
 
 use Simplixi\SUPCheckout\Subscription\Cron\Scheduler;
 use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
  * Inherited subscription product, admin and My Account presentation behavior.
@@ -193,13 +194,13 @@ final class Presentation {
         if (!$order instanceof \WC_Order) {
             return;
         }
-        $plan = $order->get_meta('_upay_subscription_plan');
-        $interval = (int) $order->get_meta('_upay_subscription_interval');
+        $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
+        $interval = (int) Keys::read_order_meta($order, '_upay_subscription_interval');
         if (!is_string($plan) || $plan === '' || $plan === 'one_time' || $interval <= 0) {
             return;
         }
-        $auto_deduction = $order->get_meta('UPayments_AutoDeduction');
-        $last_billed = $order->get_meta('_upay_last_billed_at');
+        $auto_deduction = Keys::read_order_meta($order, 'UPayments_AutoDeduction');
+        $last_billed = Keys::read_order_meta($order, '_upay_last_billed_at');
         $started_at = $order->get_date_paid() ?: $order->get_date_completed() ?: $order->get_date_created();
         $started_at = self::date_time_or_null($started_at);
         if (!$started_at) {
@@ -214,7 +215,7 @@ final class Presentation {
         if (!$next_billing_dt) {
             return;
         }
-        $raw_status = $order->get_meta('_upay_subscription_status');
+        $raw_status = Keys::read_order_meta($order, '_upay_subscription_status');
         $raw_status = is_string($raw_status) ? $raw_status : '';
         $status_label = self::subscription_status_label($raw_status);
         if ($raw_status === 'active' || $raw_status === 'paused' || $raw_status === 'cancelled') {
@@ -294,11 +295,11 @@ final class Presentation {
         if ((int) $order->get_user_id() !== get_current_user_id()) {
             return;
         }
-        if ($order->get_meta('_upay_subscription_status') === 'cancelled') {
+        if (Keys::read_order_meta($order, '_upay_subscription_status') === 'cancelled') {
             return;
         }
-        $plan = $order->get_meta('_upay_subscription_plan');
-        $interval = (int) $order->get_meta('_upay_subscription_interval');
+        $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
+        $interval = (int) Keys::read_order_meta($order, '_upay_subscription_interval');
         if (!is_string($plan) || $plan === '' || $interval <= 0) {
             return;
         }
@@ -307,7 +308,7 @@ final class Presentation {
         if (!$started_at) {
             return;
         }
-        $last_billed = $order->get_meta('_upay_last_billed_at');
+        $last_billed = Keys::read_order_meta($order, '_upay_last_billed_at');
         $last_billed_dt = !empty($last_billed) ? self::date_time_or_null($last_billed, wp_timezone()) : null;
         if (!empty($last_billed) && !$last_billed_dt) {
             return;
@@ -326,7 +327,7 @@ final class Presentation {
                     <tr><th style="border: 1px solid;"><?php esc_html_e('Plan', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html(isset($plan_labels[$plan]) ? $plan_labels[$plan] : ucfirst($plan)); ?></td></tr>
                     <tr><th style="border: 1px solid;"><?php esc_html_e('Interval', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html(isset($interval_labels[$plan][$interval]) ? $interval_labels[$plan][$interval] : $interval); ?></td></tr>
                     <tr><th style="border: 1px solid;"><?php esc_html_e('Started On', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html(self::format_date_time($started_at)); ?></td></tr>
-                    <?php if ($order->get_meta('UPayments_AutoDeduction') !== 'yes') { ?>
+                    <?php if (Keys::read_order_meta($order, 'UPayments_AutoDeduction') !== 'yes') { ?>
                         <tr><th style="border: 1px solid;"><?php esc_html_e('Last Billed On', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($last_billed_dt ? self::format_date_time($last_billed_dt) : '-'); ?></td></tr>
                         <tr><th style="border: 1px solid;"><?php esc_html_e('Next Billing Date', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($next_billing_dt->format('Y-m-d H:i:s')); ?></td></tr>
                     <?php } ?>
@@ -334,10 +335,10 @@ final class Presentation {
             </table>
         </section>
         <?php
-        if ($order->get_meta('UPayments_AutoDeduction') === 'yes') {
+        if (Keys::read_order_meta($order, 'UPayments_AutoDeduction') === 'yes') {
             return;
         }
-        $status = $order->get_meta('_upay_subscription_status') ?: 'active';
+        $status = Keys::read_order_meta($order, '_upay_subscription_status') ?: 'active';
         $action = $status === 'paused' ? 'resume' : 'pause';
         $label = $status === 'paused'
             ? __('Resume Subscription', 'supcheckout')
@@ -398,7 +399,7 @@ final class Presentation {
         if (!isset($args['meta_query']) || !is_array($args['meta_query'])) {
             $args['meta_query'] = array();
         }
-        $args['meta_query'][] = array('key' => '_upay_subscription_status', 'value' => $filter);
+        $args['meta_query'][] = Keys::meta_clause_any(array('key' => '_upay_subscription_status', 'value' => $filter));
         return $args;
     }
 
@@ -420,7 +421,7 @@ final class Presentation {
         if (!$order instanceof \WC_Order) {
             return;
         }
-        echo $order->get_meta('UPayments_AutoDeduction') === 'yes'
+        echo Keys::read_order_meta($order, 'UPayments_AutoDeduction') === 'yes'
             ? esc_html__('Auto Deduction', 'supcheckout')
             : esc_html__('Regular', 'supcheckout');
     }
@@ -430,7 +431,7 @@ final class Presentation {
         if (!$order instanceof \WC_Order) {
             return;
         }
-        $status = $order->get_meta('_upay_subscription_status');
+        $status = Keys::read_order_meta($order, '_upay_subscription_status');
         if (!is_string($status) || $status === '') {
             echo '—';
             return;

@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription\Cron;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Per-billing-cycle atomic attempt journal.
  *
@@ -135,7 +137,7 @@ class CycleClaim
      */
     public static function maybe_install(): bool
     {
-        $current = (string) get_option(self::OPTION_KEY, '');
+        $current = (string) Keys::get_option(self::OPTION_KEY, '');
         if ($current === self::SCHEMA_VERSION && self::schema_ready()) {
             return true;
         }
@@ -175,7 +177,7 @@ class CycleClaim
             return false;
         }
 
-        update_option(self::OPTION_KEY, self::SCHEMA_VERSION, false);
+        update_option(Keys::write_key(self::OPTION_KEY), self::SCHEMA_VERSION, false);
         return true;
     }
 
@@ -201,8 +203,8 @@ class CycleClaim
 
     public static function table_name(): string
     {
-        global $wpdb;
-        return $wpdb->prefix . 'upayments_billing_attempts';
+        // The table in use right now (the legacy table until cutover).
+        return Keys::table('upayments_billing_attempts');
     }
 
     /**

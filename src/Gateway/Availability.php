@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Gateway;
 
 use Simplixi\SUPCheckout\Admin\GatewaySettings;
+use Simplixi\SUPCheckout\Takeover\Keys;
 
 defined('ABSPATH') || exit;
 
@@ -27,14 +28,15 @@ final class Availability {
             return $available_gateways;
         }
 
-        if (isset($available_gateways['upayments'])) {
-            $upay = $available_gateways['upayments'];
-            unset($available_gateways['upayments']);
-            $available_gateways['upayments'] = $upay;
+        $gateway_id = Keys::find_gateway_id($available_gateways);
+        if ($gateway_id !== null) {
+            $upay = $available_gateways[$gateway_id];
+            unset($available_gateways[$gateway_id]);
+            $available_gateways[$gateway_id] = $upay;
 
-            $settings = get_option('woocommerce_upayments_settings');
+            $settings = Keys::get_settings();
             if (!GatewaySettings::is_runtime_eligible($settings, get_woocommerce_currency())) {
-                unset($available_gateways['upayments']);
+                unset($available_gateways[$gateway_id]);
                 return $available_gateways;
             }
 
@@ -51,7 +53,7 @@ final class Availability {
                 $wc = function_exists('WC') ? WC() : null;
                 if ($wc
                     && $wc->session
-                    && $wc->session->get('chosen_payment_method') === 'upayments'
+                    && Keys::is_our_gateway($wc->session->get('chosen_payment_method'))
                     && isset($settings['make_default_gateway'])
                     && $settings['make_default_gateway'] !== 'yes'
                 ) {

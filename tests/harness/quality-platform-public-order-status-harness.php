@@ -41,14 +41,14 @@ foreach (array('wait', 'pending', 'failed', 'completed', 'cancelled') as $allowe
 }
 q7_assert(q7_contains($source, "\$method !== 'GET'"), 'public poll remains GET-only');
 q7_assert(q7_contains($source, "array_key_exists('wc_order_id', \$get)"), 'order ID remains explicit request input');
-q7_assert(q7_contains($source, "(string) \$order->get_payment_method() === 'upayments'"), 'only UPayments orders are eligible');
+q7_assert(q7_contains($source, "Keys::is_our_gateway((string) \$order->get_payment_method())"), 'only UPayments orders are eligible');
 q7_assert(q7_contains($source, '$current_user_id === $order_user_id'), 'logged-in ownership remains exact');
 q7_assert(q7_contains($source, 'hash_equals($order_key, $provided_key)'), 'guest order-key comparison remains constant-time');
 q7_assert(q7_contains($source, "strlen(\$value) > 18"), 'order ID length remains bounded');
 q7_assert(q7_contains($source, "preg_match('/\\A[1-9][0-9]*\\z/', \$value)"), 'order ID uses absolute anchors for strict positive decimal input');
 q7_assert(q7_contains($source, 'strlen($value) > 128'), 'order key length remains bounded');
 q7_assert(q7_contains($source, "preg_match('/[\\x00-\\x20\\x7F]/', \$value)"), 'order key rejects controls and whitespace');
-q7_assert(q7_contains($source, "\$order->get_meta('UPayments_WHS')"), 'public output reads only the protected narrow status');
+q7_assert(q7_contains($source, "Keys::read_order_meta(\$order, 'UPayments_WHS')"), 'public output reads only the protected narrow status');
 q7_assert(q7_contains($source, "array('status' => \$status, 'message' => '')"), 'successful response remains two-field only');
 q7_assert(q7_contains($source, "'Order status unavailable.'"), 'failure response remains generic');
 

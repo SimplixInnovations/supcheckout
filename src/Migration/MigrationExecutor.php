@@ -1,6 +1,7 @@
 <?php
 namespace Simplixi\SUPCheckout\Migration;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 defined('ABSPATH') || exit;
@@ -252,7 +253,7 @@ final class MigrationExecutor {
             return array('ok' => false, 'created' => false, 'reason' => 'generated_secret_invalid');
         }
 
-        $created = add_option(CustomerTokenIdentity::SECRET_OPTION, $record, '', 'no');
+        $created = add_option(Keys::write_key(CustomerTokenIdentity::SECRET_OPTION), $record, '', 'no');
         if (!$created) {
             $readback = CustomerTokenIdentity::read_existing_secret_record();
             if (is_array($readback)
@@ -292,7 +293,8 @@ final class MigrationExecutor {
 
         // One ledger value per user. We intentionally overwrite only this new
         // Simplix-owned key; protected UPayments identity keys are never used.
-        $written = update_user_meta($user_id, self::LEDGER_KEY, $record);
+        $ledger_key = Keys::write_key(self::LEDGER_KEY);
+        $written = update_user_meta($user_id, $ledger_key, $record);
         if ($written === false) {
             return false;
         }
@@ -300,7 +302,7 @@ final class MigrationExecutor {
         if (!CustomerTokenIdentity::force_refresh_user_meta($user_id)) {
             return false;
         }
-        $all = get_user_meta($user_id, self::LEDGER_KEY, false);
+        $all = get_user_meta($user_id, $ledger_key, false);
         if (!is_array($all) || count($all) !== 1 || !is_array($all[0])) {
             return false;
         }

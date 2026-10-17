@@ -33,6 +33,8 @@ function sec_source($relative) {
     return is_string($content) ? $content : '';
 }
 
+require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
+require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
 require_once dirname(__DIR__, 2) . '/src/Security/PublicOrderStatus.php';
 
 use Simplixi\SUPCheckout\Security\PublicOrderStatus;
@@ -135,8 +137,9 @@ sec_assert(strpos($subscription_actions, "isset(\$_POST['upay_action'])") !== fa
 sec_assert(strpos($subscription_actions, "isset(\$_POST['order_id'])") !== false, 'subscription mutation reads order id from POST');
 sec_assert(strpos($subscription_presentation, "wp_nonce_field('upay_unsubscribe_' . \$order->get_id(), '_wpnonce', false)") !== false, 'unsubscribe form emits POST nonce field');
 sec_assert(strpos($subscription_presentation, "wp_nonce_field('upay_' . \$action . '_' . \$order->get_id(), '_wpnonce', false)") !== false, 'pause/resume form emits POST nonce field');
-sec_assert(strpos($subscription_actions, "(string) \$order->get_payment_method() !== 'upayments'") !== false, 'subscription mutation requires UPayments order');
-sec_assert(strpos($subscription_actions, "\$order->get_meta('UPayments_AutoDeduction') === 'yes'") !== false, 'manual subscription mutation distinguishes auto-deduction orders');
+// 0b Task 2: ownership accepts either SUPCheckout identity (historical orders keep 'upayments').
+sec_assert(strpos($subscription_actions, "!Keys::is_our_gateway((string) \$order->get_payment_method())") !== false, 'subscription mutation requires UPayments order');
+sec_assert(strpos($subscription_actions, "Keys::read_order_meta(\$order, 'UPayments_AutoDeduction') === 'yes'") !== false, 'manual subscription mutation distinguishes auto-deduction orders');
 sec_assert(strpos($subscription_actions, "get_current_user_id() !== (int) \$order->get_user_id()") !== false, 'subscription mutation enforces exact owner');
 sec_assert(strpos($subscription_actions, 'wp_verify_nonce($nonce, $nonce_action)') !== false, 'subscription mutation verifies action-specific nonce');
 
@@ -205,7 +208,7 @@ sec_assert(strpos($security_doc, 'SEC-01') !== false && strpos($security_doc, 'S
 // Guard against accidentally weakening the public endpoint back to order-id-only access.
 $public_status_source = sec_source('src/Security/PublicOrderStatus.php');
 sec_assert(strpos($public_status_source, 'hash_equals($order_key, $provided_key)') !== false, 'guest/public status authorization uses constant-time exact order-key comparison');
-sec_assert(strpos($public_status_source, "(string) \$order->get_payment_method() === 'upayments'") !== false, 'status boundary requires UPayments payment method');
+sec_assert(strpos($public_status_source, "Keys::is_our_gateway((string) \$order->get_payment_method())") !== false, 'status boundary requires UPayments payment method');
 sec_assert(strpos($public_status_source, "method !== 'GET'") !== false, 'status boundary is read-only GET');
 sec_assert(strpos($public_status_source, 'ALLOWED_STATUSES') !== false, 'status boundary allowlists returned state');
 

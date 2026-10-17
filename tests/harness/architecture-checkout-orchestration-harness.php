@@ -63,7 +63,8 @@ a5_assert(a5_contains($gateway, 'new CheckoutOrchestrator('), 'legacy process en
 a5_assert(a5_contains($gateway, '))->process($order_id);'), 'legacy process entry point delegates the order ID');
 a5_assert(substr_count($gateway, 'new CheckoutOrchestrator(') === 1, 'gateway has one checkout orchestrator composition point');
 a5_assert(a5_contains($gateway, '$callback_url_resolver = static function ()'), 'platform adapter owns callback URL resolver creation');
-a5_assert(a5_contains($gateway, "api_request_url('wc_upayments')"), 'callback URL resolver uses WooCommerce api_request_url');
+// 0b Task 2: Keys::callback_route() is 'wc_upayments' until cutover (tests/unit/Takeover/DualReadTest.php).
+a5_assert(a5_contains($gateway, "api_request_url(Keys::callback_route())"), 'callback URL resolver uses WooCommerce api_request_url');
 a5_assert(a5_contains($gateway, '$callback_url_resolver'), 'callback URL resolver is passed into CheckoutOrchestrator');
 a5_assert(a5_contains($orchestrator, 'callable $callback_url_resolver'), 'orchestrator requires explicit callback URL resolver');
 a5_assert(!a5_contains($orchestrator, "function_exists('WC')"), 'orchestrator does not discover the WooCommerce singleton');
@@ -73,7 +74,7 @@ a5_assert(a5_contains($orchestrator, "execute_request('charge', 'POST', \$params
 a5_assert(substr_count($orchestrator, "execute_request('charge', 'POST', \$params)") === 1, 'orchestrator dispatches Charge exactly once');
 a5_assert(a5_contains($orchestrator, 'CustomerTokenIdentity::get_or_establish_token('), 'orchestrator owns saved-card token establishment');
 a5_assert(a5_contains($orchestrator, 'CustomerTokenIdentity::validate_token_runtime_context('), 'orchestrator preserves token runtime validation');
-a5_assert(a5_contains($orchestrator, 'add_meta_data("UPayments_order_id", $unique_order_id)'), 'orchestrator owns provider-order identity persistence');
+a5_assert(a5_contains($orchestrator, 'add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id)'), 'orchestrator owns provider-order identity persistence');
 a5_assert(a5_contains($orchestrator, 'CheckoutPayload::inject_amount_token_into_payload_json('), 'orchestrator delegates numeric JSON injection');
 a5_assert(a5_contains($orchestrator, 'CheckoutPayload::normalize_upayments_redirect_url('), 'orchestrator delegates redirect validation');
 a5_assert(!a5_contains($payload, 'execute_request('), 'pure payload service excludes provider transport');

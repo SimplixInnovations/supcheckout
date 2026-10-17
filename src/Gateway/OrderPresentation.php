@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Gateway;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Gateway-specific WooCommerce order-total presentation.
  *
@@ -19,14 +21,17 @@ final class OrderPresentation {
      * @return array
      */
     public static function add_order_item_totals($total_rows, $order, $gateway_id) {
+        // Historical orders keep payment_method 'upayments' after cutover, so either
+        // SUPCheckout identity owns the order (Keys::is_our_gateway()).
         if (!$order instanceof \WC_Order
-            || (string) $order->get_payment_method() !== (string) $gateway_id
+            || !Keys::is_our_gateway((string) $gateway_id)
+            || !Keys::is_our_gateway((string) $order->get_payment_method())
         ) {
             return $total_rows;
         }
 
-        $payment_status = $order->get_meta('UPayments_Result');
-        $upayment_id = $order->get_meta('UPayments_PaymentID');
+        $payment_status = Keys::read_order_meta($order, 'UPayments_Result');
+        $upayment_id = Keys::read_order_meta($order, 'UPayments_PaymentID');
         $new_total_rows = array();
 
         foreach ($total_rows as $key => $total) {

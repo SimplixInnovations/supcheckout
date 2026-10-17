@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Payment;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Hourly safety net for payment reconciliation.
  *
@@ -48,7 +50,7 @@ final class ReconciliationSweep {
         $order_ids = wc_get_orders(array(
             'limit' => self::BATCH,
             'status' => array('pending'),
-            'payment_method' => 'upayments',
+            'payment_method' => Keys::payment_method_query(),
             'date_created' => '>' . (time() - self::LOOKBACK_SECONDS),
             'orderby' => 'date',
             'order' => 'ASC',

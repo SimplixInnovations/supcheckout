@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Provider;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * UPayments payment-method availability client and cache coordinator.
  *
@@ -44,19 +46,40 @@ final class PaymentMethodAvailability {
         $this->transport = $transport;
     }
 
-    /** @return string */
+    /** @return string The legacy rate-gate option name. */
     private function rate_gate_option_name() {
         return 'upayments_payment_methods_rate_gate_' . ($this->test_mode ? 'test' : 'live');
     }
 
-    /** @return string */
-    private function transient_name() {
-        $mode = $this->test_mode ? 'test' : 'live';
-        $fingerprint = hash_hmac('sha256', $mode . '|' . $this->api_key, wp_salt('auth'));
-        return 'upay_pm_v3_' . substr($fingerprint, 0, 16);
+    /**
+     * Every rate-gate option name in use (Keys::ephemeral_names(): the legacy name
+     * until the takeover starts copying, both during the switch window, the new name
+     * after Finalize).
+     *
+     * @return list<string>
+     */
+    private function rate_gate_option_names() {
+        return Keys::ephemeral_names($this->rate_gate_option_name());
     }
 
-    /** @return string */
+    /** @return string Credential/mode scope shared by the fresh cache and the last-known-good value. */
+    private function fingerprint() {
+        $mode = $this->test_mode ? 'test' : 'live';
+        $fingerprint = hash_hmac('sha256', $mode . '|' . $this->api_key, wp_salt('auth'));
+        return substr($fingerprint, 0, 16);
+    }
+
+    /** @return string The legacy fresh-cache transient name. */
+    private function transient_name() {
+        return 'upay_pm_v3_' . $this->fingerprint();
+    }
+
+    /** @return list<string> Fresh-cache transient names in use, read in order and written together. */
+    private function transient_names() {
+        return Keys::ephemeral_names($this->transient_name());
+    }
+
+    /** @return string The legacy advisory-lock name. */
     private function lock_name() {
         global $wpdb;
 
@@ -66,13 +89,45 @@ final class PaymentMethodAvailability {
         return 'upay_pm_' . substr(hash('sha256', $lock_input), 0, 16);
     }
 
-    /** @return int */
+    /** @return list<string> Advisory-lock names in use, acquired in order. */
+    private function lock_names() {
+        return Keys::ephemeral_names($this->lock_name());
+    }
+
+    /** @return int 1 when every name is held, else 0 (busy) or -1 (error); nothing stays held on failure. */
     private function acquire_lock() {
+        $held = array();
+        foreach ($this->lock_names() as $name) {
+            $result = $this->acquire_one_lock($name);
+            if ($result !== 1) {
+                foreach (array_reverse($held) as $held_name) {
+                    $this->release_one_lock($held_name);
+                }
+                return $result;
+            }
+            $held[] = $name;
+        }
+        return 1;
+    }
+
+    /** @return bool */
+    private function release_lock() {
+        foreach (array_reverse($this->lock_names()) as $name) {
+            $this->release_one_lock($name);
+        }
+        return true;
+    }
+
+    /**
+     * @param string $name Advisory-lock name.
+     * @return int
+     */
+    private function acquire_one_lock($name) {
         global $wpdb;
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- MySQL advisory lock is an atomic concurrency primitive and must never be cached.
         $result = $wpdb->get_var(
-            $wpdb->prepare('SELECT GET_LOCK(%s, 0)', $this->lock_name())
+            $wpdb->prepare('SELECT GET_LOCK(%s, 0)', $name)
         );
         if ($result === '1' || $result === 1) {
             return 1;
@@ -83,33 +138,49 @@ final class PaymentMethodAvailability {
         return -1;
     }
 
-    /** @return bool */
-    private function release_lock() {
+    /**
+     * @param string $name Advisory-lock name.
+     * @return void
+     */
+    private function release_one_lock($name) {
         global $wpdb;
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- MySQL advisory-lock release must execute against the live connection and cannot be cached.
         $wpdb->get_var(
-            $wpdb->prepare('SELECT RELEASE_LOCK(%s)', $this->lock_name())
+            $wpdb->prepare('SELECT RELEASE_LOCK(%s)', $name)
         );
-        return true;
     }
 
-    /** @return array */
+    /** @return array The strictest (latest) cooldown across every gate name. */
     private function rate_gate() {
-        return array('not_before' => (int) get_option($this->rate_gate_option_name(), 0));
+        $not_before = 0;
+        foreach ($this->rate_gate_option_names() as $index => $name) {
+            $value = (int) get_option($name, 0);
+            $not_before = $index === 0 ? $value : max($not_before, $value);
+        }
+        return array('not_before' => $not_before);
     }
 
     /**
      * @param int $not_before Unix timestamp boundary value.
-     * @return bool
+     * @return bool True only when every gate name was written.
      */
     private function set_rate_gate($not_before) {
-        return update_option($this->rate_gate_option_name(), (int) $not_before, false);
+        $written = true;
+        foreach ($this->rate_gate_option_names() as $name) {
+            $written = update_option($name, (int) $not_before, false) && $written;
+        }
+        return $written;
     }
 
-    /** @return string */
+    /**
+     * Recomputed from the fingerprint inputs rather than sliced out of a transient
+     * name, so renaming the cache prefix can never orphan the stored value.
+     *
+     * @return string
+     */
     private function last_known_good_name() {
-        return 'supcheckout_pm_lkg_v1_' . substr($this->transient_name(), strlen('upay_pm_v3_'));
+        return 'supcheckout_pm_lkg_v1_' . $this->fingerprint();
     }
 
     /**
@@ -144,10 +215,15 @@ final class PaymentMethodAvailability {
         }
         return array('result' => 'failure');
     }
-    /** @return array|null */
+    /** @return array|null The first cached array under the names in use. */
     private function cached() {
-        $cached = get_transient($this->transient_name());
-        return is_array($cached) ? $cached : null;
+        foreach ($this->transient_names() as $name) {
+            $cached = get_transient($name);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+        return null;
     }
 
     /**
@@ -210,7 +286,11 @@ final class PaymentMethodAvailability {
      */
     private function cache($result, $not_before) {
         $ttl = max(1, $not_before - time());
-        return set_transient($this->transient_name(), $result, $ttl);
+        $stored = true;
+        foreach ($this->transient_names() as $name) {
+            $stored = set_transient($name, $result, $ttl) && $stored;
+        }
+        return $stored;
     }
 
     /**

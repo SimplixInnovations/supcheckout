@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Subscription\Cron;
 
 use DateTime;
+use Simplixi\SUPCheckout\Takeover\Keys;
 use WC_Order;
 use WC_DateTime;
 use DateTimeInterface;
@@ -66,7 +67,7 @@ class Scheduler
 
         // The hourly tick exists only while subscriptions are enabled; a store that
         // never enabled them carries no event (and no table checks) at all.
-        $settings = get_option('woocommerce_upayments_settings', array());
+        $settings = Keys::get_settings(array());
         $enabled = is_array($settings) && isset($settings['enable_subscriptions']) && $settings['enable_subscriptions'] === 'yes';
         if (!$enabled) {
             if (wp_next_scheduled(self::CRON_HOOK)) {
@@ -235,10 +236,10 @@ class Scheduler
         };
 
         try {
-            $isAutoDeductionOrder = $order->get_meta('UPayments_AutoDeduction') === 'yes' ? true : false;
+            $isAutoDeductionOrder = Keys::read_order_meta($order, 'UPayments_AutoDeduction') === 'yes' ? true : false;
             // Preserve historical empty status as 'active' for compatibility.
-            $subscriptionStatus = $order->get_meta('_upay_subscription_status') ?: 'active';
-            $customerUnqToken = $order->get_meta('_upay_customer_unique_token');
+            $subscriptionStatus = Keys::read_order_meta($order, '_upay_subscription_status') ?: 'active';
+            $customerUnqToken = Keys::read_order_meta($order, '_upay_customer_unique_token');
 
             if ($customerUnqToken == null || empty($customerUnqToken)) {
                 $logger->info(
@@ -248,8 +249,8 @@ class Scheduler
                 return; // per-order failure; do not abort the loop
             }
 
-            $subscriptionPlan = $order->get_meta('_upay_subscription_plan');
-            $subscriptionInterval = (int) $order->get_meta('_upay_subscription_interval');
+            $subscriptionPlan = Keys::read_order_meta($order, '_upay_subscription_plan');
+            $subscriptionInterval = (int) Keys::read_order_meta($order, '_upay_subscription_interval');
             if ($subscriptionPlan === 'daily') {
                 $subscriptionInterval = 1;
             }
@@ -265,7 +266,7 @@ class Scheduler
             $order_date = $order->get_date_created();
             $order_paid_date = $order->get_date_paid();
             $order_completed_date = $order->get_date_completed();
-            $order_last_billed_date = $order->get_meta('_upay_last_billed_at');
+            $order_last_billed_date = Keys::read_order_meta($order, '_upay_last_billed_at');
 
             $start_date = $order_last_billed_date
                 ?: $order_paid_date
@@ -319,7 +320,7 @@ class Scheduler
             // UNRESOLVED historical attempt. We cannot prove that request did
             // not reach UPayments. Hold the cycle, send ZERO POSTs, and do
             // NOT clear _upay_last_attempt_at automatically.
-            $legacy_last_attempt = (string) $order->get_meta('_upay_last_attempt_at');
+            $legacy_last_attempt = (string) Keys::read_order_meta($order, '_upay_last_attempt_at');
             if ($legacy_last_attempt !== '') {
                 $cycle_due_gmt = CycleClaim::format_gmt_datetime($next_billing_date);
                 $cycle_key = CycleClaim::make_cycle_key(
@@ -542,7 +543,7 @@ class Scheduler
 
             // ---- Build provider request ONLY from the persisted claim snapshot ----
             $unique_order_id = $order->get_id();
-            $ref_id = $order->get_meta('UPayments_Ref');
+            $ref_id = Keys::read_order_meta($order, 'UPayments_Ref');
             $phone = preg_replace('/\D+/', '', $order->get_billing_phone());
             $firstName = $order->get_billing_first_name();
             $lastName = $order->get_billing_last_name();
@@ -808,7 +809,7 @@ class Scheduler
             'currency'     => (string) $claim_row['expected_currency'],
             'parent_id'    => (int) $order->get_id(),
             'cycle_key'    => $cycle_key,
-            'reference_id' => (string) $order->get_meta('UPayments_Ref'),
+            'reference_id' => (string) Keys::read_order_meta($order, 'UPayments_Ref'),
         );
         $verification = AutoDeductResultVerifier::verify($result, $expected_snapshot);
 
@@ -884,7 +885,7 @@ class Scheduler
         $existing_order_ids = wc_get_orders([
             'limit'          => 1,
             'return'         => 'ids',
-            'payment_method' => 'upayments',
+            'payment_method' => Keys::payment_method_query(),
             'transaction_id' => $payment_id,
         ]);
 
@@ -913,8 +914,8 @@ class Scheduler
                 return;
             }
 
-            $existing_parent = (int) $existing_order->get_meta('UPayments_ParentOrderID');
-            $existing_is_auto = $existing_order->get_meta('UPayments_AutoDeduction') === 'yes';
+            $existing_parent = (int) Keys::read_order_meta($existing_order, 'UPayments_ParentOrderID');
+            $existing_is_auto = Keys::read_order_meta($existing_order, 'UPayments_AutoDeduction') === 'yes';
 
             if ($existing_is_auto && $existing_parent === (int) $order->get_id()) {
                 // Same paymentId seen for the same parent+cycle. The
@@ -979,7 +980,7 @@ class Scheduler
         $renewal_order->set_currency($paid_currency);
         // Decimal-safe: never cast provider amounts through binary float.
         $renewal_order->set_total($paid_amount);
-        $renewal_order->set_payment_method('upayments');
+        $renewal_order->set_payment_method(Keys::gateway_id());
         $renewal_order->set_payment_method_title('UPayments Auto Deduction');
 
         // UPayments_order_id is protected provider-order identity. Never
@@ -1002,39 +1003,39 @@ class Scheduler
             );
             return;
         }
-        $renewal_order->update_meta_data('UPayments_order_id', $provider_order_identity);
-        $renewal_order->update_meta_data('UPayments_ParentOrderID', $order->get_id());
-        $renewal_order->update_meta_data('UPayments_AutoDeduction', 'yes');
-        $renewal_order->update_meta_data('UPayments_PaymentID', $payment_id);
+        $renewal_order->update_meta_data(Keys::write_key('UPayments_order_id'), $provider_order_identity);
+        $renewal_order->update_meta_data(Keys::write_key('UPayments_ParentOrderID'), $order->get_id());
+        $renewal_order->update_meta_data(Keys::write_key('UPayments_AutoDeduction'), 'yes');
+        $renewal_order->update_meta_data(Keys::write_key('UPayments_PaymentID'), $payment_id);
 
         if ($track_id !== '') {
-            $renewal_order->update_meta_data('UPayments_TrackID', $track_id);
+            $renewal_order->update_meta_data(Keys::write_key('UPayments_TrackID'), $track_id);
         }
         if ($invoice_id !== '') {
-            $renewal_order->update_meta_data('UPayments_InvoiceID', $invoice_id);
+            $renewal_order->update_meta_data(Keys::write_key('UPayments_InvoiceID'), $invoice_id);
         }
         if ($reference_value !== '') {
-            $renewal_order->update_meta_data('UPayments_Ref', $reference_value);
+            $renewal_order->update_meta_data(Keys::write_key('UPayments_Ref'), $reference_value);
         }
         if ($transaction_dt !== '') {
-            $renewal_order->update_meta_data('UPayments_TransactionDate', $transaction_dt);
+            $renewal_order->update_meta_data(Keys::write_key('UPayments_TransactionDate'), $transaction_dt);
         }
         if ($payment_type !== '') {
-            $renewal_order->update_meta_data('UPayments_payment_type', $payment_type);
+            $renewal_order->update_meta_data(Keys::write_key('UPayments_payment_type'), $payment_type);
         }
 
-        $renewal_order->update_meta_data('UPayments_Result', 'CAPTURED');
-        $renewal_order->update_meta_data('UPayments_PostDate', '');
+        $renewal_order->update_meta_data(Keys::write_key('UPayments_Result'), 'CAPTURED');
+        $renewal_order->update_meta_data(Keys::write_key('UPayments_PostDate'), '');
         // BLOCKER 13: Preserve UPayments_GatewayStatus compatibility.
         // The legacy code stored $result['status'] directly. Do NOT
         // intentionally normalize this metadata type in PR 8B. Phase 8C
         // will replace this only after first-party protocol evidence
         // exists.
-        $renewal_order->update_meta_data('UPayments_GatewayStatus', $result['status']);
-        $renewal_order->update_meta_data('_upay_credit_card_token', $credit_card_token);
-        $renewal_order->update_meta_data('_upay_customer_unique_token', $customerUnqToken);
-        $renewal_order->update_meta_data('_upay_subscription_plan', $subscriptionPlan);
-        $renewal_order->update_meta_data('_upay_subscription_interval', $subscriptionInterval);
+        $renewal_order->update_meta_data(Keys::write_key('UPayments_GatewayStatus'), $result['status']);
+        $renewal_order->update_meta_data(Keys::write_key('_upay_credit_card_token'), $credit_card_token);
+        $renewal_order->update_meta_data(Keys::write_key('_upay_customer_unique_token'), $customerUnqToken);
+        $renewal_order->update_meta_data(Keys::write_key('_upay_subscription_plan'), $subscriptionPlan);
+        $renewal_order->update_meta_data(Keys::write_key('_upay_subscription_interval'), $subscriptionInterval);
 
         $renewal_order->payment_complete($payment_id);
         $renewal_order->update_status(
@@ -1079,13 +1080,13 @@ class Scheduler
             ? (string) $persisted_renewal->get_payment_method()
             : '';
         $persisted_renewal_auto         = $persisted_renewal instanceof WC_Order
-            ? (string) $persisted_renewal->get_meta('UPayments_AutoDeduction')
+            ? (string) Keys::read_order_meta($persisted_renewal, 'UPayments_AutoDeduction')
             : '';
         $persisted_renewal_parent       = $persisted_renewal instanceof WC_Order
-            ? (int) $persisted_renewal->get_meta('UPayments_ParentOrderID')
+            ? (int) Keys::read_order_meta($persisted_renewal, 'UPayments_ParentOrderID')
             : 0;
         $persisted_renewal_payment_id   = $persisted_renewal instanceof WC_Order
-            ? (string) $persisted_renewal->get_meta('UPayments_PaymentID')
+            ? (string) Keys::read_order_meta($persisted_renewal, 'UPayments_PaymentID')
             : '';
         $persisted_renewal_completed    = $persisted_renewal instanceof WC_Order
             ? $persisted_renewal->has_status('completed')
@@ -1093,7 +1094,7 @@ class Scheduler
 
         $renewal_verified = $persisted_renewal instanceof WC_Order
             && $persisted_renewal_txn_id === $payment_id
-            && $persisted_renewal_payment_mthd === 'upayments'
+            && Keys::is_our_gateway((string) $persisted_renewal_payment_mthd)
             && $persisted_renewal_auto === 'yes'
             && $persisted_renewal_parent === (int) $order->get_id()
             && $persisted_renewal_payment_id === $payment_id
@@ -1124,11 +1125,11 @@ class Scheduler
         // attempt record; the legacy metadata writes below are diagnostic/
         // backward-compatibility only and do NOT carry charge authority.
         $billed_at = current_time('mysql');
-        $order->update_meta_data('_upay_last_billed_at', $billed_at);
-        $order->delete_meta_data('_upay_retry_count');
-        $order->delete_meta_data('_upay_last_attempt_at');
-        $order->delete_meta_data('_upay_last_failed_reason');
-        $order->update_meta_data('_upay_subscription_status', 'active');
+        $order->update_meta_data(Keys::write_key('_upay_last_billed_at'), $billed_at);
+        Keys::delete_order_meta($order, '_upay_retry_count');
+        Keys::delete_order_meta($order, '_upay_last_attempt_at');
+        Keys::delete_order_meta($order, '_upay_last_failed_reason');
+        $order->update_meta_data(Keys::write_key('_upay_subscription_status'), 'active');
         $order->save();
 
         // ---- 8. Parent persistence verification (fresh WooCommerce read) ----
@@ -1138,10 +1139,10 @@ class Scheduler
         // may already exist, so we MUST NOT automatically retry.
         $persisted_parent          = wc_get_order($order->get_id());
         $persisted_parent_billed   = $persisted_parent instanceof WC_Order
-            ? (string) $persisted_parent->get_meta('_upay_last_billed_at')
+            ? (string) Keys::read_order_meta($persisted_parent, '_upay_last_billed_at')
             : '';
         $persisted_parent_status   = $persisted_parent instanceof WC_Order
-            ? (string) ($persisted_parent->get_meta('_upay_subscription_status') ?: 'active')
+            ? (string) (Keys::read_order_meta($persisted_parent, '_upay_subscription_status') ?: 'active')
             : '';
 
         $parent_verified = $persisted_parent instanceof WC_Order
@@ -1230,20 +1231,20 @@ class Scheduler
             return false;
         }
 
-        if ($fresh->get_meta('UPayments_AutoDeduction') === 'yes') {
+        if (Keys::read_order_meta($fresh, 'UPayments_AutoDeduction') === 'yes') {
             return false;
         }
 
-        if ((string) $fresh->get_payment_method() !== 'upayments') {
+        if (!Keys::is_our_gateway((string) $fresh->get_payment_method())) {
             return false;
         }
 
-        $subscription_status = $fresh->get_meta('_upay_subscription_status') ?: 'active';
+        $subscription_status = Keys::read_order_meta($fresh, '_upay_subscription_status') ?: 'active';
         if ($subscription_status !== 'active') {
             return false;
         }
 
-        $fresh_customer_token = $fresh->get_meta('_upay_customer_unique_token');
+        $fresh_customer_token = Keys::read_order_meta($fresh, '_upay_customer_unique_token');
         if (!is_string($fresh_customer_token)
             || $fresh_customer_token === ''
             || !hash_equals($fresh_customer_token, $customerUnqToken)
@@ -1253,7 +1254,7 @@ class Scheduler
 
         // B. Explicitly authorized card token must remain the selected token.
         // Never switch cards mid-attempt; never use cards[0].
-        $fresh_card_token = $fresh->get_meta('_upay_credit_card_token');
+        $fresh_card_token = Keys::read_order_meta($fresh, '_upay_credit_card_token');
         if (!is_string($fresh_card_token)
             || $fresh_card_token === ''
             || preg_match('/\s/', $fresh_card_token)
@@ -1275,8 +1276,8 @@ class Scheduler
             return false;
         }
 
-        $plan = $fresh->get_meta('_upay_subscription_plan');
-        $interval = (int) $fresh->get_meta('_upay_subscription_interval');
+        $plan = Keys::read_order_meta($fresh, '_upay_subscription_plan');
+        $interval = (int) Keys::read_order_meta($fresh, '_upay_subscription_interval');
         if ($plan === 'daily') {
             $interval = 1;
         }
@@ -1314,7 +1315,7 @@ class Scheduler
         WC()->payment_gateways();
         $gateways = WC()->payment_gateways->payment_gateways();
 
-        return $gateways['upayments'] ?? null;
+        return Keys::find_gateway($gateways);
     }
 
     public static function getNextBillingDate(?DateTime $start, string $plan, int $interval): ?DateTime
@@ -1358,13 +1359,13 @@ class Scheduler
      */
     public static function upayShouldAttemptRetry(WC_Order $order): bool
     {
-        $status = $order->get_meta('_upay_subscription_status') ?: 'active';
+        $status = Keys::read_order_meta($order, '_upay_subscription_status') ?: 'active';
         if (in_array($status, ['paused', 'cancelled'], true)) {
             return false;
         }
 
-        $retry_count = (int) $order->get_meta('_upay_retry_count');
-        $last_attempt = $order->get_meta('_upay_last_attempt_at');
+        $retry_count = (int) Keys::read_order_meta($order, '_upay_retry_count');
+        $last_attempt = Keys::read_order_meta($order, '_upay_last_attempt_at');
 
         if ($retry_count >= 3) {
             return false;

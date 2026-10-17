@@ -243,13 +243,18 @@ final class KeysTest extends TestCase {
         self::assertLessThanOrEqual($limit - 2, strlen($bootstrap) + 20);
     }
 
-    public function test_read_order_meta_prefers_the_new_name_and_falls_back_to_legacy(): void {
+    public function test_before_cutover_read_order_meta_reads_exactly_the_legacy_name(): void {
+        // Before cutover every runtime write lands on the legacy name, so it is
+        // authoritative: a takeover copy (or a stale copy after a rollback) under the new
+        // name never shadows it. New-name-first reads after cutover: DualReadTest.
         $legacy_only = self::order(array('UPayments_PaymentID' => 'pay-1'));
         $both = self::order(array('UPayments_PaymentID' => 'pay-1', '_supcheckout_payment_id' => 'pay-2'));
+        $new_only = self::order(array('_supcheckout_payment_id' => 'pay-2'));
         $neither = self::order(array());
 
         self::assertSame('pay-1', Keys::read_order_meta($legacy_only, 'UPayments_PaymentID'));
-        self::assertSame('pay-2', Keys::read_order_meta($both, 'UPayments_PaymentID'));
+        self::assertSame('pay-1', Keys::read_order_meta($both, 'UPayments_PaymentID'));
+        self::assertSame('', Keys::read_order_meta($new_only, 'UPayments_PaymentID'));
         self::assertSame('', Keys::read_order_meta($neither, 'UPayments_PaymentID'));
     }
 

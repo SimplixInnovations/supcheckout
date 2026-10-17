@@ -210,6 +210,8 @@ class Phase9IWpdb {
 }
 $GLOBALS['wpdb'] = new Phase9IWpdb();
 
+require_once $root . '/src/Takeover/TakeoverState.php';
+require_once $root . '/src/Takeover/Keys.php';
 require_once $root . '/src/Token/CustomerTokenIdentity.php';
 require_once $root . '/src/Migration/MigrationPreflight.php';
 

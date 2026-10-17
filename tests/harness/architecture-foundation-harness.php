@@ -402,7 +402,9 @@ $callbackWithoutTrailingComma = array(
     '[', 'variable:$this', ',', 'string:check_ipn_response', ']', ')', ';',
 );
 $settingsReadSequence = array(
-    'variable:$settings', '=', 'name:get_option', '(', 'string:woocommerce_upayments_settings', ')', ';',
+    // 0b Task 2: the settings read goes through Keys::get_settings(), which reads exactly
+    // woocommerce_upayments_settings before cutover (pinned by tests/unit/Takeover/DualReadTest.php).
+    'variable:$settings', '=', 'name:Keys', '::', 'name:get_settings', '(', ')', ';',
 );
 $availabilityDelegateSequence = array(
     'return', 'name:Availability', '::', 'name:filter', '(', 'variable:$available_gateways', ')', ';',
@@ -415,7 +417,8 @@ $sessionGuardSequence = array(
     'variable:$wc', '&&', 'variable:$wc', '->', 'name:session',
 );
 $orderIdWriteSequence = array(
-    'variable:$order', '->', 'name:add_meta_data', '(', 'string:UPayments_order_id', ',',
+    // 0b Task 2: written under Keys::write_key(), the legacy name until cutover.
+    'variable:$order', '->', 'name:add_meta_data', '(', 'name:Keys', '::', 'name:write_key', '(', 'string:UPayments_order_id', ')', ',',
     'variable:$unique_order_id', ')', ';',
 );
 $availabilityFilterSequence = array(
@@ -772,7 +775,7 @@ $inertFixture = <<<'PHP'
 <?php
 class WrongGateway {
     public function getAPIUrl() { return 'dead'; }
-    public function process_payment() { $order->add_meta_data("UPayments_order_id", $unique_order_id); }
+    public function process_payment() { $order->add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id); }
 }
 class WC_Upayments {
     // public function getAPIUrl() {}
@@ -785,18 +788,18 @@ class WC_Upayments {
     }
     protected function getAPIUrl() { return 'not-public'; }
     public function process_payment() {
-        $dead_write = '$order->add_meta_data("UPayments_order_id", $unique_order_id);';
+        $dead_write = '$order->add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id);';
         $nested = function () use ($order, $unique_order_id) {
-            $order->add_meta_data("UPayments_order_id", $unique_order_id);
+            $order->add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id);
         };
     }
 }
 if (false)
     add_filter("woocommerce_available_payment_gateways", "enableUpaymentsGateway");
 function enableUpaymentsGateway($available_gateways) {
-    $dead_settings = '$settings = get_option("woocommerce_upayments_settings");';
+    $dead_settings = '$settings = Keys::get_settings();';
     $nested = function () {
-        $settings = get_option("woocommerce_upayments_settings");
+        $settings = Keys::get_settings();
     };
     return $available_gateways;
 }
@@ -822,7 +825,7 @@ $bracedConditionalFixture = <<<'PHP'
 if (false) {
     add_filter("woocommerce_available_payment_gateways", "enableUpaymentsGateway");
     function enableUpaymentsGateway($available_gateways) {
-        $settings = get_option("woocommerce_upayments_settings");
+        $settings = Keys::get_settings();
         return $available_gateways;
     }
 }
@@ -838,7 +841,7 @@ $validAvailabilityFixture = <<<'PHP'
 <?php
 add_filter("woocommerce_available_payment_gateways", "enableUpaymentsGateway");
 function enableUpaymentsGateway($available_gateways) {
-    $settings = get_option("woocommerce_upayments_settings");
+    $settings = Keys::get_settings();
     return $available_gateways;
 }
 PHP;

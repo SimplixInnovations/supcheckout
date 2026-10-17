@@ -3,6 +3,8 @@ namespace Simplixi\SUPCheckout\Token;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 class CustomerTokenIdentity {
 
     const SCHEMA_VERSION = 3;
@@ -15,6 +17,9 @@ class CustomerTokenIdentity {
     const MAX_CREATE_ATTEMPTS = 3;
 
     const SECRET_OPTION = 'upayments_token_identity_secret_v2';
+
+    /** H12 provenance user meta prefix (legacy name; Keys maps it to the new prefix). */
+    const PROVENANCE_PREFIX = '_upay_customer_token_v2_b';
 
     const SECRET_BYTES = 32;
 
@@ -85,7 +90,7 @@ class CustomerTokenIdentity {
      */
     public static function read_existing_secret_record() {
         $missing = new \stdClass();
-        $existing = get_option(self::SECRET_OPTION, $missing);
+        $existing = Keys::get_option(self::SECRET_OPTION, $missing, true);
 
         if ($existing === $missing) {
             return array('state' => self::SECRET_ABSENT, 'record' => null);
@@ -206,7 +211,7 @@ class CustomerTokenIdentity {
 
         // Use unique sentinel to distinguish missing from malformed.
         $missing = new \stdClass();
-        $existing = get_option(self::SECRET_OPTION, $missing);
+        $existing = Keys::get_option(self::SECRET_OPTION, $missing, true);
 
         if ($existing !== $missing) {
             if (is_array($existing) && self::is_valid_secret_record($existing)) {
@@ -216,17 +221,19 @@ class CustomerTokenIdentity {
             return null;
         }
 
-        // Only here is the option genuinely absent — proceed to check provenance.
+        // Only here is the option genuinely absent (under both names) — proceed to check
+        // provenance. Rows under EITHER prefix fail closed: after Finalize only the new
+        // prefix holds rows, and minting a fresh secret would orphan every record.
         $blog_id = (string) get_current_blog_id();
-        $meta_prefix = '_upay_customer_token_v2_b' . $blog_id . '_';
-        $escaped_prefix = $wpdb->esc_like($meta_prefix);
+        $prefixes = self::provenance_prefixes($blog_id);
 
         // Use $wpdb->query() for unambiguous row-count semantics.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fresh global provenance-presence probe is a security invariant and must not be cached.
         $row_count = $wpdb->query(
             $wpdb->prepare(
-                "SELECT 1 FROM {$wpdb->usermeta} WHERE meta_key LIKE %s LIMIT 1",
-                $escaped_prefix . '%'
+                "SELECT 1 FROM {$wpdb->usermeta} WHERE meta_key LIKE %s OR meta_key LIKE %s LIMIT 1",
+                $wpdb->esc_like($prefixes['legacy']) . '%',
+                $wpdb->esc_like($prefixes['new']) . '%'
             )
         );
 
@@ -267,12 +274,12 @@ class CustomerTokenIdentity {
             'verifier' => $verifier,
         );
 
-        if (add_option(self::SECRET_OPTION, $record, '', 'no')) {
+        if (add_option(Keys::write_key(self::SECRET_OPTION), $record, '', 'no')) {
             return $record;
         }
 
         // Race: another worker created it. Read back and validate.
-        $read_back = get_option(self::SECRET_OPTION, $missing);
+        $read_back = Keys::get_option(self::SECRET_OPTION, $missing, true);
         if ($read_back !== $missing && is_array($read_back) && self::is_valid_secret_record($read_back)) {
             return $read_back;
         }
@@ -420,7 +427,66 @@ class CustomerTokenIdentity {
         if (!self::is_valid_scope($scope_fingerprint)) {
             return null;
         }
-        return '_upay_customer_token_v2_b' . $blog_id . '_' . $scope_fingerprint;
+        return Keys::write_key(self::PROVENANCE_PREFIX . $blog_id . '_' . $scope_fingerprint);
+    }
+
+    /**
+     * This blog's provenance key prefixes under both names. The legacy prefix is 25
+     * characters and the new one 32, so a scope is always sliced by the prefix that
+     * matched, never by one fixed length.
+     *
+     * @param string $blog_id Canonical blog ID.
+     * @return array{legacy:string,new:string}
+     */
+    private static function provenance_prefixes($blog_id) {
+        list($new_prefix, $legacy_prefix) = Keys::meta_names(self::PROVENANCE_PREFIX);
+        return array(
+            'legacy' => $legacy_prefix . $blog_id . '_',
+            'new' => $new_prefix . $blog_id . '_',
+        );
+    }
+
+    /**
+     * The other name of an exact provenance key (legacy <-> new).
+     *
+     * @param string $meta_key Provenance key in either form.
+     * @return string|null
+     */
+    private static function provenance_other_key($meta_key) {
+        $pair = Keys::user_meta_key_pair($meta_key);
+        if ($pair === null) {
+            return null;
+        }
+        return $pair[0] === $meta_key ? $pair[1] : $pair[0];
+    }
+
+    /**
+     * All values of one provenance record, which may exist under its legacy name, its
+     * new name, or both (a copy). Both present and identical singletons count as one
+     * record; anything else that disagrees is returned merged, so the caller's
+     * exactly-one check fails closed.
+     *
+     * @param int    $user_id  User ID.
+     * @param string $meta_key Provenance key being read (the name writes go to).
+     * @return mixed get_user_meta(..., false) shape.
+     */
+    private static function provenance_values($user_id, $meta_key) {
+        $values = get_user_meta($user_id, $meta_key, false);
+        $other_key = self::provenance_other_key($meta_key);
+        if ($other_key === null) {
+            return $values;
+        }
+        $other = get_user_meta($user_id, $other_key, false);
+        if (!is_array($other) || count($other) === 0) {
+            return $values;
+        }
+        if (!is_array($values) || count($values) === 0) {
+            return $other;
+        }
+        if (count($values) === 1 && count($other) === 1 && $values[0] === $other[0]) {
+            return $values;
+        }
+        return array_merge($values, $other);
     }
 
     // ────────────────────────────────────────────────────────
@@ -518,8 +584,8 @@ class CustomerTokenIdentity {
             return array('state' => self::STATE_INVALID, 'record' => null);
         }
 
-        // Retrieve ALL values for exact user/meta key to detect duplicates.
-        $all_values = get_user_meta($user_id, $meta_key, false);
+        // Retrieve ALL values for exact user/meta key (both names) to detect duplicates.
+        $all_values = self::provenance_values($user_id, $meta_key);
 
         if (!is_array($all_values) || count($all_values) === 0) {
             return array('state' => self::STATE_ABSENT, 'record' => null);
@@ -782,6 +848,10 @@ class CustomerTokenIdentity {
         }
 
         if (metadata_exists('user', $user_id, $meta_key)) {
+            return false;
+        }
+        $other_key = self::provenance_other_key($meta_key);
+        if ($other_key !== null && metadata_exists('user', $user_id, $other_key)) {
             return false;
         }
 
@@ -1109,6 +1179,7 @@ class CustomerTokenIdentity {
             return array('status' => self::META_DUPLICATE_OR_INVALID, 'value' => null);
         }
 
+        $key = self::order_meta_name($order, $key);
         if (!$order->meta_exists($key)) {
             return array('status' => self::META_ABSENT, 'value' => null);
         }
@@ -1176,7 +1247,7 @@ class CustomerTokenIdentity {
                 $orders = wc_get_orders(array(
                     'type' => 'shop_order',
                     'customer_id' => $user_id,
-                    'payment_method' => 'upayments',
+                    'payment_method' => Keys::payment_method_query(),
                     'limit' => self::HISTORY_PAGE_SIZE,
                     'paged' => $page,
                     'orderby' => 'ID',
@@ -1485,7 +1556,7 @@ class CustomerTokenIdentity {
                 $orders = wc_get_orders(array(
                     'type' => 'shop_order',
                     'customer_id' => $user_id,
-                    'payment_method' => 'upayments',
+                    'payment_method' => Keys::payment_method_query(),
                     'limit' => $page_size,
                     'paged' => $page,
                     'orderby' => 'ID',
@@ -1631,15 +1702,15 @@ class CustomerTokenIdentity {
 
         global $wpdb;
         $blog_id = (string) get_current_blog_id();
-        $meta_prefix = '_upay_customer_token_v2_b' . $blog_id . '_';
-        $escaped_prefix = $wpdb->esc_like($meta_prefix);
+        $prefixes = self::provenance_prefixes($blog_id);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Provenance enumeration must observe current usermeta and intentionally bypass caches.
         $meta_keys = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT meta_key FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key LIKE %s",
+                "SELECT meta_key FROM {$wpdb->usermeta} WHERE user_id = %d AND (meta_key LIKE %s OR meta_key LIKE %s)",
                 $user_id,
-                $escaped_prefix . '%'
+                $wpdb->esc_like($prefixes['legacy']) . '%',
+                $wpdb->esc_like($prefixes['new']) . '%'
             )
         );
 
@@ -1657,15 +1728,42 @@ class CustomerTokenIdentity {
         $has_generation_mismatch = false;
         $has_invalid = false;
 
+        // One record per scope: a scope held under both names is the same record (a
+        // takeover copy) and both forms must agree.
+        $keys_by_scope = array();
         foreach ($meta_keys as $meta_key) {
-            $scope_from_key = substr($meta_key, strlen($meta_prefix));
+            $meta_key = (string) $meta_key;
+            if (strpos($meta_key, $prefixes['legacy']) === 0) {
+                $scope_from_key = substr($meta_key, strlen($prefixes['legacy']));
+            } elseif (strpos($meta_key, $prefixes['new']) === 0) {
+                $scope_from_key = substr($meta_key, strlen($prefixes['new']));
+            } else {
+                $has_invalid = true;
+                continue;
+            }
             if (!self::is_valid_scope($scope_from_key)) {
                 $has_invalid = true;
                 continue;
             }
+            $keys_by_scope[$scope_from_key][] = $meta_key;
+        }
 
+        foreach ($keys_by_scope as $scope_from_key => $scope_keys) {
             // Retrieve ALL values for exact meta key to detect duplicates (Section H).
-            $all_values = get_user_meta($user_id, $meta_key, false);
+            $all_values = array();
+            foreach ($scope_keys as $scope_key) {
+                $key_values = get_user_meta($user_id, $scope_key, false);
+                if (!is_array($key_values)) {
+                    $all_values = null;
+                    break;
+                }
+                $all_values = array_merge($all_values, $key_values);
+            }
+            if (is_array($all_values) && count($all_values) === 2 && count(array_unique($scope_keys)) === 2
+                && $all_values[0] === $all_values[1]
+            ) {
+                $all_values = array($all_values[0]);
+            }
 
             if (!is_array($all_values) || count($all_values) === 0) {
                 $has_invalid = true;
@@ -2264,12 +2362,16 @@ class CustomerTokenIdentity {
             return false;
         }
 
-        $keys = array(
+        $legacy_keys = array(
             '_upay_customer_unique_token',
             '_upay_customer_token_kind_v1',
             '_upay_customer_token_scope_v1',
             '_upay_customer_token_generation_v1',
         );
+        $keys = array();
+        foreach ($legacy_keys as $legacy_key) {
+            $keys[$legacy_key] = self::order_meta_name($order, $legacy_key);
+        }
 
         // All 4 keys must exist.
         foreach ($keys as $key) {
@@ -2292,10 +2394,10 @@ class CustomerTokenIdentity {
             return true; // malformed card token — preserve all
         }
 
-        $kind = $order->get_meta('_upay_customer_token_kind_v1', true, 'edit');
-        $scope = $order->get_meta('_upay_customer_token_scope_v1', true, 'edit');
-        $generation = $order->get_meta('_upay_customer_token_generation_v1', true, 'edit');
-        $token = $order->get_meta('_upay_customer_unique_token', true, 'edit');
+        $kind = $order->get_meta($keys['_upay_customer_token_kind_v1'], true, 'edit');
+        $scope = $order->get_meta($keys['_upay_customer_token_scope_v1'], true, 'edit');
+        $generation = $order->get_meta($keys['_upay_customer_token_generation_v1'], true, 'edit');
+        $token = $order->get_meta($keys['_upay_customer_unique_token'], true, 'edit');
 
         if (!is_string($kind) || !is_string($scope) || !is_string($generation) || !is_string($token)) {
             return true; // non-string — preserve
@@ -2330,10 +2432,10 @@ class CustomerTokenIdentity {
 
         // Fully valid current-generation snapshot — safe to clear.
         try {
-            foreach ($keys as $key) {
-                $order->delete_meta_data($key);
+            foreach ($legacy_keys as $legacy_key) {
+                Keys::delete_order_meta($order, $legacy_key);
             }
-            $order->delete_meta_data('_upay_credit_card_token');
+            Keys::delete_order_meta($order, '_upay_credit_card_token');
             $order->save_meta_data();
         } catch (\Throwable $e) {
             return false;
@@ -2346,7 +2448,32 @@ class CustomerTokenIdentity {
     // LOCK HELPERS
     // ────────────────────────────────────────────────────────
 
+    /**
+     * Take every name of a lock (Keys::ephemeral_names(): the legacy name only until
+     * the takeover starts copying, both during the switch window, the new name after
+     * Finalize). All or nothing: a partial acquisition is released.
+     */
     private static function acquire_lock($lock_name) {
+        $acquired = array();
+        foreach (Keys::ephemeral_names($lock_name) as $name) {
+            if (!self::acquire_one_lock($name)) {
+                foreach (array_reverse($acquired) as $held) {
+                    self::release_one_lock($held);
+                }
+                return false;
+            }
+            $acquired[] = $name;
+        }
+        return true;
+    }
+
+    private static function release_lock($lock_name) {
+        foreach (array_reverse(Keys::ephemeral_names($lock_name)) as $name) {
+            self::release_one_lock($name);
+        }
+    }
+
+    private static function acquire_one_lock($lock_name) {
         global $wpdb;
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- MySQL advisory lock is a live-connection concurrency primitive and cannot be cached.
@@ -2357,12 +2484,29 @@ class CustomerTokenIdentity {
         return $result === '1' || $result === 1;
     }
 
-    private static function release_lock($lock_name) {
+    private static function release_one_lock($lock_name) {
         global $wpdb;
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- MySQL advisory-lock release must execute on the live connection and cannot be cached.
         $wpdb->get_var(
             $wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name)
         );
+    }
+
+    /**
+     * The name an order's token snapshot meta lives under: the legacy name before
+     * cutover (exactly as before); after cutover the new name when the order has it,
+     * else the legacy name (an attempt staged before cutover).
+     *
+     * @param object $order  Order.
+     * @param string $legacy Legacy order meta key.
+     * @return string
+     */
+    private static function order_meta_name($order, $legacy) {
+        $names = Keys::read_names($legacy);
+        if ($names[0] === $legacy) {
+            return $legacy;
+        }
+        return $order->meta_exists($names[0]) ? $names[0] : $legacy;
     }
 }

@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Security;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Read-only public status-poll boundary for the historical wc_upayments route.
  *
@@ -70,7 +72,7 @@ final class PublicOrderStatus {
             self::send_unavailable();
         }
 
-        $raw_status = $order->get_meta('UPayments_WHS');
+        $raw_status = Keys::read_order_meta($order, 'UPayments_WHS');
         $status = self::normalize_status($raw_status);
         self::send(array('status' => $status, 'message' => ''), 200);
     }
@@ -148,7 +150,7 @@ final class PublicOrderStatus {
         return is_object($order)
             && method_exists($order, 'get_payment_method')
             && method_exists($order, 'get_meta')
-            && (string) $order->get_payment_method() === 'upayments';
+            && Keys::is_our_gateway((string) $order->get_payment_method());
     }
 
     /**

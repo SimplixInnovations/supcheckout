@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Payment;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * Database-atomic, self-expiring per-order lifecycle lock.
  *
@@ -33,27 +35,46 @@ final class OrderLock {
             return null;
         }
 
-        $name = self::PREFIX . $order_id;
         $token = self::token();
         $record = self::encode_record($token, time() + self::TTL);
 
+        // Every name of this lock (Keys::ephemeral_names(): only the legacy name until
+        // the takeover starts copying, legacy then new during the switch window, only
+        // the new name after Finalize), all or nothing, so a worker that started before
+        // cutover and one that started after still contend.
+        $held = array();
+        foreach (Keys::ephemeral_names(self::PREFIX . $order_id) as $name) {
+            if (!self::acquire_name($name, $record)) {
+                foreach (array_reverse($held) as $held_name) {
+                    self::delete_if_current($held_name, $record);
+                }
+                return null;
+            }
+            $held[] = $name;
+        }
+
+        return $token;
+    }
+
+    /**
+     * @param string $name   One lock option name.
+     * @param string $record This worker's encoded record.
+     * @return bool True when this worker now owns the name.
+     */
+    private static function acquire_name($name, $record) {
         if (self::insert_if_absent($name, $record)) {
-            return $token;
+            return true;
         }
 
         $existing = get_option($name, null);
         $parsed = self::decode_record($existing);
         if ($parsed === null || $parsed['expires'] >= time()) {
-            return null;
+            return false;
         }
 
         // Compare-and-swap is essential here. A read + delete_option() + add_option()
         // sequence can delete a newer owner's lock after another worker wins recovery.
-        if (self::replace_if_current($name, $existing, $record)) {
-            return $token;
-        }
-
-        return null;
+        return self::replace_if_current($name, $existing, $record);
     }
 
     /**
@@ -69,14 +90,15 @@ final class OrderLock {
             return;
         }
 
-        $name = self::PREFIX . $order_id;
-        $existing = get_option($name, null);
-        $parsed = self::decode_record($existing);
-        if ($parsed === null || !hash_equals($parsed['token'], $token)) {
-            return;
-        }
+        foreach (array_reverse(Keys::ephemeral_names(self::PREFIX . $order_id)) as $name) {
+            $existing = get_option($name, null);
+            $parsed = self::decode_record($existing);
+            if ($parsed === null || !hash_equals($parsed['token'], $token)) {
+                continue;
+            }
 
-        self::delete_if_current($name, $existing);
+            self::delete_if_current($name, $existing);
+        }
     }
 
     private static function encode_record($token, $expires) {

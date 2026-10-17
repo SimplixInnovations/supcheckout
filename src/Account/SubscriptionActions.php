@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Account;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+
 /**
  * My Account pause / resume / unsubscribe POST handler for manual UPayments
  * subscription orders (was the anonymous 'init' closure in the main file).
@@ -54,8 +56,8 @@ final class SubscriptionActions {
 
         // Object contract: this customer action belongs only to manual UPayments
         // subscription orders. Auto-deduction orders remain scheduler-controlled.
-        $plan = $order->get_meta('_upay_subscription_plan');
-        $interval = (int) $order->get_meta('_upay_subscription_interval');
+        $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
+        $interval = (int) Keys::read_order_meta($order, '_upay_subscription_interval');
         $allowed_intervals = array(
             'daily' => array(1),
             'weekly' => array(1, 2, 3),
@@ -63,8 +65,8 @@ final class SubscriptionActions {
             'quarterly' => array(1, 2, 3),
             'yearly' => array(1),
         );
-        if ((string) $order->get_payment_method() !== 'upayments'
-            || $order->get_meta('UPayments_AutoDeduction') === 'yes'
+        if (!Keys::is_our_gateway((string) $order->get_payment_method())
+            || Keys::read_order_meta($order, 'UPayments_AutoDeduction') === 'yes'
             || !is_string($plan)
             || !isset($allowed_intervals[$plan])
             || !in_array($interval, $allowed_intervals[$plan], true)
@@ -74,7 +76,7 @@ final class SubscriptionActions {
             exit;
         }
 
-        $current_status = $order->get_meta('_upay_subscription_status') ?: 'active';
+        $current_status = Keys::read_order_meta($order, '_upay_subscription_status') ?: 'active';
         $transition_allowed = ($action === 'unsubscribe' && in_array($current_status, array('active', 'paused'), true))
             || ($action === 'pause' && $current_status === 'active')
             || ($action === 'resume' && $current_status === 'paused');
@@ -102,13 +104,13 @@ final class SubscriptionActions {
         }
 
         if ($action === 'unsubscribe') {
-            $order->update_meta_data('_upay_subscription_status', 'cancelled');
+            $order->update_meta_data(Keys::write_key('_upay_subscription_status'), 'cancelled');
             wc_add_notice(__('Your subscription has been cancelled.', 'supcheckout'), 'success');
         } elseif ($action === 'pause') {
-            $order->update_meta_data('_upay_subscription_status', 'paused');
+            $order->update_meta_data(Keys::write_key('_upay_subscription_status'), 'paused');
             wc_add_notice(__('Subscription paused.', 'supcheckout'), 'success');
         } elseif ($action === 'resume') {
-            $order->update_meta_data('_upay_subscription_status', 'active');
+            $order->update_meta_data(Keys::write_key('_upay_subscription_status'), 'active');
             wc_add_notice(__('Subscription resumed.', 'supcheckout'), 'success');
         }
 

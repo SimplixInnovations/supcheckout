@@ -59,7 +59,7 @@ q3_assert(q3_contains($rate_gate, "private const PREFIX = 'simplixpay_upay_statu
 q3_assert(q3_contains($rate_gate, "hash_hmac('sha256', \$mode . '|' . \$gateway->apiKey, \$salt)"), 'credential/mode scope remains HMAC-derived');
 q3_assert(q3_contains($rate_gate, 'OrderLock::insert_if_absent($option_name, (string) time())'), 'rate slots are acquired by the atomic INSERT IGNORE helper');
 q3_assert(!q3_contains($rate_gate, 'if (add_option('), 'rate slots never trust non-atomic add_option() acquisition');
-q3_assert(q3_contains($rate_gate, 'self::delete_bucket($scope, $previous_bucket);'), 'valid previous bucket cleanup remains explicit');
+q3_assert(q3_contains($rate_gate, 'self::delete_bucket($prefix, $scope, $previous_bucket);'), 'valid previous bucket cleanup remains explicit');
 
 q3_assert(
     substr_count($order_lock, '@param int') === 2 && !q3_contains($order_lock, '@param mixed $order_id'),

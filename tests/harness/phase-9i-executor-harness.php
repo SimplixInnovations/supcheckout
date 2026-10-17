@@ -159,6 +159,8 @@ class P9EWpdb {
 }
 $GLOBALS['wpdb'] = new P9EWpdb();
 
+require_once $root . '/src/Takeover/TakeoverState.php';
+require_once $root . '/src/Takeover/Keys.php';
 require_once $root . '/src/Token/CustomerTokenIdentity.php';
 require_once $root . '/src/Migration/MigrationPreflight.php';
 require_once $root . '/src/Migration/MigrationExecutor.php';

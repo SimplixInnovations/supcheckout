@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Payment;
 
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
+use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 defined('ABSPATH') || exit;
@@ -47,6 +48,26 @@ class CheckoutOrchestrator {
         }
 
         return $this->requestBodyCache;
+    }
+
+    /**
+     * The Store API `extensions` namespace this request posted our data under. The
+     * current namespace wins; an already-open Blocks checkout still posts under the
+     * legacy one it was rendered with.
+     *
+     * @param mixed $extensions The request's `extensions` container.
+     * @return string|null
+     */
+    private static function posted_extension_namespace($extensions) {
+        if (!is_array($extensions)) {
+            return null;
+        }
+        foreach (array(Keys::EXTENSION_NAMESPACE, Keys::EXTENSION_NAMESPACE_LEGACY) as $namespace) {
+            if (array_key_exists($namespace, $extensions)) {
+                return $namespace;
+            }
+        }
+        return null;
     }
 
     private function execute_request($route, $method, $body = null) {
@@ -197,7 +218,7 @@ class CheckoutOrchestrator {
                     $order_has_subscription_product = true;
                     $product_id = (int) $item->get_product_id();
                     if ($product_id > 0
-                        && get_post_meta($product_id, '_upay_disable_subscription', true) === 'yes'
+                        && Keys::read_post_meta($product_id, '_upay_disable_subscription') === 'yes'
                     ) {
                         $order_has_subscription_restricted_product = true;
                     }
@@ -309,13 +330,14 @@ class CheckoutOrchestrator {
                         ? json_decode($preflight_raw_input, true)
                         : null;
 
-                    if (is_array($preflight_request_data)
-                        && isset($preflight_request_data['extensions'])
-                        && is_array($preflight_request_data['extensions'])
-                        && isset($preflight_request_data['extensions']['upayments'])
-                        && is_array($preflight_request_data['extensions']['upayments'])
+                    $preflight_namespace = is_array($preflight_request_data) && isset($preflight_request_data['extensions'])
+                        ? self::posted_extension_namespace($preflight_request_data['extensions'])
+                        : null;
+                    if ($preflight_namespace !== null
+                        && isset($preflight_request_data['extensions'][$preflight_namespace])
+                        && is_array($preflight_request_data['extensions'][$preflight_namespace])
                     ) {
-                        $preflight_extension_data = $preflight_request_data['extensions']['upayments'];
+                        $preflight_extension_data = $preflight_request_data['extensions'][$preflight_namespace];
                         if (CheckoutPayload::field_present($preflight_extension_data, 'upay_subscription_plan')) {
                             $preflight_parsed_plan = CheckoutPayload::parse_subscription_plan_strict(
                                 $preflight_extension_data['upay_subscription_plan']
@@ -404,13 +426,14 @@ class CheckoutOrchestrator {
                         wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                         return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                     }
-                    if (array_key_exists('upayments', $request_data['extensions'])) {
-                        if (!is_array($request_data['extensions']['upayments'])) {
+                    $extension_namespace = self::posted_extension_namespace($request_data['extensions']);
+                    if ($extension_namespace !== null) {
+                        if (!is_array($request_data['extensions'][$extension_namespace])) {
                             // Malformed upayments extension data — fail closed.
                             wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                             return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
                         }
-                        $extension_data = $request_data['extensions']['upayments'];
+                        $extension_data = $request_data['extensions'][$extension_namespace];
                     }
                     // Missing upayments namespace (or explicit null) => still Blocks,
                     // not Classic fallback. The request shape itself is Store API.
@@ -1098,8 +1121,8 @@ class CheckoutOrchestrator {
 
             // Section J: Stage UPayments_Checkout_Selected AFTER cleanup/refresh/residual gate.
             if ($whitelabled) {
-                $order->delete_meta_data("UPayments_Checkout_Selected");
-                $order->add_meta_data("UPayments_Checkout_Selected", $src);
+                Keys::delete_order_meta($order, "UPayments_Checkout_Selected");
+                $order->add_meta_data(Keys::write_key("UPayments_Checkout_Selected"), $src);
             }
 
             // CASE: Selected saved card requires membership validation.
@@ -1269,19 +1292,19 @@ class CheckoutOrchestrator {
 
             // Section H: Unique snapshot writes.
             if ($has_selected_card) {
-                $order->delete_meta_data("_upay_credit_card_token");
-                $order->add_meta_data("_upay_credit_card_token", $credit_card_token, true);
+                Keys::delete_order_meta($order, "_upay_credit_card_token");
+                $order->add_meta_data(Keys::write_key("_upay_credit_card_token"), $credit_card_token, true);
             }
 
             if (!$is_ordinary_payment) {
-                $order->delete_meta_data("_upay_customer_unique_token");
-                $order->delete_meta_data("_upay_customer_token_kind_v1");
-                $order->delete_meta_data("_upay_customer_token_scope_v1");
-                $order->delete_meta_data("_upay_customer_token_generation_v1");
-                $order->add_meta_data("_upay_customer_unique_token", $canonical_token, true);
-                $order->add_meta_data("_upay_customer_token_kind_v1", $token_kind, true);
-                $order->add_meta_data("_upay_customer_token_scope_v1", $token_scope, true);
-                $order->add_meta_data("_upay_customer_token_generation_v1", $token_generation, true);
+                Keys::delete_order_meta($order, "_upay_customer_unique_token");
+                Keys::delete_order_meta($order, "_upay_customer_token_kind_v1");
+                Keys::delete_order_meta($order, "_upay_customer_token_scope_v1");
+                Keys::delete_order_meta($order, "_upay_customer_token_generation_v1");
+                $order->add_meta_data(Keys::write_key("_upay_customer_unique_token"), $canonical_token, true);
+                $order->add_meta_data(Keys::write_key("_upay_customer_token_kind_v1"), $token_kind, true);
+                $order->add_meta_data(Keys::write_key("_upay_customer_token_scope_v1"), $token_scope, true);
+                $order->add_meta_data(Keys::write_key("_upay_customer_token_generation_v1"), $token_generation, true);
             }
 
             $order->save_meta_data();
@@ -1539,30 +1562,29 @@ class CheckoutOrchestrator {
                 }
 
                 if ($subscription_plan && $subscription_plan !== 'one_time') {
-                    $order->delete_meta_data('_upay_subscription_plan');
-                    $order->add_meta_data('_upay_subscription_plan', $subscription_plan);
-                    $order->delete_meta_data('_upay_subscription_interval');
-                    $order->add_meta_data('_upay_subscription_interval', $subscription_interval);
-                    $order->delete_meta_data('_upay_subscription_status');
-                    $order->add_meta_data('_upay_subscription_status', 'active');
-                    $order->delete_meta_data('UPayments_AutoDeduction');
-                    $order->add_meta_data('UPayments_AutoDeduction', 'no');
+                    Keys::delete_order_meta($order, '_upay_subscription_plan');
+                    $order->add_meta_data(Keys::write_key('_upay_subscription_plan'), $subscription_plan);
+                    Keys::delete_order_meta($order, '_upay_subscription_interval');
+                    $order->add_meta_data(Keys::write_key('_upay_subscription_interval'), $subscription_interval);
+                    Keys::delete_order_meta($order, '_upay_subscription_status');
+                    $order->add_meta_data(Keys::write_key('_upay_subscription_status'), 'active');
+                    Keys::delete_order_meta($order, 'UPayments_AutoDeduction');
+                    $order->add_meta_data(Keys::write_key('UPayments_AutoDeduction'), 'no');
                 }
 
-                $previous_order_id = $order->get_meta("UPayments_order_id");
+                $previous_order_id = Keys::read_order_meta($order, "UPayments_order_id");
                 if (is_string($previous_order_id) && $previous_order_id !== '') {
-                    $prior = $order->get_meta('_simplixpay_upayments_prior_requested_v1');
+                    $prior = Keys::read_order_meta($order, '_simplixpay_upayments_prior_requested_v1');
                     $prior = is_array($prior) ? array_values(array_filter($prior, 'is_string')) : array();
                     if (!in_array($previous_order_id, $prior, true)) {
                         $prior[] = $previous_order_id;
                     }
-                    $order->update_meta_data(
-                        '_simplixpay_upayments_prior_requested_v1',
+                    $order->update_meta_data(Keys::write_key('_simplixpay_upayments_prior_requested_v1'),
                         array_slice($prior, -self::MAX_PRIOR_PROVIDER_ATTEMPTS)
                     );
                 }
-                $order->delete_meta_data("UPayments_order_id");
-                $order->add_meta_data("UPayments_order_id", $unique_order_id);
+                Keys::delete_order_meta($order, "UPayments_order_id");
+                $order->add_meta_data(Keys::write_key("UPayments_order_id"), $unique_order_id);
                 $order->save_meta_data();
 
                 return ["result" => "success", "redirect" => $redirect_url];
