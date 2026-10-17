@@ -519,7 +519,7 @@ final class Keys {
      *   names, legacy first, so a value written or a marker deleted after the takeover
      *   copied an order can never be shadowed or resurrected by that copy at cutover,
      *   and the legacy name stays current for a rollback;
-     * - finalized: the new name only.
+     * - finalized: the new name only (a delete removes both: Keys::delete_names()).
      *
      * Reads stay legacy-only until is_cut_over() (Keys::read()).
      *
@@ -541,12 +541,21 @@ final class Keys {
     }
 
     /**
-     * Names a delete must remove: the same window model as writes.
+     * Names a delete must remove: the same window model as writes, except `finalized`,
+     * which removes BOTH names (amended in Task 11). Reads after cutover fall back to the
+     * legacy name when the new one is absent, and Finalize removes a legacy key only where
+     * the new key verifies equal (an unequal one is kept for the owner, and the removal
+     * pass reaches each object only after the transition). A new-name-only delete would
+     * therefore let a read resurrect the legacy leftover.
      *
      * @param string $legacy Legacy name.
      * @return list<string>
      */
     public static function delete_names($legacy) {
+        if (self::takeover_status() === TakeoverState::FINALIZED) {
+            list($new_key, $legacy) = self::meta_names($legacy);
+            return array($legacy, $new_key);
+        }
         return self::write_keys($legacy);
     }
 
