@@ -125,6 +125,8 @@ Record in an evidence file, `docs/project/evidence/STAGING-REHEARSAL-<YYYY-MM-DD
 
 1. Deactivate the official **UPayments** plugin. Never run both at once: they share the `upayments` gateway ID.
 2. Install the exact package from `scripts/build-release.sh` (verify its SHA-256 against the candidate) and activate **SUPCheckout for UPayments**.
+   - If the copy already runs an older SUPCheckout build activated as `supcheckout/UPayments.php`, update it in place by zip upload ("Replace current with uploaded") or `wp plugin install <zip> --force`, without deactivating. Do not use the classic non-JavaScript "Update now" link (`update.php?action=upgrade-plugin`): it leaves the plugin deactivated.
+   - After the upload, check that the Plugins screen shows **SUPCheckout for UPayments** active, and that `wp plugin list --status=active --field=file` lists `supcheckout/supcheckout.php` and no `supcheckout/UPayments.php`. Record both in the evidence file.
 3. Check the upgrade against the Step 5 baseline:
    - gateway settings carried over (key still empty, test mode on);
    - the same three historical orders show the same status and UPayments details;
