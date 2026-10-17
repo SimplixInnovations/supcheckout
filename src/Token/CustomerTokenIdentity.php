@@ -89,11 +89,16 @@ class CustomerTokenIdentity {
      * @return array with 'state' (SECRET_ABSENT/SECRET_VALID/SECRET_INVALID) and 'record' (when VALID).
      */
     public static function read_existing_secret_record() {
+        // Both names in every state; two different copies fail closed (never a scope
+        // derived from whichever copy happens to be preferred).
         $missing = new \stdClass();
-        $existing = Keys::get_option(self::SECRET_OPTION, $missing, true);
+        $existing = Keys::get_option_agreed(self::SECRET_OPTION, $missing);
 
         if ($existing === $missing) {
             return array('state' => self::SECRET_ABSENT, 'record' => null);
+        }
+        if ($existing === Keys::conflict()) {
+            return array('state' => self::SECRET_INVALID, 'record' => null);
         }
 
         if (is_array($existing) && self::is_valid_secret_record($existing)) {
@@ -211,9 +216,10 @@ class CustomerTokenIdentity {
 
         // Use unique sentinel to distinguish missing from malformed.
         $missing = new \stdClass();
-        $existing = Keys::get_option(self::SECRET_OPTION, $missing, true);
+        $existing = Keys::get_option_agreed(self::SECRET_OPTION, $missing);
 
         if ($existing !== $missing) {
+            // A conflict (two different copies) is not an array: fail closed below.
             if (is_array($existing) && self::is_valid_secret_record($existing)) {
                 return $existing;
             }
@@ -279,7 +285,7 @@ class CustomerTokenIdentity {
         }
 
         // Race: another worker created it. Read back and validate.
-        $read_back = Keys::get_option(self::SECRET_OPTION, $missing, true);
+        $read_back = Keys::get_option_agreed(self::SECRET_OPTION, $missing);
         if ($read_back !== $missing && is_array($read_back) && self::is_valid_secret_record($read_back)) {
             return $read_back;
         }

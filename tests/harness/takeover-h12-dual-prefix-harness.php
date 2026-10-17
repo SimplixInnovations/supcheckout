@@ -315,6 +315,32 @@ foreach (array('copying' => $new_prefix, 'cut_over' => $legacy_prefix) as $statu
     h12dp_assert(isset(upay_test_state()['usermeta'][1][$mirror_prefix . $scope]) && upay_test_state()['usermeta'][1][$mirror_prefix . $scope] === array($concurrent), "{$status}: only this call's mirror is removed; the concurrent value stays");
 }
 
+// Two individually valid but different secrets under the two names (a partial
+// takeover, rollback or restore): fail closed in every state, never mint, no scope.
+$other_secret_value = str_repeat('cd', 32);
+$other_generation = str_repeat('e', 32);
+$other_secret = array(
+    'version' => 1,
+    'secret' => $other_secret_value,
+    'generation_id' => $other_generation,
+    'verifier' => hash_hmac('sha256', 'upayments_token_identity_secret_record_v1|1|' . $other_generation, $other_secret_value),
+);
+h12dp_assert(CustomerTokenIdentity::is_valid_secret_record($other_secret) && $other_secret !== $secret, 'fixture: a second valid secret');
+foreach (array('idle', 'copying', 'cut_over', 'finalized') as $status) {
+    h12dp_reset($status);
+    upay_test_state()['options']['upayments_token_identity_secret_v2'] = $secret;
+    upay_test_state()['options']['supcheckout_token_identity_secret_v2'] = $other_secret;
+    h12dp_assert(CustomerTokenIdentity::read_existing_secret_record()['state'] === CustomerTokenIdentity::SECRET_INVALID, "{$status}: two different secrets read as INVALID");
+    $ctx = CustomerTokenIdentity::read_existing_identity_context($api_key, false);
+    h12dp_assert($ctx['state'] === CustomerTokenIdentity::SECRET_INVALID && $ctx['scope'] === null, "{$status}: no scope is derived from either copy");
+    $creates_before = upay_test_state()['option_creates'];
+    h12dp_assert(h12dp_private('get_or_create_secret_record') === null && upay_test_state()['option_creates'] === $creates_before, "{$status}: never minted, never picked");
+
+    upay_test_state()['options']['supcheckout_token_identity_secret_v2'] = $secret;
+    $ctx = CustomerTokenIdentity::read_existing_identity_context($api_key, false);
+    h12dp_assert(CustomerTokenIdentity::read_existing_secret_record()['state'] === CustomerTokenIdentity::SECRET_VALID && $ctx['scope'] === $scope, "{$status}: identical copies stay valid with the same scope");
+}
+
 $GLOBALS['wpdb'] = new WpdbStub();
 
 echo "\nTakeover H12 dual prefix: {$pass} PASS / {$fail} FAIL\n";

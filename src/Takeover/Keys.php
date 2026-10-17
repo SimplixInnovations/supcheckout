@@ -315,21 +315,33 @@ final class Keys {
      * still lands there, so it is complete and authoritative, and a copy the takeover
      * made while `copying` (or a stale one after a rollback) can never shadow it or
      * resurrect a value runtime code deleted. After cutover the new name is read first
-     * and the legacy name only when the new value is absent ('' / null / false / empty
-     * array), which covers data written before cutover and never copied. When both are
-     * absent the FIRST raw value is returned.
+     * and the legacy name only when the new name is absent, which covers data written
+     * before cutover and never copied.
      *
-     * @param callable $read   function (string $key): mixed.
-     * @param string   $legacy Legacy name.
-     * @param bool     $always Read both names in every state (H12 provenance).
+     * "Absent" comes from $exists when the storage API can tell a stored empty value
+     * from a missing key (WC_Order::meta_exists(), metadata_exists()): then a stored
+     * '' / 0 / false under the new name keeps its precedence. Without $exists the
+     * single-value read cannot tell them apart, so '' / null / false / an empty array
+     * count as absent. When both are absent the FIRST raw value is returned.
+     *
+     * @param callable      $read   function (string $key): mixed.
+     * @param string        $legacy Legacy name.
+     * @param bool          $always Read both names in every state (H12 provenance).
+     * @param callable|null $exists function (string $key): bool, when the API can tell.
      * @return mixed
      */
-    public static function read($read, $legacy, $always = false) {
+    public static function read($read, $legacy, $always = false, $exists = null) {
         if (!$always && !TakeoverState::is_cut_over()) {
             self::meta_names($legacy);
             return $read((string) $legacy);
         }
         list($first, $fallback) = self::read_names($legacy);
+        if (is_callable($exists)) {
+            if ($exists($first)) {
+                return $read($first);
+            }
+            return $exists($fallback) ? $read($fallback) : $read($first);
+        }
         $value = $read($first);
         if (!self::is_absent($value)) {
             return $value;
@@ -352,9 +364,14 @@ final class Keys {
      * @return mixed $order->get_meta() under the read order.
      */
     public static function read_order_meta($order, $legacy) {
+        $exists = method_exists($order, 'meta_exists')
+            ? function ($key) use ($order) {
+                return (bool) $order->meta_exists($key);
+            }
+            : null;
         return self::read(function ($key) use ($order) {
             return $order->get_meta($key);
-        }, $legacy);
+        }, $legacy, false, $exists);
     }
 
     /**
@@ -363,9 +380,14 @@ final class Keys {
      * @return mixed get_user_meta($user_id, $key, true) under the read order.
      */
     public static function read_user_meta($user_id, $legacy) {
+        $exists = function_exists('metadata_exists')
+            ? function ($key) use ($user_id) {
+                return (bool) metadata_exists('user', $user_id, $key);
+            }
+            : null;
         return self::read(function ($key) use ($user_id) {
             return get_user_meta($user_id, $key, true);
-        }, $legacy);
+        }, $legacy, false, $exists);
     }
 
     /**
@@ -374,9 +396,14 @@ final class Keys {
      * @return mixed get_post_meta($post_id, $key, true) under the read order.
      */
     public static function read_post_meta($post_id, $legacy) {
+        $exists = function_exists('metadata_exists')
+            ? function ($key) use ($post_id) {
+                return (bool) metadata_exists('post', $post_id, $key);
+            }
+            : null;
         return self::read(function ($key) use ($post_id) {
             return get_post_meta($post_id, $key, true);
-        }, $legacy);
+        }, $legacy, false, $exists);
     }
 
     /**
@@ -390,20 +417,69 @@ final class Keys {
      * @throws \InvalidArgumentException When the option is not registered.
      */
     public static function get_option($legacy, $default = false, $always = false) {
-        $options = self::options();
-        if (!isset($options[$legacy])) {
-            throw new \InvalidArgumentException('Unregistered option: ' . esc_html((string) $legacy));
-        }
+        self::assert_option($legacy);
         if (!$always && !TakeoverState::is_cut_over()) {
             return get_option($legacy, $default);
         }
-        list($first, $fallback) = self::read_names($legacy);
-        $value = get_option($first, $default);
-        if (!self::is_absent($value) && $value !== $default) {
-            return $value;
+        // A private sentinel tells "missing" from any stored value, so a stored 0 / false /
+        // '' under the preferred name keeps its precedence over a stale fallback.
+        $missing = self::missing();
+        foreach (self::read_names($legacy) as $name) {
+            $value = get_option($name, $missing);
+            if ($value !== $missing) {
+                return $value;
+            }
         }
-        $other = get_option($fallback, $default);
-        return (self::is_absent($other) || $other === $default) ? $value : $other;
+        return $default;
+    }
+
+    /**
+     * Both names of a security identity read in every state, which must agree.
+     *
+     * Returns $default when neither exists, the one present when only one exists, the
+     * shared value when both hold the identical (===) value, and Keys::conflict() when
+     * both hold different values (a partial takeover, rollback or restore): the caller
+     * must fail closed and never pick one.
+     *
+     * @param string $legacy  Legacy option name.
+     * @param mixed  $default Returned when neither name exists.
+     * @return mixed
+     */
+    public static function get_option_agreed($legacy, $default = false) {
+        self::assert_option($legacy);
+        list($new_key, $legacy) = self::meta_names($legacy);
+        $missing = self::missing();
+        $legacy_value = get_option($legacy, $missing);
+        $new_value = get_option($new_key, $missing);
+        if ($legacy_value === $missing) {
+            return $new_value === $missing ? $default : $new_value;
+        }
+        if ($new_value === $missing || $new_value === $legacy_value) {
+            return $legacy_value;
+        }
+        return self::conflict();
+    }
+
+    /** @var \stdClass|null */
+    private static $missing = null;
+
+    /** @var \stdClass|null */
+    private static $conflict = null;
+
+    /** @return \stdClass Private "no stored value" sentinel. */
+    private static function missing() {
+        if (self::$missing === null) {
+            self::$missing = new \stdClass();
+        }
+        return self::$missing;
+    }
+
+    /** @return \stdClass The value Keys::get_option_agreed() returns for disagreeing copies. */
+    public static function conflict() {
+        if (self::$conflict === null) {
+            self::$conflict = new \stdClass();
+        }
+        return self::$conflict;
     }
 
     /**

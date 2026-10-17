@@ -182,6 +182,43 @@ final class DualReadTest extends TestCase {
         self::assertFalse(Keys::add_copied_option('upayments_token_identity_secret_v2', array('mine')), 'the first name already exists: nothing is created');
     }
 
+    public function test_a_stored_falsy_value_under_the_preferred_name_keeps_its_precedence(): void {
+        \update_option('upay_subscription_enrollment_cursor', 5);
+        \update_option('supcheckout_subscription_enrollment_cursor', 0);
+        self::assertSame(5, Keys::get_option('upay_subscription_enrollment_cursor', 0), 'idle: legacy only');
+
+        self::state('cut_over');
+        self::assertSame(0, Keys::get_option('upay_subscription_enrollment_cursor', 0), 'cut_over: a stored 0 under the new name wins over the stale legacy 5');
+        \update_option('supcheckout_subscription_enrollment_cursor', '');
+        self::assertSame('', Keys::get_option('upay_subscription_enrollment_cursor', 0), 'a stored empty string too');
+        \delete_option('supcheckout_subscription_enrollment_cursor');
+        self::assertSame(5, Keys::get_option('upay_subscription_enrollment_cursor', 0), 'new name absent: the legacy value');
+        \delete_option('upay_subscription_enrollment_cursor');
+        self::assertSame(0, Keys::get_option('upay_subscription_enrollment_cursor', 0), 'neither: the caller default');
+        self::assertFalse(Keys::get_option('upay_subscription_enrollment_cursor'), 'the default default is false');
+
+        $order = self::meta_order(array('_upay_subscription_status' => 'active', '_supcheckout_subscription_status' => ''));
+        self::assertSame('', Keys::read_order_meta($order, '_upay_subscription_status'), 'order meta: a stored empty value under the new name wins when meta_exists() can tell');
+        self::assertSame('active', Keys::read_order_meta(self::meta_order(array('_upay_subscription_status' => 'active')), '_upay_subscription_status'));
+
+        $reader = static function ($key) {
+            return array('_upay_retry_count' => '3', '_supcheckout_retry_count' => '')[$key] ?? '';
+        };
+        self::assertSame('3', Keys::read($reader, '_upay_retry_count'), 'without an existence check an empty single read counts as absent (documented)');
+    }
+
+    public function test_agreed_reads_return_one_value_or_a_conflict(): void {
+        self::assertSame('d', Keys::get_option_agreed('upayments_token_identity_secret_v2', 'd'), 'neither: default');
+        \update_option('supcheckout_token_identity_secret_v2', array('a'));
+        self::assertSame(array('a'), Keys::get_option_agreed('upayments_token_identity_secret_v2', 'd'), 'only the new name');
+        \update_option('upayments_token_identity_secret_v2', array('a'));
+        self::assertSame(array('a'), Keys::get_option_agreed('upayments_token_identity_secret_v2', 'd'), 'identical copies');
+        \update_option('upayments_token_identity_secret_v2', array('b'));
+        self::assertSame(Keys::conflict(), Keys::get_option_agreed('upayments_token_identity_secret_v2', 'd'), 'different copies: conflict');
+        self::state('cut_over');
+        self::assertSame(Keys::conflict(), Keys::get_option_agreed('upayments_token_identity_secret_v2', 'd'), 'in every state');
+    }
+
     public function test_update_copied_option_reports_success_only_when_every_name_was_written(): void {
         self::state('copying');
         self::assertTrue(Keys::update_copied_option('upay_billing_cycle_schema_version', '2', false));
@@ -521,6 +558,7 @@ final class DualReadTest extends TestCase {
             /** @param mixed $value */
             public function add_meta_data($key, $value, $unique = false) { $this->meta[$key] = $value; }
             public function delete_meta_data($key) { unset($this->meta[$key]); }
+            public function meta_exists($key) { return array_key_exists($key, $this->meta); }
         };
     }
 
