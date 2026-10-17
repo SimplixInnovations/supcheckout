@@ -468,8 +468,20 @@ if ($phase === 'finalize') {
     $before = $snapshot();
     $dry = supcheckout_takeover_cert_wp('supcheckout takeover finalize --dry-run --format=json');
     $plan = json_decode(trim($dry->stdout), true);
+    supcheckout_cert_note('dry-run plan: ' . $dry->stdout . $dry->stderr);
     $equal = supcheckout_takeover_cert_equal_order_meta();
-    supcheckout_cert_assert($equal >= 2, 'the seeded orders hold at least their two verified-equal payment IDs (' . $equal . ')');
+    $diagnosis = array();
+    foreach ((array) get_option(SUPCHECKOUT_TAKEOVER_CERT_ORDERS, array()) as $order_id) {
+        $order = wc_get_order((int) $order_id);
+        $diagnosis[(int) $order_id] = $order instanceof WC_Order
+            ? array(
+                'type' => $order->get_type(),
+                'legacy' => $order->get_meta('UPayments_PaymentID', false, 'edit') ? array_map(static function ($meta) { return $meta->value; }, $order->get_meta('UPayments_PaymentID', false, 'edit')) : array(),
+                'new' => $order->get_meta(Keys::order_meta()['UPayments_PaymentID'], false, 'edit') ? array_map(static function ($meta) { return $meta->value; }, $order->get_meta(Keys::order_meta()['UPayments_PaymentID'], false, 'edit')) : array(),
+            )
+            : 'missing';
+    }
+    supcheckout_cert_assert($equal >= 2, 'the seeded orders hold at least their two verified-equal payment IDs (' . $equal . '): ' . wp_json_encode($diagnosis) . ' all-orders=' . wp_json_encode(wc_get_orders(array('limit' => -1, 'return' => 'ids', 'type' => 'shop_order'))));
     supcheckout_cert_assert($dry->return_code === CliCommands::OK && is_array($plan) && $plan['would_refuse'] === array('too_early') && $plan['removed']['order_meta'] === $equal, 'the dry run predicts exactly the ' . $equal . ' verified-equal legacy order keys (and still exits 0): ' . $dry->stdout . $dry->stderr);
     supcheckout_cert_assert($snapshot() === $before, 'the dry run wrote nothing (takeover, official, ephemeral and cron options, user, product and order meta, both billing tables)');
     supcheckout_cert_note('dry-run plan: ' . $dry->stdout);
