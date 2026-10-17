@@ -17,7 +17,7 @@ final class TakeoverStateTest extends TestCase {
         'idle' => array('preflight_ok'),
         'preflight_ok' => array('copying'),
         'copying' => array('verified', 'preflight_ok'),
-        'verified' => array('cut_over'),
+        'verified' => array('cut_over', 'preflight_ok'),
         'cut_over' => array('rolled_back', 'finalized'),
         'finalized' => array(),
         'rolled_back' => array('preflight_ok'),
@@ -141,6 +141,29 @@ final class TakeoverStateTest extends TestCase {
 
         self::assertTrue(TakeoverState::transition('rolled_back'));
         self::assertSame($state['cut_over_at'], TakeoverState::get()['cut_over_at']);
+    }
+
+    public function test_rollback_records_its_time_for_the_stale_choice_grace(): void {
+        self::seed(array('status' => 'cut_over', 'cut_over_at' => time() - self::DAY, 'cursor' => 0, 'totals' => array()));
+        $before = time();
+
+        self::assertTrue(TakeoverState::transition('rolled_back'));
+        $rolled_back_at = TakeoverState::get()['rolled_back_at'];
+        self::assertGreaterThanOrEqual($before, $rolled_back_at);
+
+        self::assertTrue(TakeoverState::transition('preflight_ok'));
+        self::assertSame($rolled_back_at, TakeoverState::get()['rolled_back_at'], 'kept as history');
+        self::assertFalse(TakeoverState::patch(array('rolled_back_at' => 1)), 'a lifecycle field');
+    }
+
+    public function test_abort_moves_a_verified_store_back_to_preflight_ok(): void {
+        self::seed(array('status' => 'verified', 'cut_over_at' => 0, 'cursor' => 9, 'totals' => array()));
+
+        self::assertTrue(TakeoverState::transition('preflight_ok'));
+
+        self::assertSame('preflight_ok', TakeoverState::get()['status']);
+        self::assertSame(0, TakeoverState::get()['cut_over_at']);
+        self::assertFalse(TakeoverState::is_cut_over());
     }
 
     public function test_finalize_waits_thirty_days_after_cut_over_unless_forced(): void {

@@ -10,8 +10,11 @@ defined('ABSPATH') || exit;
  * Persisted takeover state machine (Sub-project 0b).
  *
  * idle → preflight_ok → copying → verified → cut_over → finalized, with
- * copying → preflight_ok (verification failed), cut_over → rolled_back and
- * rolled_back → preflight_ok. Nothing else is allowed.
+ * copying → preflight_ok (verification failed), verified → preflight_ok (abort, Task 10),
+ * cut_over → rolled_back and rolled_back → preflight_ok. Nothing else is allowed.
+ *
+ * cut_over records `cut_over_at` and rolled_back records `rolled_back_at` (the start of
+ * StaleGatewayChoice's mirror grace); both stay in the record as history.
  *
  * Storage: one non-autoloaded option holding a JSON object. The first record is
  * created with OrderLock::insert_if_absent() and every later change is an SQL
@@ -49,14 +52,14 @@ final class TakeoverState {
         self::IDLE => array(self::PREFLIGHT_OK),
         self::PREFLIGHT_OK => array(self::COPYING),
         self::COPYING => array(self::VERIFIED, self::PREFLIGHT_OK),
-        self::VERIFIED => array(self::CUT_OVER),
+        self::VERIFIED => array(self::CUT_OVER, self::PREFLIGHT_OK),
         self::CUT_OVER => array(self::ROLLED_BACK, self::FINALIZED),
         self::FINALIZED => array(),
         self::ROLLED_BACK => array(self::PREFLIGHT_OK),
     );
 
     /** Fields only transition() may write. */
-    private const LIFECYCLE_FIELDS = array('status', 'cut_over_at', 'updated_at', 'finalize_forced');
+    private const LIFECYCLE_FIELDS = array('status', 'cut_over_at', 'rolled_back_at', 'updated_at', 'finalize_forced');
 
     private const SECONDS_PER_DAY = 86400;
 
@@ -123,6 +126,9 @@ final class TakeoverState {
         $next['updated_at'] = $now;
         if ($to === self::CUT_OVER) {
             $next['cut_over_at'] = $now;
+        }
+        if ($to === self::ROLLED_BACK) {
+            $next['rolled_back_at'] = $now;
         }
         if ($to === self::FINALIZED) {
             $next['finalize_forced'] = !$finalize_due;
