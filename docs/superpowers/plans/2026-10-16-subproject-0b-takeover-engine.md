@@ -26,6 +26,7 @@ All code reads identities through one `Keys` registry with legacy fallback, so c
 **Namespace and storage**
 - Namespace `Simplixi\SUPCheckout\Takeover\`. Not `Switch`: it is a reserved word that PHP 7.4 rejects in namespace names.
 - New identities use the `supcheckout` and `_supcheckout_` prefixes. Every legacy → new pair comes from the inventory and lives **only** in `Keys` (Task 1).
+  - **One exception: the customer-token MySQL `GET_LOCK()` names** use `sup_ctk_` and `sup_ctkboot_b`. `GET_LOCK()` names are limited to 64 characters, and `CustomerTokenIdentity::get_lock_name()` builds prefix + 32-hex scope + `_` + a user ID of up to 20 digits. That leaves at most 11 characters for the prefix, and `supcheckout_ctklock_` would need 73 in total. These names are never stored in a table.
 - **Approved migration contract.** The owner approved renaming every protected identity (decision: "option 2, fully rename") on the condition of a non-destructive, verified, reversible switch. The spec §5, this plan and the Task 12 matrix are that contract. AGENTS.md is updated in Task 12, not before, so the protected list keeps guarding the code until the matrix is green.
 - **Copy, never move.** No legacy option, meta, cron event or third-party value is deleted before `Finalize`, and `Finalize` is refused until 30 days after `Cutover` unless the owner passes `--force-after-review`.
 - **Records:**
@@ -88,7 +89,8 @@ The identity audit (2026-10-16) checked the working tree against the inventory. 
 - Test: `tests/unit/Takeover/KeysTest.php`
 
 **Interfaces:**
-- **Constants:** `Keys::GATEWAY_LEGACY = 'upayments'`, `Keys::GATEWAY = 'supcheckout'`, `Keys::CALLBACK_ROUTE_LEGACY = 'wc_upayments'`, `Keys::CALLBACK_ROUTE = 'supcheckout'`.
+- **Constants:** `Keys::GATEWAY_LEGACY = 'upayments'`, `Keys::GATEWAY = 'supcheckout'`, `Keys::CALLBACK_ROUTE_LEGACY = 'wc_upayments'`, `Keys::CALLBACK_ROUTE = 'supcheckout'`, `Keys::EXTENSION_NAMESPACE_LEGACY = 'upayments'`, `Keys::EXTENSION_NAMESPACE = 'supcheckout'` (the Store API checkout `extensions` namespace).
+- **Gateway IDs:** `Keys::gateway_ids(): list<string>` returns `['upayments', 'supcheckout']`, for `wc_get_orders(array('payment_method' => Keys::gateway_ids()))`.
 - **Copied maps.** Each returns `array<string,string>`, legacy → new, and every legacy name appears exactly once across all maps:
   - `Keys::order_meta()`;
   - `Keys::user_meta()`;
@@ -99,13 +101,22 @@ The identity audit (2026-10-16) checked the working tree against the inventory. 
   - `Keys::tables()`, without `$wpdb->prefix`.
 - **Settings sources:** `Keys::settings_sources(): list<string>`. These are the legacy settings options in precedence order, first non-empty wins, and the target is `woocommerce_supcheckout_settings`. They are kept out of `options()` because several sources feed one target (inventory hazard 3).
 - **Ephemeral prefixes:** `Keys::ephemeral_prefixes(): array<string,string>`. Locks, rate gates, caches and MySQL `GET_LOCK` names. They are **never copied**; the new name is recreated on demand.
-- **Official-only names:** `Keys::official_only(): array{options:list<string>, transients:list<string>, cron_hooks:list<string>}`. Only the official plugin writes these. Preflight reports them, Finalize clears them, and nothing copies them.
+  - They are ordered longest match first: no legacy prefix is a prefix of a later one.
+  - The customer-token bootstrap lock `upay_ctk_bootstrap_b{blog}` is its own family. It maps to `sup_ctkboot_b`, and `upay_ctk_` maps to `sup_ctk_` (see the `GET_LOCK` exception in Global Constraints).
+- **Official-only names:** `Keys::official_only(): array{options, option_prefixes, transients, cron_hooks, cron_hook_prefixes, tables}`, each a `list<string>`. Only the official plugin writes these, except the `upay_subscriptions` table, whose only SUPCheckout writer is the dead `Subscription\Manager` listener. Nothing copies them, and Preflight reports them. Finalize clears the options, transients and cron hooks, but **only reports the tables and never drops them**.
+  - The update-checker names are version-agnostic prefixes: `external_updates-upayments` and `puc_cron_check_updates-upayments`.
+  - The phantom `upay_subscription_settings` option, referenced by the official 3.1.1 uninstall, is listed too.
+- **Unchanged persisted names:** `Keys::unchanged_persisted(): array<string,string>`, mapping name → reason. These are persisted names that deliberately keep their name:
+  - `_custom_field_id`, the subscription product meta;
+  - the `custom_type` product-type term;
+  - the translated `Special Feature` order-item meta key. Historical items keep whatever key string was stored;
+  - WooCommerce's `chosen_payment_method` session value and the order `payment_method`. Both may hold `upayments` and are matched with `gateway_ids()` / `is_our_gateway()`.
 - **Lookups:**
-  - `Keys::legacy_for(string $new): ?string`;
-  - `Keys::meta_names(string $legacy): array{0:string,1:string}`, returning `[new, legacy]` for `meta_query` OR clauses and hook key checks. It throws on an unclassified name.
+  - `Keys::legacy_for(string $new): ?string` and `Keys::meta_names(string $legacy): array{0:string,1:string}` are prefix-aware. They resolve the exact maps first, then any full key under a `user_meta_prefixes()` prefix, so `_upay_customer_token_v2_b1_{scope}` ↔ `_supcheckout_customer_token_v2_b1_{scope}`. A bare prefix maps to the other prefix. `meta_names()` returns `[new, legacy]` for `meta_query` OR clauses and hook key checks, and throws on an unclassified name;
+  - `Keys::user_meta_key_pair(string $key): ?array{0:string,1:string}`: `[new, legacy]` for a user meta key given in **either** its legacy or its new full form. It returns null for a bare prefix or a non-user-meta name. `user_meta_prefixes()` is the legacy-prefix → new-prefix pair map;
   - `Keys::read_order_meta(\WC_Order $order, string $legacy)`: the new value, else the legacy value, else `''`;
   - `Keys::write_key(string $legacy): string`: new after cutover, else legacy;
-  - `Keys::table(string $legacy): string`: the prefixed table in use right now;
+  - `Keys::table(string $legacy): string`: the prefixed table in use right now. It throws on an unregistered table;
   - `Keys::is_our_gateway(string $id): bool`: true for `upayments` and `supcheckout`. Every order-ownership comparison uses it, because historical orders are never rewritten.
 
 - [ ] **Step 1: Write the failing test.**
@@ -189,6 +200,12 @@ final class KeysTest extends TestCase {
   - Run: `vendor/bin/phpunit --filter KeysTest`
   - Expected: FAIL, with the class not found.
 - [ ] **Step 3: Implement `Keys`.** Every row below is evidence-backed by the audit or the inventory. Write them all.
+  - **Amended after the review of `02bf9fc`.** The block below is the original Task 1 registry, and `src/Takeover/Keys.php` is authoritative. The review added:
+    - `gateway_ids()` and the extension-namespace constants;
+    - `user_meta_key_pair()`, prefix-aware `legacy_for()` / `meta_names()` and a guarded `table()`;
+    - `unchanged_persisted()` and the widened `official_only()` shape;
+    - the bootstrap lock family and the `sup_ctk_` lock prefixes.
+  - `tests/unit/Takeover/KeysTest.php` pins each of these.
 
 ```php
 <?php
@@ -323,17 +340,21 @@ final class Keys {
             'upayments_payment_methods_rate_gate_' => 'supcheckout_pmgate_v1_',
             'upay_pm_v3_' => 'supcheckout_pmcache_v3_',
             'upay_pm_' => 'supcheckout_pmlock_',
-            'upay_ctk_' => 'supcheckout_ctklock_',
+            'upay_ctk_bootstrap_b' => 'sup_ctkboot_b', // GET_LOCK: 64-char limit (Global Constraints).
+            'upay_ctk_' => 'sup_ctk_',
         );
     }
 
-    /** @return array{options:list<string>,transients:list<string>,cron_hooks:list<string>} */
+    /** @return array{options:list<string>,option_prefixes:list<string>,transients:list<string>,cron_hooks:list<string>,cron_hook_prefixes:list<string>,tables:list<string>} */
     public static function official_only() {
         return array(
             'options' => array('your_gateway_version', 'upayments_block_checkout_page_id',
-                'woocommerce_upayments_enable_block_checkout', 'external_updates-upayments-V2.2.1', 'upayments_maat'),
+                'woocommerce_upayments_enable_block_checkout', 'upayments_maat', 'upay_subscription_settings'),
+            'option_prefixes' => array('external_updates-upayments'),
             'transients' => array('upayments_cron_lock'),
-            'cron_hooks' => array('upay_hourly_cron_job', 'puc_cron_check_updates-upayments-V2.2.1'),
+            'cron_hooks' => array('upay_hourly_cron_job'),
+            'cron_hook_prefixes' => array('puc_cron_check_updates-upayments'),
+            'tables' => array('upay_subscriptions'), // Reported, never dropped.
         );
     }
 
@@ -395,7 +416,11 @@ final class Keys {
      */
     public static function table($legacy) {
         global $wpdb;
-        return $wpdb->prefix . (TakeoverState::is_cut_over() ? self::tables()[$legacy] : $legacy);
+        $tables = self::tables();
+        if (!isset($tables[$legacy])) {
+            throw new \InvalidArgumentException('Unregistered table: ' . esc_html((string) $legacy));
+        }
+        return $wpdb->prefix . (TakeoverState::is_cut_over() ? $tables[$legacy] : $legacy);
     }
 
     /**
@@ -423,6 +448,20 @@ final class Keys {
     - in the harness's own `$not_persisted` allowlist, where every entry carries a one-line reason (script handles, CSS classes, action names).
   - Print every unclassified value with `file:line`, and exit 1 if any exist.
   - Run it on the current tree and classify whatever it reports. **This replaces the earlier `_META = '` grep, which cannot see inline literals.**
+  - **Amended after the review of `02bf9fc`.** The harness has two rules.
+    - **Rule 1** (the legacy families above) has three tightenings:
+      - a user-meta or ephemeral prefix classifies a literal only when the literal **equals** the prefix, because code builds the full name, so `upay_pm_foo` is a new name;
+      - the allowlist is **file-keyed with exact occurrence counts**, so there is no global entry and no bare `upay_`;
+      - the leading segment of interpolated strings and heredocs is checked too.
+    - **Rule 2** inventories every gateway-identity site in shipped PHP (strings and inline HTML) and `assets/js/*.js`: `upayments`, `wc_upayments`, `woocommerce_api_wc_upayments`, `woocommerce_upayments*` and `*_upayments`. The inventory lists one category per occurrence per file and token, and each category names its Task 2 action. A new site, a disappeared site or an unknown category fails.
+    - **Rule 3** (added in the PR #173 review) inventories order-ownership reads that rule 2 cannot see because they compare variables:
+      - `->get_payment_method()` calls;
+      - `->payment_method` and `['payment_method']` reads;
+      - `get_meta()` / `get_post_meta()` of `payment_method` / `_payment_method`;
+      - `$gateway_id` / `->id` operands of `===`, `!==`, `==`, `!=`, `in_array()` and `array_search()`.
+
+      The inventory is file-keyed and count-exact, with categories `ownership_compare_task2`, `captured_for_check`, `current_id_compare`, `display_only` and `third_party_gateway`. Reads inside `Keys::is_our_gateway(...)`, or inside a call whose own arguments include `Keys::gateway_ids()`, are exempt.
+    - Self-tests cover the failing exit path (a child run over a fixture tree), stale and over-count allowlist entries, prefix exactness, new and missing gateway sites, and rule 3's detection and exemptions.
 - [ ] **Step 6: Commit.** `feat(takeover): audited identity registry and coverage harness`
 
 ### Task 2: Route every runtime read and write through `Keys`
@@ -449,6 +488,46 @@ final class Keys {
 
   So a request that started before cutover and one that started after still contend for the same lock.
 - **Last-known-good name:** `PaymentMethodAvailability::last_known_good_name()` is recomputed from the fingerprint inputs instead of slicing `transient_name()`, so renaming the transient prefix cannot orphan the stored value.
+- **Gateway-identity sites** (added after the review of `02bf9fc`). The coverage harness's rule-2 inventory (`$gateway_sites` in `tests/harness/takeover-identity-coverage-harness.php`) lists every one by file and category. Task 2 retargets each site and updates the inventory in the same commit. Line numbers are as of `02bf9fc`.
+  - **Order queries** (`'payment_method' => 'upayments'`) use `Keys::gateway_ids()`: `MigrationPreflight.php:197,373`, `ReconciliationSweep.php:51`, `CustomerTokenIdentity.php:1179,1488`, `Scheduler.php:887`, `HistoricalEnrollment.php:49`.
+  - **Gateway lookups** (`$gateways['upayments']`) use the registered gateway object under its current id: `PaymentLifecycle.php:1449`, `PaymentMethodType.php:67-68`, `Scheduler.php:1317`, `Fields.php:204`, `Availability.php:30-37`, `Gateway.php:226,230`.
+  - **Ownership and selection comparisons** use `Keys::is_our_gateway()`:
+    - `SubscriptionActions.php:66`;
+    - `PaymentLifecycle.php:539,997`;
+    - `PublicOrderStatus.php:151`;
+    - `Scheduler.php:1096,1237`;
+    - `HistoricalEnrollment.php:156`;
+    - `Fields.php:168`;
+    - the icon filter at `Gateway.php:668`;
+    - `OrderPresentation::add_order_item_totals()` (`OrderPresentation.php:23`). It compares the order's method with the passed `$gateway_id` and must use `is_our_gateway()`, so historical `upayments` orders keep their payment rows after cutover;
+    - `assets/js/new-upay.js:11`, which compares the checked radio with the localized current id.
+  - **Renewal identity:** `Scheduler.php:982` (`set_payment_method('upayments')` on a new renewal) writes the current gateway id.
+  - **Session choice:** `Availability.php:54` and `Gateway.php:232` compare the WooCommerce session `chosen_payment_method` with `Keys::is_our_gateway()`. A session started before cutover holds `upayments` for up to 48 h and must still select our gateway.
+  - **Default gateway:** `Gateway.php:251` returns the current id.
+  - **Extension namespace:** `CheckoutOrchestrator.php:315-318,407-413` reads `extensions[Keys::EXTENSION_NAMESPACE]`, then `extensions[Keys::EXTENSION_NAMESPACE_LEGACY]`. An already-open Blocks checkout posts under the old namespace. If both are present, the current namespace wins. `assets/js/upayments-block.js:36` posts the namespace localized by `PaymentMethodType`, and `:10` / `:468` (`getPaymentMethodData` / `registerPaymentMethod` name) use the localized current id.
+  - **Settings-API names derived from the gateway id** come from the current id:
+    - POST fields `woocommerce_upayments_*` (`GatewaySettings.php`);
+    - the hook `woocommerce_settings_api_sanitized_fields_upayments` (`Gateway.php:237`);
+    - the admin selectors `#woocommerce_upayments_*` (`assets/js/admin-settings.js:4-6`);
+    - the class `payment_method_upayments` (`assets/js/new-upay.js:10`).
+  - **Settings option reads** of `woocommerce_upayments_settings` (`PaymentMethodType.php:32`, `Availability.php:35`, `Gateway.php:152`, `MigrationSettings.php:14`, `Scheduler.php:69`) read the target first, then `Keys::settings_sources()`.
+  - **Callback route:** `Gateway.php:528` (`api_request_url('wc_upayments')`) uses `Keys::CALLBACK_ROUTE` for new Charges. `PaymentLifecycle.php:20` (`woocommerce_api_wc_upayments`) stays registered permanently (Task 8).
+  - **Never changed:**
+    - the `Release\Identity` `LEGACY_*` record;
+    - the provider hosts (`EndpointResolver.php:12-13`, `StatusVerifier.php:294`);
+    - the `upayment_payment_type` sentinel value `upayments` (`templates/new-design-form.php:239` ↔ `CheckoutPayload.php:68`; it means "no white-label method chosen" and is not a gateway id);
+    - the vestigial `Gateway::$domain`;
+    - the logger source labels (optional, cosmetic).
+- **Order-ownership reads through variables** (added in the PR #173 review). Rule 2 sees only literals, so the harness's rule 3 inventory (`$ownership_sites`) also lists every `->get_payment_method()`, `->payment_method`, `['payment_method']` and `get_meta('_payment_method')` read, and every `$gateway_id` / `->id` comparison operand.
+  - Task 2 must convert **every `ownership_compare_task2` site** to `Keys::is_our_gateway()`, or to `in_array(..., Keys::gateway_ids(), true)`, and delete it from the inventory in the same commit. The harness exempts reads inside those expressions.
+  - The sites are: `SubscriptionActions.php:66`, `Gateway.php:629` (`admin_order_details()` compares with `$this->id`), `Gateway.php:668`, `OrderPresentation.php:23` (compares with the passed `$gateway_id`), `PaymentLifecycle.php:539,997`, `PublicOrderStatus.php:151`, `Scheduler.php:1237` and `HistoricalEnrollment.php:156`.
+  - The `captured_for_check` reads (`Scheduler.php:1079`, `Fields.php:165-166`) stay, and their check sites (`Scheduler.php:1096`, `Fields.php:168`) convert under rule 2.
+  - `current_id_compare` (`GatewaySettings.php:395`, the settings-screen section) stays, provided its caller passes the current gateway id.
+  - Test: after cutover, a historical `payment_method=upayments` order still renders its admin payment details (`admin_order_details()`) and its customer payment rows (`add_order_item_totals()`).
+- **H12 provenance under two prefixes** (added after the review of `02bf9fc`). The legacy prefix `_upay_customer_token_v2_b` is 25 characters, and the new `_supcheckout_customer_token_v2_b` is 33.
+  - **Provenance-presence probe** (`CustomerTokenIdentity.php:219-238`). It decides whether a missing secret may be minted fresh. It must count rows under **both** `{prefix}{blog}_` patterns, and fail closed if either has rows. Otherwise, once Finalize deletes the legacy rows, a legacy-only probe finds nothing and mints a new secret, orphaning every saved-card provenance record.
+  - **Scope scan** (`CustomerTokenIdentity.php:1632-1661`). It must select keys under both prefixes and slice each scope by the length of the prefix **that matched** (`Keys::user_meta_key_pair()`), never by one fixed `strlen($meta_prefix)`. When both forms of one scope exist, it treats them as one record and verifies that they agree.
+  - **Exact key builder:** `get_user_meta_key()` (`:423`) builds the key through `Keys::write_key()`.
 
 - [ ] **Step 1: Write the failing tests** in `DualReadTest.php`.
   - **Dual read.** An order with only legacy `UPayments_PaymentID=pay-1` shows `pay-1` in `OrderPresentation::add_order_item_totals()`. An order with new `pay-2` and legacy `pay-1` shows `pay-2`.
@@ -456,6 +535,9 @@ final class Keys {
   - **Dual hook.** `LifecycleScheduler` reacts to a status update under either key name.
   - **Lock contention across the window.** In state `copying`, worker A holds the order lock under the legacy name only, and worker B (dual-acquire) must fail to acquire.
   - **LKG stability.** With fixed inputs, `last_known_good_name()` is unchanged when the transient prefix changes.
+  - **Historical orders after cutover.** A `payment_method=upayments` order is found by every order query, keeps its payment rows in `OrderPresentation`, and passes every ownership check. A stale session holding `chosen_payment_method=upayments` still selects our gateway.
+  - **Both extension namespaces.** A Blocks checkout posting under `upayments` and one posting under `supcheckout` both parse the plan and interval.
+  - **H12 after Finalize.** Provenance rows exist only under `_supcheckout_customer_token_v2_b…`, the legacy rows and legacy secret option are deleted, and the new secret option is present. Saved-card provenance still verifies. With the new secret option also absent, the presence probe fails closed and **no new secret is minted**. A mixed legacy/new scan slices every scope correctly.
 - [ ] **Step 2: Run them.** Expected: FAIL.
 - [ ] **Step 3: Replace reads, queries and hook checks** in each listed class.
 - [ ] **Step 4: Replace writes and lock names.**
@@ -647,6 +729,8 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   5. transition to `cut_over`;
   6. if consented, deactivate the official plugin with `deactivate_plugins()`.
 
+  **Stale sessions (added after the review of `02bf9fc`).** WooCommerce sessions, kept for up to 48 h, may still hold `chosen_payment_method=upayments` after cutover. Cutover does not rewrite `wc_sessions` rows. Instead, every runtime session comparison uses `Keys::is_our_gateway()` (Task 2), and on the first checkout request of such a session the stored value is re-pointed to `Keys::GATEWAY`. Test: after cutover, a session holding `upayments` still renders our gateway as selected and places the order under `supcheckout`.
+
 - [ ] **Step 1: Write the failing test.** The WCML gateway restriction stored under `upayments` ends up under `supcheckout` with the same countries, and the journal holds the before-fingerprint.
   - Do the third-party option paths first, on a real WCML/FunnelKit install in the Task 12 matrix.
   - Until a path is evidenced there, the translator only **reports** it and never writes it.
@@ -746,8 +830,12 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
   - legacy order meta copies created **by the official plugin or SUPCheckout**, only where the new key verifies equal;
   - SUPCheckout-owned legacy options;
   - the official plugin's cron events and the `upayments_cron_lock` transient;
-  - the PUC option and cron;
-  - every `Keys::official_only()` name;
+  - the PUC option and cron, matched by the `official_only()` `option_prefixes` / `cron_hook_prefixes` so any update-checker slug is covered;
+  - every `Keys::official_only()` option, transient and cron hook. The `tables` entry (`upay_subscriptions`) is **reported, never dropped**;
+  - legacy ephemeral rows, deleted by storage type:
+    - order locks (`simplixpay_upay_order_lock_v1_*`), status gates (`simplixpay_upay_status_v1_*`) and the payment-methods rate gate (`upayments_payment_methods_rate_gate_*`) are plain options;
+    - the payment-methods cache (`upay_pm_v3_*`) is a transient, so both its `_transient_upay_pm_v3_*` and `_transient_timeout_upay_pm_v3_*` rows are deleted (or `delete_transient()` with an object cache);
+    - the `upay_pm_` and `upay_ctk_` families are `GET_LOCK()` names with no rows;
   - legacy user and product meta, under the same verified-equal rule;
   - the legacy billing-attempts table, dropped only when the row count and per-row checksums equal the new table's.
 

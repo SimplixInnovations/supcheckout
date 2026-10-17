@@ -308,6 +308,7 @@ jobs:
             tests/harness/architecture-legacy-direct-callback-characterization-harness.php
             tests/harness/i18n-presentation-harness.php
             tests/harness/official-plugin-coexistence-harness.php
+            tests/harness/takeover-identity-coverage-harness.php
             tests/harness/checkout-template-harness.php
             tests/harness/checkout-request-cost-harness.php
             tests/harness/public-surface-snapshot-harness.php
