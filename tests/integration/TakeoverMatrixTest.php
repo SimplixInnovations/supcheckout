@@ -123,9 +123,13 @@ function supcheckout_matrix_assert_wcml_untouched(array $manifest) {
         supcheckout_cert_assert(supcheckout_matrix_raw_option($name) === $seeded[$name], 'WCML option ' . $name . ' is byte-for-byte untouched (report-only contract)');
     }
     supcheckout_cert_assert(get_option('wcml_payment_gateway_supcheckout', null) === null, 'no WCML rule was invented under supcheckout');
+    $journaled = array();
     foreach (Journal::entries() as $entry) {
-        supcheckout_cert_assert(!in_array($entry['path'], $manifest['wcml'], true), 'no journal entry for a WCML option (' . $entry['path'] . ')');
+        if (in_array($entry['path'], $manifest['wcml'], true)) {
+            $journaled[] = $entry['path'];
+        }
     }
+    supcheckout_cert_assert($journaled === array(), 'no journal entry for a WCML option: ' . wp_json_encode($journaled));
 }
 
 /**
