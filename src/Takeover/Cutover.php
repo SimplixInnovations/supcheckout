@@ -13,9 +13,9 @@ defined('ABSPATH') || exit;
  *
  *  1. quiesce: take the lease (claims and the scheduler defer, see Quiesce);
  *  2. drain: wait, bounded (DRAIN_TIMEOUT), until no billing-attempts row is `claimed` or
- *     `dispatching` with an update in the last STALE_SECONDS. An older such row belongs to
- *     a dead worker (dispatching is never auto-expired; a stale claimed row is reclaimable
- *     in either table) and is synced as it is;
+ *     `dispatching` with an update in the last STALE_SECONDS. An older dispatching row
+ *     belongs to a dead worker (never auto-expired, so it stays held) and is synced as it
+ *     is; an older claimed row refuses the cutover at once (`stale_claims`, see drain());
  *  3. final verify: every order, user and product is re-copied and verified. Reads are
  *     still legacy-only and every runtime write lands under both names, so the legacy
  *     value is authoritative and orders and products are converged to it under their
@@ -121,8 +121,9 @@ final class Cutover {
      * @return string|null
      */
     private function switch_identities() {
-        if (!$this->drain(true)) {
-            return 'claims_in_flight';
+        $drain = $this->drain(true);
+        if ($drain !== null) {
+            return $drain;
         }
         $this->step('drained');
         if (!$this->verify_objects()) {
@@ -174,8 +175,9 @@ final class Cutover {
         if (!$this->renew()) {
             return 'lease_lost';
         }
-        if (!$this->drain(false)) {
-            return 'claims_in_flight';
+        $drain = $this->drain(false);
+        if ($drain !== null) {
+            return $drain;
         }
         if (!$this->verify_table()) {
             return 'table_mismatch';
@@ -189,19 +191,31 @@ final class Cutover {
     }
 
     /**
+     * A stale `claimed` row blocks at once (fail closed): its worker may have stalled
+     * rather than died, and CycleClaim pins a claim to the table it was taken in, so after
+     * a switch that worker could still mark its legacy row dispatching while another
+     * worker reclaims the copied row. Waiting is pointless (the quiesce pauses the reclaim
+     * that would clear it); the next scheduler tick reclaims it, then Cutover is rerun.
+     *
      * @param bool $wait Poll until DRAIN_TIMEOUT (false: one check).
-     * @return bool True when no claim holder is in flight.
+     * @return string|null Error code, or null when no claim holder is in flight.
      */
     private function drain($wait) {
         $deadline = $this->system->now() + self::DRAIN_TIMEOUT;
         while (true) {
-            $open = $this->store->table_open_claims(gmdate('Y-m-d H:i:s', $this->system->now() - self::STALE_SECONDS));
+            $since = gmdate('Y-m-d H:i:s', $this->system->now() - self::STALE_SECONDS);
+            $stale = $this->store->table_stale_claims($since);
+            if ($stale !== 0) {
+                $this->report['stale_claims'] = $stale;
+                return 'stale_claims';
+            }
+            $open = $this->store->table_open_claims($since);
             if ($open === 0) {
-                return true;
+                return null;
             }
             $this->report['claims_in_flight'] = $open;
             if (!$wait || $open === null || $this->system->now() >= $deadline) {
-                return false;
+                return 'claims_in_flight';
             }
             $this->system->sleep(self::DRAIN_POLL);
         }

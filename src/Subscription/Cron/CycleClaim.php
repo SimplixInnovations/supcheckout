@@ -223,6 +223,44 @@ class CycleClaim
     }
 
     /**
+     * Claims pinned to the table they were taken in: cycle_key => [owner_token, table].
+     *
+     * A takeover cutover may flip the table in use while a worker holds a claim (this
+     * process's state cache only refreshes on the next claim). Every later step of that
+     * claim (get, mark_*, release_claimed) stays on the claim's own table, so the
+     * owner-token compare-and-swap never moves to a copy another worker could reclaim.
+     *
+     * @var array<string, array{0:string, 1:string}>
+     */
+    private static $pinned = [];
+
+    private static function pin(string $cycle_key, string $owner_token, string $table): void
+    {
+        self::$pinned[$cycle_key] = [$owner_token, $table];
+    }
+
+    private static function unpin(string $cycle_key, string $owner_token): void
+    {
+        if (isset(self::$pinned[$cycle_key]) && hash_equals(self::$pinned[$cycle_key][0], $owner_token)) {
+            unset(self::$pinned[$cycle_key]);
+        }
+    }
+
+    /**
+     * The table a claim step runs against: the claim's pinned table when this process
+     * holds that claim (any owner for a read), otherwise the table in use.
+     */
+    private static function table_for(string $cycle_key, ?string $owner_token = null): string
+    {
+        if (isset(self::$pinned[$cycle_key])
+            && (null === $owner_token || hash_equals(self::$pinned[$cycle_key][0], $owner_token))
+        ) {
+            return self::$pinned[$cycle_key][1];
+        }
+        return self::table_name();
+    }
+
+    /**
      * Deterministic LOCAL cycle identity. Computed only from values that
      * exist before any POST is sent. NEVER sent to UPayments.
      */
@@ -299,6 +337,7 @@ class CycleClaim
         if ($inserted !== 1) {
             return false;
         }
+        self::pin($cycle_key, $owner_token, $table);
 
         // Defense in depth: confirm we actually own the row we just wrote.
         $row = self::get($cycle_key);
@@ -307,7 +346,19 @@ class CycleClaim
             && hash_equals((string) $row['owner_token'], $owner_token)
             && isset($row['state'])
             && (string) $row['state'] === self::STATE_CLAIMED;
-        return $owned && !self::released_for_quiesce($cycle_key, $owner_token);
+        return self::won($owned, $cycle_key, $owner_token);
+    }
+
+    /**
+     * Final claim verdict: a claim not owned, or given up for a quiesce, is unpinned.
+     */
+    private static function won(bool $owned, string $cycle_key, string $owner_token): bool
+    {
+        $won = $owned && !self::released_for_quiesce($cycle_key, $owner_token);
+        if (!$won) {
+            self::unpin($cycle_key, $owner_token);
+        }
+        return $won;
     }
 
     /**
@@ -385,6 +436,7 @@ class CycleClaim
         if ($inserted !== 1) {
             return false;
         }
+        self::pin($cycle_key, $owner_token, $table);
 
         $row = self::get($cycle_key);
         $owned = is_array($row)
@@ -396,7 +448,7 @@ class CycleClaim
             && hash_equals((string) $row['expected_amount'], $expected_amount)
             && isset($row['expected_currency'])
             && hash_equals((string) $row['expected_currency'], $expected_currency);
-        return $owned && !self::released_for_quiesce($cycle_key, $owner_token);
+        return self::won($owned, $cycle_key, $owner_token);
     }
 
     /**
@@ -557,6 +609,7 @@ class CycleClaim
         if ($updated !== 1) {
             return false;
         }
+        self::pin($cycle_key, $new_owner_token, $table);
 
         // Fresh-read ownership proof after the CAS update. Callers must also
         // re-read and validate the immutable snapshot before any provider POST.
@@ -568,7 +621,7 @@ class CycleClaim
             && (int) $row['parent_order_id'] === $parent_order_id
             && isset($row['state'])
             && (string) $row['state'] === self::STATE_CLAIMED;
-        return $owned && !self::released_for_quiesce($cycle_key, $new_owner_token);
+        return self::won($owned, $cycle_key, $new_owner_token);
     }
 
     /**
@@ -580,7 +633,7 @@ class CycleClaim
     public static function mark_dispatching(string $cycle_key, string $owner_token): bool
     {
         global $wpdb;
-        $table   = self::table_name();
+        $table   = self::table_for($cycle_key, $owner_token);
         $now_gmt = current_time('mysql', true);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic state transition on the plugin-owned billing-attempt journal; cached state is unsafe.
@@ -627,7 +680,7 @@ class CycleClaim
         ?int $http_status = null
     ): bool {
         global $wpdb;
-        $table   = self::table_name();
+        $table   = self::table_for($cycle_key, $owner_token);
         $now_gmt = current_time('mysql', true);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic held-state transition on the plugin-owned billing-attempt journal; cached state is unsafe.
@@ -681,7 +734,7 @@ class CycleClaim
         string $payment_id
     ): bool {
         global $wpdb;
-        $table   = self::table_name();
+        $table   = self::table_for($cycle_key, $owner_token);
         $now_gmt = current_time('mysql', true);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic resolved-state transition on the plugin-owned billing-attempt journal; cached state is unsafe.
@@ -709,6 +762,9 @@ class CycleClaim
             )
         );
 
+        if ($updated === 1) {
+            self::unpin($cycle_key, $owner_token);
+        }
         return $updated === 1;
     }
 
@@ -719,7 +775,7 @@ class CycleClaim
     public static function release_claimed(string $cycle_key, string $owner_token): bool
     {
         global $wpdb;
-        $table = self::table_name();
+        $table = self::table_for($cycle_key, $owner_token);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic owner-token-guarded release from the plugin-owned billing-attempt journal; caching is invalid.
         $deleted = (int) $wpdb->query(
@@ -735,6 +791,9 @@ class CycleClaim
             )
         );
 
+        if ($deleted === 1) {
+            self::unpin($cycle_key, $owner_token);
+        }
         return $deleted === 1;
     }
 
@@ -744,7 +803,7 @@ class CycleClaim
     public static function get(string $cycle_key): ?array
     {
         global $wpdb;
-        $table = self::table_name();
+        $table = self::table_for($cycle_key);
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fresh journal ownership/state is required immediately after atomic mutations.
         $row = $wpdb->get_row(

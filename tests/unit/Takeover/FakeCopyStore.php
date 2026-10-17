@@ -232,6 +232,20 @@ final class FakeCopyStore implements CopyStore {
         return $open;
     }
 
+    public function table_stale_claims($before_gmt) {
+        if (!$this->legacy_table_exists) {
+            return 0;
+        }
+        $stale = 0;
+        foreach ($this->tables[self::TABLE_LEGACY] as $row) {
+            $updated = isset($row['updated_gmt']) ? (string) $row['updated_gmt'] : '';
+            if (isset($row['state']) && $row['state'] === 'claimed' && strcmp($updated, (string) $before_gmt) < 0) {
+                ++$stale;
+            }
+        }
+        return $stale;
+    }
+
     /** @param array<string, mixed> $row */
     public function add_legacy_row(array $row): void {
         $this->tables[self::TABLE_LEGACY][(string) $row['cycle_key']] = $row;

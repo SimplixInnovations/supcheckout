@@ -268,6 +268,22 @@ final class WordPressCopyStore implements CopyStore {
         return is_numeric($count) ? (int) $count : null;
     }
 
+    public function table_stale_claims($before_gmt) {
+        global $wpdb;
+        if (!$this->table_exists(self::TABLE_LEGACY)) {
+            return 0;
+        }
+        $prepared = $wpdb->prepare(
+            'SELECT COUNT(*) FROM %i WHERE state = %s AND updated_gmt < %s',
+            self::table(self::TABLE_LEGACY),
+            'claimed',
+            (string) $before_gmt
+        );
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above; the drain must see live claim state.
+        $count = $wpdb->get_var($prepared);
+        return is_numeric($count) ? (int) $count : null;
+    }
+
     /**
      * @param string $which CopyStore::TABLE_LEGACY or CopyStore::TABLE_NEW.
      * @return string Prefixed table name.

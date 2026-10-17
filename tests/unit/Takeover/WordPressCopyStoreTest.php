@@ -158,6 +158,14 @@ final class WordPressCopyStoreTest extends TestCase {
         $store->table_count('wp_users');
     }
 
+    public function test_stale_claims_count_only_legacy_claimed_rows_older_than_the_bound(): void {
+        $this->db->var = 'wp_upayments_billing_attempts';
+        (new WordPressCopyStore())->table_stale_claims('2026-10-17 00:00:00');
+        $statement = end($this->db->prepared);
+        self::assertSame('SELECT COUNT(*) FROM %i WHERE state = %s AND updated_gmt < %s', $statement['query']);
+        self::assertSame(array('wp_upayments_billing_attempts', 'claimed', '2026-10-17 00:00:00'), $statement['args']);
+    }
+
     public function test_an_unsafe_column_name_makes_the_column_list_unreadable(): void {
         $this->db->col = array('cycle_key', 'state`; DROP');
 

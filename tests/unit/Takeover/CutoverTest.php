@@ -178,6 +178,23 @@ final class CutoverTest extends TestCase {
         self::assertSame('dispatching', $this->store->tables['new'][str_repeat('5', 64)]['state'], 'copied as is: never auto-expired, so it stays held');
     }
 
+    public function test_a_stale_claimed_row_refuses_the_cutover_because_its_worker_may_still_dispatch(): void {
+        $this->seed_store();
+        // A worker claimed on the legacy table and stalled: after a cutover it could still
+        // mark its legacy row dispatching while another worker reclaims the copied row.
+        $this->store->add_legacy_row(array('cycle_key' => str_repeat('6', 64), 'parent_order_id' => 7, 'owner_token' => 'o', 'state' => 'claimed', 'payment_id' => null, 'updated_gmt' => gmdate('Y-m-d H:i:s', 1800000000 - 3600)));
+
+        $result = $this->cutover()->run(false);
+
+        self::assertFalse($result['ok']);
+        self::assertSame('stale_claims', $result['error']);
+        self::assertSame(1, $result['report']['stale_claims']);
+        self::assertSame(0, $this->system->sleeps, 'no wait: the quiesce pauses the reclaim that would clear it');
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+        self::assertFalse(get_option(Keys::SETTINGS_OPTION, false));
+        self::assertFalse(Quiesce::is_active($this->system->now));
+    }
+
     public function test_only_a_verified_store_cuts_over_and_a_busy_lease_refuses(): void {
         self::state('copying');
         self::assertSame('not_verified', $this->cutover()->run(false)['error']);

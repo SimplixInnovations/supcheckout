@@ -86,6 +86,38 @@ final class QuiesceClaimsTest extends TestCase {
         self::assertSame('wp_supcheckout_billing_attempts', $db->tables[0]);
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a_claim_stays_on_the_table_it_was_taken_in_after_a_cutover(): void {
+        foreach (array('acquire', 'acquire_with_snapshot', 'reclaim_stale_claimed') as $method) {
+            $db = self::boot();
+            if ($method === 'reclaim_stale_claimed') {
+                $db->rows[self::KEY] = self::row('claimed');
+                self::assertTrue(CycleClaim::reclaim_stale_claimed(self::KEY, 10, self::OWNER), $method);
+            } elseif ($method === 'acquire') {
+                self::assertTrue(CycleClaim::acquire(self::KEY, 10, self::OWNER, '2026-10-17 00:00:00'), $method);
+            } else {
+                self::assertTrue(CycleClaim::acquire_with_snapshot(self::KEY, 10, self::OWNER, '2026-10-17 00:00:00', '10.000', 'KWD'), $method);
+            }
+            // The cutover lands in another process; this worker's state cache flips mid-cycle.
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => 'cut_over', 'cut_over_at' => 1, 'cursor' => 0, 'totals' => array()));
+            TakeoverState::refresh();
+            self::assertTrue(TakeoverState::is_cut_over());
+            $db->tables = array();
+
+            CycleClaim::get(self::KEY);
+            CycleClaim::mark_dispatching(self::KEY, self::OWNER);
+            CycleClaim::mark_held(self::KEY, self::OWNER, null, null);
+            CycleClaim::mark_resolved(self::KEY, self::OWNER, 11, 'pay');
+            CycleClaim::release_claimed(self::KEY, self::OWNER);
+            self::assertSame(array_fill(0, 5, 'wp_upayments_billing_attempts'), $db->tables, $method . ': every step of the claim stays on the legacy table');
+
+            $db->tables = array();
+            CycleClaim::mark_dispatching(self::KEY, 'dddddddddddddddddddddddddddddddd');
+            self::assertSame(array('wp_supcheckout_billing_attempts'), $db->tables, $method . ': another owner uses the table in use');
+        }
+    }
+
     /** @return object The fake $wpdb. */
     private static function boot() {
         if (!function_exists('current_time')) {
@@ -159,6 +191,7 @@ final class QuiesceClaimsTest extends TestCase {
                 return false;
             }
             public function get_row($prepared, $output = null) {
+                $this->tables[] = (string) $prepared['args'][0];
                 $key = $prepared['args'][1];
                 return isset($this->rows[$key]) ? $this->rows[$key] : null;
             }
