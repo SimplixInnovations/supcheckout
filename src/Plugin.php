@@ -55,13 +55,17 @@ final class Plugin {
      * Token\CustomerTokenIdentity (formerly includes/, required here) is autoloaded
      * since Task 6: it is a side-effect-free class declaration.
      *
+     * The asset-path constants are SUPCheckout-owned since 0b Task 2. The official plugin
+     * defines UP_PLUGIN_URL, UP_PLUGIN_PATH and UPAYMENTS_PLUGIN_FILE itself, so SUPCheckout
+     * never defines them (SUPCHECKOUT_PLUGIN_FILE replaces the last): two runtimes in one
+     * request no longer collide or swap asset URLs.
+     *
      * @param string $main_file Absolute path of supcheckout.php.
      * @return void
      */
     private static function load_runtime($main_file) {
-        define("UP_PLUGIN_URL", plugin_dir_url($main_file));
-        define("UP_PLUGIN_PATH", plugin_dir_path($main_file));
-        define('UPAYMENTS_PLUGIN_FILE', $main_file );
+        define('SUPCHECKOUT_PLUGIN_URL', plugin_dir_url($main_file));
+        define('SUPCHECKOUT_PLUGIN_PATH', plugin_dir_path($main_file));
 
         require_once __DIR__ . '/Release/Identity.php';
         require_once __DIR__ . '/Provider/MultiMerchantContract.php';

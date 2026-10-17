@@ -80,11 +80,13 @@ p0_assert(p0_header_value($bootstrap, 'Domain Path') === null, 'plugin header do
 p0_assert(p0_header_value($bootstrap, 'Text Domain') === Identity::TARGET_TEXT_DOMAIN, 'public text domain is the canonical SUPCheckout domain');
 p0_assert(Identity::TARGET_TEXT_DOMAIN === 'supcheckout', 'target text domain remains frozen');
 
-// Bootstrap exposes canonical SUPCheckout identity without destroying legacy plugin-file API.
+// Bootstrap exposes canonical SUPCheckout identity.
 p0_assert(p0_contains($plugin_source, "require_once __DIR__ . '/Release/Identity.php';"), 'bootstrap loads canonical release identity');
 p0_assert(p0_contains($plugin_source, "define('SUPCHECKOUT_VERSION'"), 'bootstrap defines canonical version constant');
 p0_assert(p0_contains($plugin_source, "define('SUPCHECKOUT_PLUGIN_FILE'"), 'bootstrap defines canonical plugin-file constant');
-p0_assert(p0_contains($plugin_source, "define('UPAYMENTS_PLUGIN_FILE'"), 'legacy plugin-file constant remains available');
+// 0b Task 2: the official plugin defines UPAYMENTS_PLUGIN_FILE itself; SUPCheckout no longer
+// shares it (SUPCHECKOUT_PLUGIN_FILE, asserted above, replaces every internal use).
+p0_assert(!p0_contains($plugin_source, "define('UPAYMENTS_PLUGIN_FILE'") && !p0_contains($plugin_source, 'define("UP_PLUGIN_'), 'no constant shared with the official plugin is defined');
 
 // No external self-update authority may remain after Phase 0A.
 p0_assert(Identity::UPDATE_CHANNEL === 'disabled', 'release identity records disabled external update channel');

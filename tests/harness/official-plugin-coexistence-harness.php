@@ -178,31 +178,37 @@ foreach (array(
 // Characterization (not a support claim): the official plugin's files load while
 // SUPCheckout is NOT paused, because no active entry ends in UPayments.php (for example a
 // renamed or must-use copy, or the dual-load Sub-project 0b needs). With no shared global
-// functions or classes left there is no redeclaration fatal in either order, but
-// Plugin::load_runtime() still defines UP_PLUGIN_URL, UP_PLUGIN_PATH and UPAYMENTS_PLUGIN_FILE,
-// which the official plugin also defines (official 3.1.1 UPayments.php lines 21-23). Whichever plugin loads second gets PHP's "already defined" warning
-// ("will be an error in PHP 9") and the first plugin's value. Renaming these constants is a
-// Sub-project 0b decision (templates and the gateway icon read UP_PLUGIN_URL); this pins
-// the current behavior so a change is deliberate.
+// functions or classes left there is no redeclaration fatal in either order. Since 0b
+// Task 2 SUPCheckout also shares no constant with the official plugin: its asset paths are
+// SUPCHECKOUT_PLUGIN_URL / SUPCHECKOUT_PLUGIN_PATH and SUPCHECKOUT_PLUGIN_FILE replaces
+// UPAYMENTS_PLUGIN_FILE, while the official plugin keeps UP_PLUGIN_URL, UP_PLUGIN_PATH and
+// UPAYMENTS_PLUGIN_FILE (official 3.1.1 UPayments.php lines 21-23) in either load order.
 foreach (array('both_running_official_first', 'both_running_ours_first') as $scenario) {
     $result = coexistence_run($root, $scenario, $official_stub);
     coexistence_assert($result['code'] === 0, "both running ({$scenario}): no redeclaration fatal");
     coexistence_assert(strpos($result['out'], 'OFFICIAL_LOADED') !== false && strpos($result['out'], 'SUPCHECKOUT_VERSION:defined') !== false, "both running ({$scenario}): both plugins load");
     coexistence_assert(strpos($result['out'], 'CLASSES:official=yes,ours=yes') !== false, "both running ({$scenario}): both class families resolve");
     coexistence_assert(
-        strpos($result['out'], 'DIAGNOSTICS:["Constant UP_PLUGIN_URL already defined') !== false
-            && strpos($result['out'], 'Constant UP_PLUGIN_PATH already defined') !== false
-            && strpos($result['out'], 'Constant UPAYMENTS_PLUGIN_FILE already defined') !== false
-            && substr_count($result['out'], 'already defined') === 3,
-        "both running ({$scenario}): characterized collision: exactly UP_PLUGIN_URL, UP_PLUGIN_PATH and UPAYMENTS_PLUGIN_FILE are defined twice"
+        strpos($result['out'], 'DIAGNOSTICS:[]') !== false && strpos($result['out'], 'already defined') === false,
+        "both running ({$scenario}): no shared constants: nothing is defined twice"
     );
-    $first_wins = $scenario === 'both_running_official_first' ? 'official' : 'other';
     coexistence_assert(
-        strpos($result['out'], 'UP_PLUGIN_URL:' . $first_wins) !== false && strpos($result['out'], 'UP_PLUGIN_PATH:' . $first_wins) !== false
-            && strpos($result['out'], 'UPAYMENTS_PLUGIN_FILE:' . $first_wins) !== false,
-        "both running ({$scenario}): characterized collision: the first plugin to load keeps UP_PLUGIN_URL, UP_PLUGIN_PATH and UPAYMENTS_PLUGIN_FILE"
+        strpos($result['out'], 'UP_PLUGIN_URL:official') !== false && strpos($result['out'], 'UP_PLUGIN_PATH:official') !== false
+            && strpos($result['out'], 'UPAYMENTS_PLUGIN_FILE:official') !== false,
+        "both running ({$scenario}): no shared constants: the official plugin keeps UP_PLUGIN_URL, UP_PLUGIN_PATH and UPAYMENTS_PLUGIN_FILE"
+    );
+    coexistence_assert(
+        strpos($result['out'], 'SUPCHECKOUT_PLUGIN_URL:ours') !== false && strpos($result['out'], 'SUPCHECKOUT_PLUGIN_PATH:ours') !== false,
+        "both running ({$scenario}): no shared constants: SUPCheckout's asset paths point at its own directory"
     );
 }
+$alone_constants = coexistence_run($root, 'alone', $official_stub);
+coexistence_assert(
+    strpos($alone_constants['out'], 'UP_PLUGIN_URL:undefined') !== false && strpos($alone_constants['out'], 'UP_PLUGIN_PATH:undefined') !== false
+        && strpos($alone_constants['out'], 'UPAYMENTS_PLUGIN_FILE:undefined') !== false
+        && strpos($alone_constants['out'], 'SUPCHECKOUT_PLUGIN_URL:ours') !== false,
+    'SUPCheckout alone defines none of the official plugin\'s constants'
+);
 // The 'upayments' gateway identity is shared with the official plugin until 0b, so a
 // paused SUPCheckout must register no gateway, availability or wc_upayments hook
 // (Plugin::boot() runs only after the pause early-return). A running one registers all three.
@@ -339,9 +345,10 @@ function coexistence_child($root, $scenario, $official_stub) {
     echo "\nNOTICES:{$notices}\n";
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
     echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
-    echo 'UP_PLUGIN_URL:' . (defined('UP_PLUGIN_URL') && strpos(UP_PLUGIN_URL, '/upayments/') !== false ? 'official' : 'other') . "\n";
-    echo 'UP_PLUGIN_PATH:' . (defined('UP_PLUGIN_PATH') && strpos(UP_PLUGIN_PATH, '/upayments/') !== false ? 'official' : 'other') . "\n";
-    echo 'UPAYMENTS_PLUGIN_FILE:' . (defined('UPAYMENTS_PLUGIN_FILE') && strpos(UPAYMENTS_PLUGIN_FILE, '/upayments/') !== false ? 'official' : 'other') . "\n";
+    foreach (array('UP_PLUGIN_URL', 'UP_PLUGIN_PATH', 'UPAYMENTS_PLUGIN_FILE', 'SUPCHECKOUT_PLUGIN_URL', 'SUPCHECKOUT_PLUGIN_PATH') as $constant) {
+        $owner = !defined($constant) ? 'undefined' : (strpos((string) constant($constant), '/upayments/') !== false ? 'official' : 'ours');
+        echo $constant . ':' . $owner . "\n";
+    }
     echo 'SUPCHECKOUT_VERSION:' . (defined('SUPCHECKOUT_VERSION') ? 'defined' : 'undefined') . "\n";
     // Both class families resolve in one process: the official UPayments\Subscription
     // classes and SUPCheckout's own (autoloaded) Simplixi\SUPCheckout classes.
