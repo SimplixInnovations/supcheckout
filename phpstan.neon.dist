@@ -71,4 +71,5 @@ parameters:
         - src/Takeover/CopyRunner.php
         - src/Takeover/LegacyCallbackListener.php
         - src/Takeover/Quiesce.php
+        - src/Takeover/SettingsCopier.php
     tmpDir: .cache/phpstan
