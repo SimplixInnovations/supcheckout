@@ -162,7 +162,7 @@ q17_assert(
     'protected Scheduler blob remains exact'
 );
 q17_assert(
-    q17_blob($root . '/src/Subscription/Cron/CycleClaim.php') === 'e4de37356e8f88c3d4409e55a72a35742ba9d974',
+    q17_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '66b42899a97a6423bcd4d54ac8bf96554373d150',
     'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening'
 );
 

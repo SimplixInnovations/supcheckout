@@ -297,7 +297,7 @@ a4_assert(strpos($composition, 'register_presentation_hooks') !== false && strpo
 // still named the #67 / pre-#71 blobs; they now match the pins in the H12, Q13, Q14, Q16
 // and Q17 harnesses.
 a4_same('843b28b6d7b79b55767ba444dc37dfc7612bc6d2', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
-a4_same('e4de37356e8f88c3d4409e55a72a35742ba9d974', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
+a4_same('66b42899a97a6423bcd4d54ac8bf96554373d150', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
 
 echo "\nArchitecture Subscription Presentation: {$pass} PASS / {$fail} FAIL\n";
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";

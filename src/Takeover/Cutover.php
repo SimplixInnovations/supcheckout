@@ -458,6 +458,7 @@ final class Cutover {
             if ($official === null) {
                 $this->report['official'] = 'not_active';
             } elseif ($this->system->deactivate_plugin($official)) {
+                Rollback::record_official_deactivated($official);
                 $this->step('official_deactivated');
             } else {
                 // Still cut over; SUPCheckout stays paused until the owner deactivates it, so

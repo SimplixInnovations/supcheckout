@@ -149,6 +149,34 @@ namespace Simplixi\SUPCheckout\Tests\Gateway {
             self::assertSame('upayments', $session->get('chosen_payment_method'));
         }
 
+        /**
+         * 0b Task 10: after a rollback (official plugin not reactivated), a session from the
+         * cut-over window may hold chosen_payment_method=supcheckout; within the mirror grace
+         * it is re-pointed to our gateway's `upayments` id, and only to our own gateway.
+         */
+        #[RunInSeparateProcess]
+        #[PreserveGlobalState(false)]
+        public function test_a_stale_supcheckout_session_choice_is_repointed_after_a_rollback(): void {
+            $session = self::session('supcheckout');
+            $GLOBALS['supcheckout_test_gateway_availability_context']['is_checkout'] = true;
+            $GLOBALS['supcheckout_test_gateway_availability_context']['wc'] = (object) array('session' => $session);
+            \update_option('woocommerce_upayments_settings', array('enabled' => 'yes', 'api_key' => 'cert-key', 'make_default_gateway' => 'yes'));
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => 'preflight_ok', 'cut_over_at' => time() - 7200, 'rolled_back_at' => time() - 3600, 'cursor' => 0, 'totals' => array()));
+            TakeoverState::flush_cache();
+
+            Availability::filter(array('upayments' => (object) array('id' => 'upayments')));
+            self::assertSame('supcheckout', $session->get('chosen_payment_method'), 'never re-pointed to a gateway that is not ours');
+
+            Availability::filter(array('cod' => (object) array('id' => 'cod'), 'upayments' => self::our_gateway()));
+            self::assertSame('upayments', $session->get('chosen_payment_method'), 'the stale choice selects our gateway');
+
+            $session->set('chosen_payment_method', 'supcheckout');
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => 'preflight_ok', 'cut_over_at' => 1, 'rolled_back_at' => time() - \Simplixi\SUPCheckout\Takeover\StaleGatewayChoice::GRACE_SECONDS - 1, 'cursor' => 0, 'totals' => array()));
+            TakeoverState::flush_cache();
+            Availability::filter(array('upayments' => self::our_gateway()));
+            self::assertSame('supcheckout', $session->get('chosen_payment_method'), 'left alone after the grace window');
+        }
+
         #[RunInSeparateProcess]
         #[PreserveGlobalState(false)]
         public function test_a_session_choice_is_untouched_before_cutover(): void {

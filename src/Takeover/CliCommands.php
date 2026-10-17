@@ -24,7 +24,21 @@ defined('ABSPATH') || exit;
  *                          unreadable, or changed by another process);
  *  7 OFFICIAL_STILL_ACTIVE a store already cut over whose official plugin is active again:
  *                          without --deactivate-official, or the deactivation failed;
- *                          SUPCheckout stays paused; deactivate it and rerun.
+ *                          SUPCheckout stays paused; deactivate it and rerun;
+ *  8 CONFLICTS             `rollback`/`abort` completed, but later edits were kept
+ *                          (journal "later edits win"); review the printed paths;
+ *  9 OFFICIAL_NOT_REACTIVATED `rollback`/`abort --reactivate-official` completed, but the
+ *                          official plugin could not be reactivated (none or several
+ *                          installed, or activation failed); activate it yourself.
+ *
+ * `rollback` (cut_over → rolled_back → preflight_ok) and `abort` (verified → preflight_ok)
+ * run Rollback; both are rerunnable after a crash at any step. Their errors map to the
+ * codes above: busy, lost lease, claims in flight, a contended order lock or late writers
+ * still recreating copies after the settle time (`removal_unsettled`; rerun later) → 4, stale
+ * claims → 5, the wrong state → 6, a back-sync or table mismatch → 3, anything else → 1.
+ * After their transition both wait in-process for CopyRemoval::SETTLE_SECONDS (120 s, a
+ * `settling` line every 10 s) before the final rescans, so a late writer's copy is removed
+ * before completion is recorded.
  *
  * `run` is rerunnable after a crash at any step: every step resumes from persisted state.
  * idle → preflight_ok → copying (CopyRunner, cursor per object) → verified → official
@@ -66,6 +80,25 @@ final class CliCommands {
     public const STALE_CLAIMS = 5;
     public const STATE = 6;
     public const OFFICIAL_STILL_ACTIVE = 7;
+    public const CONFLICTS = 8;
+    public const OFFICIAL_NOT_REACTIVATED = 9;
+
+    /** Rollback / abort error code => exit code. Anything unlisted is ERROR. */
+    private const ROLLBACK_EXIT = array(
+        'busy' => self::BUSY,
+        'lease_lost' => self::BUSY,
+        'claims_in_flight' => self::BUSY,
+        'transition_refused' => self::BUSY,
+        'removal_busy' => self::BUSY,
+        'removal_unsettled' => self::BUSY,
+        'official_active' => self::BLOCKED,
+        'stale_claims' => self::STALE_CLAIMS,
+        'not_cut_over' => self::STATE,
+        'not_verified' => self::STATE,
+        'back_sync_mismatch' => self::MISMATCH,
+        'options_mismatch' => self::MISMATCH,
+        'table_mismatch' => self::MISMATCH,
+    );
 
     /** Seconds between retries while another process holds the copy-runner lock. */
     public const WAIT_POLL = 5;
@@ -158,6 +191,10 @@ final class CliCommands {
             }
             return $this->done('already cut over; nothing to do');
         }
+        if (Rollback::removal_pending(TakeoverState::get())) {
+            $command = Rollback::mode_of(TakeoverState::get()) === Rollback::MODE_ABORT ? 'abort' : 'rollback';
+            return $this->fail(self::STATE, 'an interrupted ' . $command . ' is still removing the previous copies; rerun `wp supcheckout takeover ' . $command . '` first');
+        }
         if (!in_array($status, self::RUNNABLE, true)) {
             return $this->fail(self::STATE, 'state "' . $status . '" does not allow run');
         }
@@ -205,6 +242,7 @@ final class CliCommands {
         if (!$this->system->deactivate_plugin($official)) {
             return $this->fail(self::ERROR, 'the official UPayments plugin (' . $official . ') could not be deactivated; the store was not switched');
         }
+        Rollback::record_official_deactivated($official);
         $this->line('official plugin deactivated: ' . $official . ' (SUPCheckout serves the store from the next request)');
         return self::OK;
     }
@@ -232,9 +270,18 @@ final class CliCommands {
         if (self::mismatch_count($state) > 0) {
             $warnings[] = 'mismatches';
         }
+        $rollback = self::rollback_summary($state);
+        if ($rollback !== null && $rollback['removal_pending']) {
+            $warnings[] = 'removal_pending';
+        }
+        if ($rollback !== null && $rollback['conflicts'] !== array()) {
+            $warnings[] = 'rollback_conflicts';
+        }
         $status = array(
             'status' => $state['status'],
             'cut_over_at' => $state['cut_over_at'],
+            'rolled_back_at' => self::field($state, 'rolled_back_at', 0),
+            'rollback' => $rollback,
             'phase' => self::field($state, 'phase', null),
             'cursor' => $state['cursor'],
             'cursors' => self::field($state, 'cursors', array()),
@@ -254,7 +301,7 @@ final class CliCommands {
         foreach (array('status', 'phase', 'cursor', 'quiesced', 'official_plugin') as $field) {
             $this->line($field . ': ' . self::scalar($status[$field]));
         }
-        foreach (array('cursors', 'totals', 'mismatches', 'anomalies', 'journal') as $field) {
+        foreach (array('cursors', 'totals', 'mismatches', 'anomalies', 'journal', 'rollback') as $field) {
             $this->line($field . ': ' . (string) wp_json_encode($status[$field]));
         }
         foreach ($stale as $claim) {
@@ -290,6 +337,130 @@ final class CliCommands {
             return $this->fail(self::BUSY, 'release stopped: ' . (string) $result['error']);
         }
         return $this->done('released ' . count($result['released']) . ', kept ' . count($result['skipped']));
+    }
+
+    /**
+     * cut_over → rolled_back → preflight_ok (Task 10); resumes an interrupted rollback.
+     *
+     * @param bool $yes                 Skip the confirmation.
+     * @param bool $reactivate_official Owner consent to reactivate the official install the takeover deactivated.
+     * @param bool $deactivate_official Owner consent to deactivate an active official plugin first.
+     * @return int Exit code.
+     */
+    public function rollback($yes, $reactivate_official, $deactivate_official = false) {
+        $question = 'Roll the store back to the UPayments identities' . ($reactivate_official ? ' and reactivate the official UPayments plugin' : '')
+            . '? Orders paid through SUPCheckout stay paid and keep their payment IDs.';
+        return $this->rewind(Rollback::MODE_ROLLBACK, (bool) $yes, (bool) $reactivate_official, $question, (bool) $deactivate_official);
+    }
+
+    /**
+     * verified → preflight_ok (Task 10); resumes an interrupted abort.
+     *
+     * @param bool $yes                 Skip the confirmation.
+     * @param bool $reactivate_official Owner consent to reactivate the official plugin `run` deactivated.
+     * @return int Exit code.
+     */
+    public function abort($yes, $reactivate_official) {
+        $question = 'Abort the verified takeover and remove its copies' . ($reactivate_official ? ' and reactivate the official UPayments plugin' : '') . '?';
+        return $this->rewind(Rollback::MODE_ABORT, (bool) $yes, (bool) $reactivate_official, $question);
+    }
+
+    /**
+     * @param string $mode       Rollback::MODE_ROLLBACK or Rollback::MODE_ABORT.
+     * @param bool   $yes        Skip the confirmation.
+     * @param bool   $reactivate Consent.
+     * @param string $question   Confirmation question.
+     * @param bool   $deactivate Consent to deactivate an active official plugin (rollback only).
+     * @return int Exit code.
+     */
+    private function rewind($mode, $yes, $reactivate, $question, $deactivate = false) {
+        if (!$this->store instanceof RollbackStore || !$this->system instanceof RollbackSystem) {
+            return $this->fail(self::ERROR, $mode . ' needs a rollback-capable store and system');
+        }
+        TakeoverState::refresh();
+        $state = TakeoverState::get();
+        $allowed = $mode === Rollback::MODE_ROLLBACK
+            ? array(TakeoverState::CUT_OVER, TakeoverState::ROLLED_BACK)
+            : array(TakeoverState::VERIFIED);
+        $resuming = $state['status'] === TakeoverState::PREFLIGHT_OK && Rollback::mode_of($state) === $mode;
+        if (!$resuming && !in_array($state['status'], $allowed, true)) {
+            return $this->fail(self::STATE, 'state "' . $state['status'] . '" does not allow ' . $mode);
+        }
+        if (!$yes && !call_user_func($this->confirm, $question)) {
+            return $this->fail(self::ERROR, 'aborted; nothing changed');
+        }
+        if ($mode === Rollback::MODE_ROLLBACK && $state['status'] === TakeoverState::CUT_OVER) {
+            $official = $this->retire_official_for_rollback($deactivate);
+            if ($official !== self::OK) {
+                return $official;
+            }
+        }
+        $rollback = new Rollback($this->store, $this->system);
+        $result = $mode === Rollback::MODE_ROLLBACK ? $rollback->run($reactivate) : $rollback->abort($reactivate);
+        return $this->rewind_result($mode, $result);
+    }
+
+    /**
+     * A rollback back-syncs legacy names, which a running official plugin writes too (its
+     * own renewal cron ignores the Quiesce lease): it must be inactive first. Deactivated
+     * with consent (every install, this site only) and recorded for a later reactivation.
+     *
+     * @param bool $deactivate Consent.
+     * @return int Exit code.
+     */
+    private function retire_official_for_rollback($deactivate) {
+        $official = $this->system->official_plugin();
+        if ($official === null) {
+            return self::OK;
+        }
+        if (!$deactivate) {
+            return $this->fail(self::BLOCKED, 'the official UPayments plugin (' . $official . ') is active; nothing was rolled back. Rerun with --deactivate-official, or deactivate it first');
+        }
+        if (!$this->system->deactivate_plugin($official)) {
+            return $this->fail(self::ERROR, 'the official UPayments plugin (' . $official . ') could not be deactivated; nothing was rolled back');
+        }
+        Rollback::record_official_deactivated($official);
+        $this->line('official plugin deactivated: ' . $official);
+        return self::OK;
+    }
+
+    /**
+     * Exit-code precedence: an error first (its own code), then conflicts (8), then a failed
+     * reactivation (9). Every conflict and the reactivation warning are printed first.
+     *
+     * @param string               $mode   Mode.
+     * @param array<string, mixed> $result Rollback result.
+     * @return int Exit code.
+     */
+    private function rewind_result($mode, array $result) {
+        $this->line('takeover ' . $mode . ' steps: ' . implode(', ', $result['steps']));
+        foreach ($result['conflicts'] as $conflict) {
+            $this->line('conflict: seq ' . $conflict['seq'] . ' ' . $conflict['target'] . ' ' . $conflict['path'] . ' (kept; the owner decides)');
+        }
+        $not_reactivated = in_array('official_not_reactivated', $result['warnings'], true);
+        if ($not_reactivated) {
+            $this->line('warning: official_not_reactivated');
+        }
+        if ($result['error'] !== null) {
+            $error = (string) $result['error'];
+            $this->line($mode . ' report: ' . (string) wp_json_encode($result['report']));
+            if ($error === 'stale_claims') {
+                $this->line('run `wp supcheckout takeover release-stale-claims`, then rerun');
+            }
+            if ($error === 'official_active') {
+                $this->line('deactivate the official UPayments plugin (or rerun rollback with --deactivate-official), then rerun');
+            }
+            $code = isset(self::ROLLBACK_EXIT[$error]) ? self::ROLLBACK_EXIT[$error] : self::ERROR;
+            return $this->fail($code, $mode . ' stopped: ' . $error . '; rerun to resume');
+        }
+        $done = $mode === Rollback::MODE_ROLLBACK ? 'rolled back' : 'aborted';
+        if ($result['conflicts'] !== array()) {
+            return $this->fail(self::CONFLICTS, $done . ', but ' . count($result['conflicts']) . ' conflict(s) were kept; review them');
+        }
+        if ($not_reactivated) {
+            return $this->fail(self::OFFICIAL_NOT_REACTIVATED, $done . ', but the official UPayments plugin was not reactivated; activate it yourself');
+        }
+        return $this->done($done . ' (restored ' . $result['restored'] . ')');
     }
 
     /**
@@ -450,6 +621,23 @@ final class CliCommands {
             $count += is_array($group) && isset($group['count']) ? (int) $group['count'] : 0;
         }
         return $count;
+    }
+
+    /**
+     * @param array<string, mixed> $state State.
+     * @return array{mode:string, removal_pending:bool, phase:string, conflicts:list<array<string, mixed>>}|null
+     */
+    private static function rollback_summary(array $state) {
+        $progress = isset($state[Rollback::PROGRESS]) && is_array($state[Rollback::PROGRESS]) ? $state[Rollback::PROGRESS] : null;
+        if ($progress === null || Rollback::mode_of($state) === null) {
+            return null;
+        }
+        return array(
+            'mode' => (string) Rollback::mode_of($state),
+            'removal_pending' => Rollback::removal_pending($state),
+            'phase' => isset($progress['removal']['phase']) ? (string) $progress['removal']['phase'] : '',
+            'conflicts' => isset($progress['conflicts']) && is_array($progress['conflicts']) ? array_values($progress['conflicts']) : array(),
+        );
     }
 
     /** @return array<string, mixed> Entry count and count per target, or an error marker. */

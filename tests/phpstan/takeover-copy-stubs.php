@@ -58,5 +58,44 @@ function wp_schedule_event($timestamp, $recurrence, $hook, $args = array(), $wp_
  */
 function deactivate_plugins($plugins, $silent = false, $network_wide = null) {}
 
+/**
+ * 0b Task 10 rollback: user meta removal and the official plugin's reactivation.
+ *
+ * @param int    $user_id
+ * @param string $meta_key
+ * @param mixed  $meta_value
+ * @return bool
+ */
+function delete_user_meta($user_id, $meta_key, $meta_value = '') {}
+
+/**
+ * @param string $file
+ * @return string
+ */
+function plugin_basename($file) {}
+
+/**
+ * @param string $plugin_folder
+ * @return array<string, array<string, string>>
+ */
+function get_plugins($plugin_folder = '') {}
+
+/**
+ * @param string $plugin
+ * @param string $redirect
+ * @param bool   $network_wide
+ * @param bool   $silent
+ * @return \WP_Error|null
+ */
+function activate_plugin($plugin, $redirect = '', $network_wide = false, $silent = false) {}
+
+/**
+ * @param string                $file
+ * @param array<string, string> $default_headers
+ * @param string                $context
+ * @return mixed Header values (an array in WordPress).
+ */
+function get_file_data($file, $default_headers, $context = '') {}
+
 /** wpdb result shape (0b Task 9 stale-claims store). */
 define('ARRAY_A', 'ARRAY_A');

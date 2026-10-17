@@ -35,6 +35,14 @@ final class BillingTableCopier {
     public const ERROR_SCHEMA = 'schema_mismatch';
     public const ERROR_CREATE = 'table_create_failed';
     public const ERROR_READ = 'table_unreadable';
+    /** Rollback: a REPLACE would move a legacy row backwards. */
+    public const ERROR_REGRESSIVE = 'regressive_rows';
+    /** Rollback: the new table lacks legacy rows it must hold. */
+    public const ERROR_NEW_SHORT = 'new_table_short';
+    /** Rollback: the authoritative new table does not exist next to a legacy table. */
+    public const ERROR_NEW_MISSING = 'new_table_missing';
+    /** CycleClaim's states, in the only order a row moves. */
+    private const STATE_ORDER = array('claimed', 'dispatching', 'held', 'resolved');
     public const CHECKSUM = 'checksum';
     public const ROW_COUNT = 'row_count';
 
@@ -115,19 +123,171 @@ final class BillingTableCopier {
     }
 
     /**
-     * @param CopyStore $store Store.
-     * @return list<string>|string The legacy columns, or an error code.
+     * Rollback (Task 10): copy the next batch of NEW rows after $cursor back into the legacy
+     * table. While cut over the new table is the single-written one, so it is authoritative:
+     * missing and differing legacy rows are REPLACEd, and legacy rows with no new row (a claim
+     * CycleClaim::release_claimed() deleted after cutover) are deleted over the batch range,
+     * and over the open tail on the last batch. Runs over the whole table, never bounded by
+     * `max_copied_key`.
+     *
+     * @param RollbackStore $store  Store.
+     * @param string        $cursor Last new-table key synced ('' at the start).
+     * @return array{done:bool, cursor:string, rows:int, error:string|null}
      */
-    private static function columns(CopyStore $store) {
-        $legacy = $store->table_columns(CopyStore::TABLE_LEGACY);
-        $new = $store->table_columns(CopyStore::TABLE_NEW);
-        if ($legacy === array() || $new === array()) {
+    public static function back_sync_batch(RollbackStore $store, $cursor) {
+        $cursor = (string) $cursor;
+        if (!$store->table_exists(CopyStore::TABLE_NEW)) {
+            return self::copied(true, $cursor, 0, self::new_table_missing($store));
+        }
+        if ($cursor === '') {
+            $short = self::new_table_short($store);
+            if ($short !== null) {
+                return self::copied(true, $cursor, 0, $short);
+            }
+        }
+        if (!$store->table_exists(CopyStore::TABLE_LEGACY) && !$store->create_table(CopyStore::TABLE_LEGACY)) {
+            return self::copied(true, $cursor, 0, self::ERROR_CREATE);
+        }
+        $columns = self::columns($store, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY);
+        if (!is_array($columns)) {
+            return self::copied(true, $cursor, 0, $columns);
+        }
+        $keys = $store->table_keys_after(CopyStore::TABLE_NEW, $cursor, self::BATCH);
+        $done = count($keys) < self::BATCH;
+        $last = $keys === array() ? $cursor : (string) end($keys);
+        if ($keys !== array()) {
+            $stale = self::differing($store, $columns, $cursor, $last, false, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY);
+            if (self::regressive($store, $stale) !== array()) {
+                // A REPLACE would move a legacy row backwards: keep it and refuse (fail closed).
+                return self::copied(true, $cursor, 0, self::ERROR_REGRESSIVE);
+            }
+            if ($stale !== array() && !$store->table_replace_into(CopyStore::TABLE_LEGACY, $columns, $stale)) {
+                return self::copied(true, $cursor, 0, self::ERROR_READ);
+            }
+        }
+        if (!$store->table_delete_orphans_from(CopyStore::TABLE_LEGACY, $cursor, $done ? null : $last)) {
+            return self::copied(true, $cursor, 0, self::ERROR_READ);
+        }
+        return self::copied($done, $last, count($keys), null);
+    }
+
+    /**
+     * The cut-over invariant: every legacy row that is not `claimed` still exists in the new
+     * table (only CycleClaim::release_claimed() deletes rows, and only `claimed` ones). A new
+     * table that is missing, empty or smaller than that breaks it, and the back-sync refuses
+     * before writing anything rather than deleting legacy rows.
+     *
+     * @param RollbackStore $store Store.
+     * @return string|null Error code, or null when the new table can be authoritative.
+     */
+    private static function new_table_short(RollbackStore $store) {
+        if (!$store->table_exists(CopyStore::TABLE_LEGACY)) {
+            return null;
+        }
+        $legacy = $store->table_count(CopyStore::TABLE_LEGACY);
+        $claimed = $store->table_count_state(CopyStore::TABLE_LEGACY, self::STATE_ORDER[0]);
+        $new = $store->table_exists(CopyStore::TABLE_NEW) ? $store->table_count(CopyStore::TABLE_NEW) : 0;
+        if ($legacy === null || $claimed === null || $new === null) {
             return self::ERROR_READ;
         }
-        if (!in_array(self::KEY_COLUMN, $legacy, true) || array_diff($legacy, $new) !== array()) {
+        return $legacy - $claimed > 0 && ($new === 0 || $new < $legacy - $claimed) ? self::ERROR_NEW_SHORT : null;
+    }
+
+    /**
+     * While cut over the new table is the authoritative one, and the copy phase creates it
+     * whenever a legacy table exists. A legacy table without it means the authoritative rows
+     * are lost (dropped or never restored): a cycle resolved only there would fall back to a
+     * stale legacy `claimed` row and become claimable again, so nothing is synced or deleted.
+     * With neither table there is nothing to back-sync.
+     *
+     * @param RollbackStore $store Store.
+     * @return string|null ERROR_NEW_MISSING, or null when there is no legacy table either.
+     */
+    private static function new_table_missing(RollbackStore $store) {
+        return $store->table_exists(CopyStore::TABLE_LEGACY) ? self::ERROR_NEW_MISSING : null;
+    }
+
+    /**
+     * Keys whose new row is not at least as far along as its legacy row
+     * (claimed < dispatching < held < resolved); an unknown state counts as behind.
+     *
+     * @param RollbackStore $store Store.
+     * @param list<string>  $keys  Keys about to be replaced.
+     * @return list<string>
+     */
+    private static function regressive(RollbackStore $store, array $keys) {
+        if ($keys === array()) {
+            return array();
+        }
+        $legacy = $store->table_states(CopyStore::TABLE_LEGACY, $keys);
+        $new = $store->table_states(CopyStore::TABLE_NEW, $keys);
+        $behind = array();
+        foreach ($keys as $key) {
+            if (!isset($legacy[$key])) {
+                continue;
+            }
+            $from = array_search($legacy[$key], self::STATE_ORDER, true);
+            $to = isset($new[$key]) ? array_search($new[$key], self::STATE_ORDER, true) : false;
+            if ($from === false || $to === false || $to < $from) {
+                $behind[] = $key;
+            }
+        }
+        return $behind;
+    }
+
+    /**
+     * Rollback (Task 10): verify the next batch of new rows against the legacy table; the
+     * last batch also compares the row counts and covers every legacy row beyond the last
+     * new key.
+     *
+     * @param RollbackStore $store  Store.
+     * @param string        $cursor Last key verified ('' at the start).
+     * @return array{done:bool, cursor:string, mismatches:int, codes:list<string>}
+     */
+    public static function back_verify_batch(RollbackStore $store, $cursor) {
+        $cursor = (string) $cursor;
+        if (!$store->table_exists(CopyStore::TABLE_NEW)) {
+            $missing = self::new_table_missing($store);
+            return self::verified(true, $cursor, $missing === null ? 0 : 1, $missing === null ? array() : array($missing));
+        }
+        $columns = self::columns($store, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY);
+        if (!is_array($columns)) {
+            return self::verified(true, $cursor, 1, array($columns));
+        }
+        $keys = $store->table_keys_after(CopyStore::TABLE_NEW, $cursor, self::BATCH);
+        $done = count($keys) < self::BATCH;
+        $upto = $done ? null : (string) end($keys);
+        $differing = count(self::differing($store, $columns, $cursor, $upto, true, CopyStore::TABLE_NEW, CopyStore::TABLE_LEGACY));
+        $codes = $differing > 0 ? array(self::CHECKSUM) : array();
+        $next = $keys === array() ? $cursor : (string) end($keys);
+        if (!$done) {
+            return self::verified(false, $next, $differing, $codes);
+        }
+        $new_count = $store->table_count(CopyStore::TABLE_NEW);
+        $legacy_count = $store->table_count(CopyStore::TABLE_LEGACY);
+        if ($legacy_count === null || $new_count === null || $legacy_count !== $new_count) {
+            ++$differing;
+            $codes[] = self::ROW_COUNT;
+        }
+        return self::verified(true, $next, $differing, $codes);
+    }
+
+    /**
+     * @param CopyStore $store  Store.
+     * @param string    $source Role copied from.
+     * @param string    $target Role copied into.
+     * @return list<string>|string The source columns, or an error code.
+     */
+    private static function columns(CopyStore $store, $source = CopyStore::TABLE_LEGACY, $target = CopyStore::TABLE_NEW) {
+        $from = $store->table_columns($source);
+        $into = $store->table_columns($target);
+        if ($from === array() || $into === array()) {
+            return self::ERROR_READ;
+        }
+        if (!in_array(self::KEY_COLUMN, $from, true) || array_diff($from, $into) !== array()) {
             return self::ERROR_SCHEMA;
         }
-        return $legacy;
+        return $from;
     }
 
     /**
@@ -135,20 +295,22 @@ final class BillingTableCopier {
      * @param list<string> $columns    Columns.
      * @param string       $after      Exclusive lower bound.
      * @param string|null  $upto       Inclusive upper bound; null for none.
-     * @param bool         $with_extra Also count new rows that have no legacy row.
+     * @param bool         $with_extra Also count target rows that have no source row.
+     * @param string       $source     Authoritative role.
+     * @param string       $target     Copy role.
      * @return list<string> Keys whose rows differ.
      */
-    private static function differing(CopyStore $store, array $columns, $after, $upto, $with_extra) {
-        $legacy = $store->table_checksums(CopyStore::TABLE_LEGACY, $columns, $after, $upto);
-        $new = $store->table_checksums(CopyStore::TABLE_NEW, $columns, $after, $upto);
+    private static function differing(CopyStore $store, array $columns, $after, $upto, $with_extra, $source = CopyStore::TABLE_LEGACY, $target = CopyStore::TABLE_NEW) {
+        $from = $store->table_checksums($source, $columns, $after, $upto);
+        $into = $store->table_checksums($target, $columns, $after, $upto);
         $keys = array();
-        foreach ($legacy as $key => $sum) {
-            if (!isset($new[$key]) || !hash_equals($sum, $new[$key])) {
+        foreach ($from as $key => $sum) {
+            if (!isset($into[$key]) || !hash_equals($sum, $into[$key])) {
                 $keys[] = (string) $key;
             }
         }
         if ($with_extra) {
-            foreach (array_keys(array_diff_key($new, $legacy)) as $key) {
+            foreach (array_keys(array_diff_key($into, $from)) as $key) {
                 $keys[] = (string) $key;
             }
         }

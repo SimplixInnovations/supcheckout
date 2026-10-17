@@ -208,6 +208,7 @@ $ownership_categories = array(
     'display_only' => 'only shows the payment method; no ownership decision',
     'third_party_gateway' => 'intentionally compares with another gateway',
     'stale_choice_translation' => 'a posted pre-cutover gateway choice, re-pointed from exactly the legacy id to Keys::GATEWAY within the grace window (Task 7); never an order identity',
+    'rollback_repoint' => 'Rollback (Task 10) rewrites exactly Keys::GATEWAY to Keys::GATEWAY_LEGACY on post-cutover orders, journaled; the only payment_method write the takeover makes, never an ownership decision',
 );
 
 /**
@@ -224,6 +225,7 @@ $ownership_sites = array(
     'src/Subscription/Checkout/Fields.php' => array("['payment_method']" => array_fill(0, 3, 'captured_for_check')),
     'src/Subscription/Cron/Scheduler.php' => array('get_payment_method()' => array('captured_for_check')),
     'src/Takeover/StaleGatewayChoice.php' => array("['payment_method']" => array_fill(0, 3, 'stale_choice_translation')),
+    'src/Takeover/BackSync.php' => array('get_payment_method()' => array('rollback_repoint')),
 );
 
 /**

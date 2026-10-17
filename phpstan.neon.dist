@@ -83,4 +83,11 @@ parameters:
         - src/Takeover/CliCommands.php
         - src/Takeover/Cli.php
         - src/Takeover/PausedBoot.php
+        - src/Takeover/RollbackStore.php
+        - src/Takeover/RollbackSystem.php
+        - src/Takeover/QuiesceLease.php
+        - src/Takeover/BackSync.php
+        - src/Takeover/JournalReplay.php
+        - src/Takeover/CopyRemoval.php
+        - src/Takeover/Rollback.php
     tmpDir: .cache/phpstan

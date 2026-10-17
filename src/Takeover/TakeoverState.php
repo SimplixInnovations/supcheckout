@@ -10,8 +10,11 @@ defined('ABSPATH') || exit;
  * Persisted takeover state machine (Sub-project 0b).
  *
  * idle → preflight_ok → copying → verified → cut_over → finalized, with
- * copying → preflight_ok (verification failed), cut_over → rolled_back and
- * rolled_back → preflight_ok. Nothing else is allowed.
+ * copying → preflight_ok (verification failed), verified → preflight_ok (abort, Task 10),
+ * cut_over → rolled_back and rolled_back → preflight_ok. Nothing else is allowed.
+ *
+ * cut_over records `cut_over_at` and rolled_back records `rolled_back_at` (the start of
+ * StaleGatewayChoice's mirror grace); both stay in the record as history.
  *
  * Storage: one non-autoloaded option holding a JSON object. The first record is
  * created with OrderLock::insert_if_absent() and every later change is an SQL
@@ -41,6 +44,9 @@ final class TakeoverState {
     /** Reported by get() for an unreadable stored record; never stored. */
     public const INVALID = 'invalid';
 
+    /** Rollback's progress field (Rollback::PROGRESS). */
+    public const ROLLBACK_PROGRESS = 'rollback';
+
     /** Finalize waits this many days after cut_over unless forced. */
     public const FINALIZE_AFTER_DAYS = 30;
 
@@ -49,14 +55,14 @@ final class TakeoverState {
         self::IDLE => array(self::PREFLIGHT_OK),
         self::PREFLIGHT_OK => array(self::COPYING),
         self::COPYING => array(self::VERIFIED, self::PREFLIGHT_OK),
-        self::VERIFIED => array(self::CUT_OVER),
+        self::VERIFIED => array(self::CUT_OVER, self::PREFLIGHT_OK),
         self::CUT_OVER => array(self::ROLLED_BACK, self::FINALIZED),
         self::FINALIZED => array(),
         self::ROLLED_BACK => array(self::PREFLIGHT_OK),
     );
 
     /** Fields only transition() may write. */
-    private const LIFECYCLE_FIELDS = array('status', 'cut_over_at', 'updated_at', 'finalize_forced');
+    private const LIFECYCLE_FIELDS = array('status', 'cut_over_at', 'rolled_back_at', 'updated_at', 'finalize_forced');
 
     private const SECONDS_PER_DAY = 86400;
 
@@ -111,8 +117,14 @@ final class TakeoverState {
             return false;
         }
 
+        // Defense in depth (Task 10): a rolled-back store re-enters preflight_ok only once
+        // Rollback recorded its copy removal complete, whoever asks for the transition.
+        if ($current['status'] === self::ROLLED_BACK && $to === self::PREFLIGHT_OK && !self::removal_complete($current)) {
+            return false;
+        }
+
         $now = time();
-        $finalize_due = $current['cut_over_at'] > 0
+        $finalize_due =$current['cut_over_at'] > 0
             && $now - $current['cut_over_at'] >= self::FINALIZE_AFTER_DAYS * self::day_in_seconds();
         if ($to === self::FINALIZED && !$finalize_due && $force !== true) {
             return false;
@@ -123,6 +135,9 @@ final class TakeoverState {
         $next['updated_at'] = $now;
         if ($to === self::CUT_OVER) {
             $next['cut_over_at'] = $now;
+        }
+        if ($to === self::ROLLED_BACK) {
+            $next['rolled_back_at'] = $now;
         }
         if ($to === self::FINALIZED) {
             $next['finalize_forced'] = !$finalize_due;
@@ -166,6 +181,14 @@ final class TakeoverState {
             return true;
         }
         return self::write($raw, $next);
+    }
+
+    /**
+     * @param array<string, mixed> $state Decoded state.
+     * @return bool True once Rollback recorded its copy removal complete.
+     */
+    private static function removal_complete(array $state) {
+        return isset($state[self::ROLLBACK_PROGRESS]['removal_pending']) && $state[self::ROLLBACK_PROGRESS]['removal_pending'] === false;
     }
 
     /**

@@ -193,7 +193,12 @@ final class CopyRunner {
      * @return bool
      */
     public static function begin() {
-        if (!TakeoverState::patch(self::fresh_progress(), TakeoverState::PREFLIGHT_OK)) {
+        TakeoverState::refresh();
+        if (Rollback::removal_pending(TakeoverState::get())) {
+            // An interrupted abort is still removing the previous copies (Task 10): rerun it first.
+            return false;
+        }
+        if (!TakeoverState::patch(self::fresh_progress() + array(Rollback::PROGRESS => null), TakeoverState::PREFLIGHT_OK)) {
             return false;
         }
         return TakeoverState::transition(TakeoverState::COPYING);
