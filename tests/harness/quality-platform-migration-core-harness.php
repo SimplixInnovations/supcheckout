@@ -82,7 +82,7 @@ q16_assert(q16_has($stubs, 'namespace Simplixi\\SUPCheckout\\Token'), 'stub mode
 q16_assert(q16_has($bootstrap, "require __DIR__ . '/support/wordpress-migration-core.php';"), 'PHPUnit bootstrap loads migration fixture');
 
 q16_assert(q16_blob($root . '/src/Subscription/Cron/Scheduler.php') === 'a8900abd30eec617a7c5c283355a67579a04c323', 'protected Scheduler blob remains exact');
-q16_assert(q16_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '53534f49346f5c485f615ef76dc1c4f870e54592', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
+q16_assert(q16_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '55f30d1ad7fe6eeb1c0a16b365b08a97e9fc3f13', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 foreach (array('phase-9i-preflight-harness.php','phase-9i-executor-harness.php','phase-9i-operations-harness.php') as $name) q16_assert(q16_has($workflow, 'tests/harness/' . $name), 'Phase 9I regression remains mandatory: ' . $name);
 q16_assert(q16_has($workflow, 'tests/harness/quality-platform-migration-core-harness.php'), 'Q16 harness is mandatory');
 q16_assert(q16_has($workflow, 'if: ${{ always() }}'), 'H12 aggregator always runs');

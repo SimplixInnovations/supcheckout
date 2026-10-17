@@ -341,6 +341,67 @@ foreach (array('idle', 'copying', 'cut_over', 'finalized') as $status) {
     h12dp_assert(CustomerTokenIdentity::read_existing_secret_record()['state'] === CustomerTokenIdentity::SECRET_VALID && $ctx['scope'] === $scope, "{$status}: identical copies stay valid with the same scope");
 }
 
+// --- 8. The takeover copy (0b Task 6 users phase) keeps provenance valid under the new prefix. ---
+if (!function_exists('wp_slash')) {
+    function wp_slash($value) {
+        return is_array($value) ? array_map('wp_slash', $value) : (is_string($value) ? addslashes($value) : $value);
+    }
+}
+
+/** The users-phase slice of CopyStore, bound to the sandbox's real user meta functions. */
+function h12dp_copy_store() {
+    return new class() implements \Simplixi\SUPCheckout\Takeover\CopyStore {
+        public function order_ids_after($after_id, $limit) { return array(); }
+        public function load_order($order_id) { return null; }
+        public function order_post_meta_reader() { return null; }
+        public function user_ids_after($after_id, $limit) { return array(); }
+        public function legacy_user_meta_keys($user_id) {
+            $state =& upay_test_state();
+            $keys = array();
+            foreach (array_keys(isset($state['usermeta'][$user_id]) ? $state['usermeta'][$user_id] : array()) as $key) {
+                if (strpos($key, '_upay_customer_token_v2_b') === 0) {
+                    $keys[] = $key;
+                }
+            }
+            return $keys;
+        }
+        public function user_meta($user_id, $key) { return get_user_meta($user_id, $key, false); }
+        public function add_unique_user_meta($user_id, $key, $slashed_value) { return add_user_meta($user_id, $key, $slashed_value, true) !== false; }
+        public function product_ids_after($after_id, $limit) { return array(); }
+        public function load_product($product_id) { return null; }
+        public function table_exists($which) { return false; }
+        public function create_new_table() { return false; }
+        public function table_columns($which) { return array(); }
+        public function table_keys_after($which, $after_key, $limit) { return array(); }
+        public function table_insert_missing(array $columns, $after_key, $upto_key) { return false; }
+        public function table_replace(array $columns, array $keys) { return false; }
+        public function table_checksums($which, array $columns, $after_key, $upto_key) { return array(); }
+        public function table_count($which) { return null; }
+    };
+}
+
+h12dp_reset('copying');
+upay_test_state()['options']['upayments_token_identity_secret_v2'] = $secret;
+upay_test_state()['usermeta'][1][$legacy_prefix . $scope] = array(h12dp_record($scope, $generation));
+$copy_store = h12dp_copy_store();
+$first = \Simplixi\SUPCheckout\Takeover\UserMetaCopier::copy_user($copy_store, 1);
+$second = \Simplixi\SUPCheckout\Takeover\UserMetaCopier::copy_user($copy_store, 1);
+h12dp_assert($first['copied'] === 1 && $second['copied'] === 0 && $second['skipped'] === 1
+    && count(upay_test_state()['usermeta'][1][$new_prefix . $scope]) === 1, 'takeover copy: the provenance row is copied once; a re-run adds no second row');
+h12dp_assert(CustomerTokenIdentity::read_provenance(1, $scope, $generation)['state'] === 'valid', 'copying: legacy and copied forms agree and verify');
+
+h12dp_assert(\Simplixi\SUPCheckout\Takeover\UserMetaCopier::verify_user($copy_store, 1)['ok'] === true, 'copying: the users-phase verify passes');
+
+// Cutover copies the secret verbatim (Task 7), Finalize later removes the legacy row and
+// secret: the row the copier wrote then verifies under the new prefix alone.
+upay_test_state()['options'][TakeoverState::OPTION] = json_encode(array('status' => 'finalized', 'cut_over_at' => 1, 'cursor' => 0, 'totals' => array()));
+TakeoverState::flush_cache();
+upay_test_state()['options']['supcheckout_token_identity_secret_v2'] = $secret;
+unset(upay_test_state()['options']['upayments_token_identity_secret_v2'], upay_test_state()['usermeta'][1][$legacy_prefix . $scope]);
+h12dp_assert(CustomerTokenIdentity::read_provenance(1, $scope, $generation)['state'] === 'valid', 'finalized: the copied provenance row verifies under the new prefix alone');
+upay_test_state()['usermeta'][1][$new_prefix . $scope][] = h12dp_record($scope, $generation);
+h12dp_assert(CustomerTokenIdentity::read_provenance(1, $scope, $generation)['state'] === 'invalid', 'a second row under the new prefix would make provenance INVALID (why the copy is unique)');
+
 $GLOBALS['wpdb'] = new WpdbStub();
 
 echo "\nTakeover H12 dual prefix: {$pass} PASS / {$fail} FAIL\n";

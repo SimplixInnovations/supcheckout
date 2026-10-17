@@ -14,6 +14,7 @@ parameters:
         - tests/phpstan/gateway-availability-stubs.php
         - tests/phpstan/gateway-order-presentation-stubs.php
         - tests/phpstan/takeover-preflight-stubs.php
+        - tests/phpstan/takeover-copy-stubs.php
     paths:
         - src/Payment/CheckoutPayload.php
         - src/Payment/OrderLock.php
@@ -63,4 +64,9 @@ parameters:
         - src/Takeover/Preflight.php
         - src/Takeover/OfficialFootprint.php
         - src/Takeover/OrderCopier.php
+        - src/Takeover/CopyStore.php
+        - src/Takeover/WordPressCopyStore.php
+        - src/Takeover/UserMetaCopier.php
+        - src/Takeover/BillingTableCopier.php
+        - src/Takeover/CopyRunner.php
     tmpDir: .cache/phpstan

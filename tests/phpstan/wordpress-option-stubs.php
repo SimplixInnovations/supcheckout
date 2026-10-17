@@ -127,6 +127,12 @@ function get_current_user_id() {}
 /** @return mixed */
 function wp_unslash($value) {}
 
+/**
+ * @param mixed $value
+ * @return mixed
+ */
+function wp_slash($value) {}
+
 /** @return void */
 function wp_send_json($response, $status_code = null, $flags = 0) {}
 
