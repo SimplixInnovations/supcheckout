@@ -62,6 +62,13 @@ final class Availability {
                     // A session started before cutover still holds `upayments` (up to
                     // 48 h): re-point it to our gateway's current id (0b Task 7).
                     $wc->session->set('chosen_payment_method', $registered_key);
+                } elseif ($chosen === Keys::GATEWAY
+                    && StaleGatewayChoice::in_rollback_grace()
+                    && StaleGatewayChoice::ours_is_legacy($available_gateways)
+                ) {
+                    // After a rollback, a session from the cut-over window still holds
+                    // `supcheckout` (up to 48 h): re-point it to `upayments` (0b Task 10).
+                    $wc->session->set('chosen_payment_method', Keys::GATEWAY_LEGACY);
                 }
             }
         }

@@ -116,6 +116,44 @@ final class StaleGatewayChoiceTest extends TestCase {
         }
     }
 
+    public function test_after_a_rollback_a_stale_supcheckout_choice_is_mirrored_back_within_the_grace_window(): void {
+        self::available(array('cod' => (object) array('id' => 'cod'), 'upayments' => self::our_gateway()));
+        foreach (array('rolled_back', 'preflight_ok') as $status) {
+            self::rolled_back($status, time() - StaleGatewayChoice::GRACE_SECONDS + 600);
+            $GLOBALS['supcheckout_test_hook_calls'] = array();
+
+            StaleGatewayChoice::register();
+            self::assertCount(2, $GLOBALS['supcheckout_test_hook_calls'], $status . ': both checkout paths registered');
+            self::assertSame(array('payment_method' => 'upayments'), StaleGatewayChoice::filter_posted_data(array('payment_method' => 'supcheckout')), $status);
+            $request = new \WP_REST_Request('POST', '/wc/store/v1/checkout', array('payment_method' => 'supcheckout'));
+            StaleGatewayChoice::filter_rest_request(null, array(), $request);
+            self::assertSame('upayments', $request->get_param('payment_method'), $status);
+            self::assertSame(array('payment_method' => 'upayments'), StaleGatewayChoice::filter_posted_data(array('payment_method' => 'upayments')), 'the current id is kept');
+            self::assertSame(array('payment_method' => 'cod'), StaleGatewayChoice::filter_posted_data(array('payment_method' => 'cod')));
+        }
+    }
+
+    public function test_the_rollback_mirror_ends_with_its_grace_window_and_needs_our_own_gateway(): void {
+        self::rolled_back('preflight_ok', time() - StaleGatewayChoice::GRACE_SECONDS - 1);
+        self::available(array('upayments' => self::our_gateway()));
+        $GLOBALS['supcheckout_test_hook_calls'] = array();
+        StaleGatewayChoice::register();
+        self::assertSame(array(), $GLOBALS['supcheckout_test_hook_calls'], 'after the grace nothing is registered');
+        self::assertSame(array('payment_method' => 'supcheckout'), StaleGatewayChoice::filter_posted_data(array('payment_method' => 'supcheckout')));
+
+        self::rolled_back('preflight_ok', time());
+        // The official plugin's gateway object at 'upayments' is never mistaken for ours.
+        self::available(array('upayments' => (object) array('id' => 'upayments')));
+        self::assertSame(array('payment_method' => 'supcheckout'), StaleGatewayChoice::filter_posted_data(array('payment_method' => 'supcheckout')));
+        self::assertFalse(StaleGatewayChoice::in_rollback_grace(time() + StaleGatewayChoice::GRACE_SECONDS));
+        self::assertTrue(StaleGatewayChoice::in_rollback_grace());
+    }
+
+    private static function rolled_back(string $status, int $rolled_back_at): void {
+        $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => $status, 'cut_over_at' => $rolled_back_at - 3600, 'rolled_back_at' => $rolled_back_at, 'cursor' => 0, 'totals' => array()));
+        TakeoverState::flush_cache();
+    }
+
     private static function state(string $status, int $cut_over_at): void {
         $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => $status, 'cut_over_at' => $cut_over_at, 'cursor' => 0, 'totals' => array()));
         TakeoverState::flush_cache();

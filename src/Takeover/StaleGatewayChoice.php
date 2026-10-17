@@ -19,7 +19,14 @@ defined('ABSPATH') || exit;
  *   validates payment_method, so the request parameter is rewritten for those routes
  *   only).
  *
- * No other value is ever translated. Before cutover nothing is registered.
+ * The mirror after a rollback (Task 10): within GRACE_SECONDS of `rolled_back_at`, while the
+ * store is not cut over and SUPCheckout's own gateway is available at `upayments`, a posted
+ * or session value of exactly `supcheckout` (a checkout page or session from the cut-over
+ * window) is re-pointed to `upayments` on the same paths. It needs SUPCheckout's runtime, so
+ * it covers a rollback that did not reactivate the official plugin; with the official plugin
+ * active SUPCheckout is paused and WooCommerce rejects the unknown id as it always did.
+ *
+ * No other value is ever translated. Outside both windows nothing is registered.
  */
 final class StaleGatewayChoice {
     /** Seconds after cutover a pre-cutover choice is still honoured (WooCommerce's 48 h session lifetime). */
@@ -30,7 +37,7 @@ final class StaleGatewayChoice {
 
     /** @return void */
     public static function register() {
-        if (!TakeoverState::is_cut_over()) {
+        if (!TakeoverState::is_cut_over() && !self::in_rollback_grace()) {
             return;
         }
         add_filter('woocommerce_checkout_posted_data', array(self::class, 'filter_posted_data'));
@@ -51,12 +58,42 @@ final class StaleGatewayChoice {
     }
 
     /**
+     * @param int|null $now Current time; time() when omitted.
+     * @return bool True while a `supcheckout` choice from before a rollback may still be
+     *              re-pointed to `upayments` (never while cut over).
+     */
+    public static function in_rollback_grace($now = null) {
+        if (TakeoverState::is_cut_over()) {
+            return false;
+        }
+        $state = TakeoverState::get();
+        $rolled_back_at = isset($state['rolled_back_at']) && is_int($state['rolled_back_at']) ? $state['rolled_back_at'] : 0;
+        $now = $now === null ? time() : (int) $now;
+        return $rolled_back_at > 0 && $now < $rolled_back_at + self::GRACE_SECONDS;
+    }
+
+    /**
+     * Whether SUPCheckout's own gateway (never the official plugin's) is registered at `upayments`.
+     *
+     * @param mixed $gateways Gateway id => gateway.
+     * @return bool
+     */
+    public static function ours_is_legacy($gateways) {
+        return is_array($gateways)
+            && isset($gateways[Keys::GATEWAY_LEGACY])
+            && $gateways[Keys::GATEWAY_LEGACY] instanceof \Simplixi\SUPCheckout\Gateway\Gateway;
+    }
+
+    /**
      * @param mixed $data Classic checkout posted data.
      * @return mixed
      */
     public static function filter_posted_data($data) {
-        if (is_array($data) && isset($data['payment_method']) && self::should_translate($data['payment_method'])) {
-            $data['payment_method'] = Keys::GATEWAY;
+        if (is_array($data) && isset($data['payment_method'])) {
+            $translated = self::translated($data['payment_method']);
+            if ($translated !== null) {
+                $data['payment_method'] = $translated;
+            }
         }
         return $data;
     }
@@ -74,20 +111,28 @@ final class StaleGatewayChoice {
         ) {
             return $response;
         }
-        if (self::should_translate($request->get_param('payment_method'))) {
-            $request->set_param('payment_method', Keys::GATEWAY);
+        $translated = self::translated($request->get_param('payment_method'));
+        if ($translated !== null) {
+            $request->set_param('payment_method', $translated);
         }
         return $response;
     }
 
     /**
      * @param mixed $value Posted payment method.
-     * @return bool
+     * @return string|null The id to use instead, or null to keep the value.
      */
-    private static function should_translate($value) {
-        return $value === Keys::GATEWAY_LEGACY
+    private static function translated($value) {
+        if ($value === Keys::GATEWAY_LEGACY
             && self::in_grace()
-            && Keys::find_gateway_id(self::available_gateways()) === Keys::GATEWAY;
+            && Keys::find_gateway_id(self::available_gateways()) === Keys::GATEWAY
+        ) {
+            return Keys::GATEWAY;
+        }
+        if ($value === Keys::GATEWAY && self::in_rollback_grace() && self::ours_is_legacy(self::available_gateways())) {
+            return Keys::GATEWAY_LEGACY;
+        }
+        return null;
     }
 
     /** @return array<string, mixed> */
