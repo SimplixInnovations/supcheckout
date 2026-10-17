@@ -224,22 +224,13 @@ $ownership_categories = array(
  * @var array<string, array<string, list<string>>>
  */
 $ownership_sites = array(
-    'src/Account/SubscriptionActions.php' => array('get_payment_method()' => array('ownership_compare_task2')),
+    // Task 2 converted every ownership_compare_task2 site to Keys::is_our_gateway()
+    // (SubscriptionActions, Gateway::admin_order_details() and the icon filter,
+    // OrderPresentation, PaymentLifecycle x2, PublicOrderStatus, Scheduler,
+    // HistoricalEnrollment); the harness exempts reads inside those calls.
     'src/Admin/GatewaySettings.php' => array('$gateway_id' => array('current_id_compare')),
-    'src/Gateway/Gateway.php' => array(
-        'get_payment_method()' => array('ownership_compare_task2'),
-        '->id' => array('ownership_compare_task2'),
-        '$gateway_id' => array('ownership_compare_task2'),
-    ),
-    'src/Gateway/OrderPresentation.php' => array(
-        'get_payment_method()' => array('ownership_compare_task2'),
-        '$gateway_id' => array('ownership_compare_task2'),
-    ),
-    'src/Payment/PaymentLifecycle.php' => array('get_payment_method()' => array('ownership_compare_task2', 'ownership_compare_task2')),
-    'src/Security/PublicOrderStatus.php' => array('get_payment_method()' => array('ownership_compare_task2')),
     'src/Subscription/Checkout/Fields.php' => array("['payment_method']" => array_fill(0, 3, 'captured_for_check')),
-    'src/Subscription/Cron/Scheduler.php' => array('get_payment_method()' => array('captured_for_check', 'ownership_compare_task2')),
-    'src/Subscription/Scheduling/HistoricalEnrollment.php' => array('get_payment_method()' => array('ownership_compare_task2')),
+    'src/Subscription/Cron/Scheduler.php' => array('get_payment_method()' => array('captured_for_check')),
 );
 
 /**

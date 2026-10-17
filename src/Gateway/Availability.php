@@ -28,15 +28,15 @@ final class Availability {
             return $available_gateways;
         }
 
-        $gateway_id = Keys::find_gateway_id($available_gateways);
-        if ($gateway_id !== null) {
-            $upay = $available_gateways[$gateway_id];
-            unset($available_gateways[$gateway_id]);
-            $available_gateways[$gateway_id] = $upay;
+        $registered_key = Keys::find_gateway_id($available_gateways);
+        if ($registered_key !== null) {
+            $upay = $available_gateways[$registered_key];
+            unset($available_gateways[$registered_key]);
+            $available_gateways[$registered_key] = $upay;
 
             $settings = Keys::get_settings();
             if (!GatewaySettings::is_runtime_eligible($settings, get_woocommerce_currency())) {
-                unset($available_gateways[$gateway_id]);
+                unset($available_gateways[$registered_key]);
                 return $available_gateways;
             }
 
