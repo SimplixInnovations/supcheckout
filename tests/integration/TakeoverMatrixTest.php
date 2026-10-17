@@ -16,7 +16,7 @@
  *   webhook       after two legacy-route webhook deliveries and one on the new route;
  *   rollback      `rollback --yes --reactivate-official` (step 8);
  *   rolled_back   pre-switch values restored byte for byte, paid orders still paid;
- *   rerun         `run` again: the same result (step 9);
+ *   rerun         `run` again (step 9); rerun_verify: the same result, in a fresh process;
  *   finalize      (guarded: only when the build has `finalize`, 0b Task 11) the irreversible
  *                 finalize forced after review, with one legacy value made to differ;
  *   finalized     legacy names removed only where they verified equal.
@@ -89,8 +89,11 @@ function supcheckout_matrix_assert_cut_over_store(array $manifest) {
             throw new RuntimeException('FAIL: order ' . $order_id . ' does not verify: ' . wp_json_encode($verify['mismatches']));
         }
         $lists[(string) $order_id] = supcheckout_matrix_assert_copied($order);
-        supcheckout_cert_assert($order->get_payment_method() === 'upayments', 'order ' . $order_id . ': historical payment_method stays upayments');
+        if ($order->get_payment_method() !== 'upayments') {
+            throw new RuntimeException('FAIL: order ' . $order_id . ': historical payment_method was rewritten to ' . $order->get_payment_method());
+        }
     }
+    supcheckout_cert_assert(true, 'every seeded order keeps payment_method upayments');
     supcheckout_cert_note(count($manifest['orders']) . ' seeded orders verify, legacy and new row lists equal');
     $whs = wc_get_order((int) $manifest['roles']['whs_multi']);
     $whs_legacy = OrderCopier::values($whs, 'UPayments_WHS');
@@ -354,9 +357,12 @@ if ($phase === 'rolled_back') {
     foreach ($manifest['orders'] as $order_id) {
         $order = wc_get_order((int) $order_id);
         foreach (array_merge(array_values(Keys::order_meta()), Keys::takeover_markers()) as $new) {
-            supcheckout_cert_assert($order->get_meta($new, false) === array(), 'order ' . $order_id . ': no new-name copy ' . $new . ' is left');
+            if ($order->get_meta($new, false) !== array()) {
+                throw new RuntimeException('FAIL: order ' . $order_id . ': the new-name copy ' . $new . ' is left after the rollback');
+            }
         }
     }
+    supcheckout_cert_assert(true, 'no new-name copy or takeover marker is left on any seeded order');
     supcheckout_cert_assert(get_option(Keys::SETTINGS_OPTION, null) === null, 'the settings copy is removed');
     $paid = wc_get_order($pending_id);
     supcheckout_cert_assert($paid->is_paid() && $paid->get_transaction_id() === 'matrix-webhook-pay' && $paid->get_meta('UPayments_PaymentID') === 'matrix-webhook-pay', 'the order the webhook paid after cutover is still paid, its payment id on the legacy name');
@@ -372,9 +378,15 @@ if ($phase === 'rolled_back') {
 }
 
 if ($phase === 'rerun') {
-    $manifest = supcheckout_matrix_manifest();
+    // This process booted with the official plugin active (SUPCheckout paused); the
+    // switched store is verified by the next phase, in a fresh process.
     $run = supcheckout_matrix_wp('supcheckout takeover run --yes --deactivate-official');
     supcheckout_cert_assert($run->return_code === CliCommands::OK, 'run again after the rollback cuts over: ' . $run->stdout . $run->stderr);
+    return;
+}
+
+if ($phase === 'rerun_verify') {
+    $manifest = supcheckout_matrix_manifest();
     $lists = supcheckout_matrix_assert_cut_over_store($manifest);
     $first = supcheckout_matrix_load('first-run.json');
     $status = supcheckout_matrix_wp_json('supcheckout takeover status --format=json');
@@ -435,10 +447,15 @@ if ($phase === 'finalized') {
                 supcheckout_cert_assert($legacy_rows === array('matrix-diverged') && OrderCopier::values($order, $new) !== array(), 'the differing legacy value is kept beside its copy');
                 continue;
             }
-            supcheckout_cert_assert($legacy_rows === array(), 'order ' . $order_id . ': legacy ' . $legacy . ' removed (verified equal)');
+            if ($legacy_rows !== array()) {
+                throw new RuntimeException('FAIL: order ' . $order_id . ': legacy ' . $legacy . ' was kept although it verified equal');
+            }
         }
-        supcheckout_cert_assert($order->get_meta(Keys::TAKEOVER_COPY_MARKER, false) === array(), 'order ' . $order_id . ': takeover marker removed');
+        if ($order->get_meta(Keys::TAKEOVER_COPY_MARKER, false) !== array()) {
+            throw new RuntimeException('FAIL: order ' . $order_id . ': the takeover marker survived finalize');
+        }
     }
+    supcheckout_cert_assert(true, 'finalize removed every verified-equal legacy order key and every takeover marker');
     supcheckout_cert_assert(has_action('woocommerce_api_wc_upayments') !== false, 'the legacy callback route is kept forever');
     supcheckout_cert_assert(!wp_next_scheduled('upay_hourly_cron_job'), 'the official hourly cron is cleared');
     if ($version === '3.0.0') {

@@ -210,8 +210,11 @@ jobs:
       - name: 8. Verify the rolled-back store byte for byte
         run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" rolled_back
 
-      - name: 9. Run again (same result)
+      - name: 9. Run again
         run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" rerun
+
+      - name: 9. Verify the second switch (same result)
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" rerun_verify
 
       # Step 9, finalize (0b Task 11): skipped with a note when this build has no
       # `wp supcheckout takeover finalize`; active as soon as Task 11 is merged.
