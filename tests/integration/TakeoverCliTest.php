@@ -79,9 +79,14 @@ if ($phase === 'paused') {
         'the paused boot registered no gateway, Blocks, WC-API route, cron or other hook (only the conflict notice): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
     );
     supcheckout_cert_assert(has_action('woocommerce_api_wc_upayments') !== false, 'the legacy callback route is the official plugin\'s');
-    $runner = WP_CLI::get_runner();
-    supcheckout_cert_assert(is_array($runner->find_command_to_run(array('supcheckout', 'takeover', 'preflight'))), '`wp supcheckout takeover preflight` is registered by the paused boot');
-    supcheckout_cert_assert(is_array($runner->find_command_to_run(array('supcheckout', 'takeover', 'release-stale-claims'))), '`wp supcheckout takeover release-stale-claims` is registered');
+    // A plugin's `supcheckout takeover` command has no registered parent, so WP-CLI defers it
+    // until `before_run_command`. eval-file loads WordPress after that hook, so the command is
+    // never resolvable in this process; check it the way an operator runs it, in a fresh one.
+    $help = supcheckout_takeover_cert_wp('help supcheckout takeover');
+    supcheckout_cert_assert(
+        $help->return_code === 0 && strpos($help->stdout, 'preflight') !== false && strpos($help->stdout, 'release-stale-claims') !== false,
+        '`wp supcheckout takeover` (preflight, release-stale-claims) is registered by the paused boot: ' . trim($help->stderr)
+    );
     $crons = function_exists('_get_cron_array') ? (array) _get_cron_array() : array();
     $own_crons = array();
     foreach ($crons as $hooks) {
