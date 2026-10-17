@@ -286,6 +286,17 @@ jobs:
           SUPCHECKOUT_CERT_PHASE: verify
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      # Sub-project 0b Task 10: roll the switched store back, reactivating the stand-in.
+      - name: Roll the switched store back
+        env:
+          SUPCHECKOUT_CERT_PHASE: rollback
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify the rolled-back store
+        env:
+          SUPCHECKOUT_CERT_PHASE: rolled_back
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Remove takeover fixtures
         if: ${{ always() }}
         run: |

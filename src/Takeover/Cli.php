@@ -9,12 +9,14 @@ defined('ABSPATH') || exit;
  *
  * Registered as `wp supcheckout takeover` from Plugin::boot() and, while the official
  * plugin is active and SUPCheckout is paused, from PausedBoot::boot(). The behaviour and
- * the exit codes live in CliCommands; this class only binds them to WP-CLI. `rollback`
- * and `finalize` arrive with Sub-project 0b Tasks 10 and 11.
+ * the exit codes live in CliCommands; this class only binds them to WP-CLI. `finalize`
+ * arrives with Sub-project 0b Task 11.
  *
  * Exit codes: 0 ok, 1 error or declined, 2 blocked by preflight, 3 verification
  * mismatch, 4 busy (retry later), 5 stale billing claims, 6 state does not allow it,
- * 7 already cut over but the official plugin is active again.
+ * 7 already cut over but the official plugin is active again, 8 rolled back or aborted
+ * with later edits kept (conflicts), 9 rolled back or aborted but the official plugin was
+ * not reactivated.
  */
 final class Cli {
     public const COMMAND = 'supcheckout takeover';
@@ -110,6 +112,47 @@ final class Cli {
      */
     public function release_stale_claims($args, $assoc_args) {
         self::finish(self::commands()->release_stale_claims(isset($assoc_args['yes'])));
+    }
+
+    /**
+     * Roll a cut-over store back to the UPayments identities: back-sync new to legacy,
+     * replay the journal (later edits are kept and reported, exit 8), switch back, then
+     * remove the SUPCheckout copies. Orders paid meanwhile stay paid. Rerunnable.
+     *
+     * ## OPTIONS
+     *
+     * [--yes]
+     * : Do not ask for confirmation.
+     *
+     * [--reactivate-official]
+     * : Reactivate the official UPayments plugin (this site only) once rolled back.
+     *
+     * @param array<int, string>    $args       Positional arguments.
+     * @param array<string, string> $assoc_args Options.
+     * @return void
+     */
+    public function rollback($args, $assoc_args) {
+        self::finish(self::commands()->rollback(isset($assoc_args['yes']), isset($assoc_args['reactivate-official'])));
+    }
+
+    /**
+     * Abort a verified (not yet cut over) takeover: undo any partial cutover writes and
+     * remove the SUPCheckout copies. The legacy data was authoritative throughout. Rerunnable.
+     *
+     * ## OPTIONS
+     *
+     * [--yes]
+     * : Do not ask for confirmation.
+     *
+     * [--reactivate-official]
+     * : Reactivate the official UPayments plugin (this site only), e.g. after `run` deactivated it.
+     *
+     * @param array<int, string>    $args       Positional arguments.
+     * @param array<string, string> $assoc_args Options.
+     * @return void
+     */
+    public function abort($args, $assoc_args) {
+        self::finish(self::commands()->abort(isset($assoc_args['yes']), isset($assoc_args['reactivate-official'])));
     }
 
     /** @return CliCommands */

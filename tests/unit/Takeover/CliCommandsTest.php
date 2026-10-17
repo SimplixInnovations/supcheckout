@@ -487,6 +487,115 @@ final class CliCommandsTest extends TestCase {
         self::assertStringContainsString('idle', $this->printed());
     }
 
+    // --- rollback and abort (Task 10). ---
+
+    public function test_rollback_after_run_restores_the_store_and_reactivates_the_official_plugin(): void {
+        $orders = $this->seed();
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $this->out = array();
+
+        self::assertSame(CliCommands::OK, $this->cli()->rollback(true, true), $this->printed());
+
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+        self::assertSame(array('upayments/UPayments.php'), $this->system->activated);
+        self::assertSame(array(), $orders[0]->persisted_values('_supcheckout_payment_id'));
+        self::assertSame(array('pay-1'), $orders[0]->persisted_values('UPayments_PaymentID'));
+        self::assertFalse(get_option(Keys::SETTINGS_OPTION, false));
+        self::assertStringContainsString('Success: rolled back', $this->printed());
+        self::assertStringContainsString('official_reactivated', $this->printed());
+    }
+
+    public function test_rollback_asks_for_confirmation_and_a_no_changes_nothing(): void {
+        $this->seed();
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $this->answer = false;
+
+        self::assertSame(CliCommands::ERROR, $this->cli()->rollback(false, true));
+
+        self::assertCount(1, $this->questions);
+        self::assertStringContainsString('reactivate the official UPayments plugin', $this->questions[0]);
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+    }
+
+    public function test_rollback_with_a_later_edit_exits_8_and_prints_the_conflict(): void {
+        $this->seed();
+        $GLOBALS['supcheckout_test_options']['woocommerce_gateway_order'] = array('bacs' => 0, 'upayments' => 1);
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $GLOBALS['supcheckout_test_options']['woocommerce_gateway_order'] = array('supcheckout' => 0, 'bacs' => 1, 'upayments' => 2);
+        $this->out = array();
+
+        self::assertSame(CliCommands::CONFLICTS, $this->cli()->rollback(true, false));
+
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status'], 'rolled back regardless');
+        self::assertMatchesRegularExpression('/conflict: seq [0-9]+ option woocommerce_gateway_order/', $this->printed());
+    }
+
+    public function test_rollback_exit_codes_for_state_busy_and_reactivation(): void {
+        self::assertSame(CliCommands::STATE, $this->cli()->rollback(true, false), 'idle');
+        $this->seed();
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $lease = Quiesce::acquire($this->system->now);
+        self::assertSame(CliCommands::BUSY, $this->cli()->rollback(true, false));
+        Quiesce::release($lease);
+        self::assertSame(CliCommands::STATE, $this->cli()->abort(true, false), 'abort needs verified');
+        $this->system->installed = array();
+        self::assertSame(CliCommands::OFFICIAL_NOT_REACTIVATED, $this->cli()->rollback(true, true), 'nothing installed to reactivate');
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+    }
+
+    public function test_abort_moves_a_verified_store_back_to_preflight_ok(): void {
+        $orders = $this->seed();
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->run(true, false), 'official active, no consent: verified');
+        self::assertSame(TakeoverState::VERIFIED, TakeoverState::get()['status']);
+        $this->out = array();
+
+        self::assertSame(CliCommands::OK, $this->cli()->abort(true, true), $this->printed());
+
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+        self::assertSame(array(), $orders[0]->persisted_values('_supcheckout_payment_id'), 'copies removed');
+        self::assertSame(array(), $this->system->activated, 'still active: nothing to reactivate');
+        self::assertStringContainsString('Success: aborted', $this->printed());
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true), 'a later run starts clean');
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+    }
+
+    public function test_run_refuses_while_an_abort_is_still_removing_copies(): void {
+        $this->seed();
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->run(true, false));
+        $this->system->on_step = static function ($step) {
+            if ($step === 'aborted') {
+                throw new \RuntimeException('killed');
+            }
+        };
+        self::assertSame(CliCommands::ERROR, $this->cli()->abort(true, false));
+        $this->system->on_step = null;
+        $this->out = array();
+
+        self::assertSame(CliCommands::STATE, $this->cli()->run(true, true));
+        self::assertStringContainsString('wp supcheckout takeover abort', $this->printed());
+        self::assertSame(CliCommands::OK, $this->cli()->abort(true, false));
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+    }
+
+    public function test_status_reports_the_rollback(): void {
+        $this->seed();
+        $GLOBALS['supcheckout_test_options']['woocommerce_gateway_order'] = array('bacs' => 0, 'upayments' => 1);
+        self::assertSame(CliCommands::OK, $this->cli()->run(true, true));
+        $GLOBALS['supcheckout_test_options']['woocommerce_gateway_order'] = array('supcheckout' => 0);
+        self::assertSame(CliCommands::CONFLICTS, $this->cli()->rollback(true, false));
+        $this->out = array();
+
+        self::assertSame(CliCommands::OK, $this->cli()->status(true));
+
+        $status = json_decode($this->out[0], true);
+        self::assertSame('preflight_ok', $status['status']);
+        self::assertGreaterThan(0, $status['rolled_back_at']);
+        self::assertSame('rollback', $status['rollback']['mode']);
+        self::assertFalse($status['rollback']['removal_pending']);
+        self::assertSame(array('woocommerce_gateway_order'), array_column($status['rollback']['conflicts'], 'path'));
+        self::assertContains('rollback_conflicts', $status['warnings']);
+    }
+
     // --- release-stale-claims. ---
 
     public function test_release_stale_claims_confirms_releases_and_reports(): void {

@@ -14,7 +14,14 @@
  *   SUPCHECKOUT_CERT_PHASE=verify  this file again, in a fresh process after the switch:
  *                                  state cut_over, new keys present, legacy keys intact,
  *                                  historical payment_method unchanged, the official
- *                                  plugin deactivated and SUPCheckout fully booted.
+ *                                  plugin deactivated and SUPCheckout fully booted;
+ *   SUPCHECKOUT_CERT_PHASE=rollback    (Task 10) seeds an order taken through SUPCheckout
+ *                                  after the switch, then runs `rollback --yes
+ *                                  --reactivate-official` as a real WP-CLI command;
+ *   SUPCHECKOUT_CERT_PHASE=rolled_back in a fresh process: preflight_ok, legacy keys and
+ *                                  settings intact, copies and cron twins removed, the
+ *                                  post-cutover order back on upayments and still paid,
+ *                                  the official plugin active again and SUPCheckout paused.
  */
 
 require_once __DIR__ . '/bootstrap.php';
@@ -25,6 +32,7 @@ use Simplixi\SUPCheckout\Takeover\TakeoverState;
 
 const SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL = 'upayments/UPayments.php';
 const SUPCHECKOUT_TAKEOVER_CERT_ORDERS = 'supcheckout_takeover_cert_orders';
+const SUPCHECKOUT_TAKEOVER_CERT_POST_CUTOVER = 'supcheckout_takeover_cert_post_cutover_order';
 
 /**
  * Every hook name on which a SUPCheckout class has a callback.
@@ -209,4 +217,81 @@ if ($phase === 'verify') {
     return;
 }
 
-throw new RuntimeException('Set SUPCHECKOUT_CERT_PHASE to paused or verify.');
+if ($phase === 'rollback') {
+    // Sub-project 0b Task 10: the switched store took an order through SUPCheckout (new
+    // names only, payment_method supcheckout); `rollback --yes --reactivate-official` then
+    // runs as a real WP-CLI command in a fresh, fully booted process.
+    supcheckout_cert_assert(TakeoverState::get()['status'] === TakeoverState::CUT_OVER, 'the store is cut over before the rollback');
+    $order = wc_create_order();
+    $order->set_payment_method('supcheckout');
+    $order->set_total('12.500');
+    $order->update_meta_data('_supcheckout_payment_id', 'takeover-cert-post-cutover');
+    $order->set_status('processing');
+    $order->save();
+    update_option(SUPCHECKOUT_TAKEOVER_CERT_POST_CUTOVER, $order->get_id(), false);
+
+    $unattended = supcheckout_takeover_cert_wp('supcheckout takeover rollback --reactivate-official');
+    supcheckout_cert_assert($unattended->return_code === CliCommands::ERROR, 'rollback without --yes and without a terminal exits 1: ' . $unattended->stdout . $unattended->stderr);
+    $abort = supcheckout_takeover_cert_wp('supcheckout takeover abort --yes');
+    supcheckout_cert_assert($abort->return_code === CliCommands::STATE, 'abort refuses a cut-over store (exit 6): ' . $abort->stdout . $abort->stderr);
+
+    $rollback = supcheckout_takeover_cert_wp('supcheckout takeover rollback --yes --reactivate-official');
+    supcheckout_cert_note('rollback output: ' . $rollback->stdout);
+    supcheckout_cert_assert($rollback->return_code === CliCommands::OK, 'rollback --yes --reactivate-official exits 0: ' . $rollback->stdout . $rollback->stderr);
+    foreach (array('rolled_back', 'copies_removed', 'preflight_ok', 'official_reactivated') as $step) {
+        supcheckout_cert_assert(strpos($rollback->stdout, $step) !== false, 'the rollback reached ' . $step);
+    }
+    supcheckout_cert_assert(strpos($rollback->stdout, 'rolled_back') < strpos($rollback->stdout, 'copies_removed'), 'the transition happens before the copies are removed');
+    return;
+}
+
+if ($phase === 'rolled_back') {
+    supcheckout_cert_assert(is_plugin_active(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL), 'the official plugin stand-in is active again');
+    supcheckout_cert_assert(!defined('SUPCHECKOUT_VERSION'), 'SUPCheckout is paused again');
+    $state = TakeoverState::get();
+    supcheckout_cert_assert($state['status'] === TakeoverState::PREFLIGHT_OK, 'rolled_back → preflight_ok once the copies are removed');
+    supcheckout_cert_assert(isset($state['rolled_back_at']) && $state['rolled_back_at'] > 0, 'the rollback time is recorded');
+    supcheckout_cert_assert(!\Simplixi\SUPCheckout\Takeover\Rollback::removal_pending($state), 'no removal is pending');
+    supcheckout_cert_assert(!TakeoverState::is_cut_over(), 'the runtime no longer sees a cutover');
+
+    foreach ((array) get_option(SUPCHECKOUT_TAKEOVER_CERT_ORDERS, array()) as $index => $order_id) {
+        $order = wc_get_order((int) $order_id);
+        supcheckout_cert_assert($order instanceof WC_Order, 'seeded order ' . $order_id . ' exists');
+        supcheckout_cert_assert($order->get_meta('UPayments_PaymentID') === 'takeover-cert-pay-' . ($index + 1), 'order ' . $order_id . ': the legacy key is intact');
+        supcheckout_cert_assert($order->get_meta('_supcheckout_payment_id') === '', 'order ' . $order_id . ': the new-name copy is removed');
+        supcheckout_cert_assert($order->get_meta(Keys::TAKEOVER_COPY_MARKER) === '', 'order ' . $order_id . ': the takeover marker is removed');
+        supcheckout_cert_assert($order->get_payment_method() === 'upayments', 'order ' . $order_id . ': historical payment_method unchanged');
+    }
+    $paid = wc_get_order((int) get_option(SUPCHECKOUT_TAKEOVER_CERT_POST_CUTOVER, 0));
+    supcheckout_cert_assert($paid instanceof WC_Order, 'the post-cutover order exists');
+    supcheckout_cert_assert($paid->get_payment_method() === 'upayments', 'the post-cutover order is rewritten to upayments, so the official plugin recognises it');
+    supcheckout_cert_assert($paid->get_status() === 'processing', 'the post-cutover order stays paid (processing)');
+    supcheckout_cert_assert($paid->get_meta('UPayments_PaymentID') === 'takeover-cert-post-cutover', 'its payment ID was back-synced to the legacy key');
+    supcheckout_cert_assert($paid->get_meta('_supcheckout_payment_id') === '', 'its new-name copy is removed');
+
+    supcheckout_cert_assert(get_option(Keys::SETTINGS_OPTION, null) === null, 'the new settings copy is removed');
+    supcheckout_cert_assert(is_array(get_option('woocommerce_upayments_settings')), 'the legacy settings are intact');
+    $crons = function_exists('_get_cron_array') ? (array) _get_cron_array() : array();
+    foreach ($crons as $hooks) {
+        foreach (array_keys((array) $hooks) as $hook) {
+            supcheckout_cert_assert(!in_array($hook, Keys::cron_hooks(), true), 'no new-name cron event is left: ' . $hook);
+        }
+    }
+    global $wpdb;
+    $new_table = $wpdb->prefix . 'supcheckout_billing_attempts';
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($new_table))) === $new_table) {
+        supcheckout_cert_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i', $new_table)) === 0, 'the new billing table holds no copies');
+    }
+    $journal = \Simplixi\SUPCheckout\Takeover\Journal::entries();
+    $rewrites = array_filter($journal, static function ($entry) use ($paid) {
+        return $entry['target'] === 'order' && $entry['path'] === $paid->get_id() . '/payment_method';
+    });
+    supcheckout_cert_assert(count($rewrites) === 1, 'the payment_method rewrite is journaled once');
+    $status = supcheckout_takeover_cert_wp('supcheckout takeover status --format=json');
+    $status_json = json_decode(trim($status->stdout), true);
+    supcheckout_cert_assert($status->return_code === 0 && is_array($status_json) && $status_json['status'] === 'preflight_ok'
+        && is_array($status_json['rollback']) && $status_json['rollback']['mode'] === 'rollback' && !in_array('removal_pending', $status_json['warnings'], true), 'status reports the completed rollback: ' . $status->stdout);
+    return;
+}
+
+throw new RuntimeException('Set SUPCHECKOUT_CERT_PHASE to paused, verify, rollback or rolled_back.');
