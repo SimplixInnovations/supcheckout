@@ -171,7 +171,7 @@ $sessionless_gateways = array(
     'upayments' => (object) array('id' => 'upayments'),
     'cod'       => (object) array('id' => 'cod'),
 );
-$sessionless_result = enableUpaymentsGateway($sessionless_gateways);
+$sessionless_result = \Simplixi\SUPCheckout\Gateway\GatewayRegistration::filter_available($sessionless_gateways);
 supcheckout_cert_assert(
     isset($sessionless_result['upayments']),
     'Classic available-gateways filter preserves eligible UPayments without a WooCommerce session'
@@ -203,7 +203,7 @@ $non_checkout_gateways = array(
     'upayments' => (object) array('id' => 'upayments'),
     'cod'       => (object) array('id' => 'cod'),
 );
-$non_checkout_result = enableUpaymentsGateway($non_checkout_gateways);
+$non_checkout_result = \Simplixi\SUPCheckout\Gateway\GatewayRegistration::filter_available($non_checkout_gateways);
 supcheckout_cert_assert(
     isset($non_checkout_result['upayments']),
     'Non-checkout availability inspection preserves eligible UPayments'

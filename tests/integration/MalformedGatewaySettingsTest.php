@@ -3,7 +3,7 @@
  * Real-runtime regression for the malformed gateway-settings fault-tolerance boundary (B-X1).
  *
  * Reproduces the B-X1 defect class against the live `woocommerce_available_payment_gateways`
- * filter callback `enableUpaymentsGateway()` and PROVES the filter does not mutate
+ * filter callback `GatewayRegistration::filter_available()` and PROVES the filter does not mutate
  * persisted storage in any malformed scenario.
  *
  *   Case 1 — stdClass settings (the PluginActivationTest sentinel shape):
@@ -36,7 +36,7 @@
  * is_checkout(), which is true only on a real /checkout request and is not
  * satisfiable inside wp eval-file. The cod-removal behaviour is covered by
  * the existing checkout / B6 acceptance evidence and the legacy
- * enableUpaymentsGateway() filter's static-analysis harness; this test
+ * GatewayRegistration::filter_available() filter's static-analysis harness; this test
  * exercises the make_default_gateway branch (which is NOT gated by
  * is_checkout) and the api_key preservation (which is unconditional).
  */
@@ -47,8 +47,8 @@ if (!defined('ABSPATH')) {
     throw new RuntimeException('Integration assertions must run inside WordPress.');
 }
 
-if (!function_exists('enableUpaymentsGateway')) {
-    throw new RuntimeException('FAIL: enableUpaymentsGateway is not registered in the real runtime.');
+if (false === has_filter('woocommerce_available_payment_gateways', array(\Simplixi\SUPCheckout\Gateway\GatewayRegistration::class, 'filter_available'))) {
+    throw new RuntimeException('FAIL: GatewayRegistration::filter_available is not registered on woocommerce_available_payment_gateways in the real runtime.');
 }
 
 $phase = getenv('SUPCHECKOUT_CERT_PHASE');
@@ -58,7 +58,7 @@ if (!in_array($phase, array('seed', 'verify'), true)) {
 
 /**
  * Build the available-gateways payload the WooCommerce front-end would pass
- * to the enableUpaymentsGateway filter. We inject inert stub objects so the
+ * to the GatewayRegistration::filter_available filter. We inject inert stub objects so the
  * filter receives a real "upayments"/"cod" pair without requiring the full
  * gateway bootstrap to register them first.
  *
