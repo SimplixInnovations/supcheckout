@@ -35,8 +35,9 @@ defined('ABSPATH') || exit;
  *     subset and differing checksums are expected (reported for information only).
  *
  * Step order (why the transition comes first): from `finalized` on, runtime writes reach
- * the new names only, a runtime delete removes both names (Keys::delete_names()), lock
- * helpers stop dual-acquiring and GET_LOCK() moves to the new names. The removal then
+ * the new names only, a runtime delete removes both names (Keys::delete_names()) and the
+ * stored lock helpers stop dual-acquiring (GET_LOCK() names stay legacy in every state:
+ * Keys::advisory_lock_names()). The removal then
  * deletes a legacy name only where the new name holds the identical value list, under the
  * order lock for orders, so every read (new name first, legacy fallback) returns the same
  * value before and after each deletion, and nothing recreates a removed legacy name. A crash
@@ -150,6 +151,10 @@ final class Finalize {
         }
         if (!$this->allowed($state, (bool) $force_after_review)) {
             return $this->result('too_early');
+        }
+        // Cheap pre-check before the lease (no write at all); re-checked under it.
+        if ($this->official_active()) {
+            return $this->result('official_active');
         }
         $this->lease = QuiesceLease::acquire($this->system);
         if ($this->lease === null) {
@@ -398,14 +403,16 @@ final class Finalize {
      * @return string|null Error code.
      */
     private function remove(array $removal) {
-        if ($this->official_active()) {
-            return 'official_active';
-        }
         $locked = 0;
         while (true) {
             $phase = isset($removal['phase']) ? (string) $removal['phase'] : FinalizeRemoval::PHASE_CRON;
             if ($phase === FinalizeRemoval::PHASE_DONE) {
                 break;
+            }
+            // Before every unit, the settle wait included: a reactivated official plugin holds
+            // its cron mutex and writes legacy names, so nothing may be deleted under it.
+            if ($this->official_active()) {
+                return 'official_active';
             }
             if ($phase === FinalizeRemoval::PHASE_TABLE && !$this->settled) {
                 $next = $this->end_pass();
@@ -416,6 +423,9 @@ final class Finalize {
                     $this->kept = array();
                     return $this->save_progress(FinalizeRemoval::start(), true) ? $next : 'transition_refused';
                 }
+                if (is_string($next)) {
+                    return $next;
+                }
                 $removal = $next === true ? $removal : FinalizeRemoval::start();
                 if (!$this->save_progress($removal, true)) {
                     return 'transition_refused';
@@ -424,7 +434,7 @@ final class Finalize {
             }
             $out = $phase === FinalizeRemoval::PHASE_TABLE ? $this->retire_table() : FinalizeRemoval::step($this->store, $this->system, $removal, true);
             $this->absorb($out);
-            if (in_array($out['status'], array('busy', 'lease_lost'), true)) {
+            if (in_array($out['status'], array('busy', 'lease_lost', 'official_active'), true)) {
                 return $out['status'];
             }
             $this->found += ($this->pass > 1 && $phase !== FinalizeRemoval::PHASE_TABLE) ? array_sum($out['removed']) : 0;
@@ -535,6 +545,11 @@ final class Finalize {
         try {
             // Another run may have retired it while this one waited for the lease.
             if (!$this->store->table_exists(CopyStore::TABLE_LEGACY)) {
+                return $out;
+            }
+            if ($this->official_active()) {
+                $out['status'] = 'official_active';
+                $out['progress']['phase'] = FinalizeRemoval::PHASE_TABLE;
                 return $out;
             }
             $verdict = $this->drain_legacy();

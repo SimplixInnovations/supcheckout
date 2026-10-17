@@ -149,8 +149,9 @@ final class Keys {
     }
 
     /**
-     * Recreated, never copied. During the switch window lock helpers take BOTH names
-     * (legacy first) so a pre-cutover and a post-cutover worker still contend (Task 2).
+     * Recreated, never copied. During the switch window stored lock helpers take BOTH names
+     * (legacy first) so a pre-cutover and a post-cutover worker still contend (Task 2);
+     * GET_LOCK() names stay legacy-only in every state (advisory_lock_names()).
      *
      * Storage differs per family, which Finalize must respect: order locks, status
      * gates and the payment-methods rate gate are plain options; the payment-methods
@@ -158,8 +159,10 @@ final class Keys {
      * and `upay_ctk_` families are MySQL GET_LOCK() names and never touch a table.
      *
      * Ordered longest match first: no legacy prefix is a prefix of a later one. The
-     * customer-token lock names stay short because GET_LOCK() names are limited to 64
-     * characters (prefix + 32-hex scope + '_' + a 20-digit user ID).
+     * GET_LOCK() families keep their legacy names in every state (advisory_lock_names()), so
+     * their new prefixes are registry entries only; they are kept short anyway, because
+     * GET_LOCK() names are limited to 64 characters (prefix + 32-hex scope + '_' + a 20-digit
+     * user ID).
      *
      * @return array<string,string>
      */

@@ -755,16 +755,26 @@ final class CliCommandsTest extends TestCase {
     }
 
     public function test_finalize_on_a_finalized_store_refuses_an_active_official_plugin_before_asking(): void {
-        $this->cut_over();
+        $orders = $this->cut_over();
         self::assertSame(CliCommands::OK, $this->cli()->finalize(true, true, false));
         $this->system->official = 'upayments/UPayments.php';
         $this->questions = array();
         $this->out = array();
+        $orders[0]->external_write('UPayments_TrackID', array('t-official'));
+        $orders[0]->external_write('_supcheckout_track_id', array('t-official'));
+        $GLOBALS['supcheckout_test_options']['_transient_upayments_cron_lock'] = '1';
+        $options = $GLOBALS['supcheckout_test_options'];
+        $GLOBALS['supcheckout_test_option_calls'] = array();
 
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->finalize(true, false, false), '--yes changes nothing either');
         self::assertSame(CliCommands::BLOCKED, $this->cli()->finalize(false, false, false));
 
         self::assertSame(array(), $this->questions, 'refused before the confirmation');
         self::assertStringContainsString('official UPayments plugin', $this->printed());
+        self::assertSame($options, $GLOBALS['supcheckout_test_options'], 'nothing written: no lease, state, journal or option');
+        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls']);
+        self::assertSame(array('t-official'), $orders[0]->persisted_values('UPayments_TrackID'));
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
     }
 
     public function test_finalize_dry_run_writes_nothing_and_prints_the_plan(): void {

@@ -86,6 +86,48 @@ function supcheckout_takeover_cert_wp($command) {
     return WP_CLI::runcommand($command, array('return' => 'all', 'launch' => true, 'exit_error' => false));
 }
 
+/**
+ * The step names a takeover command printed on its `takeover <command> steps:` line.
+ *
+ * @param string $stdout  Command output.
+ * @param string $command finalize, rollback, ...
+ * @return list<string>
+ */
+function supcheckout_takeover_cert_steps($stdout, $command) {
+    if (preg_match('/^takeover ' . preg_quote($command, '/') . ' steps: (.*)$/m', $stdout, $match) !== 1) {
+        return array();
+    }
+    return array_map('trim', explode(',', $match[1]));
+}
+
+/**
+ * Independently of Finalize: how many (order, legacy key) pairs hold a new key with the
+ * identical value list, i.e. exactly what finalize removes as `order_meta`.
+ *
+ * @return int
+ */
+function supcheckout_takeover_cert_equal_order_meta() {
+    $values = static function ($order, $key) {
+        return array_map(static function ($meta) {
+            return $meta->value;
+        }, $order->get_meta($key, false, 'edit'));
+    };
+    $count = 0;
+    foreach (wc_get_orders(array('limit' => -1, 'return' => 'ids', 'type' => 'shop_order')) as $order_id) {
+        $order = wc_get_order((int) $order_id);
+        if (!$order instanceof WC_Order) {
+            continue;
+        }
+        foreach (Keys::order_meta() as $legacy => $new_key) {
+            $legacy_values = $values($order, $legacy);
+            if ($legacy_values !== array() && $legacy_values === $values($order, $new_key)) {
+                ++$count;
+            }
+        }
+    }
+    return $count;
+}
+
 $phase = (string) getenv('SUPCHECKOUT_CERT_PHASE');
 
 if ($phase === 'paused') {
@@ -426,7 +468,9 @@ if ($phase === 'finalize') {
     $before = $snapshot();
     $dry = supcheckout_takeover_cert_wp('supcheckout takeover finalize --dry-run --format=json');
     $plan = json_decode(trim($dry->stdout), true);
-    supcheckout_cert_assert($dry->return_code === CliCommands::OK && is_array($plan) && $plan['would_refuse'] === array('too_early') && $plan['removed']['order_meta'] >= 2, 'the dry run reports what finalize would remove (and still exits 0): ' . $dry->stdout . $dry->stderr);
+    $equal = supcheckout_takeover_cert_equal_order_meta();
+    supcheckout_cert_assert($equal >= 2, 'the seeded orders hold at least their two verified-equal payment IDs (' . $equal . ')');
+    supcheckout_cert_assert($dry->return_code === CliCommands::OK && is_array($plan) && $plan['would_refuse'] === array('too_early') && $plan['removed']['order_meta'] === $equal, 'the dry run predicts exactly the ' . $equal . ' verified-equal legacy order keys (and still exits 0): ' . $dry->stdout . $dry->stderr);
     supcheckout_cert_assert($snapshot() === $before, 'the dry run wrote nothing (takeover, official, ephemeral and cron options, user, product and order meta, both billing tables)');
     supcheckout_cert_note('dry-run plan: ' . $dry->stdout);
 
@@ -454,14 +498,17 @@ if ($phase === 'finalize') {
     sort($kept);
     supcheckout_cert_assert($kept === $expected_kept, 'finalize kept exactly the predicted names: ' . wp_json_encode($kept) . ' vs ' . wp_json_encode($expected_kept));
     supcheckout_cert_assert(strpos($finalize->stdout . $finalize->stderr, 'removal_unsettled') === false, 'the removal settled (no late writer kept recreating legacy names)');
-    foreach (array('verified', 'finalized', 'orders_removed', 'legacy_swept', 'settling', 'rescanned', 'legacy_removed') as $step) {
-        supcheckout_cert_assert(strpos($finalize->stdout, $step) !== false, 'finalize reached ' . $step);
+    $steps = supcheckout_takeover_cert_steps($finalize->stdout, 'finalize');
+    foreach (array('quiesced', 'verified', 'finalized', 'caches_flushed', 'orders_removed', 'legacy_swept', 'settling', 'rescanned', 'legacy_removed') as $step) {
+        supcheckout_cert_assert(in_array($step, $steps, true), 'finalize reached ' . $step . ': ' . wp_json_encode($steps));
     }
-    supcheckout_cert_assert(strpos($finalize->stdout, 'finalized') < strpos($finalize->stdout, 'orders_removed'), 'the transition happens before the legacy names are removed');
+    supcheckout_cert_assert(array_search('finalized', $steps, true) < array_search('orders_removed', $steps, true), 'the transition happens before the legacy names are removed');
+    supcheckout_cert_assert(array_search('legacy_swept', $steps, true) < array_search('rescanned', $steps, true) && end($steps) === 'legacy_removed', 'settle and rescan come after the sweep, completion last');
+    supcheckout_cert_assert(preg_match('/^removed: .*\border_meta=' . $equal . '\b/m', $finalize->stdout) === 1, 'finalize removed exactly the ' . $equal . ' predicted legacy order keys');
     $legacy_table = $wpdb->prefix . (string) array_keys(Keys::tables())[0];
     $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($legacy_table))) === $legacy_table;
     supcheckout_cert_assert($exists === ($plan['table'] === 'keep'), 'the legacy billing table outcome is the predicted one (' . $plan['table'] . ')');
-    supcheckout_cert_assert(strpos($finalize->stdout, $plan['table'] === 'drop' ? 'table_retired' : ($plan['table'] === 'keep' ? 'table_kept' : 'table_absent')) !== false, 'the table step matches the prediction');
+    supcheckout_cert_assert(in_array($plan['table'] === 'drop' ? 'table_retired' : ($plan['table'] === 'keep' ? 'table_kept' : 'table_absent'), $steps, true), 'the table step matches the prediction');
     return;
 }
 
@@ -502,13 +549,14 @@ if ($phase === 'finalized') {
     $expected_kept = (array) get_option('supcheckout_takeover_cert_finalize_kept', array());
     $sweep = supcheckout_takeover_cert_wp('supcheckout takeover finalize --yes');
     supcheckout_cert_note('sweep output: ' . $sweep->stdout);
-    supcheckout_cert_assert($sweep->return_code === ($expected_kept === array() ? CliCommands::OK : CliCommands::CONFLICTS) && strpos($sweep->stdout, 'sweep') !== false, 'finalize on a finalized store only sweeps again, with the same outcome: ' . $sweep->stdout . $sweep->stderr);
+    $sweep_steps = supcheckout_takeover_cert_steps($sweep->stdout, 'finalize');
+    supcheckout_cert_assert($sweep->return_code === ($expected_kept === array() ? CliCommands::OK : CliCommands::CONFLICTS) && $sweep_steps !== array() && $sweep_steps[0] === 'sweep', 'finalize on a finalized store only sweeps again, with the same outcome: ' . $sweep->stdout . $sweep->stderr);
     preg_match_all('/^kept: (\S+ \S+ \S+) x[0-9]+/m', $sweep->stdout, $matches);
     $kept = $matches[1];
     sort($kept);
     supcheckout_cert_assert($kept === $expected_kept, 'the sweep keeps the same names: ' . wp_json_encode($kept));
     supcheckout_cert_assert(strpos($sweep->stdout . $sweep->stderr, 'removal_unsettled') === false, 'the sweep settled');
-    supcheckout_cert_assert(strpos($sweep->stdout, 'settling') === false, 'a sweep long after the transition does not wait again');
+    supcheckout_cert_assert(!in_array('settling', $sweep_steps, true) && in_array('rescanned', $sweep_steps, true), 'a sweep long after the transition rescans without waiting again');
     return;
 }
 

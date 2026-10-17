@@ -575,6 +575,69 @@ final class FinalizeTest extends TestCase {
         }
     }
 
+    public function test_an_official_plugin_reactivated_during_the_settle_stops_the_rescan_before_any_deletion(): void {
+        $order = $this->seed_cut_over();
+        $system = $this->system;
+        $journal = null;
+        $this->system->on_sleep = static function () use ($system, $order, &$journal) {
+            if ($journal === null) {
+                // Reactivated during the settle: it runs again and writes its legacy names.
+                $system->official = 'upayments/UPayments.php';
+                $order->external_write('UPayments_TrackID', array('t-official'));
+                $order->external_write('_supcheckout_track_id', array('t-official'));
+                $journal = count(Journal::entries());
+            }
+        };
+
+        $result = $this->finalize()->run(true);
+
+        self::assertSame('official_active', $result['error'], (string) json_encode($result));
+        self::assertNotNull($journal, 'the settle slept');
+        self::assertSame($journal, count(Journal::entries()), 'nothing deleted (or journaled) after the reactivation');
+        self::assertSame(array('t-official'), $order->persisted_values('UPayments_TrackID'));
+        self::assertNotContains('rescanned', $result['steps']);
+        self::assertTrue($this->store->table_exists('legacy'), 'the table is not retired');
+        self::assertSame(0, $this->store->drops);
+        self::assertTrue(Finalize::pending(TakeoverState::get()));
+    }
+
+    public function test_an_official_plugin_reactivated_while_the_table_lease_was_awaited_keeps_the_table(): void {
+        $this->seed_cut_over();
+        $system = $this->system;
+        $armed = false;
+        $this->system->on_step = static function ($step) use (&$armed) {
+            $armed = $armed || $step === 'rescanned';
+        };
+        $this->system->on_now = static function () use ($system, &$armed) {
+            if ($armed) {
+                $armed = false;
+                $system->official = 'upayments/UPayments.php';
+            }
+        };
+
+        $result = $this->finalize()->run(true);
+
+        self::assertSame('official_active', $result['error'], (string) json_encode($result));
+        self::assertTrue($this->store->table_exists('legacy'));
+        self::assertSame(0, $this->store->drops);
+        self::assertFalse(Quiesce::is_active($this->system->now), 'the lease is released');
+    }
+
+    public function test_an_active_official_plugin_is_refused_before_the_lease_is_taken(): void {
+        $this->seed_cut_over();
+        self::age(31);
+        $this->system->official = 'upayments/UPayments.php';
+        $options = $GLOBALS['supcheckout_test_options'];
+        $GLOBALS['supcheckout_test_option_calls'] = array();
+
+        $result = $this->finalize()->run(false);
+
+        self::assertSame('official_active', $result['error']);
+        self::assertSame($options, $GLOBALS['supcheckout_test_options'], 'no lease, state or journal write');
+        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls']);
+        self::assertNotContains('quiesced', $result['steps']);
+    }
+
     public function test_a_legacy_table_read_error_keeps_the_table(): void {
         foreach (array('keys_unreadable', 'read_error') as $case) {
             $this->setUp();
