@@ -22,7 +22,7 @@ defined('ABSPATH') || exit;
  * A start, after RequestGuard's checks and the rate slot: the cheap synchronous plan
  * (plan_run / plan_rewind / plan_finalize) → Operation::start() (null: 409
  * supcheckout_operation_in_progress) → AsyncDriver::enqueue(): true is 202 with the
- * operation and a Location to the status route; false finishes the operation `failed` /
+ * operation and a Location to the status route; false or a throw finishes the operation `failed` /
  * `scheduler_unavailable` (a compare-and-swap on the record just created, so no running
  * operation is left without an action), gives the rate slot back and answers 503.
  *
@@ -76,7 +76,8 @@ final class OnboardingController {
 
     /** @return \WP_REST_Response */
     private function status_response() {
-        AsyncDriver::watchdog();
+        // Best effort: a scheduler that throws must not hide runner.stalled from the poll.
+        self::run_watchdog();
         $op = Operation::current();
         $runner = AsyncDriver::runner_health($op, time());
         if ($runner['stalled']) {
@@ -236,6 +237,31 @@ final class OnboardingController {
         }
     }
 
+    /**
+     * AsyncDriver::enqueue(), with a throw (Action Scheduler's "Error saving action" when its
+     * store write fails) treated as not scheduled.
+     *
+     * @param string $op_id Operation ID.
+     * @return bool True when an action is queued.
+     */
+    private static function enqueue($op_id) {
+        try {
+            return AsyncDriver::enqueue($op_id);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** @return void AsyncDriver::watchdog(), best effort: a throwing scheduler is ignored here. */
+    private static function run_watchdog() {
+        try {
+            AsyncDriver::watchdog();
+        } catch (\Throwable $e) {
+            // runner_health() still reports the operation stalled once it is past due.
+            return;
+        }
+    }
+
     /** @return \WP_Error A generic 500: the exception's message is never sent. */
     private static function unexpected() {
         return Responses::error('supcheckout_error', self::MESSAGE_UNEXPECTED, 500);
@@ -270,7 +296,7 @@ final class OnboardingController {
      * @return \WP_REST_Response|\WP_Error
      */
     private function launch($kind, array $consent, $bucket, $now) {
-        AsyncDriver::watchdog();
+        self::run_watchdog();
         try {
             $op = Operation::start($kind, $consent, get_current_user_id(), $now);
         } catch (\Throwable $e) {
@@ -287,8 +313,9 @@ final class OnboardingController {
                 array('operation_id' => $running ? (string) $current['id'] : null, 'kind' => $running ? (string) $current['kind'] : null)
             );
         }
-        if (!AsyncDriver::enqueue($op['id'])) {
-            // enqueue() already finished it; this compare-and-swap is then a no-op.
+        if (!self::enqueue($op['id'])) {
+            // enqueue() already finished it when it returned false (this compare-and-swap is
+            // then a no-op); after a throw this finishes it, so nothing is left running.
             Operation::finish($op['id'], Operation::FAILED, 'scheduler_unavailable', self::HINT_SCHEDULER, array(), time());
             RateLimiter::release($bucket, $now + Routes::window($bucket));
             return Responses::error('supcheckout_scheduler_unavailable', 'The operation could not be scheduled; nothing was changed.', 503, array('operation_id' => (string) $op['id'], 'hint' => self::HINT_SCHEDULER));

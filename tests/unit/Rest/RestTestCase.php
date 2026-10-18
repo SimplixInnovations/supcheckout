@@ -66,7 +66,7 @@ abstract class RestTestCase extends TestCase {
         \supcheckout_test_reset_rest();
         TakeoverState::flush_cache();
         Journal::flush_cache();
-        unset($GLOBALS['supcheckout_test_valid_nonces'], $GLOBALS['supcheckout_test_nonce_checks']);
+        unset($GLOBALS['supcheckout_test_valid_nonces'], $GLOBALS['supcheckout_test_nonce_checks'], $GLOBALS['supcheckout_test_as_schedule_throws']);
         $GLOBALS['supcheckout_test_unique_hook_group_only'] = false;
         $GLOBALS['supcheckout_test_migration_admin']['capability_allowed'] = true;
         \Action_Scheduler::$initialized = true;

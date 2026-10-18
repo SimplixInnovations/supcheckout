@@ -110,6 +110,48 @@ final class OnboardingControllerTest extends RestTestCase {
         self::assertNotSame($failed['id'], self::body($retry)['data']['operation']['id']);
     }
 
+    public function test_a_throwing_enqueue_leaves_no_running_operation_and_returns_503(): void {
+        // Action Scheduler throws "Error saving action" when its store write fails.
+        $GLOBALS['supcheckout_test_as_schedule_throws'] = true;
+
+        $response = self::serve('POST', '/onboarding/switch', array('confirm' => true));
+
+        self::assertSame(array(503, 'supcheckout_scheduler_unavailable'), array($response->get_status(), self::error_code($response)), (string) json_encode($response->get_data()));
+        self::assertStringNotContainsString('Error saving action', (string) wp_json_encode($response->get_data()));
+        $failed = Operation::current();
+        self::assertSame(array('failed', 'scheduler_unavailable'), array($failed['outcome'], $failed['error']));
+        self::assertSame($failed['id'], self::body($response)['data']['operation_id']);
+        self::assertSame('no-store, private', $response->get_headers()['Cache-Control']);
+
+        $GLOBALS['supcheckout_test_as_schedule_throws'] = false;
+        $retry = self::serve('POST', '/onboarding/switch', array('confirm' => true));
+
+        self::assertSame(202, $retry->get_status(), 'the rate slot was released and nothing is left running');
+        self::assertNotSame($failed['id'], self::body($retry)['data']['operation']['id']);
+    }
+
+    public function test_status_renders_the_runner_while_the_watchdog_throws(): void {
+        Operation::start(Operation::KIND_SWITCH, array(), 1, time() - 120);
+        $GLOBALS['supcheckout_test_as_schedule_throws'] = true;
+
+        $response = self::serve('GET', '/onboarding/status');
+
+        self::assertSame(200, $response->get_status(), (string) json_encode($response->get_data()));
+        $data = self::body($response)['data'];
+        self::assertTrue($data['runner']['stalled']);
+        self::assertNotSame('', $data['runner']['hint']);
+        self::assertSame('running', $data['operation']['outcome']);
+    }
+
+    public function test_finalize_with_a_boolean_confirm_is_400_invalid_param(): void {
+        self::state(TakeoverState::CUT_OVER, time() - 40 * 86400);
+
+        $response = self::serve('POST', '/onboarding/finalize', array('confirm' => true));
+
+        self::assertSame(array(400, 'rest_invalid_param'), array($response->get_status(), self::error_code($response)));
+        self::assertNull(Operation::current());
+    }
+
     public function test_a_second_start_is_429_then_another_kind_is_409(): void {
         // Review Focus 4: a double click, or two admins clicking Switch.
         self::state(TakeoverState::VERIFIED);
