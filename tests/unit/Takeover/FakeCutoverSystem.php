@@ -37,6 +37,12 @@ final class FakeCutoverSystem implements RollbackSystem {
     public $on_step = null;
     /** @var callable|null function (string $basename): void, called after a successful deactivation. */
     public $on_deactivate = null;
+    /** @var int Times purge_caches() was called. */
+    public $purges = 0;
+    /** @var list<string> Every reached() step, plus 'purge' for each purge_caches() call, in order. */
+    public $log = array();
+    /** @var bool purge_caches() throws. */
+    public $purge_throws = false;
 
     public function cron_events() {
         return $this->events;
@@ -102,7 +108,17 @@ final class FakeCutoverSystem implements RollbackSystem {
         return true;
     }
 
+    public function purge_caches() {
+        ++$this->purges;
+        $this->log[] = 'purge';
+        if ($this->purge_throws) {
+            throw new \RuntimeException('purge boom');
+        }
+        return array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array());
+    }
+
     public function reached($step) {
+        $this->log[] = (string) $step;
         if (is_callable($this->on_step)) {
             call_user_func($this->on_step, (string) $step);
         }

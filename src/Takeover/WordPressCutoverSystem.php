@@ -141,6 +141,10 @@ final class WordPressCutoverSystem implements RollbackSystem {
         sleep(max(0, (int) $seconds));
     }
 
+    public function purge_caches() {
+        return CachePurger::purge_all();
+    }
+
     public function reached($step) {
         if (defined('WP_CLI') && constant('WP_CLI') && class_exists('\WP_CLI')) {
             \WP_CLI::line('takeover cutover: ' . (string) $step);

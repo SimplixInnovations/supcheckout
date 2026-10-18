@@ -170,6 +170,45 @@ final class RollbackTest extends TestCase {
         self::assertStringNotContainsString('aaaaaaaa', (string) json_encode(Journal::entries()), 'no H12 scope in the journal');
     }
 
+    public function test_rollback_purges_at_the_transition_and_again_after_reactivation(): void {
+        $this->seed_cut_over();
+        $before = $this->system->purges;
+
+        $result = $this->rollback()->run(true);
+
+        self::assertSame(2, $this->system->purges - $before);
+        self::assertSame(array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array()), $result['report']['cache_purge']);
+        self::assertSame(array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array()), $result['report']['cache_purge_after_reactivation']);
+        $log = $this->system->log;
+        $transition = array_search('rolled_back', $log, true);
+        self::assertSame(array('rolled_back', 'purge', 'caches_flushed'), array_slice($log, $transition, 3));
+        self::assertSame(array('official_reactivated', 'purge'), array_slice($log, -2));
+    }
+
+    public function test_rollback_without_reactivation_purges_once(): void {
+        $this->seed_cut_over();
+        $before = $this->system->purges;
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame(1, $this->system->purges - $before);
+        self::assertArrayNotHasKey('cache_purge_after_reactivation', $result['report']);
+    }
+
+    public function test_a_throwing_purge_never_fails_a_rollback_that_already_happened(): void {
+        $this->seed_cut_over();
+        $this->system->purge_throws = true;
+
+        $result = $this->rollback()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertNull($result['error']);
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+        self::assertSame(array('ran' => array(), 'manual' => array(), 'failed' => array('system')), $result['report']['cache_purge']);
+        self::assertSame(array('ran' => array(), 'manual' => array(), 'failed' => array('system')), $result['report']['cache_purge_after_reactivation']);
+        self::assertSame(array('upayments/UPayments.php'), $this->system->activated);
+    }
+
     public function test_a_later_edit_wins_is_reported_as_a_conflict_and_every_untouched_value_is_restored(): void {
         $this->seed_cut_over();
         $merchant_order = array('supcheckout' => 0, 'bacs' => 1, 'upayments' => 2);

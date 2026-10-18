@@ -52,6 +52,15 @@ interface CutoverSystem {
     public function sleep($seconds);
 
     /**
+     * Purge the page-cache layers and the object cache (CachePurger). Called after a
+     * transition, never before one; it must not fail the caller, so an implementation
+     * reports problems under `failed` rather than throwing (the engines still guard it).
+     *
+     * @return array{ran:list<string>, manual:list<string>, failed:list<string>}
+     */
+    public function purge_caches();
+
+    /**
      * Progress report: the cutover reached $step (WP-CLI prints it; tests observe it).
      *
      * @param string $step Step name.

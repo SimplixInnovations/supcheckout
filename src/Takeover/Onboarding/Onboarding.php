@@ -344,7 +344,7 @@ final class Onboarding {
             $code = isset(self::CUTOVER_EXIT[$error]) ? self::CUTOVER_EXIT[$error] : Outcome::ERROR;
             return Outcome::fail($code, $error, 'cutover refused: ' . $error . '; the store was not switched', $data, $lines);
         }
-        $lines = array('takeover cutover steps: ' . implode(', ', $result['steps']));
+        $lines = array_merge(array('takeover cutover steps: ' . implode(', ', $result['steps'])), self::cache_purge_lines($result));
         if (in_array('official_still_active', $result['warnings'], true)) {
             $lines[] = 'warning: official_still_active';
             return Outcome::fail(Outcome::OFFICIAL_STILL_ACTIVE, 'official_still_active', 'cut over, but the official UPayments plugin is still active; deactivate it (SUPCheckout stays paused until then)', $data, $lines);
@@ -411,7 +411,7 @@ final class Onboarding {
      */
     public static function rewind_outcome($mode, array $result) {
         $data = array('result' => $result);
-        $lines = array('takeover ' . $mode . ' steps: ' . implode(', ', $result['steps']));
+        $lines = array_merge(array('takeover ' . $mode . ' steps: ' . implode(', ', $result['steps'])), self::cache_purge_lines($result));
         foreach ($result['conflicts'] as $conflict) {
             $lines[] = 'conflict: seq ' . $conflict['seq'] . ' ' . $conflict['target'] . ' ' . $conflict['path'] . ' (kept; the owner decides)';
         }
@@ -504,7 +504,9 @@ final class Onboarding {
     public static function finalize_outcome(array $result) {
         $data = array('result' => $result);
         $lines = array_merge(
-            array('takeover finalize steps: ' . implode(', ', $result['steps']), 'removed: ' . self::counts($result['removed'])),
+            array('takeover finalize steps: ' . implode(', ', $result['steps'])),
+            self::cache_purge_lines($result),
+            array('removed: ' . self::counts($result['removed'])),
             self::kept_lines($result['kept'], 'kept'),
             self::reported_lines($result['reported'])
         );
@@ -743,6 +745,24 @@ final class Onboarding {
             $lines[] = 'kept forever: the legacy callback route ' . (string) $reported['callback_route'];
         }
         return $lines;
+    }
+
+    /**
+     * The one cache-purge line (0c): which layers were purged, which need a manual purge
+     * and which failed, by name only. Empty when the engine never reached the purge.
+     *
+     * @param array<string, mixed> $result Engine result.
+     * @return list<string>
+     */
+    private static function cache_purge_lines(array $result) {
+        $purge = isset($result['report']['cache_purge']) && is_array($result['report']['cache_purge']) ? $result['report']['cache_purge'] : null;
+        if ($purge === null) {
+            return array();
+        }
+        $csv = static function ($names) {
+            return is_array($names) && $names !== array() ? implode(',', array_map('strval', $names)) : '-';
+        };
+        return array('cache purge: ran=' . $csv($purge['ran'] ?? null) . ' manual=' . $csv($purge['manual'] ?? null) . ' failed=' . $csv($purge['failed'] ?? null));
     }
 
     /**

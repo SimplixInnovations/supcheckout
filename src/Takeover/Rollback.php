@@ -408,6 +408,8 @@ final class Rollback {
         }
         $this->step($step);
         TakeoverState::refresh();
+        // After the compare-and-swap: a purge problem is reported, never an error.
+        $this->report['cache_purge'] = CachePurger::purge_through($this->system);
         $this->step('caches_flushed');
         return null;
     }
@@ -610,6 +612,8 @@ final class Rollback {
         if ($this->system->activate_plugin($recorded)) {
             TakeoverState::patch(array(self::OFFICIAL_RECORD => null));
             $this->step('official_reactivated');
+            // The reactivated plugin may have repopulated or re-served its own caches.
+            $this->report['cache_purge_after_reactivation'] = CachePurger::purge_through($this->system);
             return;
         }
         $this->report['official'] = 'activation_failed';

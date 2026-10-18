@@ -168,6 +168,31 @@ final class OnboardingTest extends TestCase {
         self::assertSame(array(Outcome::STATE, 'not_verified'), array($outcome->code(), $outcome->reason()));
     }
 
+    // --- the cache-purge CLI line (0c Task 2). ---
+
+    public function test_the_cache_purge_line_follows_the_steps_line_of_every_engine_outcome(): void {
+        $purge = array('ran' => array('litespeed', 'object_cache'), 'manual' => array('cloudflare'), 'failed' => array());
+        $expected = 'cache purge: ran=litespeed,object_cache manual=cloudflare failed=-';
+
+        $cutover = Onboarding::cutover_outcome(array('ok' => true, 'error' => null, 'steps' => array('cut_over', 'caches_flushed'), 'warnings' => array(), 'report' => array('cache_purge' => $purge)));
+        self::assertSame(array('takeover cutover steps: cut_over, caches_flushed', $expected), $cutover->lines());
+
+        $rollback = Onboarding::rewind_outcome(Rollback::MODE_ROLLBACK, array('ok' => true, 'restored' => 0, 'conflicts' => array(), 'error' => null, 'steps' => array('rolled_back'), 'warnings' => array(), 'report' => array('cache_purge' => $purge)));
+        self::assertSame(array('takeover rollback steps: rolled_back', $expected), $rollback->lines());
+
+        $finalize = Onboarding::finalize_outcome(array('ok' => true, 'removed' => array('orders' => 2), 'kept' => array(), 'reported' => array(), 'forced' => false, 'error' => null, 'steps' => array('finalized'), 'report' => array('cache_purge' => $purge)));
+        self::assertSame(array('takeover finalize steps: finalized', $expected, 'removed: orders=2'), array_slice($finalize->lines(), 0, 3));
+    }
+
+    public function test_a_failed_purge_is_listed_by_name_and_no_purge_means_no_line(): void {
+        $purge = array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array('w3tc', 'system'));
+        $with = Onboarding::cutover_outcome(array('ok' => true, 'error' => null, 'steps' => array('cut_over'), 'warnings' => array(), 'report' => array('cache_purge' => $purge)));
+        self::assertSame('cache purge: ran=object_cache manual=- failed=w3tc,system', $with->lines()[1]);
+
+        $without = Onboarding::cutover_outcome(array('ok' => true, 'error' => null, 'steps' => array('cut_over'), 'warnings' => array(), 'report' => array()));
+        self::assertSame(array('takeover cutover steps: cut_over'), $without->lines());
+    }
+
     // --- status. ---
 
     public function test_status_document_keeps_the_cli_json_keys_in_order(): void {

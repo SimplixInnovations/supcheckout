@@ -198,6 +198,8 @@ final class Cutover {
         }
         $this->step('cut_over');
         TakeoverState::refresh();
+        // After the compare-and-swap: a purge problem is reported, never an error.
+        $this->report['cache_purge'] = CachePurger::purge_through($this->system);
         $this->step('caches_flushed');
         return null;
     }
