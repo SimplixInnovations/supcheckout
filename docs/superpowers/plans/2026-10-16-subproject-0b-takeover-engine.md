@@ -976,6 +976,14 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 **Plus a 10,000-order cell** (legacy storage, 3.1.1) that asserts the copy completes within the CI budget and no batch exceeds 50 orders.
 
+**Amended during implementation (Task 12):**
+- **WCML is report-only**, matching the Cutover contract (Task 7: a third-party path is only reported until a real install evidences it). WPML/WCML are paid and licensed and are never installed in CI (AGENTS.md), so the matrix seeds WCML's gateway-restriction option shapes (`wcml_payment_gateway_upayments`, `_wcml_settings` per-currency gateway settings). It asserts that Preflight reports them, that nothing journals them, and that they stay byte-for-byte unchanged through cutover, rollback and finalize. It does not assert a rule under `supcheckout`. Real WCML is covered by the owner's staging rehearsal (Step 5; the staging store runs WPML/WCML).
+- **"Renews through SUPCheckout"** means exactly one claim in `supcheckout_billing_attempts`, one stubbed auto-deduct request, then the cycle is held, and a second run sends nothing. Automatic recurring `VERIFIED_SUCCESS` stays fail-closed, so no renewal order is created.
+- **8 cells instead of 16:** 4 refs × {HPOS with sync off and WCML shapes seeded, legacy without}. Every ref still runs with WCML on and off and in both storage modes.
+- **Step 9 uses `finalize --yes --force-after-review` instead of time travel** (plus `finalize --yes` exiting 6 inside the 30 days); the Task 11 unit tests cover the 30-day time gate. Step 9 runs whenever the checkout has `src/Takeover/Finalize.php`.
+- **Step 7 is folded into step 5:** the first `run --yes --deactivate-official` is SIGKILLed in the middle of the second copy batch (a test-only must-use hook, after an order's single save and before the cursor is persisted), then resumed once the runner lock expires.
+- **Provider traffic: none.** A must-use plugin answers SUPCheckout's WordPress HTTP API requests from per-step fixtures and refuses everything else, and the workflow sinkholes every UPayments host (the official plugin uses raw cURL), proving it with a raw request that must fail.
+
 - [ ] **Step 1: Write the workflow and the test.**
 - [ ] **Step 2: Run it.** Expected: FAIL until Tasks 1–11 are merged on the branch.
 - [ ] **Step 3: Fix what the matrix finds.** Each fix is its own test-first commit.
