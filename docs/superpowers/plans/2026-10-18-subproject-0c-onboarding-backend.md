@@ -354,12 +354,18 @@ public function test_rewind_maps_yielded_to_busy_with_resume_at(): void { /* cod
   - Every report and field is stored through `Bounded::document()`.
 - Produces `RateLimiter`:
   - `WRITE_WINDOW = 10` and `PROBE_WINDOW = 65`, the latter equal to `PaymentMethodAvailability::RATE_GATE_COOLDOWN`;
+  - `static release(string $bucket): void` deletes the bucket record by compare-and-swap (used when a start fails after the slot was taken);
   - `static hit(string $bucket, int $window, int $now): int`, which returns 0 when allowed, else the seconds to wait. One option per bucket, `supcheckout_onboarding_rate_<bucket>`, holding `"<until>"`, written by compare-and-swap. An unreadable value fails closed with the full window;
   - buckets: `provider_probe` (shared by preflight, self-test and setup checks), `switch`, `rollback`, `abort`, `finalize`, `stale_claims`.
 - Produces `Bounded`:
   - `LIST_LIMIT = 20`, `STRING_LIMIT = 500`, `MAX_BYTES = 32768`;
   - `static value($value)`: lists longer than 20 keep 20 items plus a final `array('truncated' => <dropped count>)`, and strings longer than 500 characters are cut to 500;
-  - `static document(array $doc): array`: `value()`, then, while `strlen(wp_json_encode($doc)) > 32768`, replace the largest remaining list with `array(array('truncated' => <count>))`.
+  - `KEY_LIMIT = 100`;
+  - `static document(array $doc): array`. It always terminates at or under `MAX_BYTES`, deterministically:
+    1. apply `value()`, which also cuts every key to 100 characters (a collision keeps the first entry and counts the rest as omitted);
+    2. while `strlen(wp_json_encode($doc)) > 32768`, replace the largest remaining list with `array(array('truncated' => <count>))`;
+    3. while it is still too large, remove associative entries one at a time, largest encoded size first (ties broken by key, ascending), and keep `'omitted' => <count>` at that level;
+    4. as a last resort, return the fixed envelope `array('truncated' => true, 'omitted' => <top-level entry count>)`.
 
 - [ ] **Step 1: Write the failing tests.**
 
@@ -378,11 +384,15 @@ public function test_rate_limit_allows_then_waits_then_allows(): void {
     self::assertSame(array(0, 6, 0), array(RateLimiter::hit('switch', 10, 1000), RateLimiter::hit('switch', 10, 1004), RateLimiter::hit('switch', 10, 1010)));
 }
 public function test_rate_buckets_are_independent(): void { /* hit('switch') then hit('abort') at the same second: 0 */ }
+public function test_release_frees_the_bucket_at_once(): void { /* hit('switch',10,1000); release('switch'); hit('switch',10,1001) === 0 */ }
 public function test_bounded_truncates_lists_to_20_with_a_marker(): void {
     $out = Bounded::value(range(1, 100));
     self::assertSame(21, count($out)); self::assertSame(array('truncated' => 80), $out[20]);
 }
 public function test_bounded_document_never_exceeds_32768_bytes(): void { /* a 40 KB document: strlen(wp_json_encode(Bounded::document($doc))) <= 32768 */ }
+public function test_an_oversized_map_without_lists_is_bounded_largest_entries_first(): void { /* 400 keys => 200-char strings: <= 32768 bytes, 'omitted' > 0, the smallest entries kept, same output on a second call */ }
+public function test_dynamic_keys_are_cut_to_100_characters(): void { /* a 5000-char key: the stored key is 100 characters */ }
+public function test_an_unboundable_document_falls_back_to_the_fixed_envelope(): void { /* 2000 distinct 100-char keys with scalar values: result === array('truncated' => true, 'omitted' => 2000) or a bounded map; strlen <= 32768 either way */ }
 ```
 
 - [ ] **Step 2: Run.** `vendor/bin/phpunit --filter "OperationTest|RateLimiterTest|BoundedTest"`. Expected: FAIL, classes not found.
@@ -488,16 +498,16 @@ public function test_preflight_output_is_unchanged_by_the_seams(): void { /* exi
 
 - Produces `AsyncDriver`:
   - constants `HOOK = 'supcheckout_onboarding_drive'`, `WATCHDOG_HOOK = 'supcheckout_onboarding_watchdog'`, `GROUP = 'supcheckout-onboarding'`, `WATCHDOG_DELAY = 300`, `LONG_WATCHDOG_DELAY = Quiesce::TTL + 60` (960), `RUNNER_STALL_SECONDS = 60`;
-  - `static register(): void` adds `HOOK` → `handle` (1 arg) and `WATCHDOG_HOOK` → `watchdog` (0 args), only when `wp_doing_cron() || wp_doing_ajax() || (defined('WP_CLI') && WP_CLI)`;
+  - `static register(): void` adds `HOOK` → `handle` (1 arg) and `WATCHDOG_HOOK` → `watchdog` (2 args: operation ID and phase), only when `wp_doing_cron() || wp_doing_ajax() || (defined('WP_CLI') && WP_CLI)`;
   - `static enqueue(string $op_id, int $delay = 0): bool`, through `as_schedule_single_action(time() + $delay, HOOK, array($op_id), GROUP, true)`, behind `ActionSchedulerBridge::is_ready()`;
   - `static handle(string $op_id): void`:
     - it returns at once unless `Operation::current()` is running with that ID;
     - it builds a `BudgetedWordPressSystem` with deadline now + 20;
-    - it schedules `WATCHDOG_HOOK` (unique) at `LONG_WATCHDOG_DELAY` before a long phase, else at `WATCHDOG_DELAY`;
+    - it replaces the watchdog on every tick: `as_unschedule_all_actions(WATCHDOG_HOOK, null, GROUP)`, then `as_schedule_single_action(now + delay, WATCHDOG_HOOK, array($op_id, $phase), GROUP, false)`. The delay is `LONG_WATCHDOG_DELAY` before a long phase, else `WATCHDOG_DELAY`. Action Scheduler's `unique` compares only hook and group, so a stale unique watchdog would otherwise keep a 960 s deadline into a short phase;
     - it calls `wc_set_time_limit(0)` (if the function exists) before a long phase;
     - it persists the tick through `Operation::update()` / `finish()`, and queues the continuation with `register_shutdown_function(enqueue, $op_id, next_delay)`, because the running action still counts as unique, as in `CopyRunner::handle_action()`;
     - a `\Throwable` finishes the operation `failed` with error `error`, `report.exception` set to the class name only, and the hint `restart the operation; every step resumes from the saved state`;
-  - `static watchdog(): bool` re-enqueues a running operation whose `next_at <= now` when no `HOOK` action is pending or running;
+  - `static watchdog(?string $op_id = null, ?string $phase = null): bool` re-enqueues a running operation whose `next_at <= now` when no `HOOK` action is pending or running. When an ID is given, it does nothing for another operation;
   - `static runner_health(?array $op, int $now): array{stalled:bool, past_due_seconds:int}`, where `stalled` means running and `now - next_at > 60`.
 
 **Decision table:** `DriverStep::tick` re-reads `TakeoverState` first.
@@ -549,6 +559,7 @@ public function test_enqueue_is_unique_in_the_onboarding_group(): void { /* reco
 public function test_a_stale_action_for_another_operation_does_nothing(): void {}
 public function test_watchdog_requeues_only_a_running_operation_without_a_pending_action(): void {}
 public function test_a_long_phase_schedules_the_dead_mans_watchdog_at_960_seconds(): void {}
+public function test_a_short_phase_after_a_long_one_replaces_the_watchdog_at_its_own_deadline(): void { /* tick 1 (cutover, long): watchdog at now+960, args [id, 'cutover']; tick 2 (self_test, short) at t: all pending watchdogs unscheduled, exactly one pending at t+300 with args [id, 'self_test'] */ }
 public function test_runner_health_reports_stalled_after_60_seconds_past_due(): void {
     // Review Focus 1
     self::assertSame(array('stalled' => true, 'past_due_seconds' => 61), AsyncDriver::runner_health(array('outcome' => 'running', 'next_at' => 1000), 1061));
@@ -573,7 +584,7 @@ public function test_runner_health_reports_stalled_after_60_seconds_past_due(): 
 
 **Routes** (`Routes::NAMESPACE = 'supcheckout/v1'`):
 
-| Method | Route | Paused | Args (JSON schema, all `default` false unless shown) | Handler result | Rate bucket |
+| Method | Route | Paused | Args (JSON schema; booleans `default` false; `confirm` strings have **no** default) | Handler result | Rate bucket |
 |---|---|---|---|---|---|
 | GET | `/onboarding/status` | yes | none | 200 `{takeover: Bounded(Onboarding::status()), operation: Bounded(op)\|null, runner: AsyncDriver::runner_health(), last: {preflight_at, self_test_at, setup_checks_at}}`; runs `AsyncDriver::watchdog()` | none |
 | GET | `/onboarding/preflight` | yes | none | 200 last stored report or `null` | none |
@@ -581,7 +592,7 @@ public function test_runner_health_reports_stalled_after_60_seconds_past_due(): 
 | POST | `/onboarding/switch` | yes | `confirm` boolean **required**, must be true; `deactivate_official` boolean | 202 operation `switch` / 200 `already_cut_over` / Outcome error | `switch` 10 s |
 | POST | `/onboarding/rollback` | yes | `confirm` (required true), `deactivate_official`, `reactivate_official` | 202 `rollback` | `rollback` 10 s |
 | POST | `/onboarding/abort` | yes | `confirm` (required true), `reactivate_official` | 202 `abort` | `abort` 10 s |
-| POST | `/onboarding/finalize` | yes | `dry_run` boolean; `force_after_review` boolean; `confirm` string `enum: ["FINALIZE"]`, required unless `dry_run` | 202 `finalize` / `finalize_dry_run` | `finalize` 10 s |
+| POST | `/onboarding/finalize` | yes | `dry_run` boolean; `force_after_review` boolean; `confirm` string `enum: ["FINALIZE"]`, **no `default` and not `required` in the schema**. WordPress validates a default against the schema, so a default would make `{"dry_run":true}` fail. The controller requires it only when `dry_run` is not true. | 202 `finalize` / `finalize_dry_run` | `finalize` 10 s |
 | POST | `/onboarding/stale-claims/release` | yes | `confirm` (required true) | 200 inline (`Onboarding::release_stale_claims()`, at most 500 rows, under the lease) | `stale_claims` 10 s |
 | GET | `/onboarding/self-test` | no | none | 200 last report or `null` | none |
 | POST | `/onboarding/self-test` | no | none | 202 `self_test`; 409 `supcheckout_state` unless `cut_over` / `finalized` | `provider_probe` 65 s |
@@ -593,11 +604,13 @@ public function test_runner_health_reports_stalled_after_60_seconds_past_due(): 
 2. writes: nonce `wp_verify_nonce($request->get_header('x_wp_nonce'), 'wp_rest')` → 403 `supcheckout_nonce_invalid`;
 3. unknown parameters. The keys of JSON, body and query parameters, minus the route's args, minus WordPress reserved keys (`_wpnonce`, `_locale`, `rest_route`, `_method`, `_envelope`, `_fields`, `_embed`) → 400 `supcheckout_unknown_parameter` with `data.params`;
 4. schema validation (WordPress core) → 400 `rest_invalid_param`;
-5. consent: `confirm` must be strictly true, or `"FINALIZE"` → 400 `supcheckout_confirmation_required`;
+5. consent: `confirm` must be strictly true, or, for finalize with `dry_run` not true, exactly `"FINALIZE"` → 400 `supcheckout_confirmation_required`;
 6. rate: `RateLimiter::hit()` > 0 → 429 `supcheckout_rate_limited`, with `data.retry_after` and the `Retry-After` header;
 7. the cheap synchronous plan (`plan_run` / `plan_rewind` / `plan_finalize`) → its `Outcome`, mapped below;
 8. `Operation::start()` null → 409 `supcheckout_operation_in_progress` with `data.operation_id`;
-9. `AsyncDriver::enqueue()` → 202 `{ok: true, data: {operation}}` with `Location: /wp-json/supcheckout/v1/onboarding/status`.
+9. `AsyncDriver::enqueue()`:
+   - true → 202 `{ok: true, data: {operation}}` with `Location: /wp-json/supcheckout/v1/onboarding/status`;
+   - false (Action Scheduler not ready, or scheduling refused) → `Operation::finish($id, 'failed', 'scheduler_unavailable', <hint: Action Scheduler is not available; retry, or use WP-CLI>, [], now)`, a compare-and-swap on the record just created. Then 503 `supcheckout_scheduler_unavailable`. No `running` operation is ever left behind without a scheduled action, and the rate slot is released (`RateLimiter::release($bucket)`), so a retry is not blocked for 10 s.
 
 **`Responses` mapping** of `Outcome::code()`:
 
@@ -616,13 +629,14 @@ public function test_runner_health_reports_stalled_after_60_seconds_past_due(): 
 
 - An error's `data` is `{status, exit_code, reason, hint?, days_left?}`.
 - **Success envelope:** `{ok: true, data, warnings: []}`.
-- Every response, error or success, carries `Cache-Control: no-store, private`.
+- Every response, error or success, carries `Cache-Control: no-store, private`. A `WP_Error` is turned into a new response by the REST server, so headers set by a helper are lost. A `rest_post_dispatch` filter (`Routes::no_store($response, $server, $request)`, added by `register_all` / `register_takeover`) therefore sets the header on every dispatched response whose route starts with `/supcheckout/v1/`. That includes core validation errors (`rest_invalid_param`) and permission refusals.
 
 **Interfaces:**
 - Produces:
   - `Routes::register(): void`, which adds `rest_api_init` → `[Routes::class, 'register_all']`;
   - `Routes::register_all(): void` and `Routes::register_takeover(): void`, the `rest_api_init` callbacks. Task 8's PausedBoot adds `register_takeover` itself, so the paused boot loads no extra class;
   - `Routes::table(bool $paused): list<array{method:string, route:string, write:bool, bucket:?string, args:array}>`;
+  - `Routes::no_store(WP_REST_Response $response, WP_REST_Server $server, WP_REST_Request $request): WP_REST_Response`, the `rest_post_dispatch` filter (supcheckout/v1 routes only);
   - `RequestGuard::can_manage(): true|WP_Error`;
   - `RequestGuard::check_write(WP_REST_Request $request, list<string> $allowed): true|WP_Error`, for steps 2 and 3;
   - `RequestGuard::check_consent(WP_REST_Request $request, string $route): true|WP_Error`;
@@ -644,12 +658,14 @@ public function test_capability_is_checked_before_the_nonce(): void { /* no capa
 public function test_unknown_parameter_is_rejected_400(): void { /* Review Focus 5: {"confirm":true,"deactivateOfficial":true} → supcheckout_unknown_parameter, data params ['deactivateOfficial'] */ }
 public function test_switch_requires_confirm_true(): void { /* confirm omitted or false → 400 supcheckout_confirmation_required; no operation created */ }
 public function test_switch_string_false_consent_never_deactivates(): void { /* Review Focus 5: deactivate_official "false" → operation consent deactivate_official false */ }
+public function test_a_failed_enqueue_leaves_no_running_operation_and_returns_503(): void { /* as_schedule_single_action returns 0: 503 supcheckout_scheduler_unavailable; Operation::current() outcome 'failed', error 'scheduler_unavailable'; after the scheduler works again, an immediate second start → 202 with a new id */ }
 public function test_a_second_start_is_429_then_another_kind_is_409(): void { /* Review Focus 4: switch twice within 10 s → 429 retry_after 10; abort → 409 supcheckout_operation_in_progress with operation_id */ }
-public function test_finalize_requires_the_typed_FINALIZE_unless_dry_run(): void { /* {} → 400; {"dry_run":true} → 202 finalize_dry_run */ }
+public function test_finalize_requires_the_typed_FINALIZE_unless_dry_run(): void { /* {"dry_run":true} without confirm, dispatched through rest_do_request with core schema validation → 202 finalize_dry_run; {} and {"force_after_review":true} → 400 supcheckout_confirmation_required; no operation created for the 400s */ }
 public function test_finalize_before_30_days_without_force_is_409_state_with_days_left(): void { /* code supcheckout_state, data reason too_early, days_left 30, exit_code 6 */ }
 /** @dataProvider outcome_codes */
 public function test_outcomes_map_to_http(int $code, int $status, string $error_code): void {}
-public function test_every_response_is_no_store(): void { /* Cache-Control === 'no-store, private' on 200, 202, 409 and 429 */ }
+public function test_every_response_is_no_store(): void { /* on the final response of rest_do_request(), i.e. after rest_post_dispatch: Cache-Control === 'no-store, private' for 200, 202, 400 (unknown parameter and core rest_invalid_param), 403, 409 and 429 */ }
+public function test_no_store_is_scoped_to_the_supcheckout_namespace(): void { /* Routes::no_store() on a /wp/v2/ response leaves its headers unchanged */ }
 public function test_status_never_contains_the_api_key(): void { /* settings api_key 'sk-test-SECRET-0c' seeded: strpos(wp_json_encode(response data), 'sk-test-SECRET-0c') === false */ }
 public function test_status_runs_the_watchdog(): void { /* running op with next_at in the past, no pending action → one as_schedule_single_action recorded */ }
 public function test_status_body_is_at_most_32768_bytes(): void {}
@@ -681,7 +697,7 @@ public function test_a_web_request_registers_the_declarations_and_the_takeover_r
     self::assertSame(array(self::feature_declarations(), array('action', 'rest_api_init', array(Routes::class, 'register_takeover'), 10, 1)), $GLOBALS['supcheckout_test_hook_calls']);
 }
 public function test_a_cron_request_also_registers_the_two_driver_hooks(): void {
-    /* DOING_CRON: + array('action', 'supcheckout_onboarding_drive', array(AsyncDriver::class, 'handle'), 10, 1), array('action', 'supcheckout_onboarding_watchdog', array(AsyncDriver::class, 'watchdog'), 10, 0) */
+    /* DOING_CRON: + array('action', 'supcheckout_onboarding_drive', array(AsyncDriver::class, 'handle'), 10, 1), array('action', 'supcheckout_onboarding_watchdog', array(AsyncDriver::class, 'watchdog'), 10, 2) */
 }
 public function test_paused_rest_routes_never_include_self_test_or_setup_checks(): void { /* register_takeover(): recorded routes === Routes::table(true) */ }
 ```
