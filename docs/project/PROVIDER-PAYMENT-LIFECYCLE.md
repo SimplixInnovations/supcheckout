@@ -140,6 +140,18 @@ Only exact provider values receive state-changing meaning:
 
 Unknown future values fail closed. Provider documentation indicating pending/processing/NULL-style outcomes are non-terminal is preserved rather than guessed into failure.
 
+**The transaction-level `status` field is not the result.** The table above classifies the transaction's `result`. The separate `data.transaction.status` field is not used for classification. The takeover rehearsal (2026-10-18, order #11590, `docs/project/evidence/TAKEOVER-REHEARSAL-2026-10-18.md`) observed this sandbox response for a KNET session that errored before authorization:
+- `transaction.status: "error"`;
+- `result: null`, `payment_date: null`, `tran_id: ""`;
+- no `isTerminalStatus` field.
+
+Under the table above it stays `INDETERMINATE`:
+- **Provider documentation.** UPayments' "Possible Gateway Responses" reference says a NULL, Pending or Processing result must not be treated as a failure. Its CRON job can still update a KNET transaction to CAPTURED for up to about 13 minutes. The Get Payment Status reference documents only `status: "done"` and does not define `"error"`.
+- **Reconciliation window.** Reconciliation retries at 60, 120, 240 and 480 seconds, about 15 minutes, which is past that window. It then flags the order for manual review.
+- **Late captures.** A later authenticated `CAPTURED` still completes the order.
+
+The order is never failed on `transaction.status` alone. That changes only if UPayments confirms that `status: "error"` (or a defined `isTerminalStatus: true`) is never followed by a capture. That question is open with the provider.
+
 ### Canonical WooCommerce payment completion
 
 Authenticated/bound `CAPTURED` uses:
