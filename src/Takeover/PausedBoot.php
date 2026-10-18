@@ -32,8 +32,9 @@ use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
  *   constant loads nothing, so a plain request loads no extra file) and the two onboarding
  *   driver hooks that Action Scheduler runs (AsyncDriver::HOOK and WATCHDOG_HOOK), added
  *   at once under cron, AJAX or WP-CLI and otherwise lazily on
- *   `action_scheduler_before_process_queue` (ALTERNATE_WP_CRON and Action Scheduler's
- *   admin "Run" action). Neither reads any state. The admin screens come in Sub-project 2
+ *   `action_scheduler_before_process_queue`, which Action Scheduler's queue runners fire
+ *   (this covers ALTERNATE_WP_CRON; the admin "Run" row action bypasses it, see
+ *   AsyncDriver). Neither reads any state. The admin screens come in Sub-project 2
  *   (the existing paused notice comes from OfficialPluginConflict itself).
  *
  * It registers no gateway, no Blocks method, no payment callback (`wc_upayments` stays the

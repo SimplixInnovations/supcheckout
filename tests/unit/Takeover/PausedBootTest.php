@@ -13,13 +13,16 @@ use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
 use Simplixi\SUPCheckout\Takeover\PausedBoot;
 
 /**
- * 0b Task 9: while the official plugin is active, the paused branch registers only the
- * takeover CLI (under WP-CLI) and, on a preflight probe request alone, the probe answer.
- * No gateway, Blocks method, payment callback, cron hook or global symbol.
+ * 0b Task 9 and 0c Task 8: while the official plugin is active, the paused branch registers
+ * only the WooCommerce feature declarations, the takeover CLI (under WP-CLI), the takeover
+ * REST routes (`rest_api_init`, never the self-test or setup-check routes), the two
+ * onboarding driver hooks (at once under cron, AJAX and WP-CLI, otherwise lazily on Action
+ * Scheduler's queue start) and, on a preflight probe request alone, the probe answer. No
+ * gateway, Blocks method, payment callback, payment cron hook or global symbol.
  *
- * It also declares the same WooCommerce feature compatibility as the full boot
- * (before_woocommerce_init); otherwise WooCommerce lists the paused plugin as
- * incompatible with HPOS and the Cart & Checkout blocks.
+ * The feature declarations are the full boot's (before_woocommerce_init); otherwise
+ * WooCommerce lists the paused plugin as incompatible with HPOS and the Cart & Checkout
+ * blocks.
  */
 final class PausedBootTest extends TestCase {
     public static function setUpBeforeClass(): void {
@@ -141,6 +144,51 @@ final class PausedBootTest extends TestCase {
                 $context
             );
         }
+    }
+
+    /**
+     * Whether PausedBoot and AsyncDriver::register() each add the two driver hooks at once in
+     * the current request context (true), or only the lazy queue-start registration (false).
+     *
+     * @return array{paused:bool, driver:bool}
+     */
+    private static function eager_driver_registration(): array {
+        $eager = static function (): bool {
+            $hooks = array_column($GLOBALS['supcheckout_test_action_calls'], 0);
+            $at_once = in_array(AsyncDriver::HOOK, $hooks, true) && in_array(AsyncDriver::WATCHDOG_HOOK, $hooks, true);
+            $lazy = in_array(AsyncDriver::QUEUE_START_ACTION, $hooks, true);
+            self::assertNotSame($at_once, $lazy, 'exactly one of the eager and the lazy registration: ' . wp_json_encode($hooks));
+            return $at_once;
+        };
+        \supcheckout_test_reset_migration_bootstrap();
+        PausedBoot::boot(ABSPATH . 'supcheckout.php');
+        $paused = $eager();
+        \supcheckout_test_reset_migration_bootstrap();
+        AsyncDriver::register();
+        $driver = $eager();
+        return array('paused' => $paused, 'driver' => $driver);
+    }
+
+    public function test_the_paused_driver_context_predicate_matches_async_driver_register_over_web_cron_and_ajax(): void {
+        // PausedBoot repeats AsyncDriver::register()'s context predicate so a plain paused
+        // request never loads AsyncDriver; the two must never drift apart.
+        foreach (array('web' => false, 'cron' => true, 'ajax' => true) as $context => $expected) {
+            $GLOBALS['supcheckout_test_request_context'] = array('cron' => $context === 'cron', 'ajax' => $context === 'ajax');
+
+            self::assertSame(array('paused' => $expected, 'driver' => $expected), self::eager_driver_registration(), $context);
+        }
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_the_paused_driver_context_predicate_matches_async_driver_register_under_wp_cli(): void {
+        require_once dirname(__DIR__, 2) . '/support/action-scheduler-stubs.php';
+        require_once dirname(__DIR__, 2) . '/support/onboarding-driver-stubs.php';
+        require_once dirname(__DIR__, 2) . '/support/wordpress-rest-stubs.php';
+        define('WP_CLI', true);
+        $GLOBALS['supcheckout_test_request_context'] = array('cron' => false, 'ajax' => false);
+
+        self::assertSame(array('paused' => true, 'driver' => true), self::eager_driver_registration());
     }
 
     public function test_the_paused_routes_never_include_the_self_test_or_setup_check_routes(): void {

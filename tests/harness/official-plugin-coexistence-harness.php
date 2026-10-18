@@ -258,7 +258,8 @@ $paused_files = 'SRC_FILES:["Autoloader.php","Bootstrap/WooCommerceDeclarations.
 $paused_declarations = '"before_woocommerce_init=Simplixi\\\\SUPCheckout\\\\Bootstrap\\\\WooCommerceDeclarations::declare_compatibility"';
 // 0c Task 8: the takeover REST routes, plus the two onboarding driver hooks: added at once
 // under cron, AJAX and WP-CLI, and on every other request lazily on Action Scheduler's queue
-// start (which also covers ALTERNATE_WP_CRON and the admin "Run" action).
+// start (which also covers ALTERNATE_WP_CRON; Action Scheduler's admin "Run" row action calls
+// process_action() directly and is not covered).
 $paused_rest = '"rest_api_init=Simplixi\\\\SUPCheckout\\\\Rest\\\\Routes::register_takeover"';
 $paused_lazy_driver = '"action_scheduler_before_process_queue=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Onboarding\\\\AsyncDriver::register_hooks"';
 $paused_driver = '"supcheckout_onboarding_drive=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Onboarding\\\\AsyncDriver::handle","supcheckout_onboarding_watchdog=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Onboarding\\\\AsyncDriver::watchdog"';

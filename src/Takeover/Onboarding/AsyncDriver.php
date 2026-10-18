@@ -20,9 +20,12 @@ defined('ABSPATH') || exit;
  * single-flight Operation advanced by bounded ticks (DriverStep).
  *
  * - register() adds HOOK and WATCHDOG_HOOK in contexts that run Action Scheduler (cron,
- *   AJAX, WP-CLI) and otherwise only on `action_scheduler_before_process_queue` (ALTERNATE_WP_CRON
- *   and the admin "Run" action), without reading any state, so a frontend or admin page load pays
- *   nothing.
+ *   AJAX, WP-CLI) and otherwise only on `action_scheduler_before_process_queue`, which every
+ *   Action Scheduler queue runner fires before it processes its queue (this covers
+ *   ALTERNATE_WP_CRON), without reading any state, so a frontend or admin page load pays
+ *   nothing. Action Scheduler's admin "Run" row action calls process_action() directly,
+ *   without that action, so on an admin page it runs a drive action with no callback and
+ *   marks it failed: nothing advances, and the next status poll's watchdog queues a new one.
  * - enqueue() queues one unique action per operation in GROUP. If Action Scheduler cannot
  *   take it, the operation is finished `failed` / `scheduler_unavailable` (compare-and-swap)
  *   and false is returned, so no operation is left running with nothing to run it (the REST
@@ -87,12 +90,13 @@ final class AsyncDriver {
 
     /**
      * Add HOOK and WATCHDOG_HOOK (a pure add_action: no state is read). It is the callback of
-     * Action Scheduler's `action_scheduler_before_process_queue`, which fires before the queue
-     * runs in any context, so the two contexts register() cannot detect still find a callback:
-     * ALTERNATE_WP_CRON (wp-cron runs inside a normal request after plugins load, so
-     * DOING_CRON is defined too late) and Action Scheduler's admin "Run" action (an admin
-     * page request, not AJAX). Without it Action Scheduler runs the action with no callback
-     * and marks it failed. Idempotent.
+     * Action Scheduler's `action_scheduler_before_process_queue`, which its queue runners
+     * (ActionScheduler_QueueRunner::run() and the WP-CLI runner) fire before they process the
+     * queue in any context, so a queue run in a context register() cannot detect still finds
+     * a callback: ALTERNATE_WP_CRON (wp-cron runs inside a normal request after plugins load,
+     * so DOING_CRON is defined too late). Without it Action Scheduler runs the action with no
+     * callback and marks it failed. The admin "Run" row action is not covered: it calls
+     * process_action() directly (see the class docblock). Idempotent.
      *
      * @return void
      */

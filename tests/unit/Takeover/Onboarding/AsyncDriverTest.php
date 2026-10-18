@@ -68,6 +68,21 @@ final class AsyncDriverTest extends TestCase {
 
     // --- Fixtures. ---
 
+    /**
+     * Record every get_option() name from now on (the option store's read filter).
+     *
+     * @return \stdClass {names: list<string>}
+     */
+    private static function spy_option_reads(): \stdClass {
+        $reads = new \stdClass();
+        $reads->names = array();
+        $GLOBALS['supcheckout_test_get_option_filter'] = static function ($name, $value) use ($reads) {
+            $reads->names[] = (string) $name;
+            return $value;
+        };
+        return $reads;
+    }
+
     /** @param array<string, bool> $consent */
     private static function start(string $kind, array $consent = array()): array {
         $op = Operation::start($kind, $consent, 1, time());
@@ -117,6 +132,7 @@ final class AsyncDriverTest extends TestCase {
     // --- register / enqueue. ---
 
     public function test_register_adds_both_hooks_only_in_cron_ajax_or_cli_contexts(): void {
+        $reads = self::spy_option_reads();
         $GLOBALS['supcheckout_test_request_context'] = array('cron' => false, 'ajax' => false);
         AsyncDriver::register();
         self::assertSame(array(
@@ -134,7 +150,8 @@ final class AsyncDriverTest extends TestCase {
                 array(AsyncDriver::WATCHDOG_HOOK, array(AsyncDriver::class, 'watchdog'), 10, 2),
             ), $GLOBALS['supcheckout_test_action_calls'], $context);
         }
-        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls'], 'no state read or written to register');
+        self::assertSame(array(), $reads->names, 'no option read to register');
+        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls'], 'no option written to register');
     }
 
     #[RunInSeparateProcess]
@@ -153,13 +170,16 @@ final class AsyncDriverTest extends TestCase {
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
     public function test_the_queue_start_registers_both_hooks_once_in_any_context(): void {
-        // Controller carry-in: ALTERNATE_WP_CRON (wp-cron runs inside a normal request, after
-        // DOING_CRON would have been read) and Action Scheduler's admin "Run" action (an admin
-        // page request, not AJAX) run the actions with no callback, which Action Scheduler
-        // marks failed. It fires this action before it processes its queue, in any context.
+        // Controller carry-in: under ALTERNATE_WP_CRON (wp-cron runs inside a normal request,
+        // after DOING_CRON would have been read) the queue would run the actions with no
+        // callback, which Action Scheduler marks failed. Every queue runner fires this action
+        // before it processes its queue (ActionScheduler_QueueRunner::run() and the WP-CLI
+        // runner); the admin "Run" row action calls process_action() directly and does not.
         require_once dirname(__DIR__, 3) . '/support/action-scheduler-stubs.php';
         require_once dirname(__DIR__, 3) . '/support/onboarding-driver-stubs.php';
         \supcheckout_test_reset_subscription_composition();
+        \supcheckout_test_reset_wp_options();
+        $reads = self::spy_option_reads();
         $GLOBALS['supcheckout_test_request_context'] = array('cron' => false, 'ajax' => false);
         AsyncDriver::register();
         $GLOBALS['supcheckout_test_action_calls'] = array();
@@ -171,7 +191,8 @@ final class AsyncDriverTest extends TestCase {
             array(AsyncDriver::HOOK, array(AsyncDriver::class, 'handle'), 10, 1),
             array(AsyncDriver::WATCHDOG_HOOK, array(AsyncDriver::class, 'watchdog'), 10, 2),
         ), $GLOBALS['supcheckout_test_action_calls']);
-        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls'] ?? array(), 'a pure add_action: no state read');
+        self::assertSame(array(), $reads->names, 'a pure add_action: no option read');
+        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls'], 'and no option written');
     }
 
     public function test_the_constants_match_the_plan(): void {
