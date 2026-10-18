@@ -101,4 +101,7 @@ parameters:
         - src/Takeover/Onboarding/Operation.php
         - src/Takeover/Onboarding/RateLimiter.php
         - src/Takeover/Onboarding/Bounded.php
+        - src/Takeover/Onboarding/Checks.php
+        - src/Takeover/Onboarding/SelfTest.php
+        - src/Takeover/Onboarding/SetupChecks.php
     tmpDir: .cache/phpstan
