@@ -25,7 +25,11 @@ defined('ABSPATH') || exit;
  *   take it, the operation is finished `failed` / `scheduler_unavailable` (compare-and-swap)
  *   and false is returned, so no operation is left running with nothing to run it (the REST
  *   layer answers 503).
- * - handle() runs one tick: it returns at once for another operation's (stale) action;
+ *   When another operation's stale action holds the unique slot (Action Scheduler's
+ *   `unique` compares only hook and group), it returns true and schedules this operation's
+ *   own watchdog, so recovery never depends on the stale action alone.
+ * - handle() runs one tick. For another operation's (stale) action it only re-queues the
+ *   current running operation (enqueue is unique) and advances nothing. It
  *   replaces the dead-man watchdog on every tick (Action Scheduler's `unique` compares only
  *   hook and group, so a stale unique watchdog would keep a long phase's deadline into a
  *   short one); before a long phase it raises the time limit and stores the attempt before
@@ -87,7 +91,12 @@ final class AsyncDriver {
                 return true;
             }
             if (as_has_scheduled_action(self::HOOK, null, self::GROUP)) {
-                // Another action holds the unique slot; once it ran, the watchdog re-queues.
+                // Another (stale) action holds the unique slot. It re-queues this operation
+                // when it runs (drive()); this operation's own watchdog covers it meanwhile.
+                $op = Operation::current();
+                if (Operation::is_running($op) && $op['id'] === $op_id) {
+                    self::replace_watchdog($op_id, DriverStep::upcoming($op)['phase'], time() + self::WATCHDOG_DELAY);
+                }
                 return true;
             }
         }
@@ -115,7 +124,14 @@ final class AsyncDriver {
      */
     public static function drive($op_id, $make_step, $defer) {
         $op = Operation::current();
-        if (!Operation::is_running($op) || $op['id'] !== (string) $op_id) {
+        if (!Operation::is_running($op)) {
+            return;
+        }
+        if ($op['id'] !== (string) $op_id) {
+            // A stale action of an earlier operation. It may have held the unique slot the
+            // current operation's enqueue was refused for: hand the slot on (enqueue is
+            // unique), without advancing the current operation in this tick.
+            call_user_func($defer, $op['id'], 0);
             return;
         }
         $now = time();

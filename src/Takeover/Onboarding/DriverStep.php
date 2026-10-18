@@ -342,6 +342,15 @@ final class DriverStep {
                 $this->next('copy', self::BUSY_RETRY_DELAY);
                 return;
             }
+            if ($step === CopyRunner::STOPPED) {
+                // A progress save failed. Still copying: back off like a busy store, bounded
+                // by MAX_BUSY_RETRIES, never an immediate re-tick; otherwise the state moved.
+                TakeoverState::refresh();
+                if (TakeoverState::get()['status'] === TakeoverState::COPYING) {
+                    $this->busy_retry('copy', 'copy_stopped', array('copy' => CopyRunner::STOPPED));
+                    return;
+                }
+            }
         }
         $result = $this->onboarding->copy_result();
         if ($result === null) {

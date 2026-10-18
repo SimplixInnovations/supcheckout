@@ -188,13 +188,39 @@ final class AsyncDriverTest extends TestCase {
         $op = self::start(Operation::KIND_PREFLIGHT);
         $GLOBALS['supcheckout_as_calls']['scheduled'][] = array('timestamp' => time(), 'hook' => AsyncDriver::HOOK, 'args' => array('stale-id'), 'group' => AsyncDriver::GROUP, 'unique' => true);
 
+        $before = time();
+
         self::assertTrue(AsyncDriver::enqueue($op['id']));
         self::assertTrue(Operation::is_running(Operation::current()));
+
+        // Fix round 1 (option b): recovery never depends on the stale action alone.
+        $watchdogs = self::scheduled(AsyncDriver::WATCHDOG_HOOK);
+        self::assertCount(1, $watchdogs, 'this operation\'s own watchdog');
+        self::assertSame(array($op['id'], 'preflight'), $watchdogs[0]['args'], 'the upcoming phase, as drive() sets it');
+        self::assertFalse($watchdogs[0]['unique']);
+        self::assertGreaterThanOrEqual($before + AsyncDriver::WATCHDOG_DELAY, $watchdogs[0]['timestamp']);
+        self::assertLessThanOrEqual(time() + AsyncDriver::WATCHDOG_DELAY, $watchdogs[0]['timestamp']);
+        self::assertCount(1, self::scheduled(AsyncDriver::HOOK), 'still only the stale action');
+
+        // Once the stale action is gone, that watchdog re-queues this operation.
+        $GLOBALS['supcheckout_as_calls']['scheduled'] = array();
+        self::assertTrue(AsyncDriver::watchdog($op['id'], 'started'));
+        self::assertSame(array($op['id']), self::scheduled(AsyncDriver::HOOK)[0]['args']);
+    }
+
+    public function test_an_enqueue_that_takes_the_slot_schedules_no_extra_watchdog(): void {
+        $op = self::start(Operation::KIND_PREFLIGHT);
+
+        self::assertTrue(AsyncDriver::enqueue($op['id']));
+
+        self::assertSame(array(), self::scheduled(AsyncDriver::WATCHDOG_HOOK), 'the tick itself replaces the watchdog');
     }
 
     // --- handle. ---
 
-    public function test_a_stale_action_for_another_operation_does_nothing(): void {
+    public function test_a_stale_action_requeues_the_current_running_operation_without_advancing_it(): void {
+        // Fix round 1 (controller ruling, option a): the stale action held the unique slot the
+        // current operation's enqueue was refused for; it hands the slot on instead of dropping it.
         $op = self::start(Operation::KIND_PREFLIGHT);
         $calls = 0;
 
@@ -203,10 +229,27 @@ final class AsyncDriverTest extends TestCase {
             throw new \LogicException('never built');
         }, $this->defer());
 
-        self::assertSame(0, $calls);
-        self::assertSame(array(), $this->deferred);
-        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled'], 'no watchdog either');
+        self::assertSame(0, $calls, 'the current operation does not advance in this tick');
+        self::assertSame(array(array($op['id'], 0)), $this->deferred, 're-queued at once (enqueue is unique)');
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled'], 'no watchdog replaced');
         self::assertSame($op, Operation::current(), 'untouched');
+    }
+
+    public function test_a_stale_action_with_no_running_operation_does_nothing(): void {
+        AsyncDriver::drive('another-operation-id', function () {
+            throw new \LogicException('never built');
+        }, $this->defer());
+        self::assertSame(array(), $this->deferred, 'no operation at all');
+
+        $op = self::start(Operation::KIND_PREFLIGHT);
+        self::assertTrue(Operation::finish($op['id'], Operation::DONE, null, null, array(), time()));
+
+        AsyncDriver::drive('another-operation-id', function () {
+            throw new \LogicException('never built');
+        }, $this->defer());
+
+        self::assertSame(array(), $this->deferred, 'a finished operation is not re-queued');
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
     public function test_a_finished_operation_does_nothing(): void {

@@ -256,6 +256,26 @@ final class DriverStepTest extends TestCase {
         self::assertSame(TakeoverState::COPYING, self::takeover_status(), 'one copy step, then the budget was spent');
     }
 
+    public function test_a_copy_that_keeps_stopping_retries_every_60_seconds_17_times_then_fails_busy(): void {
+        // Fix round 1: a failing progress save while still copying must never re-tick at once forever.
+        CutoverTest::state('copying');
+        $GLOBALS['wpdb']->before_query = static function (array $statement) {
+            if (strpos($statement['query'], 'UPDATE ') === 0 && $statement['args'][1] === TakeoverState::OPTION) {
+                // Someone else rewrites the record (same status) first: every progress save loses its CAS.
+                $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+                $state['noise'] = isset($state['noise']) ? $state['noise'] + 1 : 1;
+                $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+            }
+        };
+        $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'copy'));
+
+        $ticks = $this->ticks(18);
+
+        self::assertSame(array_fill(0, 17, 60), array_column(array_slice($ticks, 0, 17), 'next_delay'), (string) json_encode($ticks[0]));
+        self::assertSame(array('failed', 'busy', null), array($this->last['outcome'], $this->last['error'], $this->last['next_delay']));
+        self::assertSame(TakeoverState::COPYING, self::takeover_status(), 'resumable');
+    }
+
     public function test_a_finished_copy_moves_to_retire_and_the_official_plugin_goes_first(): void {
         $this->start(Operation::KIND_SWITCH, array('deactivate_official' => true));
 
