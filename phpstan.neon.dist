@@ -94,4 +94,6 @@ parameters:
         - src/Takeover/FinalizeRemoval.php
         - src/Takeover/Finalize.php
         - src/Takeover/FinalizeCommand.php
+        - src/Takeover/Onboarding/Outcome.php
+        - src/Takeover/Onboarding/Onboarding.php
     tmpDir: .cache/phpstan

@@ -78,6 +78,8 @@
     <file>src/Takeover/FinalizeRemoval.php</file>
     <file>src/Takeover/Finalize.php</file>
     <file>src/Takeover/FinalizeCommand.php</file>
+    <file>src/Takeover/Onboarding/Outcome.php</file>
+    <file>src/Takeover/Onboarding/Onboarding.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 
