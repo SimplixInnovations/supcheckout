@@ -30,6 +30,27 @@ final class PreflightFixtures {
     }
 
     /**
+     * An availability field that runs the real PaymentMethodAvailability::probe() against
+     * one faked provider transport outcome. Call supcheckout_test_reset_availability()
+     * first, so no cache row or rate gate answers instead of the provider.
+     *
+     * @param mixed $transport Gateway transport outcome.
+     * @return callable
+     */
+    public static function probing($transport) {
+        return static function (array $settings) use ($transport) {
+            $service = new \Simplixi\SUPCheckout\Provider\PaymentMethodAvailability(
+                isset($settings['test_mode']) && $settings['test_mode'] === 'yes',
+                (string) $settings['api_key'],
+                static function () use ($transport) {
+                    return $transport;
+                }
+            );
+            return $service->probe();
+        };
+    }
+
+    /**
      * The fields of a healthy store.
      *
      * @return array<string, mixed>

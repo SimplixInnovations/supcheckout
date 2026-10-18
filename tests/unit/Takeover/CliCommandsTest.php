@@ -7,6 +7,7 @@ use Simplixi\SUPCheckout\Takeover\CliCommands;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
 use Simplixi\SUPCheckout\Takeover\Journal;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\Preflight;
 use Simplixi\SUPCheckout\Takeover\Quiesce;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 
@@ -112,6 +113,22 @@ final class CliCommandsTest extends TestCase {
 
         self::assertCount(1, $this->out, 'json mode prints exactly one document');
         self::assertSame($this->report, json_decode($this->out[0], true));
+    }
+
+    public function test_preflight_text_reports_a_provider_outage_instead_of_blaming_the_key(): void {
+        \supcheckout_test_reset_availability();
+        $this->report = Preflight::run_with(PreflightFixtures::env(array(
+            'availability' => PreflightFixtures::probing(array('transport_ok' => false, 'http_status' => 502, 'curl_errno' => 0, 'body' => '<html>Bad gateway</html>')),
+        )));
+
+        self::assertSame(CliCommands::BLOCKED, $this->cli()->preflight(false), 'an outage still blocks');
+
+        self::assertStringContainsString(
+            'credential_unverified: UPayments did not answer (HTTP 502). The UPayments service looks unavailable right now; your key and settings were not judged. Run the preflight again later.',
+            $this->printed()
+        );
+        self::assertStringNotContainsString('Check the key', $this->printed());
+        self::assertStringNotContainsString('Bad gateway', $this->printed());
     }
 
     // --- run. ---

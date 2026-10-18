@@ -426,7 +426,9 @@ final class PaymentMethodAvailability {
      *   record one, so it never calls inside the window;
      * - otherwise exactly one provider call, normalized like fetch(). It is not
      *   recorded in the gate, so a checkout refresh within the same minute may still
-     *   call once more: the only cost of not writing.
+     *   call once more: the only cost of not writing. A failed call returns
+     *   array('result' => 'failure', 'http_status' => int, 'provider_unavailable' => bool)
+     *   so Preflight can tell an outage from a refusal; never the body or headers.
      *
      * @return array|null Normalized provider data (result 'success'), a failure or
      *                    cooldown result, or null when the credential is empty.
@@ -452,8 +454,41 @@ final class PaymentMethodAvailability {
             return array('result' => 'cooldown');
         }
 
-        $payment_methods = self::normalize_provider_response(call_user_func($this->transport));
-        return $payment_methods === null ? array('result' => 'failure') : $payment_methods;
+        $transport = call_user_func($this->transport);
+        $payment_methods = self::normalize_provider_response($transport);
+        if ($payment_methods !== null) {
+            return $payment_methods;
+        }
+        return array(
+            'result' => 'failure',
+            'http_status' => is_array($transport) && isset($transport['http_status']) ? (int) $transport['http_status'] : 0,
+            'provider_unavailable' => self::is_provider_unavailable($transport),
+        );
+    }
+
+    /**
+     * Whether a failed provider call means UPayments did not answer, rather than that it
+     * refused the credential: a transport error or timeout, no HTTP status, an empty (or
+     * truncated) body, or HTTP 5xx (including Cloudflare's 520-527). HTTP 401/403 is a
+     * refusal even with an empty body. Used by probe() only; fetch() is unchanged.
+     *
+     * @param mixed $transport Hardened transport outcome.
+     * @return bool
+     */
+    private static function is_provider_unavailable($transport) {
+        if (!is_array($transport)) {
+            return true;
+        }
+        $status = isset($transport['http_status']) ? (int) $transport['http_status'] : 0;
+        if ($status === 401 || $status === 403) {
+            return false;
+        }
+        return (isset($transport['curl_errno']) && (int) $transport['curl_errno'] !== 0)
+            || $status <= 0
+            || $status >= 500
+            || !isset($transport['body'])
+            || !is_scalar($transport['body'])
+            || (string) $transport['body'] === '';
     }
 
     /**

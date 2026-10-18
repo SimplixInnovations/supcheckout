@@ -136,6 +136,57 @@ final class PreflightTest extends TestCase {
         self::assertNull(PreflightFixtures::find($verified['blocking'], 'credential_unverified'));
     }
 
+    /**
+     * Owner staging rehearsal: the UPayments sandbox answered HTTP 502 through Cloudflare
+     * and the report blamed the key. An outage (transport error, timeout, empty body or
+     * HTTP 5xx) is provider_unavailable, still BLOCKING; a refusal stays rejected.
+     */
+    public function test_credential_unverified_tells_a_provider_outage_from_a_rejected_key(): void {
+        $cases = array(
+            // label => array(transport outcome, expected reason, expected http_status or null)
+            'bad gateway' => array(array('transport_ok' => false, 'http_status' => 502, 'curl_errno' => 0, 'body' => '<html>502 Bad Gateway</html>'), 'provider_unavailable', 502),
+            'service unavailable' => array(array('transport_ok' => false, 'http_status' => 503, 'curl_errno' => 0, 'body' => ''), 'provider_unavailable', 503),
+            'curl error' => array(array('transport_ok' => false, 'http_status' => 0, 'curl_errno' => 1, 'body' => null), 'provider_unavailable', 0),
+            'empty body' => array(array('transport_ok' => true, 'http_status' => 201, 'curl_errno' => 0, 'body' => ''), 'provider_unavailable', 201),
+            'unauthorized' => array(array('transport_ok' => false, 'http_status' => 401, 'curl_errno' => 0, 'body' => '{"status":false,"message":"Unauthenticated."}'), 'rejected', null),
+            'status false' => array(array('transport_ok' => true, 'http_status' => 201, 'curl_errno' => 0, 'body' => '{"status":false,"message":"Invalid key"}'), 'rejected', null),
+        );
+        foreach ($cases as $label => list($transport, $reason, $http_status)) {
+            \supcheckout_test_reset_availability();
+            $report = Preflight::run_with(PreflightFixtures::env(array('availability' => PreflightFixtures::probing($transport))));
+            $blocking = PreflightFixtures::find($report['blocking'], 'credential_unverified');
+
+            self::assertNotNull($blocking, $label . ': still BLOCKING, never a switch without a verified credential');
+            self::assertSame($reason, $blocking['data']['reason'], $label);
+            $encoded = (string) json_encode($report);
+            self::assertStringNotContainsString('test-api-key-123', $encoded, $label);
+            self::assertStringNotContainsString('Bad Gateway', $encoded, $label . ': never the body');
+            self::assertStringNotContainsString('Unauthenticated', $encoded, $label . ': never the body');
+            if ($reason === 'provider_unavailable') {
+                self::assertSame($http_status, $blocking['data']['http_status'], $label . ': the HTTP status, as an int');
+                self::assertStringContainsString('UPayments did not answer', $blocking['message'], $label);
+                self::assertStringContainsString('your key and settings were not judged', $blocking['message'], $label);
+                self::assertStringNotContainsString('Check the key', $blocking['message'], $label);
+            } else {
+                self::assertArrayNotHasKey('http_status', $blocking['data'], $label);
+                self::assertStringContainsString('UPayments did not confirm the saved API key', $blocking['message'], $label);
+            }
+        }
+
+        $gateway = PreflightFixtures::find(
+            Preflight::run_with(PreflightFixtures::env(array('availability' => static function () {
+                return array('result' => 'failure', 'http_status' => 502, 'provider_unavailable' => true);
+            })))['blocking'],
+            'credential_unverified'
+        );
+        self::assertStringContainsString('(HTTP 502)', $gateway['message']);
+
+        \supcheckout_test_reset_availability();
+        $GLOBALS['supcheckout_test_options']['upayments_payment_methods_rate_gate_test'] = time() + 30;
+        $cooldown = Preflight::run_with(PreflightFixtures::env(array('availability' => PreflightFixtures::probing(null))));
+        self::assertSame('cooldown', PreflightFixtures::find($cooldown['blocking'], 'credential_unverified')['data']['reason'], 'cooldown is unchanged');
+    }
+
     public function test_account_mode_reports_white_label_or_hosted_and_enabled_methods(): void {
         $report = Preflight::run_with(PreflightFixtures::env(array(
             'availability' => static function (array $settings) {
@@ -695,7 +746,11 @@ final class PreflightTest extends TestCase {
         self::assertSame(0, $GLOBALS['supcheckout_test_http_calls'][1]['args']['redirection']);
         self::assertSame(array(), $GLOBALS['supcheckout_test_http_calls'][1]['args']['cookies']);
         self::assertTrue($GLOBALS['supcheckout_test_http_calls'][1]['args']['sslverify'], 'UPayments verifies TLS; so does the probe');
-        self::assertSame('rejected', PreflightFixtures::find($report['blocking'], 'credential_unverified')['data']['reason']);
+        // The one stubbed HTTP response (the probe acknowledgement: 200, empty body) also
+        // answers the provider GET, and an empty body is an outage, not a refusal.
+        $credential = PreflightFixtures::find($report['blocking'], 'credential_unverified');
+        self::assertSame('provider_unavailable', $credential['data']['reason']);
+        self::assertSame(200, $credential['data']['http_status']);
         self::assertNull(PreflightFixtures::find($report['blocking'], 'callback_unreachable'));
 
         self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls'], 'no option write');

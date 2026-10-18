@@ -279,6 +279,15 @@ final class Preflight {
         } elseif (isset($availability['result']) && $availability['result'] === 'cooldown') {
             $reason = 'cooldown';
             $message = __('The saved API key could not be checked because UPayments allows one availability request per minute. Run the preflight again in a minute.', 'supcheckout');
+        } elseif (isset($availability['provider_unavailable']) && $availability['provider_unavailable'] === true) {
+            // An outage (transport error, timeout, empty body, HTTP 5xx) judges nothing
+            // about the key. Still BLOCKING: never switch without a verified credential.
+            $http_status = isset($availability['http_status']) ? (int) $availability['http_status'] : 0;
+            return self::finding(self::BLOCKING, self::CREDENTIAL_UNVERIFIED, self::provider_unavailable_message($http_status), array(
+                'reason' => 'provider_unavailable',
+                'test_mode' => isset($settings['test_mode']) && $settings['test_mode'] === 'yes',
+                'http_status' => $http_status,
+            ));
         } else {
             $reason = 'rejected';
             // A rate-limited answer (one availability request per minute, and this
@@ -289,6 +298,18 @@ final class Preflight {
             'reason' => $reason,
             'test_mode' => isset($settings['test_mode']) && $settings['test_mode'] === 'yes',
         ));
+    }
+
+    /**
+     * @param int $http_status HTTP status of the failed probe; 0 when none arrived.
+     * @return string
+     */
+    private static function provider_unavailable_message($http_status) {
+        $answer = $http_status > 0
+            /* translators: %d: HTTP status code UPayments (or its proxy) returned, for example 502. */
+            ? sprintf(__('UPayments did not answer (HTTP %d).', 'supcheckout'), $http_status)
+            : __('UPayments did not answer (no HTTP response).', 'supcheckout');
+        return $answer . ' ' . __('The UPayments service looks unavailable right now; your key and settings were not judged. Run the preflight again later.', 'supcheckout');
     }
 
     /**
