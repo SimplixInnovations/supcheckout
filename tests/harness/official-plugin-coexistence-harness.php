@@ -250,8 +250,12 @@ foreach (array(
 
 // Sub-project 0b Task 9: the paused branch (PausedBoot) registers exactly the takeover CLI
 // under WP-CLI and, on a Preflight probe request alone, the probe answer on the new route;
-// nothing else, no global symbol, and only takeover classes load.
-$paused_files = 'SRC_FILES:["Autoloader.php","Gateway/OfficialPluginConflict.php","Takeover/Cli.php","Takeover/LegacyCallbackListener.php","Takeover/PausedBoot.php"]';
+// nothing else, no global symbol, and only takeover classes load. It also registers the
+// full boot's WooCommerce feature declarations (before_woocommerce_init, the same
+// Bootstrap\WooCommerceDeclarations callback): without them WooCommerce lists the paused
+// plugin as incompatible with HPOS and the Cart & Checkout blocks.
+$paused_files = 'SRC_FILES:["Autoloader.php","Bootstrap/WooCommerceDeclarations.php","Gateway/OfficialPluginConflict.php","Takeover/Cli.php","Takeover/LegacyCallbackListener.php","Takeover/PausedBoot.php"]';
+$paused_declarations = '"before_woocommerce_init=Simplixi\\\\SUPCheckout\\\\Bootstrap\\\\WooCommerceDeclarations::declare_compatibility"';
 $cli_command = '"supcheckout takeover=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Cli"';
 foreach (array(
     'official_first' => $official_first,
@@ -261,17 +265,17 @@ foreach (array(
     'sitewide' => $sitewide,
     'shim_official' => $shim_official,
 ) as $scenario => $result) {
-    coexistence_assert(strpos($result['out'], 'OTHER_HOOKS:[]') !== false, "paused ({$scenario}): a web request registers nothing but the conflict notice");
+    coexistence_assert(strpos($result['out'], 'OTHER_HOOKS:[' . $paused_declarations . ']') !== false, "paused ({$scenario}): a web request registers nothing but the conflict notice and the WooCommerce feature declarations");
     coexistence_assert(strpos($result['out'], 'CLI_COMMANDS:[]') !== false, "paused ({$scenario}): no command outside WP-CLI");
     coexistence_assert(strpos($result['out'], 'GLOBALS_ADDED:[]') !== false, "paused ({$scenario}): no global function or class is declared");
 }
-coexistence_assert(strpos($official_first['out'], $paused_files) !== false, 'paused: only the autoloader, the conflict guard and takeover classes load');
+coexistence_assert(strpos($official_first['out'], $paused_files) !== false, 'paused: only the autoloader, the conflict guard, the WooCommerce feature declarations and takeover classes load');
 $paused_cli = coexistence_run($root, 'paused_cli', $official_stub);
 coexistence_assert($paused_cli['code'] === 0 && strpos($paused_cli['out'], 'DIAGNOSTICS:[]') !== false, 'paused under WP-CLI: loads without error or diagnostic');
 coexistence_assert(strpos($paused_cli['out'], 'CLI_COMMANDS:[' . $cli_command . ']') !== false, 'paused under WP-CLI: exactly the `wp supcheckout takeover` command is registered');
 coexistence_assert(
-    strpos($paused_cli['out'], 'OTHER_HOOKS:[]') !== false && strpos($paused_cli['out'], 'GATEWAY_HOOKS:[]') !== false && strpos($paused_cli['out'], 'COPY_RUNNER_HOOKS:0') !== false,
-    'paused under WP-CLI: no gateway, route, cron or other hook'
+    strpos($paused_cli['out'], 'OTHER_HOOKS:[' . $paused_declarations . ']') !== false && strpos($paused_cli['out'], 'GATEWAY_HOOKS:[]') !== false && strpos($paused_cli['out'], 'COPY_RUNNER_HOOKS:0') !== false,
+    'paused under WP-CLI: no gateway, route, cron or other hook beyond the WooCommerce feature declarations'
 );
 coexistence_assert(strpos($paused_cli['out'], 'GLOBALS_ADDED:[]') !== false && strpos($paused_cli['out'], 'SUPCHECKOUT_VERSION:undefined') !== false, 'paused under WP-CLI: no global symbol, the runtime stays unloaded');
 coexistence_assert(strpos($paused_cli['out'], $paused_files) !== false, 'paused under WP-CLI: only takeover classes load at boot');
@@ -279,16 +283,16 @@ coexistence_assert(strpos($paused_cli['out'], 'OFFICIAL_LOADED') !== false, 'pau
 $paused_probe = coexistence_run($root, 'paused_probe', $official_stub);
 coexistence_assert(
     $paused_probe['code'] === 0
-        && strpos($paused_probe['out'], 'OTHER_HOOKS:["woocommerce_api_supcheckout=Simplixi\\\\SUPCheckout\\\\Takeover\\\\LegacyCallbackListener::handle_probe"]') !== false,
-    'paused probe request: only the probe answer on the new, unshared route (never woocommerce_api_wc_upayments, never the lifecycle)'
+        && strpos($paused_probe['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',"woocommerce_api_supcheckout=Simplixi\\\\SUPCheckout\\\\Takeover\\\\LegacyCallbackListener::handle_probe"]') !== false,
+    'paused probe request: only the WooCommerce feature declarations and the probe answer on the new, unshared route (never woocommerce_api_wc_upayments, never the lifecycle)'
 );
 coexistence_assert(strpos($paused_probe['out'], 'GLOBALS_ADDED:[]') !== false && strpos($paused_probe['out'], 'CLI_COMMANDS:[]') !== false, 'paused probe request: no global symbol, no command');
 $paused_environment = coexistence_run($root, 'paused_cli_environment', $official_stub);
 coexistence_assert($paused_environment['code'] === 0 && strpos($paused_environment['out'], 'DIAGNOSTICS:[]') !== false, 'paused CLI reading its install directory: no error or diagnostic');
 coexistence_assert(strpos($paused_environment['out'], 'OWN_DIR:supcheckout-main') !== false, 'paused CLI: the own install directory comes from plugin_basename(), whatever the directory is named');
 coexistence_assert(
-    strpos($paused_environment['out'], 'OTHER_HOOKS:[]') !== false && strpos($paused_environment['out'], 'GATEWAY_HOOKS:[]') !== false,
-    'paused CLI reading its install directory: no woocommerce_api_wc_upayments, reconcile cron or other hook is registered (Release/Identity.php never loads)'
+    strpos($paused_environment['out'], 'OTHER_HOOKS:[' . $paused_declarations . ']') !== false && strpos($paused_environment['out'], 'GATEWAY_HOOKS:[]') !== false,
+    'paused CLI reading its install directory: no woocommerce_api_wc_upayments, reconcile cron or other hook beyond the WooCommerce feature declarations is registered (Release/Identity.php never loads)'
 );
 coexistence_assert(strpos($paused_environment['out'], 'Release/Identity.php') === false && strpos($paused_environment['out'], 'Payment/PaymentLifecycle.php') === false, 'paused CLI: neither Identity.php nor PaymentLifecycle.php is loaded');
 $alone_cli = coexistence_run($root, 'alone_cli', $official_stub);
