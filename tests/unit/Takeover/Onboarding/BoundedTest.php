@@ -143,8 +143,55 @@ final class BoundedTest extends TestCase {
         self::assertSame(array(str_repeat('k', Bounded::KEY_LIMIT), 7), array_keys($out));
     }
 
+    public function test_two_thousand_small_maps_are_reduced_with_bounded_work(): void {
+        $encodes = new \ArrayObject(array('calls' => 0));
+        $doc = array();
+        for ($i = 0; $i < 2000; $i++) {
+            $doc['entry_' . $i] = array('a' => 1, 'b' => 2, 'c' => new CountingValue($encodes));
+        }
+
+        $out = Bounded::document($doc);
+
+        self::assertLessThanOrEqual(32768, strlen((string) wp_json_encode($out)));
+        self::assertMarked($out);
+        // Every full re-encode of the document serializes each surviving entry once. A
+        // reduction that re-encodes per entry needs millions of calls; this one needs a few
+        // passes over the 2000 entries.
+        self::assertLessThan(40000, $encodes['calls']);
+    }
+
+    public function test_two_thousand_small_lists_are_reduced_with_bounded_work(): void {
+        $encodes = new \ArrayObject(array('calls' => 0));
+        $doc = array();
+        for ($i = 0; $i < 2000; $i++) {
+            $doc['entry_' . $i] = array(array('xxxxxxxxxxxxxxxx', new CountingValue($encodes)));
+        }
+
+        $out = Bounded::document($doc);
+
+        self::assertLessThanOrEqual(32768, strlen((string) wp_json_encode($out)));
+        self::assertLessThan(40000, $encodes['calls']);
+    }
+
     /** @param array<array-key, mixed> $out */
     private static function assertMarked(array $out): void {
         self::assertStringContainsString('"_truncated":true', (string) wp_json_encode($out));
+    }
+}
+
+/** JSON value that counts how often it is serialized. */
+final class CountingValue implements \JsonSerializable {
+    /** @var \ArrayObject<string, int> */
+    private $counter;
+
+    /** @param \ArrayObject<string, int> $counter Shared call counter. */
+    public function __construct(\ArrayObject $counter) {
+        $this->counter = $counter;
+    }
+
+    #[\ReturnTypeWillChange]
+    public function jsonSerialize() {
+        $this->counter['calls'] = $this->counter['calls'] + 1;
+        return 'xxxxxxxxxxxxxxxx';
     }
 }

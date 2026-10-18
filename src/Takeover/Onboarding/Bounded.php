@@ -67,8 +67,14 @@ final class Bounded {
     }
 
     /**
-     * value(), then, while the JSON is over MAX_BYTES, the largest remaining list (or, when
-     * only maps are left, the largest nested map) is replaced by a one-item truncated marker.
+     * value(), then, while the JSON is over MAX_BYTES:
+     *  1. the largest lists are replaced by a one-item truncated marker, largest first;
+     *  2. the map with the most entries loses its largest entries, replaced by a
+     *     `_truncated` / `_omitted` marker, until the excess is covered;
+     *  3. when nothing is left to trim, the fixed envelope `array('_truncated' => true)`.
+     *
+     * Each phase works from sizes measured once, so the number of full encodes stays small
+     * however many entries the document has.
      *
      * @param array<array-key, mixed> $doc Document.
      * @return array<array-key, mixed>
@@ -77,52 +83,159 @@ final class Bounded {
         $bounded = self::value($doc);
         $bounded = is_array($bounded) ? $bounded : array();
 
-        while (self::size($bounded) > self::MAX_BYTES) {
-            $target = self::largest($bounded, array(), true);
-            if ($target !== null) {
-                $bounded = self::replace_at($bounded, $target['path'], array(array('truncated' => $target['count'])));
-                continue;
-            }
-            $target = self::largest($bounded, array(), false);
+        if (self::size($bounded) > self::MAX_BYTES) {
+            $bounded = self::collapse_lists($bounded);
+        }
+        while (($excess = self::size($bounded) - self::MAX_BYTES) > 0) {
+            $target = self::fullest_map($bounded, array());
             if ($target === null) {
-                return self::omit_largest_entries($bounded);
+                return array('_truncated' => true);
             }
-            $bounded = self::replace_at($bounded, $target['path'], array('_truncated' => true, '_omitted' => $target['count']));
+            $bounded = self::trim_map_at($bounded, $target['path'], $excess);
         }
         return $bounded;
     }
 
     /**
-     * Last-resort reduction of the top level: drop entries, largest first, until the
-     * remainder plus the `_truncated` / `_omitted` marker fits; if nothing fits, the fixed
-     * envelope.
+     * Replace lists with a truncated marker, largest first, until the document fits or no
+     * list is left. Sizes are measured once; descendants of a replaced list are skipped.
      *
-     * @param array<array-key, mixed> $doc Document with no replaceable nested array left.
+     * @param array<array-key, mixed> $doc Document.
      * @return array<array-key, mixed>
      */
-    private static function omit_largest_entries(array $doc) {
-        $sizes = array();
-        foreach ($doc as $key => $item) {
-            $sizes[$key] = self::entry_size($key, $item);
-        }
-        arsort($sizes);
-        $estimate = array_sum($sizes);
-        $omitted = 0;
-        foreach (array_keys($sizes) as $key) {
-            unset($doc[$key]);
-            $omitted++;
-            $estimate -= $sizes[$key];
-            if ($estimate + self::MARKER_BYTES > self::MAX_BYTES) {
+    private static function collapse_lists(array $doc) {
+        $candidates = array();
+        self::collect_lists($doc, array(), $candidates);
+        usort(
+            $candidates,
+            static function ($a, $b) {
+                return $b['size'] <=> $a['size'];
+            }
+        );
+
+        $estimate = self::size($doc);
+        $replaced = array();
+        foreach ($candidates as $candidate) {
+            if (self::is_under($candidate['path'], $replaced)) {
                 continue;
             }
-            $candidate = $doc;
-            $candidate['_truncated'] = true;
-            $candidate['_omitted'] = $omitted;
-            if (self::size($candidate) <= self::MAX_BYTES) {
-                return $candidate;
+            $marker = array(array('truncated' => $candidate['count']));
+            $doc = self::replace_at($doc, $candidate['path'], $marker);
+            $replaced[] = $candidate['path'];
+            $estimate += self::size($marker) - $candidate['size'];
+            if ($estimate <= self::MAX_BYTES && self::size($doc) <= self::MAX_BYTES) {
+                break;
             }
         }
-        return array('_truncated' => true);
+        return $doc;
+    }
+
+    /**
+     * @param mixed                                                         $node       Node.
+     * @param array<int, int|string>                                        $path       Path to the node.
+     * @param list<array{path:array<int, int|string>, size:int, count:int}> $candidates Collected lists.
+     * @return void
+     */
+    private static function collect_lists($node, array $path, array &$candidates) {
+        if (!is_array($node)) {
+            return;
+        }
+        foreach ($node as $key => $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+            $child_path = array_merge($path, array($key));
+            $collapsed = count($child) === 1 && isset($child[0]) && self::is_marker($child[0]);
+            if (self::is_list($child) && !$collapsed) {
+                $candidates[] = array('path' => $child_path, 'size' => self::size($child), 'count' => count($child));
+            }
+            self::collect_lists($child, $child_path, $candidates);
+        }
+    }
+
+    /**
+     * @param array<int, int|string>       $path     Path.
+     * @param list<array<int, int|string>> $replaced Paths already replaced.
+     * @return bool True when $path is inside one of them.
+     */
+    private static function is_under(array $path, array $replaced) {
+        foreach ($replaced as $prefix) {
+            if (array_slice($path, 0, count($prefix)) === $prefix) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param mixed                  $node Node.
+     * @param array<int, int|string> $path Path to the node.
+     * @return array{path:array<int, int|string>, count:int}|null The map (maybe the root, empty
+     *         path) with the most trimmable entries; null when no map has any.
+     */
+    private static function fullest_map($node, array $path) {
+        if (!is_array($node)) {
+            return null;
+        }
+        $count = self::trimmable_count($node);
+        $best = $count > 0 ? array('path' => $path, 'count' => $count) : null;
+        foreach ($node as $key => $child) {
+            $found = self::fullest_map($child, array_merge($path, array($key)));
+            if ($found !== null && ($best === null || $found['count'] > $best['count'])) {
+                $best = $found;
+            }
+        }
+        return $best;
+    }
+
+    /**
+     * @param mixed $map Node.
+     * @return int Entries of a map other than its own marker keys; 0 for lists and scalars.
+     */
+    private static function trimmable_count($map) {
+        if (!is_array($map) || self::is_list($map)) {
+            return 0;
+        }
+        return count($map) - (int) array_key_exists('_truncated', $map) - (int) array_key_exists('_omitted', $map);
+    }
+
+    /**
+     * Trim the map at $path (the root for an empty path) by omitting its largest entries
+     * until at least $excess bytes (plus the marker) are gone.
+     *
+     * @param array<array-key, mixed> $doc    Document.
+     * @param array<int, int|string>  $path   Path to a map.
+     * @param int                     $excess Bytes the document is over the limit.
+     * @return array<array-key, mixed>
+     */
+    private static function trim_map_at(array $doc, array $path, $excess) {
+        if ($path !== array()) {
+            $key = array_shift($path);
+            $child = isset($doc[$key]) && is_array($doc[$key]) ? $doc[$key] : array();
+            $doc[$key] = self::trim_map_at($child, $path, $excess);
+            return $doc;
+        }
+
+        $omitted = isset($doc['_omitted']) && is_int($doc['_omitted']) ? $doc['_omitted'] : 0;
+        $sizes = array();
+        foreach ($doc as $key => $item) {
+            if ($key !== '_truncated' && $key !== '_omitted') {
+                $sizes[$key] = self::entry_size($key, $item);
+            }
+        }
+        arsort($sizes);
+        $needed = $excess + self::MARKER_BYTES;
+        foreach ($sizes as $key => $size) {
+            unset($doc[$key]);
+            $omitted++;
+            $needed -= $size;
+            if ($needed <= 0) {
+                break;
+            }
+        }
+        $doc['_truncated'] = true;
+        $doc['_omitted'] = $omitted;
+        return $doc;
     }
 
     /**
@@ -146,44 +259,6 @@ final class Bounded {
     private static function size(array $doc) {
         $encoded = wp_json_encode($doc);
         return is_string($encoded) ? strlen($encoded) : self::MAX_BYTES + 1;
-    }
-
-    /**
-     * @param mixed                  $node       Node.
-     * @param array<int, int|string> $path       Path to the node.
-     * @param bool                   $lists_only True: only lists are eligible; false: only maps.
-     * @return array{path:array<int, int|string>, size:int, count:int}|null Largest eligible nested array.
-     */
-    private static function largest($node, array $path, $lists_only) {
-        if (!is_array($node)) {
-            return null;
-        }
-        $best = null;
-        foreach ($node as $key => $child) {
-            if (!is_array($child)) {
-                continue;
-            }
-            $child_path = array_merge($path, array($key));
-            $is_list = self::is_list($child);
-            $is_collapsed = $is_list ? (count($child) === 1 && self::is_marker($child[0])) : self::is_map_marker($child);
-            if ($is_list === $lists_only && !$is_collapsed) {
-                $best = self::bigger($best, array('path' => $child_path, 'size' => self::size($child), 'count' => count($child)));
-            }
-            $best = self::bigger($best, self::largest($child, $child_path, $lists_only));
-        }
-        return $best;
-    }
-
-    /**
-     * @param array{path:array<int, int|string>, size:int, count:int}|null $a First.
-     * @param array{path:array<int, int|string>, size:int, count:int}|null $b Second.
-     * @return array{path:array<int, int|string>, size:int, count:int}|null
-     */
-    private static function bigger($a, $b) {
-        if ($a === null || ($b !== null && $b['size'] > $a['size'])) {
-            return $b;
-        }
-        return $a;
     }
 
     /**
@@ -221,14 +296,6 @@ final class Bounded {
      */
     private static function is_list(array $items) {
         return $items === array() || array_keys($items) === range(0, count($items) - 1);
-    }
-
-    /**
-     * @param array<array-key, mixed> $item Map.
-     * @return bool True for `array('_truncated' => true, '_omitted' => <int>)`.
-     */
-    private static function is_map_marker(array $item) {
-        return count($item) === 2 && ($item['_truncated'] ?? null) === true && isset($item['_omitted']) && is_int($item['_omitted']);
     }
 
     /**
