@@ -103,6 +103,10 @@ function supcheckout_takeover_rest_admin() {
  */
 function supcheckout_takeover_rest_call($method, $route, $params = null, $user_id = null, $nonce = true) {
     $user_id = $user_id === null ? supcheckout_takeover_rest_admin() : (int) $user_id;
+    // Each real request starts with an empty runtime object cache; this long-lived process
+    // would otherwise serve options (and "option does not exist") cached before the
+    // Action Scheduler processes wrote them.
+    wp_cache_flush();
     wp_set_current_user($user_id);
     $request = new WP_REST_Request($method, '/' . Routes::NAMESPACE . $route);
     if ($params !== null) {
@@ -173,10 +177,12 @@ function supcheckout_takeover_rest_drive($op_id, $observe = null) {
             supcheckout_cert_assert(in_array(AsyncDriver::GROUP, array_column($queued['actions'], 'group'), true), 'the ' . $op['kind'] . ' operation has its drive action queued in the onboarding group: ' . wp_json_encode($queued));
         }
         $result = supcheckout_takeover_cert_wp('action-scheduler run --hooks=' . AsyncDriver::HOOK . ',' . AsyncDriver::WATCHDOG_HOOK . ' --batch-size=1 --batches=1 --force');
-        $completed = preg_match('/Success: ([0-9]+) scheduled task/', $result->stdout, $match) === 1 ? (int) $match[1] : -1;
-        $log[] = '#' . $run . ' ' . $op['phase'] . ' ran ' . $completed;
-        supcheckout_cert_assert($result->return_code === 0 && $completed >= 0, 'Action Scheduler run #' . $run . ' for the ' . $op['kind'] . ' operation succeeds: ' . $result->stdout . $result->stderr);
-        if ($completed === 0) {
+        // "Found N scheduled task(s)" is printed only for a claimed batch; the closing
+        // "Success: N ... completed" counts progress-bar ticks, which stay 0 without a TTY.
+        $claimed = preg_match('/Found ([0-9]+) scheduled task/', $result->stdout, $match) === 1 ? (int) $match[1] : 0;
+        $log[] = '#' . $run . ' ' . $op['phase'] . ' claimed ' . $claimed;
+        supcheckout_cert_assert($result->return_code === 0 && strpos($result->stdout, 'Success:') !== false, 'Action Scheduler run #' . $run . ' for the ' . $op['kind'] . ' operation succeeds: ' . $result->stdout . $result->stderr);
+        if ($claimed === 0) {
             sleep(SUPCHECKOUT_TAKEOVER_REST_PAUSE);
         }
     }
