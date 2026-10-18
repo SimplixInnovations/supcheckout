@@ -31,7 +31,9 @@ defined('ABSPATH') || exit;
  *     and between saved units (`yielded`, report `resume_at`; see BudgetedSystem), and the
  *     rerun resumes from the persisted progress;
  *  6. retire the legacy billing-attempts table under a fresh lease, after the transition:
- *     drain legacy claims (bounded); keep it while any legacy row is `claimed` or
+ *     drain legacy claims (bounded; with a BudgetedSystem it yields when the budget is
+ *     spent, releasing that lease, and the rerun drains on from the persisted drain start);
+ *     keep it while any legacy row is `claimed` or
  *     `dispatching`, any legacy row was updated after the cutover's sync (cut_over_at), or
  *     any legacy row is missing from the new table or further along than its new row
  *     (claimed < dispatching < held < resolved; unknown states fail closed); otherwise drop
@@ -478,10 +480,15 @@ final class Finalize {
                 }
                 continue;
             }
-            $out = $phase === FinalizeRemoval::PHASE_TABLE ? $this->retire_table() : FinalizeRemoval::step($this->store, $this->system, $removal, true);
+            $out = $phase === FinalizeRemoval::PHASE_TABLE ? $this->retire_table($removal) : FinalizeRemoval::step($this->store, $this->system, $removal, true);
             $this->absorb($out);
             if (in_array($out['status'], array('busy', 'lease_lost', 'official_active'), true)) {
                 return $out['status'];
+            }
+            if ($out['status'] === 'yielded') {
+                // The table drain ran out of budget (BudgetedSystem): its lease is released,
+                // the drain start is persisted, and the rerun drains again from there.
+                return $this->save_progress($out['progress'], true) ? $this->yield_until($this->system->now() + Cutover::DRAIN_POLL) : 'transition_refused';
             }
             $this->found += ($this->pass > 1 && $phase !== FinalizeRemoval::PHASE_TABLE) ? array_sum($out['removed']) : 0;
             // Units done before a lock or a failure stay done: persist them first.
@@ -605,11 +612,15 @@ final class Finalize {
     }
 
     /**
-     * Step 6 under its own lease.
+     * Step 6 under its own lease. With a BudgetedSystem, a drain still waiting when the budget
+     * is spent returns status `yielded` with the drain start in its progress (`drain_since`),
+     * and the lease is released: the rerun drains on from that start, so the
+     * Cutover::DRAIN_TIMEOUT bound holds across reruns and no worker polls past its budget.
      *
-     * @return array{status:string, progress:array{phase:string, cursor:int|string}, removed:array<string,int>, kept:list<array<string,mixed>>, table:string}
+     * @param array<string, mixed> $removal Removal progress (phase table; `drain_since` once a drain yielded).
+     * @return array{status:string, progress:array<string, int|string>, removed:array<string,int>, kept:list<array<string,mixed>>, table:string}
      */
-    private function retire_table() {
+    private function retire_table(array $removal) {
         $out = array('status' => FinalizeRemoval::DONE, 'progress' => array('phase' => FinalizeRemoval::PHASE_DONE, 'cursor' => 0),
             'removed' => FinalizeRemoval::no_removals(), 'kept' => array(), 'table' => 'table_absent');
         if (!$this->store->table_exists(CopyStore::TABLE_LEGACY)) {
@@ -631,7 +642,13 @@ final class Finalize {
                 $out['progress']['phase'] = FinalizeRemoval::PHASE_TABLE;
                 return $out;
             }
-            $verdict = $this->drain_legacy();
+            $since = isset($removal['drain_since']) ? (int) $removal['drain_since'] : $this->system->now();
+            $verdict = $this->drain_legacy($since);
+            if ($verdict === 'yielded') {
+                $out['status'] = 'yielded';
+                $out['progress'] = array('phase' => FinalizeRemoval::PHASE_TABLE, 'cursor' => 0, 'drain_since' => $since);
+                return $out;
+            }
             $rows = 0;
             if ($verdict === null) {
                 list($verdict, $rows) = $this->table_verdict(TakeoverState::get());
@@ -682,13 +699,17 @@ final class Finalize {
     }
 
     /**
-     * Wait, bounded, for legacy claim holders a cut-over worker pinned before the switch
-     * (CycleClaim releases a claim whose table is no longer in use).
+     * Wait, bounded (Cutover::DRAIN_TIMEOUT from $started_at), for legacy claim holders a
+     * cut-over worker pinned before the switch (CycleClaim releases a claim whose table is no
+     * longer in use). A budgeted run checks its budget before every wait and returns
+     * `yielded` once it is spent (a BudgetedSystem may skip a wait that does not fit, so
+     * polling on would spin on the database).
      *
-     * @return string|null `lease_lost` or `table_unreadable`, else null.
+     * @param int $started_at System time the drain started (persisted across yields).
+     * @return string|null `lease_lost`, `table_unreadable` or `yielded`, else null.
      */
-    private function drain_legacy() {
-        $deadline = $this->system->now() + Cutover::DRAIN_TIMEOUT;
+    private function drain_legacy($started_at) {
+        $deadline = (int) $started_at + Cutover::DRAIN_TIMEOUT;
         while (true) {
             $since = gmdate('Y-m-d H:i:s', $this->system->now() - Cutover::STALE_SECONDS);
             $open = $this->store->table_claims_open(CopyStore::TABLE_LEGACY, $since);
@@ -699,6 +720,9 @@ final class Finalize {
                 return null;
             }
             $this->report['legacy_claims_in_flight'] = $open;
+            if ($this->budget_spent()) {
+                return 'yielded';
+            }
             $this->system->sleep(Cutover::DRAIN_POLL);
             if (!$this->lease->maybe_renew()) {
                 return 'lease_lost';

@@ -1016,4 +1016,68 @@ final class FinalizeTest extends TestCase {
         self::assertSame('legacy_removed', $result['steps'][count($result['steps']) - 1]);
         self::assertSame(array(), $order->persisted_values('UPayments_PaymentID'));
     }
+    // --- 0c Task 6 carry-in: the table drain under a budget never polls in a loop. ---
+
+    /** Cut over, aged, a pinned legacy claim, and the removal settled up to the table drain. */
+    private function seed_table_drain(FakeBudgetedSystem $system, bool &$draining): void {
+        $this->seed_cut_over();
+        self::age(31);
+        $this->store->columns[] = 'updated_gmt';
+        $this->store->new_columns[] = 'updated_gmt';
+        $this->store->add_legacy_row(array('cycle_key' => self::key('6'), 'parent_order_id' => 7, 'owner_token' => 'w', 'state' => 'claimed', 'payment_id' => null, 'updated_gmt' => gmdate('Y-m-d H:i:s', self::T0)));
+        $system->on_step = static function ($step) use (&$draining) {
+            $draining = $draining || $step === 'rescanned';
+        };
+        $system->spent = static function () use (&$draining) {
+            return $draining;
+        };
+        self::assertSame('yielded', $this->finalize()->run(false)['error'], 'the settle barrier first');
+        $system->now = self::T0 + CopyRemoval::SETTLE_SECONDS;
+    }
+
+    public function test_a_budgeted_table_drain_yields_and_releases_the_lease_instead_of_polling(): void {
+        $system = $this->budgeted(self::T0);
+        $draining = false;
+        $this->seed_table_drain($system, $draining);
+        $now = $system->now;
+
+        $result = $this->finalize()->run(false);
+
+        self::assertSame('yielded', $result['error'], (string) json_encode($result));
+        self::assertSame($now + Cutover::DRAIN_POLL, $result['report']['resume_at']);
+        self::assertSame(1, $result['report']['legacy_claims_in_flight']);
+        self::assertSame('yielded', $result['steps'][count($result['steps']) - 1]);
+        self::assertSame(0, $system->sleeps, 'no wait past the budget');
+        self::assertTrue($this->store->table_exists('legacy'));
+        self::assertFalse(Quiesce::is_active($now), 'the table lease is released across the yield');
+        $progress = Finalize::progress_of(TakeoverState::get());
+        self::assertSame(array('phase' => 'table', 'cursor' => 0, 'drain_since' => $now), $progress['removal']);
+        self::assertTrue(Finalize::pending(TakeoverState::get()));
+
+        // The pinned worker gives its claim up; the rerun retires the table.
+        unset($this->store->tables['legacy'][self::key('6')]);
+        $draining = false;
+        $system->now = $now + Cutover::DRAIN_POLL;
+        $again = $this->finalize()->run(false);
+
+        self::assertTrue($again['ok'], (string) json_encode($again));
+        self::assertFalse($this->store->table_exists('legacy'));
+        self::assertNotContains('cron_removed', $again['steps'], 'only the table retirement is resumed');
+    }
+
+    public function test_a_budgeted_table_drain_stops_waiting_after_the_drain_timeout_and_keeps_the_table(): void {
+        $system = $this->budgeted(self::T0);
+        $draining = false;
+        $this->seed_table_drain($system, $draining);
+        $since = $system->now;
+        self::assertSame('yielded', $this->finalize()->run(false)['error']);
+
+        $system->now = $since + Cutover::DRAIN_TIMEOUT;
+        $result = $this->finalize()->run(false);
+
+        self::assertNull($result['error'], 'the persisted drain start bounds the re-entered waits: ' . json_encode($result));
+        self::assertArrayHasKey('billing_table:' . $this->legacy_table() . ':legacy_claims_open', self::kept($result));
+        self::assertTrue($this->store->table_exists('legacy'), 'fail closed: a claimed legacy row keeps the table');
+        self::assertSame(0, $system->sleeps);
+    }
 }

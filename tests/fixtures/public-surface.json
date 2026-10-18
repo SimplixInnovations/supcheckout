@@ -97,6 +97,22 @@
     },
     {
         "kind": "action",
+        "hook": "supcheckout_onboarding_drive",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "cli"
+    },
+    {
+        "kind": "action",
+        "hook": "supcheckout_onboarding_watchdog",
+        "priority": 10,
+        "accepted_args": 2,
+        "registered_in": "load",
+        "contexts": "cli"
+    },
+    {
+        "kind": "action",
         "hook": "supcheckout_process_due_parent",
         "priority": 10,
         "accepted_args": 3,
@@ -778,6 +794,22 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "supcheckout_onboarding_drive",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "supcheckout_onboarding_watchdog",
+        "priority": 10,
+        "accepted_args": 2,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "supcheckout_process_due_parent",
         "priority": 10,
         "accepted_args": 3,
@@ -1182,6 +1214,30 @@
     {
         "kind": "schedule_reference",
         "function": "as_has_scheduled_action",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_has_scheduled_action",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_has_scheduled_action",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "[0:string]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_has_scheduled_action",
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
         "args": "<param:array $args>",
@@ -1214,6 +1270,24 @@
     {
         "kind": "schedule_reference",
         "function": "as_schedule_single_action",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "[0:string]",
+        "unique": true,
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_schedule_single_action",
+        "hook": "supcheckout_onboarding_watchdog",
+        "group": "supcheckout-onboarding",
+        "args": "[0:string,1:string]",
+        "unique": false,
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_schedule_single_action",
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
         "args": "[parent_order_id:int,cycle_due_gmt:int,retry_attempt:int]",
@@ -1227,6 +1301,14 @@
         "group": "supcheckout",
         "args": "[]",
         "unique": true,
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_onboarding_watchdog",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
         "contexts": "static"
     },
     {
