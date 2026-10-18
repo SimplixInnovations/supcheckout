@@ -34,12 +34,12 @@
  */
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/lib/takeover-cert.php';
 
 use Simplixi\SUPCheckout\Takeover\CliCommands;
 use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 
-const SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL = 'upayments/UPayments.php';
 const SUPCHECKOUT_TAKEOVER_CERT_ORDERS = 'supcheckout_takeover_cert_orders';
 const SUPCHECKOUT_TAKEOVER_CERT_POST_CUTOVER = 'supcheckout_takeover_cert_post_cutover_order';
 
@@ -74,16 +74,6 @@ function supcheckout_takeover_cert_own_hooks() {
     $hooks = array_values(array_unique($hooks));
     sort($hooks);
     return $hooks;
-}
-
-/**
- * Run `wp <command>` in a fresh process, so it boots exactly as an operator's would.
- *
- * @param string $command Command after `wp`.
- * @return object{stdout:string, stderr:string, return_code:int}
- */
-function supcheckout_takeover_cert_wp($command) {
-    return WP_CLI::runcommand($command, array('return' => 'all', 'launch' => true, 'exit_error' => false));
 }
 
 /**
@@ -223,7 +213,7 @@ if ($phase === 'paused') {
     supcheckout_cert_assert($in_process['blocking'] === array(), 'an in-process paused Preflight reports nothing blocking');
     supcheckout_cert_assert(
         supcheckout_takeover_cert_own_hooks() === array('admin_notices', 'before_woocommerce_init', 'rest_api_init', 'supcheckout_onboarding_drive', 'supcheckout_onboarding_watchdog'),
-        'after a paused Preflight, SUPCheckout still has no woocommerce_api_wc_upayments, reconcile cron or other hook (only the conflict notice and the WooCommerce feature declarations): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
+        'after a paused Preflight, SUPCheckout still has no woocommerce_api_wc_upayments, reconcile cron or other hook (only the conflict notice, the WooCommerce feature declarations, the takeover REST routes and, under WP-CLI, the two onboarding driver hooks): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
     );
     supcheckout_cert_assert(!class_exists('Simplixi\\SUPCheckout\\Payment\\PaymentLifecycle', false), 'the payment lifecycle was never loaded while paused');
 

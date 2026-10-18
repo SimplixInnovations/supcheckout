@@ -22,7 +22,9 @@ jobs:
   runtime-matrix:
     name: WP ${{ matrix.wordpress }} / WC ${{ matrix.woocommerce }} / PHP ${{ matrix.php }} / ${{ matrix.storage }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 0c Task 9 adds the REST/Action Scheduler steps, about 5 minutes per cell (the rollback
+    # waits out its real 120 s settle barrier).
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -307,6 +309,37 @@ jobs:
           SUPCHECKOUT_CERT_PHASE: second_cycle
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      # Sub-project 0c Task 9: the admin REST API (supcheckout/v1) and the Action Scheduler
+      # onboarding driver on the same store (stand-in active, SUPCheckout paused, preflight_ok).
+      # Response headers are checked over real HTTP (nginx + PHP-FPM, up only for those steps);
+      # every other call runs in-process through rest_do_request(), and every Action Scheduler
+      # tick in a fresh `wp action-scheduler run` process. No provider traffic: the takeover
+      # HTTP mu-plugin answers both probes.
+      - name: Verify REST response headers over real HTTP while paused
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: bash tests/integration/takeover-rest-http.sh "$RUNNER_TEMP/wordpress"
+
+      - name: REST preflight and switch through Action Scheduler while paused
+        env:
+          SUPCHECKOUT_CERT_PHASE: rest_paused
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverRestTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: REST self-test, setup checks and finalize refusals on the switched store
+        env:
+          SUPCHECKOUT_CERT_PHASE: rest_switched
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverRestTest.php" --path="$RUNNER_TEMP/wordpress"
+
+      - name: Verify REST response headers over real HTTP on the switched store
+        env:
+          WP_CLI_BIN: /tmp/wp-cli.phar
+        run: bash tests/integration/takeover-rest-http.sh "$RUNNER_TEMP/wordpress"
+
+      - name: REST rollback through Action Scheduler (the settle is a scheduled resume)
+        env:
+          SUPCHECKOUT_CERT_PHASE: rest_rollback
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverRestTest.php" --path="$RUNNER_TEMP/wordpress"
+
       # Sub-project 0b Task 11, last because it is irreversible: cut over a third time, then
       # finalize (refused before 30 days, a read-only dry run, then forced after review).
       - name: Cut over again and finalize
@@ -319,10 +352,16 @@ jobs:
           SUPCHECKOUT_CERT_PHASE: finalized
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverCliTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: REST finalize sweep on the finalized store
+        env:
+          SUPCHECKOUT_CERT_PHASE: rest_sweep
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/TakeoverRestTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Remove takeover fixtures
         if: ${{ always() }}
         run: |
           rm -f "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-http.php"
+          rm -f "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-rest-http.php"
           rm -rf "$RUNNER_TEMP/wordpress/wp-content/plugins/upayments"
 
   compatibility-gate:
