@@ -26,7 +26,10 @@ defined('ABSPATH') || exit;
  *     progress line per poll, until CopyRemoval::SETTLE_SECONDS have passed since the
  *     transition (a request that read cut_over before it still dual-writes legacy names until
  *     it ends), and run full rescans (not cursor-bound) until one removes nothing, at most
- *     CopyRemoval::MAX_RESCANS (`removal_unsettled`, exit 4: rerun later);
+ *     CopyRemoval::MAX_RESCANS (`removal_unsettled`, exit 4: rerun later); with a
+ *     BudgetedSystem (0c, never WP-CLI) it yields instead of sleeping, at the settle barrier
+ *     and between saved units (`yielded`, report `resume_at`; see BudgetedSystem), and the
+ *     rerun resumes from the persisted progress;
  *  6. retire the legacy billing-attempts table under a fresh lease, after the transition:
  *     drain legacy claims (bounded); keep it while any legacy row is `claimed` or
  *     `dispatching`, any legacy row was updated after the cutover's sync (cut_over_at), or
@@ -501,6 +504,10 @@ final class Finalize {
             if ($removal['phase'] !== $phase && ($this->pass === 1 || $phase === FinalizeRemoval::PHASE_TABLE)) {
                 $this->step($phase === FinalizeRemoval::PHASE_TABLE ? (string) $out['table'] : $phase . '_removed');
             }
+            if ($removal['phase'] !== FinalizeRemoval::PHASE_DONE && $this->budget_spent()) {
+                // The unit's progress is saved: the rerun continues after it.
+                return $this->yield_until($this->system->now());
+            }
         }
         if (!$this->save_progress($removal, false)) {
             return 'transition_refused';
@@ -525,7 +532,10 @@ final class Finalize {
         }
         if ($this->pass === 1) {
             $this->step('legacy_swept');
-            $this->settle();
+            if (!$this->settle()) {
+                // The cursor pass stays persisted: the rerun settles, then rescans.
+                return 'yielded';
+            }
         } else {
             $this->step('rescanned');
             if ($this->found === 0) {
@@ -546,17 +556,43 @@ final class Finalize {
     /**
      * Wait, bounded, until CopyRemoval::SETTLE_SECONDS have passed since the transition: a
      * request or worker that read cut_over before it still dual-writes legacy names until it
-     * ends. No lease is held, so renewals are not paused.
+     * ends. No lease is held, so renewals are not paused. A budgeted run never sleeps:
+     * before the deadline it yields with `resume_at` = deadline.
      *
-     * @return void
+     * @return bool True once the deadline has passed, false when yielded.
      */
     private function settle() {
         $deadline = $this->transitioned_at + CopyRemoval::SETTLE_SECONDS;
+        if ($this->system instanceof BudgetedSystem) {
+            if ($this->system->now() < $deadline) {
+                $this->yield_until($deadline);
+                return false;
+            }
+            return true;
+        }
         while ($this->system->now() < $deadline) {
             // One progress line per poll (WP-CLI prints every step).
             $this->step('settling');
             $this->system->sleep(min(CopyRemoval::SETTLE_POLL, $deadline - $this->system->now()));
         }
+        return true;
+    }
+
+    /** @return bool A budgeted run whose budget is used up (never for WP-CLI). */
+    private function budget_spent() {
+        return $this->system instanceof BudgetedSystem && $this->system->budget_spent();
+    }
+
+    /**
+     * Hand control back (BudgetedSystem): the progress is already persisted.
+     *
+     * @param int $resume_at Unix time from which a rerun can make progress.
+     * @return string The `yielded` error code.
+     */
+    private function yield_until($resume_at) {
+        $this->report['resume_at'] = (int) $resume_at;
+        $this->step('yielded');
+        return 'yielded';
     }
 
     /**

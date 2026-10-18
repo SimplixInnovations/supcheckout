@@ -85,6 +85,7 @@ parameters:
         - src/Takeover/PausedBoot.php
         - src/Takeover/RollbackStore.php
         - src/Takeover/RollbackSystem.php
+        - src/Takeover/BudgetedSystem.php
         - src/Takeover/QuiesceLease.php
         - src/Takeover/BackSync.php
         - src/Takeover/JournalReplay.php

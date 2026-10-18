@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Takeover\BudgetedSystem;
 use Simplixi\SUPCheckout\Takeover\CopyRemoval;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
 use Simplixi\SUPCheckout\Takeover\CronRescheduler;
@@ -14,6 +15,7 @@ use Simplixi\SUPCheckout\Takeover\Rollback;
 use Simplixi\SUPCheckout\Takeover\SettingsCopier;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 use Simplixi\SUPCheckout\Takeover\ThirdPartyTranslator;
+use Simplixi\SUPCheckout\Takeover\WordPressCutoverSystem;
 
 /**
  * 0b Task 10: journal-driven rollback (cut_over → rolled_back → preflight_ok) and abort
@@ -927,5 +929,155 @@ final class RollbackTest extends TestCase {
         self::assertFalse(Rollback::removal_pending(TakeoverState::get()));
         self::assertSame(array(), $order->persisted_values('_supcheckout_payment_id'));
         self::assertTrue(CopyRunner::begin());
+    }
+
+    // --- 0c Task 3: a budgeted (asynchronous) run yields instead of sleeping. ---
+
+    private function budgeted(int $now): FakeBudgetedSystem {
+        $system = new FakeBudgetedSystem();
+        $system->now = $now;
+        $this->system = $system;
+        return $system;
+    }
+
+    /** @return array<string, mixed> The persisted rollback progress. */
+    private static function progress(): array {
+        TakeoverState::refresh();
+        return TakeoverState::get()[Rollback::PROGRESS];
+    }
+
+    public function test_a_budgeted_rollback_yields_at_the_settle_barrier_instead_of_sleeping(): void {
+        $system = $this->budgeted(5000);
+        $this->seed_cut_over();
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame('yielded', $result['error'], (string) json_encode($result));
+        self::assertFalse($result['ok']);
+        self::assertSame(5120, $result['report']['resume_at']);
+        self::assertSame(0, $system->sleeps);
+        self::assertSame('rolled_back', TakeoverState::get()['status']);
+        self::assertTrue(Rollback::removal_pending(TakeoverState::get()));
+        self::assertSame('yielded', $result['steps'][count($result['steps']) - 1]);
+        self::assertNotContains('settling', $result['steps']);
+        self::assertContains('copies_removed', $result['steps']);
+        $progress = self::progress();
+        self::assertSame(5000, $progress['transitioned_at'], 'the settle reference time is persisted');
+        self::assertSame(1, $progress['pass'], 'still the cursor pass: a rerun settles before any rescan');
+        self::assertSame(CopyRemoval::PHASE_DONE, $progress['removal']['phase']);
+        self::assertFalse(Quiesce::is_active(5000), 'no lease is held across the yield');
+    }
+
+    public function test_a_yielded_rollback_resumes_after_the_deadline_and_completes(): void {
+        $system = $this->budgeted(5000);
+        $this->seed_cut_over();
+        self::assertSame('yielded', $this->rollback()->run(false)['error']);
+
+        $system->now = 5060;
+        $early = $this->rollback()->run(false);
+        self::assertSame('yielded', $early['error'], 'before the deadline it yields again');
+        self::assertSame(5120, $early['report']['resume_at'], 'the settle reference time is kept');
+        self::assertSame('rolled_back', TakeoverState::get()['status']);
+
+        $system->now = 5120;
+        $result = $this->rollback()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertNull($result['error']);
+        self::assertSame(array('rescanned', 'removal_settled', 'preflight_ok'), array_slice($result['steps'], -3));
+        self::assertNotContains('settling', $result['steps'], 'no second wait');
+        self::assertSame(0, $system->sleeps);
+        self::assertSame('preflight_ok', TakeoverState::get()['status']);
+        self::assertFalse(Rollback::removal_pending(TakeoverState::get()));
+        self::assertSame(array(), $this->store->tables['new']);
+        self::assertSame(array(), $GLOBALS['supcheckout_test_status_orders'][7]->persisted_values('_supcheckout_payment_id'));
+        self::assertSame(array(), $GLOBALS['supcheckout_test_status_orders'][8]->persisted_values('_supcheckout_payment_id'));
+        self::assertFalse(get_option('supcheckout_subscription_enrollment_cursor', false));
+        self::assertArrayNotHasKey(self::LATE_SCOPE_KEY, $this->store->user_meta[5]);
+    }
+
+    public function test_a_budget_spent_mid_removal_yields_after_one_saved_unit(): void {
+        $system = $this->budgeted(5000);
+        $this->seed_cut_over();
+        $system->spent = true;
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame('yielded', $result['error'], (string) json_encode($result));
+        self::assertSame(5000, $result['report']['resume_at'], 'resume at once: only the budget ran out');
+        self::assertSame(1, $system->budget_checks, 'asked once, after the first saved unit');
+        self::assertSame(array('cron_restored', 'yielded'), array_slice($result['steps'], -2));
+        self::assertSame(array('phase' => CopyRemoval::PHASE_ORDERS, 'cursor' => 0), self::progress()['removal'], 'the persisted cursor advanced by exactly one unit');
+        self::assertTrue(Rollback::removal_pending(TakeoverState::get()));
+        self::assertSame('rolled_back', TakeoverState::get()['status']);
+
+        $system->spent = false;
+        $system->now = 5120;
+        $again = $this->rollback()->run(false);
+        self::assertTrue($again['ok'], (string) json_encode($again));
+        self::assertNotContains('cron_restored', $again['steps'], 'the cron unit is not repeated');
+        self::assertSame('preflight_ok', TakeoverState::get()['status']);
+        self::assertSame(array(), $this->store->tables['new']);
+    }
+
+    public function test_a_rescan_yielded_mid_pass_resumes_from_its_cursor_and_keeps_its_count(): void {
+        $system = $this->budgeted(self::T0);
+        $this->seed_cut_over();
+        $order = $GLOBALS['supcheckout_test_status_orders'][7];
+        $armed = false;
+        $system->on_step = static function ($step) use (&$armed, $system, $order) {
+            if ($step === 'copies_removed') {
+                // A late writer after the cursor passed, and the settle time already over.
+                $order->external_write('_supcheckout_payment_id', array('late'));
+                $system->now += CopyRemoval::SETTLE_SECONDS;
+                $armed = true;
+            }
+        };
+        $checks = 0;
+        $system->spent = static function () use (&$armed, &$checks) {
+            // Out of budget after the rescan's cron unit and its first order batch.
+            return $armed && ++$checks === 2;
+        };
+
+        $first = $this->rollback()->run(false);
+
+        self::assertSame('yielded', $first['error'], (string) json_encode($first));
+        $progress = self::progress();
+        self::assertSame(2, $progress['pass']);
+        self::assertSame(1, $progress['found'], 'the late copy the rescan removed is counted');
+        self::assertSame(CopyRemoval::PHASE_ORDERS, $progress['removal']['phase']);
+
+        $system->on_step = null;
+        $system->spent = false;
+        $again = $this->rollback()->run(false);
+
+        self::assertTrue($again['ok'], (string) json_encode($again));
+        self::assertCount(2, array_keys($again['steps'], 'rescanned', true), 'the yielded rescan ends with its count, so one more clean rescan follows');
+        self::assertSame(1, $again['report']['late_copies_removed']);
+        self::assertSame(array(), $order->persisted_values('_supcheckout_payment_id'));
+        self::assertSame('preflight_ok', TakeoverState::get()['status']);
+    }
+
+    public function test_a_budgeted_abort_yields_at_the_settle_barrier_and_resumes(): void {
+        $system = $this->budgeted(5000);
+        $order = $this->seed_verified();
+        \Simplixi\SUPCheckout\Takeover\OrderCopier::copy($order, false);
+
+        $first = $this->rollback()->abort(false);
+        self::assertSame('yielded', $first['error'], (string) json_encode($first));
+        self::assertSame(5120, $first['report']['resume_at']);
+        self::assertTrue(Rollback::removal_pending(TakeoverState::get()));
+        self::assertFalse(CopyRunner::begin(), 'no copy starts while the abort is yielded');
+
+        $system->now = 5120;
+        $again = $this->rollback()->abort(false);
+        self::assertTrue($again['ok'], (string) json_encode($again));
+        self::assertSame(0, $system->sleeps);
+        self::assertFalse(Rollback::removal_pending(TakeoverState::get()));
+        self::assertSame(array(), $order->persisted_values('_supcheckout_payment_id'));
+    }
+
+    public function test_the_wordpress_system_never_yields(): void {
+        self::assertNotInstanceOf(BudgetedSystem::class, new WordPressCutoverSystem());
     }
 }

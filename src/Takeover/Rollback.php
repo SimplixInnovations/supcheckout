@@ -43,7 +43,9 @@ defined('ABSPATH') || exit;
  *     CopyRemoval::SETTLE_SECONDS have passed since the transition (a late writer that read
  *     the old state may still dual-write), and run full rescans (not cursor-bound) until one
  *     finds nothing, at most CopyRemoval::MAX_RESCANS (`removal_unsettled`, exit 4: rerun);
- *     abort's removal settles the same way;
+ *     abort's removal settles the same way; with a BudgetedSystem (0c, never WP-CLI) it
+ *     yields instead of sleeping, at the settle barrier and between saved units (`yielded`,
+ *     report `resume_at`; see BudgetedSystem), and the rerun resumes;
  * 10. record the journal floor (the removal complete only after a clean rescan) and
  *     transition rolled_back → preflight_ok;
  * 11. if consented, reactivate the official install the takeover recorded as deactivated
@@ -479,10 +481,12 @@ final class Rollback {
         $this->pass = isset($progress['pass']) ? max(1, (int) $progress['pass']) : 1;
         $this->found = isset($progress['found']) ? (int) $progress['found'] : 0;
         $this->transitioned_at = isset($progress['transitioned_at']) ? (int) $progress['transitioned_at'] : $this->system->now();
-        if ($this->pass > 1) {
+        if ($this->pass > 1 && empty($progress['yielded'])) {
             // A rerun after `removal_unsettled` (or a crash mid-rescan): start a fresh rescan
             // cycle. The settle reference time is kept, so the wait is not repeated; the
-            // removal completes once a full rescan comes back clean.
+            // removal completes once a full rescan comes back clean. A rescan that yielded
+            // (BudgetedSystem) instead continues from its saved cursor with its pass and
+            // count: restarting it would never finish a rescan longer than one budget.
             $this->pass = 2;
             $this->found = 0;
             $removal = CopyRemoval::start();
@@ -507,11 +511,16 @@ final class Rollback {
             $locked = 0;
             $this->found += $this->pass > 1 ? $out['removed'] : 0;
             $removal = $out['progress'];
-            if (!$this->save_progress($status, $removal, true)) {
+            $spent = $this->budget_spent();
+            if (!$this->save_progress($status, $removal, true, $spent)) {
                 return 'transition_refused';
             }
             if ($was === CopyRemoval::PHASE_CRON && $this->pass === 1) {
                 $this->step('cron_restored');
+            }
+            if ($spent) {
+                // The unit's progress is saved: the rerun continues after it.
+                return $this->yield_until($this->system->now());
             }
             if ($out['status'] !== CopyRemoval::DONE) {
                 continue;
@@ -532,16 +541,18 @@ final class Rollback {
     /**
      * After a removal pass: the cursor pass waits for the settle time; a rescan that found
      * nothing completes the removal; one that removed late copies starts another rescan, at
-     * most CopyRemoval::MAX_RESCANS in all.
+     * most CopyRemoval::MAX_RESCANS in all. A budgeted run yields at the settle barrier with
+     * the cursor pass still persisted, so its rerun settles (without a second wait once the
+     * deadline has passed) before the first rescan.
      *
      * @param string $status Status the progress belongs to.
-     * @return bool|string|null True when complete, an error code, or null for another pass.
+     * @return bool|string|null True when complete, an error code (`yielded` included), or null for another pass.
      */
     private function end_pass($status) {
         if ($this->pass === 1) {
             $this->step('copies_removed');
             if (!$this->settle()) {
-                return 'transition_refused';
+                return 'yielded';
             }
         } else {
             $this->step('rescanned');
@@ -560,12 +571,20 @@ final class Rollback {
 
     /**
      * Wait, bounded, until CopyRemoval::SETTLE_SECONDS have passed since the transition, so a
-     * request that read the old state before it has ended before the final rescans.
+     * request that read the old state before it has ended before the final rescans. A
+     * budgeted run never sleeps: before the deadline it yields with `resume_at` = deadline.
      *
-     * @return bool
+     * @return bool True once the deadline has passed, false when yielded.
      */
     private function settle() {
         $deadline = $this->transitioned_at + CopyRemoval::SETTLE_SECONDS;
+        if ($this->system instanceof BudgetedSystem) {
+            if ($this->system->now() < $deadline) {
+                $this->yield_until($deadline);
+                return false;
+            }
+            return true;
+        }
         while ($this->system->now() < $deadline) {
             // One progress line per poll (WP-CLI prints every step).
             $this->step('settling');
@@ -574,14 +593,32 @@ final class Rollback {
         return true;
     }
 
+    /** @return bool A budgeted run whose budget is used up (never for WP-CLI). */
+    private function budget_spent() {
+        return $this->system instanceof BudgetedSystem && $this->system->budget_spent();
+    }
+
+    /**
+     * Hand control back (BudgetedSystem): the progress is already persisted.
+     *
+     * @param int $resume_at Unix time from which a rerun can make progress.
+     * @return string The `yielded` error code.
+     */
+    private function yield_until($resume_at) {
+        $this->report['resume_at'] = (int) $resume_at;
+        $this->step('yielded');
+        return 'yielded';
+    }
+
     /**
      * @param string               $status  Status the progress belongs to.
      * @param array<string, mixed> $removal Removal progress.
      * @param bool                 $pending Removal still pending.
+     * @param bool                 $yielded The run yields after this save (a rescan resumes from its cursor).
      * @return bool
      */
-    private function save_progress($status, array $removal, $pending) {
-        $fields = array(self::PROGRESS => array(
+    private function save_progress($status, array $removal, $pending, $yielded = false) {
+        $progress = array(
             'mode' => $this->mode,
             'conflicts' => $this->conflicts,
             'restored' => $this->restored,
@@ -590,7 +627,11 @@ final class Rollback {
             'transitioned_at' => $this->transitioned_at,
             'pass' => $this->pass,
             'found' => $this->found,
-        ));
+        );
+        if ($yielded) {
+            $progress['yielded'] = true;
+        }
+        $fields = array(self::PROGRESS => $progress);
         if (!$pending) {
             $fields[self::FLOOR] = count(Journal::entries());
         }

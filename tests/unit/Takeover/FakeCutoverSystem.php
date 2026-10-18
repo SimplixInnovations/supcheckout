@@ -6,9 +6,9 @@ use Simplixi\SUPCheckout\Takeover\RollbackSystem;
 
 /**
  * In-memory CutoverSystem: a WP-Cron array, the official plugin's active entry and a
- * clock that sleep() advances.
+ * clock that sleep() advances. Not final: FakeBudgetedSystem adds a budget to it.
  */
-final class FakeCutoverSystem implements RollbackSystem {
+class FakeCutoverSystem implements RollbackSystem {
     /** @var list<string> Installed official plugins (any status). */
     public $installed = array('upayments/UPayments.php');
     /** @var list<string> */

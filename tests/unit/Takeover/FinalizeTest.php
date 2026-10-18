@@ -945,4 +945,75 @@ final class FinalizeTest extends TestCase {
     private function legacy_table(): string {
         return (string) array_keys(Keys::tables())[0];
     }
+
+    // --- 0c Task 3: a budgeted (asynchronous) run yields instead of sleeping. ---
+
+    private function budgeted(int $now): FakeBudgetedSystem {
+        $system = new FakeBudgetedSystem();
+        $system->now = $now;
+        $this->system = $system;
+        return $system;
+    }
+
+    public function test_a_budgeted_finalize_yields_at_the_settle_barrier_and_resumes_to_legacy_removed(): void {
+        $system = $this->budgeted(5000);
+        $order = $this->seed_cut_over();
+        self::age(31);
+
+        $first = $this->finalize()->run(false);
+
+        self::assertSame('yielded', $first['error'], (string) json_encode($first));
+        self::assertSame(5120, $first['report']['resume_at'], 'transitioned_at + CopyRemoval::SETTLE_SECONDS');
+        self::assertSame(array('legacy_swept', 'yielded'), array_slice($first['steps'], -2));
+        self::assertNotContains('settling', $first['steps']);
+        self::assertSame(0, $system->sleeps);
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
+        self::assertTrue(Finalize::pending(TakeoverState::get()));
+        $progress = Finalize::progress_of(TakeoverState::get());
+        self::assertSame(1, $progress['pass'], 'still the cursor pass: a rerun settles before any rescan');
+        self::assertSame(5000, $progress['transitioned_at']);
+        self::assertTrue($this->store->table_exists('legacy'), 'the table is never retired before the settle');
+        self::assertFalse(Quiesce::is_active(5000), 'no lease is held across the yield');
+
+        $system->now = 5119;
+        self::assertSame('yielded', $this->finalize()->run(false)['error'], 'before the deadline it yields again');
+
+        $system->now = 5120;
+        $result = $this->finalize()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame('legacy_removed', $result['steps'][count($result['steps']) - 1]);
+        self::assertContains('rescanned', $result['steps']);
+        self::assertNotContains('settling', $result['steps'], 'no second wait');
+        self::assertSame(0, $system->sleeps);
+        self::assertFalse(Finalize::pending(TakeoverState::get()));
+        self::assertSame(array(), $order->persisted_values('UPayments_PaymentID'));
+        self::assertFalse($this->store->table_exists('legacy'));
+    }
+
+    public function test_a_budget_spent_mid_finalize_removal_yields_after_one_saved_unit(): void {
+        $system = $this->budgeted(5000);
+        $order = $this->seed_cut_over();
+        self::age(31);
+        $system->spent = true;
+
+        $first = $this->finalize()->run(false);
+
+        self::assertSame('yielded', $first['error'], (string) json_encode($first));
+        self::assertSame(5000, $first['report']['resume_at'], 'resume at once: only the budget ran out');
+        self::assertSame(1, $system->budget_checks, 'asked once, after the first saved unit');
+        self::assertSame(array('cron_removed', 'yielded'), array_slice($first['steps'], -2));
+        $progress = Finalize::progress_of(TakeoverState::get());
+        self::assertSame(array('phase' => 'orders', 'cursor' => 0), $progress['removal'], 'the persisted cursor advanced by exactly one unit');
+        self::assertTrue(Finalize::pending(TakeoverState::get()));
+
+        $system->spent = false;
+        $system->now = 5120;
+        $result = $this->finalize()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertNotContains('cron_removed', $result['steps'], 'the cron unit is not repeated');
+        self::assertSame('legacy_removed', $result['steps'][count($result['steps']) - 1]);
+        self::assertSame(array(), $order->persisted_values('UPayments_PaymentID'));
+    }
 }

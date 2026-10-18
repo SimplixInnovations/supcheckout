@@ -66,6 +66,7 @@
     <file>src/Takeover/ThirdPartyTranslator.php</file>
     <file>src/Takeover/CronRescheduler.php</file>
     <file>src/Takeover/CutoverSystem.php</file>
+    <file>src/Takeover/BudgetedSystem.php</file>
     <file>src/Takeover/WordPressCutoverSystem.php</file>
     <file>src/Takeover/Cutover.php</file>
     <file>src/Takeover/StaleClaimStore.php</file>

@@ -62,6 +62,8 @@ final class Onboarding {
         'transition_refused' => Outcome::BUSY,
         'removal_busy' => Outcome::BUSY,
         'removal_unsettled' => Outcome::BUSY,
+        // Only with a BudgetedSystem (the 0c driver); WP-CLI never yields.
+        'yielded' => Outcome::BUSY,
         'official_active' => Outcome::BLOCKED,
         'stale_claims' => Outcome::STALE_CLAIMS,
         'not_cut_over' => Outcome::STATE,
@@ -78,6 +80,8 @@ final class Onboarding {
         'transition_refused' => Outcome::BUSY,
         'removal_busy' => Outcome::BUSY,
         'removal_unsettled' => Outcome::BUSY,
+        // Only with a BudgetedSystem (the 0c driver); WP-CLI never yields.
+        'yielded' => Outcome::BUSY,
         'official_active' => Outcome::BLOCKED,
         'not_cut_over' => Outcome::STATE,
         'too_early' => Outcome::STATE,
@@ -403,14 +407,15 @@ final class Onboarding {
 
     /**
      * Precedence: an error first (its own code), then conflicts (8), then a failed
-     * reactivation (9). Every conflict and the reactivation warning are in `lines()`.
+     * reactivation (9). Every conflict and the reactivation warning are in `lines()`. A
+     * budgeted run that yielded is BUSY (`yielded`) with `data['resume_at']`.
      *
      * @param string               $mode   Mode.
      * @param array<string, mixed> $result Rollback::run() / abort().
      * @return Outcome
      */
     public static function rewind_outcome($mode, array $result) {
-        $data = array('result' => $result);
+        $data = self::engine_data($result);
         $lines = array_merge(array('takeover ' . $mode . ' steps: ' . implode(', ', $result['steps'])), Lines::cache_purge_lines($result));
         foreach ($result['conflicts'] as $conflict) {
             $lines[] = 'conflict: seq ' . $conflict['seq'] . ' ' . $conflict['target'] . ' ' . $conflict['path'] . ' (kept; the owner decides)';
@@ -439,6 +444,21 @@ final class Onboarding {
             return Outcome::fail(Outcome::OFFICIAL_NOT_REACTIVATED, 'official_not_reactivated', $done . ', but the official UPayments plugin was not reactivated; activate it yourself', $data, $lines);
         }
         return Outcome::ok($done . ' (restored ' . $result['restored'] . ')', $data, $lines);
+    }
+
+    /**
+     * `data['result']`, plus `data['resume_at']` when the engine yielded (BudgetedSystem):
+     * the Unix time from which rerunning the same call makes progress.
+     *
+     * @param array<string, mixed> $result Rollback or Finalize result.
+     * @return array<string, mixed>
+     */
+    private static function engine_data(array $result) {
+        $data = array('result' => $result);
+        if ($result['error'] === 'yielded') {
+            $data['resume_at'] = isset($result['report']['resume_at']) ? (int) $result['report']['resume_at'] : 0;
+        }
+        return $data;
     }
 
     /** @return bool The store and system can run Finalize. */
@@ -496,13 +516,14 @@ final class Onboarding {
     }
 
     /**
-     * Precedence: an error first (its own code), then kept values (8).
+     * Precedence: an error first (its own code), then kept values (8). A budgeted run that
+     * yielded is BUSY (`yielded`) with `data['resume_at']`.
      *
      * @param array<string, mixed> $result Finalize::run().
      * @return Outcome
      */
     public static function finalize_outcome(array $result) {
-        $data = array('result' => $result);
+        $data = self::engine_data($result);
         $lines = array_merge(
             array('takeover finalize steps: ' . implode(', ', $result['steps'])),
             Lines::cache_purge_lines($result),
