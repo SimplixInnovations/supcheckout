@@ -22,13 +22,13 @@ Historical Approach 2 (superseded): source `0c883d609906676966002eb022a82a9656ee
 
 Approach 3 advanced through T3 at `a7a8bbfc3a1dc551127b7ead897c964e95c7cec9`. The completed post-T3 R0/R1/E1-E3 integration milestone was squash-merged through PR #108 to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; T2 `047cc86060efb97761d7a0cc4a3806f971ab6fe1` remains the last separately tracked runtime-bearing tranche before that milestone.
 
-Current successor program: `external-certification-release-readiness`. R2 is **DONE / VERIFIED** (PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`). R3 is **DONE / VERIFIED** (PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`). R4 is **DONE / VERIFIED** (PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`). R5 is **DONE / VERIFIED** (PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`). R6 is **DONE / VERIFIED** (PR #119 head `4eccf884f95fe510a478c243ecb32d039f9468a9`, merged main `3bd37c6a925ec724c7fbf8d8c0346fd7e21931cf`). The current gate is external certification & release readiness. Publication remains NOT AUTHORIZED. For the narrower first public core one-time-payment scope, the provider-dependent contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13, account-scoped, packages containing PR #138); saved-card/token and recurring contracts remain deferred feature gates.
+Current successor program: `external-certification-release-readiness`. R2 is **DONE / VERIFIED** (PR #110 head `5a4f83efa7bda0b5d6169811308800270c888d6c`, merged main `1c95bc9434784c705e98245f3f9d65f95f4de7ef`). R3 is **DONE / VERIFIED** (PR #112 head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`). R4 is **DONE / VERIFIED** (PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`). R5 is **DONE / VERIFIED** (PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`). R6 is **DONE / VERIFIED** (PR #119 head `4eccf884f95fe510a478c243ecb32d039f9468a9`, merged main `3bd37c6a925ec724c7fbf8d8c0346fd7e21931cf`). The current executable gate is the revamp takeover staging rehearsal (below); the release gate, external certification & release readiness, stays open. Publication remains NOT AUTHORIZED. For the narrower first public core one-time-payment scope, the provider-dependent contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13, account-scoped, packages containing PR #138); saved-card/token and recurring contracts remain deferred feature gates.
 
 Latest repository-executable E3 runtime checkpoint is `540b733c29656758f2392817649fc3d4a4db585d`; its deterministic 55-file candidate package SHA-256 is `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c`.
 
 At that E3 checkpoint, Quality/H12, the 20-cell Compatibility matrix and gate, Provider Sandbox, WordPress.org Submission Check, Release Artifact, the full repository-owned Ecosystem Certification matrix, delayed/combined/repeated Classic JS characterization and analytics-return characterization all passed. The historical default CodeQL JavaScript/TypeScript job did not reach a terminal verdict; do not rewrite that as success.
 
-Current executable gate: **external certification & release readiness**. Release Candidate 1 owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
+Release gate (open): **external certification & release readiness**. Release Candidate 1 owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 Current provider disposition after exhaustive first-party research:
 
@@ -45,6 +45,8 @@ See `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md` and
 
 Release Candidate 1 is the current owner-accepted technical baseline; Approach 3 is historical. Publication remains NOT AUTHORIZED. Unresolved provider contracts remain uncertified.
 
+Active engineering program (reconciled 2026-10-18): the SUPCheckout revamp (`docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`). Sub-project 0a clean core is **DONE / VERIFIED** and staging-rehearsed ([evidence](evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md)). Sub-project 0b takeover engine Tasks 1–12 are merged (PRs #173–#184 except #178) and the Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`. Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 on a UPayments sandbox outage (HTTP 502). Record it in `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`. Details: `PROJECT-STATUS.md` "Revamp program".
+
 ## 2. Golden identity
 
 Human-facing product: **SUPCheckout for UPayments**
@@ -55,8 +57,8 @@ Technical contracts:
 - namespace: `Simplixi\SUPCheckout`;
 - package root: `supcheckout/`;
 - main file: `supcheckout/supcheckout.php` (a header-less transitional `supcheckout/UPayments.php` shim moves pre-rename installs automatically, except through the classic non-JavaScript single-plugin Update-now flow, which ends deactivated with data unchanged);
-- gateway/payment/Blocks ID: `upayments`;
-- callback: `wc_upayments`.
+- gateway/payment/Blocks ID: `upayments` (`supcheckout` only after a store runs the takeover's cutover);
+- callback: `wc_upayments` (served permanently; the takeover adds the `supcheckout` route).
 
 Do not mechanically rename persisted/provider IDs, `_upay_*` metadata, `UPayments_order_id`, token/provenance state, subscription/billing-attempt state, historical payment-method values, frozen Phase 9I IDs, `getAPIUrlForRetreiveCards()` or `whitelabled`.
 
@@ -209,7 +211,7 @@ A successful check from an ancestor SHA is never substituted for final exact-hea
 
 ## 9. Remaining Approach 3 program
 
-Current executable gate: **external certification & release readiness**. Release Candidate 1 owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
+Release gate (open): **external certification & release readiness**. Release Candidate 1 owner acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 Then:
 

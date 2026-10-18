@@ -98,6 +98,8 @@ Never perform a blind repository-wide replacement of provider/persisted compatib
 
 Provider API request/response fields, endpoint paths, provider payment-method names and schema terminology retain UPayments' exact contract.
 
+The approved migration for these identifiers is the Sub-project 0b takeover (`src/Takeover/`, `wp supcheckout takeover`, real-WordPress matrix `.github/workflows/takeover-migration-matrix.yml`). It copies, never moves, each identifier that `Keys` maps to its `supcheckout` name, keeps every legacy name until Finalize, never rewrites historical order `payment_method`, and serves `wc_upayments` permanently. Until a store runs its cutover, the values in the table above stay in use unchanged. `AGENTS.md` "Protected compatibility identities" is the authoritative contract, including the identifiers the takeover never migrates.
+
 ## New first-party identifiers
 
 New plugin-owned options, hooks, nonces and cache keys use `supcheckout_*`.

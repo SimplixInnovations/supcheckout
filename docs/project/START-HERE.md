@@ -105,7 +105,7 @@ T3 preserved a critical compatibility constraint: a direct caller of `WC_Upaymen
 
 ## 5. Current program gate
 
-The current substantive program is:
+The active engineering program is the SUPCheckout revamp (see "Active engineering program" below). The release program, which stays open, is:
 
 **`external-certification-release-readiness`**
 
@@ -139,6 +139,15 @@ The remaining provider-related areas are deliberately outside the first-release 
 
 Authoritative public-evidence analysis: `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`.
 
+### Active engineering program: SUPCheckout revamp (reconciled 2026-10-18)
+
+Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (§9 delivery, Sub-projects 0–5). The release-readiness gate above stays open; spec §9 places the final owner technical acceptance and live acceptance in Sub-project 5.
+
+- **Sub-project 0a clean core — DONE / VERIFIED, staging-rehearsed.** PRs #165–#172, last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`; owner staging rehearsal passed 2026-10-17 ([evidence](evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md), PR #178).
+- **Sub-project 0b takeover engine — Tasks 1–12 merged** (PRs #173–#177, #179–#184; plan `docs/superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md`; per-PR merge SHAs in [`PROJECT-STATUS.md`](PROJECT-STATUS.md)). The real-WordPress Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` and is a permanent quality control.
+- Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**. Started 2026-10-18 and paused: the UPayments public sandbox (`sandboxapi.upayments.com`) returns HTTP 502 through Cloudflare (provider outage, verified from two networks). Preflight correctly blocked with `credential_unverified`. Open PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable` reason) waits on the same outage for its bounded Provider Sandbox check.
+- **Next:** finish the rehearsal (evidence → `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`), then Sub-project 0c onboarding UI, then Sub-projects 1–5 per the spec.
+
 
 ## 6. Post-T3 execution sequence
 
@@ -170,13 +179,13 @@ external certification: core production-auth — `PRODUCTION_AUTH_CONTRACT_FOR_C
 explicit version/publication decision only after remaining release gates
 ```
 
-R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used its own architecture decision (Option B / ADR-003) and is complete. **R6 is DONE / VERIFIED. The current gate is external certification & release readiness.**
+R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used its own architecture decision (Option B / ADR-003) and is complete. **R6 is DONE / VERIFIED.** Release gate (open): **external certification & release readiness**; the current executable gate is the revamp takeover rehearsal (§5).
 
 ## 7. Active-work ledger
 
 | Field | Current value |
 |---|---|
-| Program phase | **external certification & release readiness** |
+| Program phase | **SUPCheckout revamp — Sub-project 0b takeover** (spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`); release program external certification & release readiness stays open |
 | Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED — HISTORICAL, superseded by Release Candidate 1** |
 | Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
 | Frozen accepted baseline | `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (Release Candidate 1; supersedes Approach 3 `146d65a1c182630c1acc651cacafe30cff5f6b79`) |
@@ -184,7 +193,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active task | **external certification & release readiness** |
+| Active task | **owner takeover staging rehearsal; PR #185** |
 | Latest repository-executable E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | Latest candidate package at that checkpoint | 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c` |
 | R0 / R1 / E1 | **DONE / VERIFIED and integrated through PR #108** |
@@ -195,8 +204,11 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R4 | **DONE / VERIFIED** — certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, squash-merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | R6 | **DONE / VERIFIED** — exact-head qualification and owner technical re-acceptance complete |
-| Current operational gate | **external certification & release readiness** |
-| Immediate next external gate | **Fresh owner acceptance of a package containing PR #138, then live one-time acceptance** (production auth `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`, 2026-10-13) |
+| Current operational gate | **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 on a UPayments sandbox outage (HTTP 502); PR #185 waits on the same outage |
+| Release gate | **external certification & release readiness — open** (owner acceptance and live acceptance in Sub-project 5) |
+| Next release gate step | **Fresh owner acceptance of a package containing PR #138, then live one-time acceptance** (production auth `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`, 2026-10-13) |
+| Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** 2026-10-17 (last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`) |
+| Sub-project 0b takeover engine | **Tasks 1–12 merged** (PRs #173–#177, #179–#184); Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
@@ -226,6 +238,8 @@ Do not mechanically rename or refactor protected identities, including:
 - frozen Phase 9I migration identities;
 - public compatibility wrapper `getAPIUrlForRetreiveCards()`;
 - normalized `whitelabled` compatibility shape.
+
+They stay protected until migrated by the approved takeover (Sub-project 0b, `src/Takeover/`, `wp supcheckout takeover`): it copies, never moves, each mapped identity through `Keys`, never rewrites historical order `payment_method`, and serves `wc_upayments` permanently. `AGENTS.md` "Protected compatibility identities" is the full contract.
 
 `supcheckout/supcheckout.php` is the main file since Sub-project 0a (owner decision 2026-10-16, pre-release). A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically on zip upload, WP-CLI and one-click/bulk updates. The exception is the classic non-JavaScript single-plugin Update-now flow (`update.php?action=upgrade-plugin`), which ends deactivated with data unchanged; see `docs/COMPATIBILITY.md`. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it.
 
@@ -299,11 +313,13 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 ## 13. Immediate next step
 
+**Revamp (active engineering):** resume the owner staging rehearsal of the takeover once the UPayments sandbox answers again (preflight, run, verify counts, rollback, run again; real WPML/WCML on that store), record it in `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`, settle PR #185, then start Sub-project 0c (onboarding UI). See §5 "Active engineering program".
+
 R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
 
-### Owner action queue (reconciled 2026-10-13)
+### Release owner action queue (reconciled 2026-10-13)
 
-Repository-side work for the current gate is complete. The remaining work is owner/external only, in this order:
+Repository-side work for the release gate is complete. The remaining work is owner/external only, in this order:
 
 0. **Fresh technical acceptance of the current `main` package.** `main` carries runtime bytes newer than Release Candidate 1; with PR #138 the candidate package is `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`. Run `LOCAL-FINAL-VERIFICATION.md` on the exact `main` SHA, then record `OWNER_TECHNICAL_ACCEPTANCE=<label>` with that SHA and package, or keep Release Candidate 1. Live evidence must be produced with the package that will be released.
 1. **Production auth probe — DONE 2026-10-13.** Probes 1 (status), 0 (button status) and 2 (Charge) all reported `BEARER_ONLY_ACCEPTED` on the release merchant account in one run ([evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md)); gate `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`. The same run proved release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released. PR #138 fixes it, so step 0 must accept a package that contains PR #138. Re-run the probe before each release.
