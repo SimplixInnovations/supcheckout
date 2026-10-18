@@ -20,6 +20,8 @@ defined('ABSPATH') || exit;
 final class CachePurger {
     /** Reason handed to LiteSpeed's purge action. */
     public const REASON = 'SUPCheckout takeover';
+    /** State field recording the transition whose purge finished (see purge_once()). */
+    public const MARKER = 'caches_purged';
     /** The official Cloudflare plugin's hooks class; detected, never autoloaded. */
     private const CLOUDFLARE_CLASS = 'Cloudflare\\APO\\WordPress\\Hooks';
 
@@ -72,6 +74,59 @@ final class CachePurger {
         } catch (\Throwable $e) {
             return array('ran' => array(), 'manual' => array(), 'failed' => array('system'));
         }
+    }
+
+    /**
+     * Purge once per transition: when the state does not yet record this transition's
+     * purge, purge through $system and record it. Every engine calls it right after its
+     * transition, and again from each post-transition resume path, so a worker killed
+     * between the transition and the purge still purges exactly once on the rerun.
+     * Never throws; a failed purge is reported (not retried) and recorded as done.
+     *
+     * @param CutoverSystem        $system  System.
+     * @param array<string, mixed> $state   TakeoverState::get(), read after the transition.
+     * @param bool                 $aborted True for an abort (verified → preflight_ok).
+     * @return array{ran:list<string>, manual:list<string>, failed:list<string>}|null The report, or null when already recorded.
+     */
+    public static function purge_once(CutoverSystem $system, array $state, $aborted = false) {
+        $key = self::transition_key($state, (bool) $aborted);
+        if ($key === null || (isset($state[self::MARKER]) && $state[self::MARKER] === $key)) {
+            return null;
+        }
+        $report = self::purge_through($system);
+        try {
+            TakeoverState::patch(array(self::MARKER => $key));
+        } catch (\Throwable $e) {
+            // Unrecorded: the next resume purges again, which is harmless.
+            unset($e);
+        }
+        return $report;
+    }
+
+    /**
+     * Identifies the transition a purge belongs to (status plus its own timestamp), so a
+     * marker left by an earlier transition never satisfies a later one.
+     *
+     * @param array<string, mixed> $state   State.
+     * @param bool                 $aborted Abort mode.
+     * @return string|null Null for a status that has no post-transition purge.
+     */
+    private static function transition_key(array $state, $aborted) {
+        $status = isset($state['status']) ? (string) $state['status'] : '';
+        $int = static function ($field) use ($state) {
+            return isset($state[$field]) && is_int($state[$field]) ? $state[$field] : 0;
+        };
+        switch ($status) {
+            case TakeoverState::CUT_OVER:
+                return 'cut_over@' . $int('cut_over_at');
+            case TakeoverState::FINALIZED:
+                return 'finalized@' . $int('updated_at');
+            case TakeoverState::ROLLED_BACK:
+                return 'rolled_back@' . $int('rolled_back_at');
+            case TakeoverState::PREFLIGHT_OK:
+                return $aborted ? 'aborted@' . $int('updated_at') : 'rolled_back@' . $int('rolled_back_at');
+        }
+        return null;
     }
 
     /**

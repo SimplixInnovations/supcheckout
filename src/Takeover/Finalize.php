@@ -293,7 +293,7 @@ final class Finalize {
         $this->step('finalized');
         TakeoverState::refresh();
         // After the compare-and-swap: a purge problem is reported, never an error.
-        $this->report['cache_purge'] = CachePurger::purge_through($this->system);
+        $this->purge_pending();
         $this->step('caches_flushed');
         return null;
     }
@@ -370,6 +370,10 @@ final class Finalize {
      * @return array{ok:bool, removed:array<string,int>, kept:list<array<string,mixed>>, reported:array<string,mixed>, forced:bool, error:string|null, steps:list<string>, report:array<string,mixed>}
      */
     private function sweep(array $state) {
+        // A worker killed between the transition and its purge never recorded it.
+        if ($this->purge_pending()) {
+            $this->step('caches_flushed');
+        }
         if ($this->official_active()) {
             return $this->result('official_active');
         }
@@ -385,6 +389,21 @@ final class Finalize {
         }
         $this->step('sweep');
         return $this->resume();
+    }
+
+    /**
+     * Purge the caches for the finalize transition unless the state already records it.
+     *
+     * @return bool True when a purge ran.
+     */
+    private function purge_pending() {
+        TakeoverState::refresh();
+        $purge = CachePurger::purge_once($this->system, TakeoverState::get());
+        if ($purge === null) {
+            return false;
+        }
+        $this->report['cache_purge'] = $purge;
+        return true;
     }
 
     /**

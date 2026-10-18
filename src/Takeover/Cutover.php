@@ -199,7 +199,7 @@ final class Cutover {
         $this->step('cut_over');
         TakeoverState::refresh();
         // After the compare-and-swap: a purge problem is reported, never an error.
-        $this->report['cache_purge'] = CachePurger::purge_through($this->system);
+        $this->purge_pending();
         $this->step('caches_flushed');
         return null;
     }
@@ -470,7 +470,26 @@ final class Cutover {
                 $this->report['warnings'] = $this->warnings;
             }
         }
+        // A worker killed between the transition and its purge never recorded it.
+        TakeoverState::refresh();
+        if ($this->purge_pending()) {
+            $this->step('caches_flushed');
+        }
         return $this->result(null);
+    }
+
+    /**
+     * Purge the caches for this transition unless the state already records it.
+     *
+     * @return bool True when a purge ran.
+     */
+    private function purge_pending() {
+        $purge = CachePurger::purge_once($this->system, TakeoverState::get());
+        if ($purge === null) {
+            return false;
+        }
+        $this->report['cache_purge'] = $purge;
+        return true;
     }
 
     /**

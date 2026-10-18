@@ -90,6 +90,8 @@ final class Rollback {
     public const FLOOR = 'journal_floor';
     /** State field: the official install the takeover deactivated (basename), until reactivated. */
     public const OFFICIAL_RECORD = 'official_deactivated';
+    /** State field: the purge after reactivating the official plugin has not finished yet. */
+    public const REACTIVATION_PURGE_PENDING = 'reactivation_purge_pending';
 
     /** Attempts on an order whose lock a payment request holds. */
     private const LOCK_ATTEMPTS = 3;
@@ -409,7 +411,7 @@ final class Rollback {
         $this->step($step);
         TakeoverState::refresh();
         // After the compare-and-swap: a purge problem is reported, never an error.
-        $this->report['cache_purge'] = CachePurger::purge_through($this->system);
+        $this->purge_pending();
         $this->step('caches_flushed');
         return null;
     }
@@ -429,6 +431,10 @@ final class Rollback {
             $this->restored = isset($progress['restored']) ? (int) $progress['restored'] : $this->restored;
             // A rolled_back store with no progress record (rolled back outside Rollback)
             // still has every copy: remove them before preflight_ok, from the start.
+            // A worker killed between the transition and its purge never recorded it.
+            if ($this->purge_pending()) {
+                $this->step('caches_flushed');
+            }
             $unrecorded = $state['status'] === TakeoverState::ROLLED_BACK && !isset($progress['removal_pending']);
             if (self::removal_pending($state) || $unrecorded) {
                 $error = $this->remove($state, $unrecorded ? array() : $progress);
@@ -445,6 +451,7 @@ final class Rollback {
             if ($reactivate) {
                 $this->reactivate_official();
             }
+            $this->purge_after_reactivation();
         } catch (\Throwable $e) {
             $this->report['exception'] = get_class($e);
             return $this->result('error');
@@ -610,14 +617,51 @@ final class Rollback {
             return;
         }
         if ($this->system->activate_plugin($recorded)) {
-            TakeoverState::patch(array(self::OFFICIAL_RECORD => null));
+            // The purge below is recorded as pending in the same write, so a worker killed
+            // before it finishes still purges on the rerun (resume() calls it again).
+            TakeoverState::patch(array(self::OFFICIAL_RECORD => null, self::REACTIVATION_PURGE_PENDING => true));
             $this->step('official_reactivated');
-            // The reactivated plugin may have repopulated or re-served its own caches.
-            $this->report['cache_purge_after_reactivation'] = CachePurger::purge_through($this->system);
             return;
         }
         $this->report['official'] = 'activation_failed';
         $this->warnings[] = 'official_not_reactivated';
+    }
+
+    /**
+     * Purge the caches for this rollback or abort transition unless the state already
+     * records it.
+     *
+     * @return bool True when a purge ran.
+     */
+    private function purge_pending() {
+        $purge = CachePurger::purge_once($this->system, TakeoverState::get(), $this->mode === self::MODE_ABORT);
+        if ($purge === null) {
+            return false;
+        }
+        $this->report['cache_purge'] = $purge;
+        return true;
+    }
+
+    /**
+     * The reactivated official plugin may have re-served its own caches: purge once more
+     * after a reactivation whose purge is still pending, then clear the flag.
+     *
+     * @return void
+     */
+    private function purge_after_reactivation() {
+        TakeoverState::refresh();
+        if (self::reactivation_purge_pending(TakeoverState::get())) {
+            $this->report['cache_purge_after_reactivation'] = CachePurger::purge_through($this->system);
+            TakeoverState::patch(array(self::REACTIVATION_PURGE_PENDING => false));
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $state TakeoverState::get().
+     * @return bool True while the purge after a reactivation has not finished.
+     */
+    private static function reactivation_purge_pending(array $state) {
+        return isset($state[self::REACTIVATION_PURGE_PENDING]) && $state[self::REACTIVATION_PURGE_PENDING] === true;
     }
 
     /**
