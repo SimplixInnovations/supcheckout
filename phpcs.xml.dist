@@ -80,6 +80,7 @@
     <file>src/Takeover/FinalizeCommand.php</file>
     <file>src/Takeover/Onboarding/Outcome.php</file>
     <file>src/Takeover/Onboarding/Onboarding.php</file>
+    <file>src/Takeover/Onboarding/Lines.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

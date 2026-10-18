@@ -145,7 +145,7 @@ final class Onboarding {
      */
     public function check_preflight() {
         $report = $this->preflight();
-        $lines = self::report_lines($report);
+        $lines = Lines::report_lines($report);
         if ($report['blocking'] !== array()) {
             return Outcome::fail(Outcome::BLOCKED, 'preflight_blocking', 'blocked by preflight; nothing changed', array('report' => $report), $lines);
         }
@@ -344,7 +344,7 @@ final class Onboarding {
             $code = isset(self::CUTOVER_EXIT[$error]) ? self::CUTOVER_EXIT[$error] : Outcome::ERROR;
             return Outcome::fail($code, $error, 'cutover refused: ' . $error . '; the store was not switched', $data, $lines);
         }
-        $lines = array_merge(array('takeover cutover steps: ' . implode(', ', $result['steps'])), self::cache_purge_lines($result));
+        $lines = array_merge(array('takeover cutover steps: ' . implode(', ', $result['steps'])), Lines::cache_purge_lines($result));
         if (in_array('official_still_active', $result['warnings'], true)) {
             $lines[] = 'warning: official_still_active';
             return Outcome::fail(Outcome::OFFICIAL_STILL_ACTIVE, 'official_still_active', 'cut over, but the official UPayments plugin is still active; deactivate it (SUPCheckout stays paused until then)', $data, $lines);
@@ -411,7 +411,7 @@ final class Onboarding {
      */
     public static function rewind_outcome($mode, array $result) {
         $data = array('result' => $result);
-        $lines = array_merge(array('takeover ' . $mode . ' steps: ' . implode(', ', $result['steps'])), self::cache_purge_lines($result));
+        $lines = array_merge(array('takeover ' . $mode . ' steps: ' . implode(', ', $result['steps'])), Lines::cache_purge_lines($result));
         foreach ($result['conflicts'] as $conflict) {
             $lines[] = 'conflict: seq ' . $conflict['seq'] . ' ' . $conflict['target'] . ' ' . $conflict['path'] . ' (kept; the owner decides)';
         }
@@ -505,10 +505,10 @@ final class Onboarding {
         $data = array('result' => $result);
         $lines = array_merge(
             array('takeover finalize steps: ' . implode(', ', $result['steps'])),
-            self::cache_purge_lines($result),
-            array('removed: ' . self::counts($result['removed'])),
-            self::kept_lines($result['kept'], 'kept'),
-            self::reported_lines($result['reported'])
+            Lines::cache_purge_lines($result),
+            array('removed: ' . Lines::counts($result['removed'])),
+            Lines::kept_lines($result['kept'], 'kept'),
+            Lines::reported_lines($result['reported'])
         );
         if ($result['error'] !== null) {
             $error = (string) $result['error'];
@@ -533,24 +533,6 @@ final class Onboarding {
             throw new \LogicException('finalize needs a finalize-capable store and system');
         }
         return (new Finalize($this->store, $this->system))->plan();
-    }
-
-    /**
-     * @param array<string, mixed> $plan finalize_plan().
-     * @return list<string> The dry run as the CLI prints it.
-     */
-    public static function finalize_plan_lines(array $plan) {
-        $lines = array('dry run: nothing is written');
-        foreach ($plan['would_refuse'] as $code) {
-            $lines[] = 'would refuse: ' . $code;
-        }
-        if ($plan['status'] === TakeoverState::CUT_OVER) {
-            $lines[] = 'finalize allowed in ' . $plan['days_left'] . ' day(s)';
-        }
-        $lines[] = 'would remove: ' . self::counts($plan['removed']);
-        $lines = array_merge($lines, self::kept_lines($plan['kept'], 'would keep'));
-        $lines[] = 'legacy billing table: ' . $plan['table'];
-        return array_merge($lines, self::reported_lines($plan['reported']));
     }
 
     /** @return list<array{cycle_key:string, age_seconds:int}> Billing claims stuck in `claimed`. */
@@ -615,22 +597,6 @@ final class Onboarding {
      */
     private static function rewind_unsupported($mode) {
         return Outcome::fail(Outcome::ERROR, 'unsupported', $mode . ' needs a rollback-capable store and system');
-    }
-
-    /**
-     * @param array{blocking:list<array<string,mixed>>, warnings:list<array<string,mixed>>, facts:list<array<string,mixed>>} $report Preflight report.
-     * @return list<string>
-     */
-    private static function report_lines(array $report) {
-        $lines = array();
-        foreach (array('blocking' => 'BLOCKING', 'warnings' => 'warning', 'facts' => 'fact') as $list => $label) {
-            foreach ($report[$list] as $finding) {
-                $code = isset($finding['code']) ? (string) $finding['code'] : '';
-                $message = isset($finding['message']) ? (string) $finding['message'] : '';
-                $lines[] = $label . ': ' . $code . ': ' . $message;
-            }
-        }
-        return $lines;
     }
 
     /**
@@ -713,67 +679,5 @@ final class Onboarding {
             $by_target[$entry['target']] = isset($by_target[$entry['target']]) ? $by_target[$entry['target']] + 1 : 1;
         }
         return array('entries' => count($entries), 'by_target' => $by_target);
-    }
-
-    /**
-     * @param list<array<string, mixed>> $kept  Kept groups.
-     * @param string                     $label Line label.
-     * @return list<string>
-     */
-    private static function kept_lines(array $kept, $label) {
-        $lines = array();
-        foreach ($kept as $group) {
-            $ids = $group['ids'] === array() ? '' : ' (ids ' . implode(',', array_map('intval', $group['ids'])) . ($group['count'] > count($group['ids']) ? ',...' : '') . ')';
-            $lines[] = $label . ': ' . $group['kind'] . ' ' . $group['name'] . ' ' . $group['reason'] . ' x' . (int) $group['count'] . $ids;
-        }
-        return $lines;
-    }
-
-    /**
-     * @param array<string, mixed> $reported Finalize's reported-only items.
-     * @return list<string>
-     */
-    private static function reported_lines(array $reported) {
-        $lines = array();
-        if (isset($reported['block_checkout_page']['page_id'])) {
-            $lines[] = 'reported (never removed): the official "Checkout (Block)" page ' . (int) $reported['block_checkout_page']['page_id'] . ' (' . (string) $reported['block_checkout_page']['status'] . '); delete it yourself if unused';
-        }
-        foreach (isset($reported['official_tables']) && is_array($reported['official_tables']) ? $reported['official_tables'] : array() as $table) {
-            $lines[] = 'reported (never removed): table ' . (string) $table;
-        }
-        if (isset($reported['callback_route'])) {
-            $lines[] = 'kept forever: the legacy callback route ' . (string) $reported['callback_route'];
-        }
-        return $lines;
-    }
-
-    /**
-     * The one cache-purge line (0c): which layers were purged, which need a manual purge
-     * and which failed, by name only. Empty when the engine never reached the purge.
-     *
-     * @param array<string, mixed> $result Engine result.
-     * @return list<string>
-     */
-    private static function cache_purge_lines(array $result) {
-        $purge = isset($result['report']['cache_purge']) && is_array($result['report']['cache_purge']) ? $result['report']['cache_purge'] : null;
-        if ($purge === null) {
-            return array();
-        }
-        $csv = static function ($names) {
-            return is_array($names) && $names !== array() ? implode(',', array_map('strval', $names)) : '-';
-        };
-        return array('cache purge: ran=' . $csv($purge['ran'] ?? null) . ' manual=' . $csv($purge['manual'] ?? null) . ' failed=' . $csv($purge['failed'] ?? null));
-    }
-
-    /**
-     * @param array<string, int> $counts Counter => count.
-     * @return string
-     */
-    private static function counts(array $counts) {
-        $parts = array();
-        foreach ($counts as $name => $count) {
-            $parts[] = $name . '=' . (int) $count;
-        }
-        return implode(' ', $parts);
     }
 }
