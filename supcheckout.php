@@ -22,7 +22,8 @@ require_once __DIR__ . '/src/Autoloader.php';
 
 // While another plugin owns the 'upayments' gateway identity, stay paused (0b removes
 // the shared identity; the guard stays for the official plugin's own globals). Paused,
-// only the takeover entry points boot (0b Task 9): never a gateway, route or cron hook.
+// only the takeover entry points boot (CLI, the takeover REST routes and the onboarding
+// driver): never a gateway, payment route or payment cron hook.
 if (\Simplixi\SUPCheckout\Gateway\OfficialPluginConflict::pause_if_active(__FILE__)) {
     \Simplixi\SUPCheckout\Takeover\PausedBoot::boot(__FILE__);
     return;

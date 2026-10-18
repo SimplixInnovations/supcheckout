@@ -139,8 +139,8 @@ if ($phase === 'paused') {
     // without them WooCommerce shows the paused plugin as "Incompatible with WooCommerce
     // features" (owner staging rehearsal).
     supcheckout_cert_assert(
-        supcheckout_takeover_cert_own_hooks() === array('admin_notices', 'before_woocommerce_init'),
-        'the paused boot registered no gateway, Blocks, WC-API route, cron or other hook (only the conflict notice and the WooCommerce feature declarations): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
+        supcheckout_takeover_cert_own_hooks() === array('admin_notices', 'before_woocommerce_init', 'rest_api_init', 'supcheckout_onboarding_drive', 'supcheckout_onboarding_watchdog'),
+        'the paused boot registered no gateway, Blocks, WC-API route, payment cron or other hook (only the conflict notice, the WooCommerce feature declarations, the takeover REST routes and, under WP-CLI, the two onboarding driver hooks): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
     );
     $own_basename = '';
     foreach ((array) get_option('active_plugins', array()) as $active_plugin) {
@@ -222,7 +222,7 @@ if ($phase === 'paused') {
     $in_process = \Simplixi\SUPCheckout\Takeover\Preflight::run();
     supcheckout_cert_assert($in_process['blocking'] === array(), 'an in-process paused Preflight reports nothing blocking');
     supcheckout_cert_assert(
-        supcheckout_takeover_cert_own_hooks() === array('admin_notices', 'before_woocommerce_init'),
+        supcheckout_takeover_cert_own_hooks() === array('admin_notices', 'before_woocommerce_init', 'rest_api_init', 'supcheckout_onboarding_drive', 'supcheckout_onboarding_watchdog'),
         'after a paused Preflight, SUPCheckout still has no woocommerce_api_wc_upayments, reconcile cron or other hook (only the conflict notice and the WooCommerce feature declarations): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
     );
     supcheckout_cert_assert(!class_exists('Simplixi\\SUPCheckout\\Payment\\PaymentLifecycle', false), 'the payment lifecycle was never loaded while paused');

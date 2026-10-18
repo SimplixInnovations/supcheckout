@@ -117,8 +117,11 @@ final class AsyncDriverTest extends TestCase {
     // --- register / enqueue. ---
 
     public function test_register_adds_both_hooks_only_in_cron_ajax_or_cli_contexts(): void {
+        $GLOBALS['supcheckout_test_request_context'] = array('cron' => false, 'ajax' => false);
         AsyncDriver::register();
-        self::assertSame(array(), $GLOBALS['supcheckout_test_action_calls'], 'web request: nothing');
+        self::assertSame(array(
+            array('action_scheduler_before_process_queue', array(AsyncDriver::class, 'register_hooks'), 10, 1),
+        ), $GLOBALS['supcheckout_test_action_calls'], 'web request: only the lazy Action Scheduler registration');
 
         foreach (array('cron', 'ajax') as $context) {
             \supcheckout_test_reset_subscription_composition();
@@ -145,6 +148,30 @@ final class AsyncDriverTest extends TestCase {
         AsyncDriver::register();
 
         self::assertSame(array(AsyncDriver::HOOK, AsyncDriver::WATCHDOG_HOOK), array_column($GLOBALS['supcheckout_test_action_calls'], 0));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_the_queue_start_registers_both_hooks_once_in_any_context(): void {
+        // Controller carry-in: ALTERNATE_WP_CRON (wp-cron runs inside a normal request, after
+        // DOING_CRON would have been read) and Action Scheduler's admin "Run" action (an admin
+        // page request, not AJAX) run the actions with no callback, which Action Scheduler
+        // marks failed. It fires this action before it processes its queue, in any context.
+        require_once dirname(__DIR__, 3) . '/support/action-scheduler-stubs.php';
+        require_once dirname(__DIR__, 3) . '/support/onboarding-driver-stubs.php';
+        \supcheckout_test_reset_subscription_composition();
+        $GLOBALS['supcheckout_test_request_context'] = array('cron' => false, 'ajax' => false);
+        AsyncDriver::register();
+        $GLOBALS['supcheckout_test_action_calls'] = array();
+
+        AsyncDriver::register_hooks();
+        AsyncDriver::register_hooks();
+
+        self::assertSame(array(
+            array(AsyncDriver::HOOK, array(AsyncDriver::class, 'handle'), 10, 1),
+            array(AsyncDriver::WATCHDOG_HOOK, array(AsyncDriver::class, 'watchdog'), 10, 2),
+        ), $GLOBALS['supcheckout_test_action_calls']);
+        self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls'] ?? array(), 'a pure add_action: no state read');
     }
 
     public function test_the_constants_match_the_plan(): void {

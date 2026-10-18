@@ -1,6 +1,14 @@
 [
     {
         "kind": "action",
+        "hook": "action_scheduler_before_process_queue",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
         "hook": "added_post_meta",
         "priority": 10,
         "accepted_args": 4,
@@ -706,6 +714,22 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "action_scheduler_before_process_queue",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "action_scheduler_before_process_queue",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "action_scheduler_init",
         "priority": 10,
         "accepted_args": 1,
@@ -795,6 +819,14 @@
         "kind": "hook_reference",
         "type": "action",
         "hook": "plugins_loaded",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "rest_api_init",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"

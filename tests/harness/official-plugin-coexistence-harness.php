@@ -256,6 +256,13 @@ foreach (array(
 // plugin as incompatible with HPOS and the Cart & Checkout blocks.
 $paused_files = 'SRC_FILES:["Autoloader.php","Bootstrap/WooCommerceDeclarations.php","Gateway/OfficialPluginConflict.php","Takeover/Cli.php","Takeover/LegacyCallbackListener.php","Takeover/PausedBoot.php"]';
 $paused_declarations = '"before_woocommerce_init=Simplixi\\\\SUPCheckout\\\\Bootstrap\\\\WooCommerceDeclarations::declare_compatibility"';
+// 0c Task 8: the takeover REST routes, plus the two onboarding driver hooks: added at once
+// under cron, AJAX and WP-CLI, and on every other request lazily on Action Scheduler's queue
+// start (which also covers ALTERNATE_WP_CRON and the admin "Run" action).
+$paused_rest = '"rest_api_init=Simplixi\\\\SUPCheckout\\\\Rest\\\\Routes::register_takeover"';
+$paused_lazy_driver = '"action_scheduler_before_process_queue=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Onboarding\\\\AsyncDriver::register_hooks"';
+$paused_driver = '"supcheckout_onboarding_drive=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Onboarding\\\\AsyncDriver::handle","supcheckout_onboarding_watchdog=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Onboarding\\\\AsyncDriver::watchdog"';
+$paused_driver_files = 'SRC_FILES:["Autoloader.php","Bootstrap/WooCommerceDeclarations.php","Gateway/OfficialPluginConflict.php","Takeover/Cli.php","Takeover/LegacyCallbackListener.php","Takeover/Onboarding/AsyncDriver.php","Takeover/PausedBoot.php"]';
 $cli_command = '"supcheckout takeover=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Cli"';
 foreach (array(
     'official_first' => $official_first,
@@ -265,34 +272,56 @@ foreach (array(
     'sitewide' => $sitewide,
     'shim_official' => $shim_official,
 ) as $scenario => $result) {
-    coexistence_assert(strpos($result['out'], 'OTHER_HOOKS:[' . $paused_declarations . ']') !== false, "paused ({$scenario}): a web request registers nothing but the conflict notice and the WooCommerce feature declarations");
+    coexistence_assert(strpos($result['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',' . $paused_rest . ',' . $paused_lazy_driver . ']') !== false, "paused ({$scenario}): a web request registers nothing but the conflict notice, the WooCommerce feature declarations, the takeover REST routes and the lazy driver registration");
     coexistence_assert(strpos($result['out'], 'CLI_COMMANDS:[]') !== false, "paused ({$scenario}): no command outside WP-CLI");
     coexistence_assert(strpos($result['out'], 'GLOBALS_ADDED:[]') !== false, "paused ({$scenario}): no global function or class is declared");
 }
-coexistence_assert(strpos($official_first['out'], $paused_files) !== false, 'paused: only the autoloader, the conflict guard, the WooCommerce feature declarations and takeover classes load');
+coexistence_assert(strpos($official_first['out'], $paused_files) !== false, 'paused: only the autoloader, the conflict guard, the WooCommerce feature declarations and takeover classes load (the route callback and the driver are named by ::class, so neither loads)');
 $paused_cli = coexistence_run($root, 'paused_cli', $official_stub);
 coexistence_assert($paused_cli['code'] === 0 && strpos($paused_cli['out'], 'DIAGNOSTICS:[]') !== false, 'paused under WP-CLI: loads without error or diagnostic');
 coexistence_assert(strpos($paused_cli['out'], 'CLI_COMMANDS:[' . $cli_command . ']') !== false, 'paused under WP-CLI: exactly the `wp supcheckout takeover` command is registered');
 coexistence_assert(
-    strpos($paused_cli['out'], 'OTHER_HOOKS:[' . $paused_declarations . ']') !== false && strpos($paused_cli['out'], 'GATEWAY_HOOKS:[]') !== false && strpos($paused_cli['out'], 'COPY_RUNNER_HOOKS:0') !== false,
-    'paused under WP-CLI: no gateway, route, cron or other hook beyond the WooCommerce feature declarations'
+    strpos($paused_cli['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',' . $paused_rest . ',' . $paused_driver . ']') !== false && strpos($paused_cli['out'], 'GATEWAY_HOOKS:[]') !== false && strpos($paused_cli['out'], 'COPY_RUNNER_HOOKS:0') !== false,
+    'paused under WP-CLI: no gateway, payment route, payment cron or other hook beyond the WooCommerce feature declarations, the takeover REST routes and the two onboarding driver hooks'
 );
 coexistence_assert(strpos($paused_cli['out'], 'GLOBALS_ADDED:[]') !== false && strpos($paused_cli['out'], 'SUPCHECKOUT_VERSION:undefined') !== false, 'paused under WP-CLI: no global symbol, the runtime stays unloaded');
-coexistence_assert(strpos($paused_cli['out'], $paused_files) !== false, 'paused under WP-CLI: only takeover classes load at boot');
+coexistence_assert(strpos($paused_cli['out'], $paused_driver_files) !== false, 'paused under WP-CLI: only takeover classes load at boot (the driver adds Takeover/Onboarding/AsyncDriver.php)');
 coexistence_assert(strpos($paused_cli['out'], 'OFFICIAL_LOADED') !== false, 'paused under WP-CLI: the official plugin keeps working');
+$paused_cron = coexistence_run($root, 'paused_cron', $official_stub);
+coexistence_assert($paused_cron['code'] === 0 && strpos($paused_cron['out'], 'DIAGNOSTICS:[]') !== false, 'paused cron request: loads without error or diagnostic');
+coexistence_assert(
+    strpos($paused_cron['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',' . $paused_rest . ',' . $paused_driver . ']') !== false
+        && strpos($paused_cron['out'], 'GATEWAY_HOOKS:[]') !== false && strpos($paused_cron['out'], 'COPY_RUNNER_HOOKS:0') !== false && strpos($paused_cron['out'], 'CLI_COMMANDS:[]') !== false,
+    'paused cron request: the same hooks as under WP-CLI (no command), nothing else'
+);
+coexistence_assert(strpos($paused_cron['out'], $paused_driver_files) !== false && strpos($paused_cron['out'], 'GLOBALS_ADDED:[]') !== false, 'paused cron request: only takeover classes load, no global symbol');
+// 0c Task 8: firing rest_api_init registers exactly the eight takeover endpoints and still
+// no gateway, WC-API route, copy hook or global symbol.
+$paused_rest_init = coexistence_run($root, 'paused_rest_init', $official_stub);
+coexistence_assert($paused_rest_init['code'] === 0 && strpos($paused_rest_init['out'], 'DIAGNOSTICS:[]') !== false, 'paused rest_api_init: loads without error or diagnostic');
+coexistence_assert(
+    strpos($paused_rest_init['out'], 'REST_ENDPOINTS:8') !== false
+        && strpos($paused_rest_init['out'], 'REST_ROUTES:["supcheckout/v1/onboarding/status","supcheckout/v1/onboarding/preflight","supcheckout/v1/onboarding/switch","supcheckout/v1/onboarding/rollback","supcheckout/v1/onboarding/abort","supcheckout/v1/onboarding/finalize","supcheckout/v1/onboarding/stale-claims/release"]') !== false,
+    'paused rest_api_init: exactly the eight takeover endpoints, never the self-test or setup-check routes'
+);
+coexistence_assert(
+    strpos($paused_rest_init['out'], 'GATEWAY_HOOKS:[]') !== false && strpos($paused_rest_init['out'], 'woocommerce_api_') === false && strpos($paused_rest_init['out'], 'COPY_RUNNER_HOOKS:0') !== false
+        && strpos($paused_rest_init['out'], 'GLOBALS_ADDED:[]') !== false,
+    'paused rest_api_init: no gateway hook, no woocommerce_api_* route, no copy hook and no global symbol'
+);
 $paused_probe = coexistence_run($root, 'paused_probe', $official_stub);
 coexistence_assert(
     $paused_probe['code'] === 0
-        && strpos($paused_probe['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',"woocommerce_api_supcheckout=Simplixi\\\\SUPCheckout\\\\Takeover\\\\LegacyCallbackListener::handle_probe"]') !== false,
-    'paused probe request: only the WooCommerce feature declarations and the probe answer on the new, unshared route (never woocommerce_api_wc_upayments, never the lifecycle)'
+        && strpos($paused_probe['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',' . $paused_rest . ',' . $paused_lazy_driver . ',"woocommerce_api_supcheckout=Simplixi\\\\SUPCheckout\\\\Takeover\\\\LegacyCallbackListener::handle_probe"]') !== false,
+    'paused probe request: only the WooCommerce feature declarations, the takeover REST routes, the lazy driver registration and the probe answer on the new, unshared route (never woocommerce_api_wc_upayments, never the lifecycle)'
 );
 coexistence_assert(strpos($paused_probe['out'], 'GLOBALS_ADDED:[]') !== false && strpos($paused_probe['out'], 'CLI_COMMANDS:[]') !== false, 'paused probe request: no global symbol, no command');
 $paused_environment = coexistence_run($root, 'paused_cli_environment', $official_stub);
 coexistence_assert($paused_environment['code'] === 0 && strpos($paused_environment['out'], 'DIAGNOSTICS:[]') !== false, 'paused CLI reading its install directory: no error or diagnostic');
 coexistence_assert(strpos($paused_environment['out'], 'OWN_DIR:supcheckout-main') !== false, 'paused CLI: the own install directory comes from plugin_basename(), whatever the directory is named');
 coexistence_assert(
-    strpos($paused_environment['out'], 'OTHER_HOOKS:[' . $paused_declarations . ']') !== false && strpos($paused_environment['out'], 'GATEWAY_HOOKS:[]') !== false,
-    'paused CLI reading its install directory: no woocommerce_api_wc_upayments, reconcile cron or other hook beyond the WooCommerce feature declarations is registered (Release/Identity.php never loads)'
+    strpos($paused_environment['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',' . $paused_rest . ',' . $paused_driver . ']') !== false && strpos($paused_environment['out'], 'GATEWAY_HOOKS:[]') !== false,
+    'paused CLI reading its install directory: no woocommerce_api_wc_upayments, reconcile cron or other hook beyond the WooCommerce feature declarations, the takeover REST routes and the driver hooks is registered (Release/Identity.php never loads)'
 );
 coexistence_assert(strpos($paused_environment['out'], 'Release/Identity.php') === false && strpos($paused_environment['out'], 'Payment/PaymentLifecycle.php') === false, 'paused CLI: neither Identity.php nor PaymentLifecycle.php is loaded');
 $alone_cli = coexistence_run($root, 'alone_cli', $official_stub);
@@ -325,9 +354,9 @@ function coexistence_child($root, $scenario, $official_stub) {
     $own = 'supcheckout/supcheckout.php';
     $active = array($own);
     $sitewide = array();
-    $official_loads_first = in_array($scenario, array('official_first', 'official_namespaces', 'both_running_official_first', 'paused_cli', 'paused_probe', 'paused_cli_environment'), true);
+    $official_loads_first = in_array($scenario, array('official_first', 'official_namespaces', 'both_running_official_first', 'paused_cli', 'paused_cron', 'paused_rest_init', 'paused_probe', 'paused_cli_environment'), true);
     $official_loads_second = in_array($scenario, array('ours_first', 'official_namespaces_ours_first', 'both_running_ours_first'), true);
-    if (in_array($scenario, array('official_first', 'ours_first', 'notice_admin', 'notice_shopper', 'official_namespaces', 'official_namespaces_ours_first', 'paused_cli', 'paused_probe', 'paused_cli_environment'), true)) {
+    if (in_array($scenario, array('official_first', 'ours_first', 'notice_admin', 'notice_shopper', 'official_namespaces', 'official_namespaces_ours_first', 'paused_cli', 'paused_cron', 'paused_rest_init', 'paused_probe', 'paused_cli_environment'), true)) {
         $active = array($own, 'upayments/UPayments.php');
     } elseif ($scenario === 'sitewide') {
         $sitewide = array('upayments/UPayments.php' => time());
@@ -369,6 +398,9 @@ function coexistence_child($root, $scenario, $official_stub) {
         define('WP_CLI', true);
         eval('final class WP_CLI { public static function add_command($name, $callable, $args = array()) { $GLOBALS["coexistence"]["cli_commands"][] = array((string) $name, $callable); return true; } }');
     }
+    if ($scenario === 'paused_cron') {
+        define('DOING_CRON', true);
+    }
     if ($scenario === 'paused_probe') {
         $_GET = array('wc-api' => 'supcheckout', 'supcheckout_probe' => '1');
     }
@@ -383,6 +415,16 @@ function coexistence_child($root, $scenario, $official_stub) {
         require $root . '/UPayments.php';
     } else {
         require $root . '/supcheckout.php';
+    }
+    // 0c Task 8: fire `rest_api_init` the way WordPress does on a REST request, so the routes
+    // the paused boot registered are the ones observed.
+    $GLOBALS['coexistence']['rest_routes'] = array();
+    if ($scenario === 'paused_rest_init') {
+        foreach ($GLOBALS['coexistence']['actions'] as $registration) {
+            if ($registration[0] === 'rest_api_init') {
+                call_user_func($registration[1]);
+            }
+        }
     }
     // 0b Task 9 review: the paused CLI reads its own install directory for Preflight
     // (Environment::from_wordpress()). That must load nothing that registers payment hooks
@@ -472,6 +514,8 @@ function coexistence_child($root, $scenario, $official_stub) {
     echo 'COPY_RUNNER_HOOKS:' . $copy_runner_hooks . "\n";
     echo 'OTHER_HOOKS:' . json_encode($other_hooks, JSON_UNESCAPED_SLASHES) . "\n";
     echo 'CLI_COMMANDS:' . json_encode($cli_commands, JSON_UNESCAPED_SLASHES) . "\n";
+    echo 'REST_ENDPOINTS:' . array_sum(array_column($GLOBALS['coexistence']['rest_routes'], 1)) . "\n";
+    echo 'REST_ROUTES:' . json_encode(array_column($GLOBALS['coexistence']['rest_routes'], 0), JSON_UNESCAPED_SLASHES) . "\n";
     echo 'GLOBALS_ADDED:' . json_encode(array_values($globals_added), JSON_UNESCAPED_SLASHES) . "\n";
     echo 'SRC_FILES:' . json_encode($src_files, JSON_UNESCAPED_SLASHES) . "\n";
     foreach (array('UP_PLUGIN_URL', 'UP_PLUGIN_PATH', 'UPAYMENTS_PLUGIN_FILE', 'SUPCHECKOUT_PLUGIN_URL', 'SUPCHECKOUT_PLUGIN_PATH') as $constant) {
@@ -500,6 +544,9 @@ function is_multisite() { return $GLOBALS['coexistence']['multisite']; }
 function current_user_can($capability) { return $GLOBALS['coexistence']['can_manage'] && $capability === 'activate_plugins'; }
 function add_action($hook, $callback, $priority = 10, $accepted_args = 1) { $GLOBALS['coexistence']['actions'][] = array($hook, $callback); return true; }
 function add_filter($hook, $callback, $priority = 10, $accepted_args = 1) { $GLOBALS['coexistence']['filters'][] = array($hook, $callback); return true; }
+function wp_doing_cron() { return defined('DOING_CRON') && DOING_CRON; }
+function wp_doing_ajax() { return false; }
+function register_rest_route($route_namespace, $route, $args = array(), $override = false) { $GLOBALS['coexistence']['rest_routes'][] = array((string) $route_namespace . (string) $route, count($args)); return true; }
 function register_activation_hook($file, $callback) { return true; }
 function register_deactivation_hook($file, $callback) { return true; }
 function __($text, $domain = 'default') { return $text; }

@@ -19,8 +19,10 @@ defined('ABSPATH') || exit;
  * The Action Scheduler side of the onboarding driver (Sub-project 0c Task 6): one persisted,
  * single-flight Operation advanced by bounded ticks (DriverStep).
  *
- * - register() adds HOOK and WATCHDOG_HOOK only in contexts that run Action Scheduler (cron,
- *   AJAX, WP-CLI), without reading any state, so a frontend or admin page load pays nothing.
+ * - register() adds HOOK and WATCHDOG_HOOK in contexts that run Action Scheduler (cron,
+ *   AJAX, WP-CLI) and otherwise only on `action_scheduler_before_process_queue` (ALTERNATE_WP_CRON
+ *   and the admin "Run" action), without reading any state, so a frontend or admin page load pays
+ *   nothing.
  * - enqueue() queues one unique action per operation in GROUP. If Action Scheduler cannot
  *   take it, the operation is finished `failed` / `scheduler_unavailable` (compare-and-swap)
  *   and false is returned, so no operation is left running with nothing to run it (the REST
@@ -49,6 +51,8 @@ final class AsyncDriver {
     public const HOOK = 'supcheckout_onboarding_drive';
     public const WATCHDOG_HOOK = 'supcheckout_onboarding_watchdog';
     public const GROUP = 'supcheckout-onboarding';
+    /** Action Scheduler fires it before it processes its queue, in any request context. */
+    public const QUEUE_START_ACTION = 'action_scheduler_before_process_queue';
     /** Seconds before a short phase's watchdog fires. */
     public const WATCHDOG_DELAY = 300;
     /** Seconds before a long phase's watchdog fires: after a dead holder's lease expired. */
@@ -58,17 +62,50 @@ final class AsyncDriver {
 
     private const HINT_SCHEDULER = 'Action Scheduler is not available, so nothing can run the operation; check that WooCommerce is active, then start again';
 
+    /** @var bool Whether the queue-start callback already added the two hooks in this request. */
+    private static $hooked = false;
+
     /** @var array<string, bool> Operations whose continuation this request already queued. */
     private static $continuations = array();
 
-    /** @return void */
+    /**
+     * Add the two hooks now in a context known to run Action Scheduler; on any other request
+     * add them lazily when Action Scheduler starts its queue (see register_hooks()).
+     *
+     * @return void
+     */
     public static function register() {
         $cli = defined('WP_CLI') && constant('WP_CLI');
         $cron = function_exists('wp_doing_cron') && wp_doing_cron();
         $ajax = function_exists('wp_doing_ajax') && wp_doing_ajax();
         if (!$cli && !$cron && !$ajax) {
+            add_action(self::QUEUE_START_ACTION, array(self::class, 'register_hooks'));
             return;
         }
+        self::add_hooks();
+    }
+
+    /**
+     * Add HOOK and WATCHDOG_HOOK (a pure add_action: no state is read). It is the callback of
+     * Action Scheduler's `action_scheduler_before_process_queue`, which fires before the queue
+     * runs in any context, so the two contexts register() cannot detect still find a callback:
+     * ALTERNATE_WP_CRON (wp-cron runs inside a normal request after plugins load, so
+     * DOING_CRON is defined too late) and Action Scheduler's admin "Run" action (an admin
+     * page request, not AJAX). Without it Action Scheduler runs the action with no callback
+     * and marks it failed. Idempotent.
+     *
+     * @return void
+     */
+    public static function register_hooks() {
+        if (self::$hooked) {
+            return;
+        }
+        self::$hooked = true;
+        self::add_hooks();
+    }
+
+    /** @return void */
+    private static function add_hooks() {
         add_action(self::HOOK, array(self::class, 'handle'), 10, 1);
         add_action(self::WATCHDOG_HOOK, array(self::class, 'watchdog'), 10, 2);
     }
