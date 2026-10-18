@@ -556,10 +556,17 @@ final class Onboarding {
         return StaleClaims::report($this->claims, $this->system->now());
     }
 
-    /** @return Outcome Release the stale claims (no provider request was sent for them). */
-    public function release_stale_claims() {
-        if ($this->stale_claims() === array()) {
-            return Outcome::ok('no stale claims', array('released' => array(), 'skipped' => array()));
+    /**
+     * Release the stale claims (no provider request was sent for them). Only with the
+     * owner's explicit consent: the caller shows stale_claims() first and asks; nothing here
+     * re-reads and releases on its own.
+     *
+     * @param bool $consent Owner consent to release.
+     * @return Outcome
+     */
+    public function release_stale_claims($consent) {
+        if ($consent !== true) {
+            return Outcome::fail(Outcome::ERROR, 'consent_required', 'releasing stale claims needs the owner\'s consent; nothing released', array('released' => array(), 'skipped' => array()));
         }
         $result = StaleClaims::release($this->claims, $this->system->now());
         $data = array('released' => $result['released'], 'skipped' => $result['skipped']);

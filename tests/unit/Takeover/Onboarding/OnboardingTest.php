@@ -9,6 +9,7 @@ use Simplixi\SUPCheckout\Takeover\Journal;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Onboarding;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Outcome;
 use Simplixi\SUPCheckout\Takeover\Rollback;
+use Simplixi\SUPCheckout\Takeover\StaleClaims;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 use Simplixi\SUPCheckout\Tests\Takeover\FakeCopyStore;
 use Simplixi\SUPCheckout\Tests\Takeover\FakeCutoverSystem;
@@ -236,10 +237,65 @@ final class OnboardingTest extends TestCase {
 
     // --- stale claims. ---
 
-    public function test_release_stale_claims_with_none_is_ok(): void {
+    public function test_release_stale_claims_with_consent_and_none_releases_nothing(): void {
         $onboarding = $this->onboarding();
         self::assertSame(array(), $onboarding->stale_claims());
-        $outcome = $onboarding->release_stale_claims();
-        self::assertSame(array(Outcome::OK, 'no stale claims'), array($outcome->code(), $outcome->message()));
+        $outcome = $onboarding->release_stale_claims(true);
+        self::assertSame(array(Outcome::OK, 'released 0, kept 0'), array($outcome->code(), $outcome->message()));
+    }
+
+    public function test_release_stale_claims_without_consent_releases_nothing(): void {
+        $this->claims->add(str_repeat('a', 64), 'claimed', 'owner-a', $this->system->now - 3600);
+        $releases = 0;
+        $this->claims->on_release = static function () use (&$releases) {
+            ++$releases;
+        };
+
+        $outcome = $this->onboarding()->release_stale_claims(false);
+
+        self::assertSame(array(Outcome::ERROR, 'consent_required'), array($outcome->code(), $outcome->reason()));
+        self::assertSame(0, $releases, 'release() is never called');
+        self::assertSame(array(str_repeat('a', 64)), array_keys($this->claims->rows));
+    }
+
+    public function test_the_cli_releases_nothing_when_its_report_was_empty_even_if_a_claim_turns_stale_meanwhile(): void {
+        // Not stale at the CLI's report; stale from the next clock read on.
+        $this->claims->add(str_repeat('a', 64), 'claimed', 'owner-a', $this->system->now - StaleClaims::STALE_SECONDS + 5);
+        $reads = 0;
+        $system = $this->system;
+        $this->system->on_now = static function () use (&$reads, $system) {
+            if (++$reads === 2) {
+                $system->now += 10;
+            }
+        };
+        $releases = 0;
+        $this->claims->on_release = static function () use (&$releases) {
+            ++$releases;
+        };
+        $out = array();
+        $questions = array();
+        $cli = new CliCommands(
+            static function () {
+                return array();
+            },
+            $this->store,
+            $this->system,
+            $this->claims,
+            static function ($line) use (&$out) {
+                $out[] = (string) $line;
+            },
+            static function ($question) use (&$questions) {
+                $questions[] = (string) $question;
+                return false;
+            }
+        );
+
+        self::assertSame(CliCommands::OK, $cli->release_stale_claims(false));
+
+        self::assertSame(array('Success: no stale claims'), $out);
+        self::assertSame(array(), $questions, 'nothing to confirm was observed');
+        self::assertSame(0, $releases, 'release() is never called');
+        self::assertSame(array(), $this->claims->released);
+        self::assertSame(array(str_repeat('a', 64)), array_keys($this->claims->rows));
     }
 }

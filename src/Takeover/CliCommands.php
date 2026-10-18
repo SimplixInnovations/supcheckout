@@ -213,13 +213,15 @@ final class CliCommands {
      */
     public function release_stale_claims($yes) {
         $stale = $this->onboarding->stale_claims();
-        if ($stale !== array()) {
-            $question = 'Release ' . count($stale) . ' billing claim(s) stuck in "claimed" for over ' . StaleClaims::STALE_SECONDS . ' s? No provider request was sent for them.';
-            if (!$yes && !call_user_func($this->confirm, $question)) {
-                return $this->fail(self::ERROR, 'aborted; nothing released');
-            }
+        if ($stale === array()) {
+            // Nothing observed, nothing confirmed: the release path never runs.
+            return $this->done('no stale claims');
         }
-        return $this->finish($this->onboarding->release_stale_claims());
+        $question = 'Release ' . count($stale) . ' billing claim(s) stuck in "claimed" for over ' . StaleClaims::STALE_SECONDS . ' s? No provider request was sent for them.';
+        if (!$yes && !call_user_func($this->confirm, $question)) {
+            return $this->fail(self::ERROR, 'aborted; nothing released');
+        }
+        return $this->finish($this->onboarding->release_stale_claims(true));
     }
 
     /**
