@@ -33,6 +33,12 @@ function absint($value) {
 }
 
 function wp_verify_nonce($nonce, $action) {
+    // 0c Task 7: when $GLOBALS['supcheckout_test_valid_nonces'] (nonce => action) is set, only
+    // those pairs verify, so the REST tests prove which header and action are checked.
+    if (isset($GLOBALS['supcheckout_test_valid_nonces']) && is_array($GLOBALS['supcheckout_test_valid_nonces'])) {
+        $GLOBALS['supcheckout_test_nonce_checks'][] = array($nonce, $action);
+        return is_string($nonce) && isset($GLOBALS['supcheckout_test_valid_nonces'][$nonce]) && $GLOBALS['supcheckout_test_valid_nonces'][$nonce] === $action ? 1 : false;
+    }
     return $GLOBALS['supcheckout_test_subscription_presentation']['nonce_valid'] === true;
 }
 

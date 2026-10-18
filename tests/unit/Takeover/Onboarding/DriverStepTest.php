@@ -646,6 +646,18 @@ final class DriverStepTest extends TestCase {
         self::assertSame(false, $writes[0][3], 'not autoloaded');
     }
 
+    public function test_a_stored_preflight_report_carries_when_it_ran(): void {
+        // 0c Task 7: GET /onboarding/status reports last.preflight_at from it, like the
+        // self-test and setup-check reports' own ran_at.
+        $this->start(Operation::KIND_PREFLIGHT);
+
+        $result = $this->tick();
+
+        self::assertSame(self::T0, get_option('supcheckout_onboarding_last_preflight_v1')['ran_at']);
+        self::assertSame(self::T0, $result['report']['ran_at']);
+        self::assertSame(array(), $result['report']['blocking']);
+    }
+
     public function test_a_preflight_operation_retries_a_cooldown_up_to_three_times(): void {
         $this->preflight = array(self::blocking('credential_unverified', array('reason' => 'cooldown')));
         $this->start(Operation::KIND_PREFLIGHT);

@@ -10,6 +10,7 @@ use Simplixi\SUPCheckout\Bootstrap\Requirements;
 use Simplixi\SUPCheckout\Bootstrap\WooCommerceDeclarations;
 use Simplixi\SUPCheckout\Gateway\GatewayRegistration;
 use Simplixi\SUPCheckout\Release\Identity;
+use Simplixi\SUPCheckout\Rest\Routes as RestRoutes;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\SchedulerBootstrap;
 use Simplixi\SUPCheckout\Takeover\Cli as TakeoverCli;
@@ -46,6 +47,7 @@ final class Plugin {
         SubscriptionActions::register();
         CopyRunner::register();
         AsyncDriver::register();
+        RestRoutes::register();
         TakeoverCli::register();
         self::load_runtime(self::$main_file);
     }

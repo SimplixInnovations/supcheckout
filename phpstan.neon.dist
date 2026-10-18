@@ -15,6 +15,7 @@ parameters:
         - tests/phpstan/gateway-order-presentation-stubs.php
         - tests/phpstan/takeover-preflight-stubs.php
         - tests/phpstan/takeover-copy-stubs.php
+        - tests/phpstan/rest-api-stubs.php
     paths:
         - src/Payment/CheckoutPayload.php
         - src/Payment/OrderLock.php
@@ -107,4 +108,9 @@ parameters:
         - src/Takeover/Onboarding/BudgetedWordPressSystem.php
         - src/Takeover/Onboarding/DriverStep.php
         - src/Takeover/Onboarding/AsyncDriver.php
+        - src/Rest/Responses.php
+        - src/Rest/RequestGuard.php
+        - src/Rest/Routes.php
+        - src/Rest/OnboardingController.php
+        - src/Rest/SetupController.php
     tmpDir: .cache/phpstan

@@ -568,6 +568,10 @@ final class DriverStep {
             $this->next($kind, self::COOLDOWN_RETRY_DELAY);
             return;
         }
+        if ($kind === Operation::KIND_PREFLIGHT) {
+            // The check reports carry their own ran_at; the status route reads it from each.
+            $report['ran_at'] = $this->clock();
+        }
         $report = Bounded::document($report);
         update_option(self::last_report_option($kind), $report, false);
         $this->end(Operation::DONE, null, null, $report);

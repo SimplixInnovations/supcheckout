@@ -61,6 +61,28 @@ final class RateLimiter {
     }
 
     /**
+     * Reopen a bucket this request closed (0c Task 7: a start whose action could not be
+     * scheduled gives its slot back, so an immediate retry is not blocked). A
+     * compare-and-swap against the exact closing time hit() stored, so a slot another
+     * request closed is never reopened.
+     *
+     * @param mixed $bucket Bucket name.
+     * @param int   $until  The closing time the allowed hit() stored: its $now + $window.
+     * @return bool True when this call reopened the bucket.
+     */
+    public static function release($bucket, $until) {
+        if (!is_string($bucket) || preg_match('/^[a-z_]{1,64}$/', $bucket) !== 1) {
+            return false;
+        }
+        $name = self::OPTION_PREFIX . $bucket;
+        $raw = self::read($name);
+        if (!is_string($raw) || $raw !== (string) (int) $until) {
+            return false;
+        }
+        return OrderLock::replace_if_current($name, $raw, '0');
+    }
+
+    /**
      * Another request won the bucket between our read and our write.
      *
      * @param string $name   Option name.

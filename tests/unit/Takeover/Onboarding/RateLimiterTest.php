@@ -82,4 +82,21 @@ final class RateLimiterTest extends TestCase {
         self::assertSame(5, RateLimiter::hit('switch', 10, 1010));
         self::assertSame('1015', $GLOBALS['supcheckout_test_options'][self::PREFIX . 'switch']);
     }
+
+    public function test_release_reopens_the_slot_this_hit_closed(): void {
+        // 0c Task 7: a start whose action could not be scheduled gives its slot back.
+        RateLimiter::hit('switch', 10, 1000);
+
+        self::assertTrue(RateLimiter::release('switch', 1010));
+        self::assertSame(0, RateLimiter::hit('switch', 10, 1001));
+    }
+
+    public function test_release_never_reopens_a_slot_another_hit_closed(): void {
+        $GLOBALS['supcheckout_test_options'][self::PREFIX . 'switch'] = '1015';
+
+        self::assertFalse(RateLimiter::release('switch', 1010));
+        self::assertFalse(RateLimiter::release('../x', 1010));
+        self::assertFalse(RateLimiter::release('abort', 1010), 'an absent bucket is already open');
+        self::assertSame(array(self::PREFIX . 'switch' => '1015'), $GLOBALS['supcheckout_test_options']);
+    }
 }

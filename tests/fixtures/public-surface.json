@@ -81,6 +81,14 @@
     },
     {
         "kind": "action",
+        "hook": "rest_api_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
         "hook": "simplixpay_upayments_reconcile_order",
         "priority": 10,
         "accepted_args": 1,
@@ -794,6 +802,14 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "rest_api_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "supcheckout_onboarding_drive",
         "priority": 10,
         "accepted_args": 1,
@@ -1061,6 +1077,22 @@
         "hook": "product_type_selector",
         "priority": 10,
         "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "rest_post_dispatch",
+        "priority": 10,
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "rest_request_before_callbacks",
+        "priority": 10,
+        "accepted_args": 3,
         "contexts": "static"
     },
     {
