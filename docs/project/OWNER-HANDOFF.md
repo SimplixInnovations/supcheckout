@@ -45,7 +45,7 @@ See `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md` and
 
 Release Candidate 1 is the current owner-accepted technical baseline; Approach 3 is historical. Publication remains NOT AUTHORIZED. Unresolved provider contracts remain uncertified.
 
-Active engineering program (reconciled 2026-10-18): the SUPCheckout revamp (`docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`). Sub-project 0a clean core is **DONE / VERIFIED** and staging-rehearsed ([evidence](evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md)). Sub-project 0b takeover engine Tasks 1–12 are merged (PRs #173–#184 except #178) and the Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`. Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 on a UPayments sandbox outage (HTTP 502). Record it in `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`. Details: `PROJECT-STATUS.md` "Revamp program".
+Active engineering program (reconciled 2026-10-18): the SUPCheckout revamp (`docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`). Sub-project 0a clean core is **DONE / VERIFIED** and staging-rehearsed ([evidence](evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md)). Sub-project 0b takeover engine Tasks 1–12 are merged (PRs #173–#184 except #178) and the Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`. The 0b takeover staging rehearsal PASSED on 2026-10-18 ([evidence](evidence/TAKEOVER-REHEARSAL-2026-10-18.md)). Current executable gate: **Sub-project 0c onboarding UI — NEXT**. Details: `PROJECT-STATUS.md` "Revamp program".
 
 ## 2. Golden identity
 

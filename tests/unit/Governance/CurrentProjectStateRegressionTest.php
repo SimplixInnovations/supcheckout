@@ -14,11 +14,11 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
     private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
     /** The current executable gate (reconciled 2026-10-18): the Sub-project 0b takeover staging rehearsal. */
-    private const CURRENT_GATE = '**owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**';
+    private const CURRENT_GATE = '**Sub-project 0c onboarding UI — NEXT**';
     /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
     private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
     /** The same current gate as a machine identifier (architecture contract). */
-    private const CURRENT_GATE_ID = 'subproject_0b_takeover_staging_rehearsal';
+    private const CURRENT_GATE_ID = 'subproject_0c_onboarding_ui';
     private const SUPERSEDED_GATE ='Current executable gate: **external certification & release readiness**.';
 
     /**
