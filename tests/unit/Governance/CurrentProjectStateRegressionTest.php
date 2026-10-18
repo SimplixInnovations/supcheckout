@@ -13,7 +13,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const RC1_ACCEPTANCE_TOKEN = 'RELEASE_CANDIDATE_1';
     private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
     private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
-    /** The current executable gate (reconciled 2026-10-18): the Sub-project 0b takeover staging rehearsal. */
+    /** The current executable gate (reconciled 2026-10-18): Sub-project 0c onboarding UI, after the 0b takeover rehearsal passed. */
     private const CURRENT_GATE = '**Sub-project 0c onboarding UI — NEXT**';
     /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
     private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
@@ -55,7 +55,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $content = self::read_repository_file('docs/project/START-HERE.md');
 
         self::assertStringContainsString('docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Sub-project 0b takeover**', $content);
+        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c onboarding UI**', $content);
+        self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0b takeover**', $content);
+        self::assertStringNotContainsString('finish the rehearsal', $content);
         self::assertStringContainsString('release program external certification & release readiness stays open', $content);
         self::assertStringNotContainsString('Program phase | **external certification & release readiness** |', $content);
         self::assertStringContainsString('R6 | **DONE / VERIFIED**', $content);

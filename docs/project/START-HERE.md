@@ -146,7 +146,7 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (§9 deli
 - **Sub-project 0a clean core — DONE / VERIFIED, staging-rehearsed.** PRs #165–#172, last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`; owner staging rehearsal passed 2026-10-17 ([evidence](evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md), PR #178).
 - **Sub-project 0b takeover engine — Tasks 1–12 merged** (PRs #173–#177, #179–#184; plan `docs/superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md`; per-PR merge SHAs in [`PROJECT-STATUS.md`](PROJECT-STATUS.md)). The real-WordPress Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` and is a permanent quality control.
 - Current executable gate: **Sub-project 0c onboarding UI — NEXT**. The 0b takeover staging rehearsal PASSED on 2026-10-18 (`docs/project/evidence/TAKEOVER-REHEARSAL-2026-10-18.md`): preflight blocked correctly during a UPayments sandbox outage; then the switch, an in-flight payment from the official plugin, rollback with reactivation, a second switch and a forced Finalize all behaved as designed. Its two findings were fixed in #185.
-- **Next:** finish the rehearsal (evidence → `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`), then Sub-project 0c onboarding UI, then Sub-projects 1–5 per the spec.
+- **Next:** Sub-project 0c onboarding UI (includes the automatic LiteSpeed purge at cutover and the owner check of WCML per-currency checkout visibility), then Sub-projects 1–5 per the spec.
 
 
 ## 6. Post-T3 execution sequence
@@ -185,7 +185,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 
 | Field | Current value |
 |---|---|
-| Program phase | **SUPCheckout revamp — Sub-project 0b takeover** (spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`); release program external certification & release readiness stays open |
+| Program phase | **SUPCheckout revamp — Sub-project 0c onboarding UI** (spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`); release program external certification & release readiness stays open |
 | Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED — HISTORICAL, superseded by Release Candidate 1** |
 | Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
 | Frozen accepted baseline | `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (Release Candidate 1; supersedes Approach 3 `146d65a1c182630c1acc651cacafe30cff5f6b79`) |
