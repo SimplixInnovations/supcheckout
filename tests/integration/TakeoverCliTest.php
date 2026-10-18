@@ -135,9 +135,27 @@ $phase = (string) getenv('SUPCHECKOUT_CERT_PHASE');
 if ($phase === 'paused') {
     supcheckout_cert_assert(is_plugin_active(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL), 'the official plugin stand-in is active');
     supcheckout_cert_assert(!defined('SUPCHECKOUT_VERSION'), 'SUPCheckout is paused: Plugin::boot() did not run');
+    // before_woocommerce_init carries the full boot's WooCommerce feature declarations:
+    // without them WooCommerce shows the paused plugin as "Incompatible with WooCommerce
+    // features" (owner staging rehearsal).
     supcheckout_cert_assert(
-        supcheckout_takeover_cert_own_hooks() === array('admin_notices'),
-        'the paused boot registered no gateway, Blocks, WC-API route, cron or other hook (only the conflict notice): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
+        supcheckout_takeover_cert_own_hooks() === array('admin_notices', 'before_woocommerce_init'),
+        'the paused boot registered no gateway, Blocks, WC-API route, cron or other hook (only the conflict notice and the WooCommerce feature declarations): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
+    );
+    $own_basename = '';
+    foreach ((array) get_option('active_plugins', array()) as $active_plugin) {
+        if (is_string($active_plugin) && basename($active_plugin) === 'supcheckout.php') {
+            $own_basename = $active_plugin;
+        }
+    }
+    $paused_features = $own_basename === '' ? array() : Automattic\WooCommerce\Utilities\FeaturesUtil::get_compatible_features_for_plugin($own_basename);
+    supcheckout_cert_assert(
+        isset($paused_features['compatible'], $paused_features['incompatible'])
+            && in_array('custom_order_tables', $paused_features['compatible'], true)
+            && in_array('cart_checkout_blocks', $paused_features['compatible'], true)
+            && !in_array('custom_order_tables', $paused_features['incompatible'], true)
+            && !in_array('cart_checkout_blocks', $paused_features['incompatible'], true),
+        'paused, SUPCheckout still declares HPOS and Cart & Checkout blocks compatibility in the real WooCommerce registry: ' . wp_json_encode($paused_features)
     );
     supcheckout_cert_assert(has_action('woocommerce_api_wc_upayments') !== false, 'the legacy callback route is the official plugin\'s');
     // A plugin's `supcheckout takeover` command has no registered parent, so WP-CLI defers it
@@ -204,8 +222,8 @@ if ($phase === 'paused') {
     $in_process = \Simplixi\SUPCheckout\Takeover\Preflight::run();
     supcheckout_cert_assert($in_process['blocking'] === array(), 'an in-process paused Preflight reports nothing blocking');
     supcheckout_cert_assert(
-        supcheckout_takeover_cert_own_hooks() === array('admin_notices'),
-        'after a paused Preflight, SUPCheckout still has no woocommerce_api_wc_upayments, reconcile cron or other hook: ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
+        supcheckout_takeover_cert_own_hooks() === array('admin_notices', 'before_woocommerce_init'),
+        'after a paused Preflight, SUPCheckout still has no woocommerce_api_wc_upayments, reconcile cron or other hook (only the conflict notice and the WooCommerce feature declarations): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
     );
     supcheckout_cert_assert(!class_exists('Simplixi\\SUPCheckout\\Payment\\PaymentLifecycle', false), 'the payment lifecycle was never loaded while paused');
 

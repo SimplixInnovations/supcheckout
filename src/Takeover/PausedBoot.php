@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Takeover;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Bootstrap\WooCommerceDeclarations;
+
 /**
  * The paused branch of the main file (Sub-project 0b Task 9).
  *
@@ -11,6 +13,11 @@ defined('ABSPATH') || exit;
  * the main file returns from OfficialPluginConflict::pause_if_active() before
  * Plugin::boot(). It calls boot() instead, which registers only:
  *
+ * - the full boot's WooCommerce feature declarations (HPOS and the Cart & Checkout blocks)
+ *   on `before_woocommerce_init`, through the same Bootstrap\WooCommerceDeclarations
+ *   callback and for the same main file. Without them WooCommerce shows the paused plugin
+ *   as "Incompatible with WooCommerce features". Declaring compatibility registers no
+ *   gateway and touches no order;
  * - the `wp supcheckout takeover` command, when running under WP-CLI (Cli::register());
  * - on a Preflight probe request alone (`supcheckout_probe=1`), the probe answer on the
  *   new, unshared `supcheckout` WC-API route (LegacyCallbackListener::handle_probe()).
@@ -34,6 +41,7 @@ final class PausedBoot {
      * @return void
      */
     public static function boot($main_file) {
+        WooCommerceDeclarations::register_paused($main_file);
         Cli::register();
         if (LegacyCallbackListener::is_probe()) {
             add_action(LegacyCallbackListener::HOOK, array(LegacyCallbackListener::class, 'handle_probe'), 5);

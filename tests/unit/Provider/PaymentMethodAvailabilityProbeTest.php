@@ -112,24 +112,54 @@ final class PaymentMethodAvailabilityProbeTest extends TestCase {
         $this->assertNothingWritten();
     }
 
+    /**
+     * Every failed provider call is a failure; the probe also reports the HTTP status
+     * (int, never the body or headers) and whether UPayments did not answer at all
+     * (transport error, timeout, empty body or HTTP 5xx) rather than refusing.
+     */
     public function test_probe_reports_every_transport_or_provider_failure_without_writing(): void {
         $responses = array(
-            'not an array' => null,
-            'transport failed' => array('transport_ok' => false, 'http_status' => 0, 'curl_errno' => 1, 'body' => null),
-            'unexpected status' => array('transport_ok' => true, 'http_status' => 401, 'curl_errno' => 0, 'body' => '{"status":false}'),
-            'non-strict status' => $this->envelope(array('isWhiteLabel' => 0), 1),
-            'missing white label' => $this->envelope(array('payButtons' => array())),
-            'malformed button' => $this->envelope(array('isWhiteLabel' => 0, 'payButtons' => array('knet' => 'yes'))),
+            // label => array(transport outcome, expected http_status, expected provider_unavailable)
+            'not an array' => array(null, 0, true),
+            'transport failed' => array(array('transport_ok' => false, 'http_status' => 0, 'curl_errno' => 1, 'body' => null), 0, true),
+            'bad gateway' => array(array('transport_ok' => false, 'http_status' => 502, 'curl_errno' => 0, 'body' => '<html>Bad gateway</html>'), 502, true),
+            'service unavailable' => array(array('transport_ok' => false, 'http_status' => 503, 'curl_errno' => 0, 'body' => ''), 503, true),
+            'gateway timeout' => array(array('transport_ok' => false, 'http_status' => 504, 'curl_errno' => 0, 'body' => ''), 504, true),
+            'cloudflare origin error' => array(array('transport_ok' => false, 'http_status' => 522, 'curl_errno' => 0, 'body' => 'error code: 522'), 522, true),
+            'empty body' => array(array('transport_ok' => true, 'http_status' => 201, 'curl_errno' => 0, 'body' => ''), 201, true),
+            'truncated body' => array(array('transport_ok' => false, 'http_status' => 201, 'curl_errno' => 0, 'body' => null), 201, true),
+            'unauthorized' => array(array('transport_ok' => false, 'http_status' => 401, 'curl_errno' => 0, 'body' => '{"status":false}'), 401, false),
+            'forbidden with empty body' => array(array('transport_ok' => false, 'http_status' => 403, 'curl_errno' => 0, 'body' => ''), 403, false),
+            'unexpected status' => array(array('transport_ok' => true, 'http_status' => 401, 'curl_errno' => 0, 'body' => '{"status":false}'), 401, false),
+            'status false' => array($this->envelope(array('isWhiteLabel' => 0), false), 201, false),
+            'non-strict status' => array($this->envelope(array('isWhiteLabel' => 0), 1), 201, false),
+            'missing white label' => array($this->envelope(array('payButtons' => array())), 201, false),
+            'malformed button' => array($this->envelope(array('isWhiteLabel' => 0, 'payButtons' => array('knet' => 'yes'))), 201, false),
         );
-        foreach ($responses as $label => $response) {
+        foreach ($responses as $label => list($response, $http_status, $unavailable)) {
             \supcheckout_test_reset_availability();
             $calls = 0;
             $service = new PaymentMethodAvailability(false, 'key-' . md5($label), $this->transport($calls, $response));
 
-            self::assertSame(array('result' => 'failure'), $service->probe(), $label);
+            self::assertSame(
+                array('result' => 'failure', 'http_status' => $http_status, 'provider_unavailable' => $unavailable),
+                $service->probe(),
+                $label
+            );
             self::assertSame(1, $calls, $label);
             $this->assertNothingWritten($label);
         }
+    }
+
+    public function test_fetch_still_caches_an_outage_as_a_plain_failure(): void {
+        // The checkout path is unchanged: an outage is the same failure sentinel as before.
+        $calls = 0;
+        $service = new PaymentMethodAvailability(false, 'outage-key', $this->transport($calls, array('transport_ok' => false, 'http_status' => 502, 'curl_errno' => 0, 'body' => '')));
+
+        $result = $service->fetch();
+
+        self::assertSame(1, $calls);
+        self::assertSame(array('result' => 'failure'), $result);
     }
 
     /** @return void */
