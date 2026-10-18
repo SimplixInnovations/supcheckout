@@ -35,7 +35,7 @@ Two engine changes support this:
 
 **Payment and security (AGENTS.md)**
 - No route or service in 0c marks, unmarks or re-verifies a payment, creates a Charge, or rewrites an order's `payment_method`. They call only the takeover engines (`Cutover`, `Rollback`, `Finalize`, `StaleClaims`, `CopyRunner`, `Preflight`) and read-only probes.
-- The self-test calls UPayments only when the settings have `test_mode === 'yes'`, with exactly one `PaymentMethodAvailability::probe()`. In production mode it makes no provider call.
+- The self-test makes exactly one read-only `PaymentMethodAvailability::probe()` through `Environment`, in test and live mode alike (owner decision, 2026-10-18). It never charges or mutates anything, it respects the provider rate gate, and it never sends a second request. A `cooldown` is reported as `credential: cooldown` and does not count as a failure. A provider outage is reported as `provider_unavailable`, as Preflight does.
 - **Every route:** `current_user_can('manage_woocommerce')`.
 - **Every write:** `wp_verify_nonce(X-WP-Nonce, 'wp_rest')` is checked explicitly, so an Application Password alone cannot start a switch.
 - **Input:** JSON-schema args; unknown parameters are rejected; consent flags mirror the CLI flags and default to `false`.
@@ -59,7 +59,7 @@ Two engine changes support this:
 - Pay links and recovery (Sub-project 4).
 - The provider `status: "error"` / `result: null` follow-up (rehearsal follow-up 1). It goes in a separate test-first bug-fix PR.
 - The optional sandbox test payment. It is designed in Sub-project 2 through the core checkout lifecycle, and 0c exposes no route for it. `SetupChecks` reports `test_payment` as `deferred`.
-- Purge integrations for Breeze and SiteGround Optimizer.
+- Purges for any cache layer without a public purge API that could be verified in source. Such a layer is reported `manual` (today: the Cloudflare plugin).
 - Cancelling a running copy. The CLI cannot do it either; `abort` from `verified` stays the way out.
 
 **Gates**
@@ -87,6 +87,7 @@ Two engine changes support this:
 - **State-driven driver.** Each tick re-reads `TakeoverState` and picks the next step from it, not from a script. A CLI command run at the same time just moves the state, and the next tick follows it. Every engine is already crash-resumable and guarded (Quiesce lease, CopyRunner lock, compare-and-swap transitions), so no new mutual exclusion with the CLI is needed.
 - **The official plugin is deactivated in its own tick.** Cutover then runs in the next action, in a fresh process where the official plugin's code is not loaded and SUPCheckout's full runtime is booted in `verified`. This is stricter than the CLI's in-process path and costs one action.
 - **Long work that cannot yield runs in one action with a raised time limit.** This covers Cutover, the pre-transition part of Rollback and Finalize, and the read-only Finalize plan. Each phase gets a dead-man watchdog action at `Quiesce::TTL` + 60 s and an attempt budget. Work that can yield gets a 20 s tick budget: the copy (`CopyRunner::ACTION_TIME_BUDGET`), removal units and the settle barrier. The 120 s settle wait becomes a scheduled resume at its deadline, never a sleeping web worker.
+- **Paused driver hooks are required (owner decision, 2026-10-18).** The takeover's primary scenario is the official plugin being active, so SUPCheckout is paused for the copy and up to the deactivation, and `Plugin::boot()` never runs. Without `supcheckout_onboarding_drive` and `supcheckout_onboarding_watchdog` on the paused branch, no admin-started operation could advance until someone ran WP-CLI. Both are takeover-owned names the official plugin never uses, both call only takeover services, and neither is a payment, subscription or WC-API hook.
 - **No per-request database reads for the driver.** The hooks are registered without reading state, and only in contexts that can run Action Scheduler (cron, AJAX, WP-CLI). The watchdog runs from the scheduled watchdog action, from every status poll and from every start call, not from `action_scheduler_init`. This keeps the paused and frontend surface minimal.
 - **Operations with outbound HTTP are asynchronous too.** That covers preflight, self-test and setup checks. Preflight alone can take 15 s (provider) plus 2 × 10 s (loopback), plus its database scans, which is too close to common 30 s web limits. Only `stale-claims/release` runs inline: at most 500 rows, under the lease.
 - **Cache purge goes through `CutoverSystem::purge_caches()`.** The engines stay testable with fakes. The purge runs after the compare-and-swap, and a failing purge can never fail a switch that already happened.
@@ -101,6 +102,8 @@ Two engine changes support this:
 | WP Rocket | `rocket_clean_domain()` | `function_exists('rocket_clean_domain')` | docs.wp-rocket.me/article/92-rocketcleandomain; `inc/functions/files.php` `function rocket_clean_domain( $lang = '', $filesystem = null )`, where an empty `$lang` purges every language URI (`get_rocket_i18n_uri()`), which covers WPML |
 | W3 Total Cache | `w3tc_flush_all()` | `function_exists('w3tc_flush_all')` | `w3-total-cache-api.php` `w3tc_flush_all( $extras = null )` |
 | WP Super Cache | `wp_cache_clear_cache(is_multisite() ? get_current_blog_id() : 0)` | `function_exists('wp_cache_clear_cache')` | `wp-cache-phase2.php` `function wp_cache_clear_cache( $blog_id = 0 )`: 0 clears everything, a blog ID only that blog |
+| Breeze 2.6.2 | `do_action('breeze_clear_all_cache')` | `has_action('breeze_clear_all_cache')` (registered on every request by `Breeze_Admin`, constructed on `init` at priority 0) | `inc/breeze-admin.php` line 41 ("Add our custom action to clear cache"), `add_action( 'breeze_clear_all_cache', array( $this, 'breeze_clear_all_cache' ) )`; `inc/cache/purge-cache.php` fires the same action to flush local, Varnish and Cloudflare layers. The plugin author recommends this action on the wordpress.org support forum. |
+| SiteGround Speed Optimizer 7.8.4 | `sg_cachepress_purge_everything()` | `function_exists('sg_cachepress_purge_everything')` | `helpers/helpers.php`, docblocked "Public function to purge the entire cache. @since 5.7.14", with a phpcs note "Public plugin API kept for backward compatibility" |
 | Cloudflare (official plugin) | none, reported `manual` | `class_exists('Cloudflare\APO\WordPress\Hooks', false)` | `cloudflare.loader.php` applies `cloudflare_purge_everything_actions` at load; there is no public purge API |
 | Object cache | `wp_cache_flush()` | always | WordPress core |
 
@@ -231,7 +234,7 @@ public function test_the_cli_exit_code_constants_alias_outcome(): void {
 
 **Interfaces:**
 - Produces:
-  - `CachePurger::purge_all(): array{ran:list<string>, manual:list<string>, failed:list<string>}`, using the names `litespeed`, `wp_rocket`, `w3tc`, `wp_super_cache`, `cloudflare` and `object_cache`, in that order, with the calls and guards from the "Verified cache-purge APIs" table. Each call is wrapped in `try { } catch (\Throwable $e)` and reported under `failed` by name. It never rethrows and never logs a value;
+  - `CachePurger::purge_all(): array{ran:list<string>, manual:list<string>, failed:list<string>}`, using the names `litespeed`, `wp_rocket`, `w3tc`, `wp_super_cache`, `breeze`, `sg_optimizer`, `cloudflare` and `object_cache`, in that order, with the calls and guards from the "Verified cache-purge APIs" table. Each call is wrapped in `try { } catch (\Throwable $e)` and reported under `failed` by name. It never rethrows and never logs a value;
   - `CachePurger::detected(): list<string>`, the cache layers present (same names, without `object_cache`), used by Task 5;
   - `CutoverSystem::purge_caches(): array`, with the same shape;
   - `report['cache_purge']` in the Cutover, Rollback and Finalize results. Rollback adds `report['cache_purge_after_reactivation']` when it reactivated the official plugin. Each engine calls the purge after `TakeoverState::refresh()` and before `step('caches_flushed')`, inside its own `try/catch`. A throw records `failed: ['system']` and leaves `ok` and the transition intact.
@@ -251,6 +254,8 @@ public function test_litespeed_gets_the_documented_action_with_a_reason(): void 
 }
 public function test_a_throwing_vendor_purge_is_reported_failed_and_the_rest_still_run(): void { /* w3tc_flush_all throws: failed === ['w3tc'], ran === ['object_cache'] */ }
 public function test_the_cloudflare_plugin_is_reported_manual_and_never_called(): void { /* manual === ['cloudflare'] */ }
+public function test_breeze_gets_its_clear_all_action_only_when_registered(): void { /* no has_action: 'breeze' absent from every list; with a listener: listener called once, ran === ['breeze', 'object_cache'] */ }
+public function test_sg_optimizer_purge_everything_is_called_when_defined(): void { /* function defined in a separate process: called once with no argument, ran === ['sg_optimizer', 'object_cache'] */ }
 public function test_super_cache_clears_only_the_current_blog_on_multisite(): void { /* is_multisite true, blog 3: argument 3; single site: argument 0 */ }
 public function test_rocket_clean_domain_is_called_without_a_language(): void { /* recorded args === array() */ }
 // CutoverTest
@@ -271,13 +276,14 @@ public function test_finalize_purges_once_after_finalized(): void { /* purges ==
 `CachePurgeRuntimeTest` (real WordPress, E3 cells):
 - `litespeed-cache`: `in_array('litespeed', $report['ran'], true)` and `did_action('litespeed_purged_all') >= 1`;
 - `w3-total-cache`: `in_array('w3tc', $report['ran'], true)`;
-- `breeze` and `sg-cachepress`: `$report['ran'] === array('object_cache')`;
+- `breeze`: `$report['ran'] === array('breeze', 'object_cache')`;
+- `sg-cachepress`: `$report['ran'] === array('sg_optimizer', 'object_cache')`. On a non-SiteGround host the function only purges what that host enables, so a no-op is still a clean `ran`;
 - every cell: `$report['failed'] === array()`.
 
 - [ ] **Step 2: Run.** `vendor/bin/phpunit --filter "CachePurgerTest|CutoverTest|RollbackTest|FinalizeTest"`. Expected: FAIL, `Class "Simplixi\SUPCheckout\Takeover\CachePurger" not found`.
 - [ ] **Step 3: Implement** `CachePurger`, the `CutoverSystem::purge_caches()` method on both systems and the fake, the three engine call sites, the CLI line, and the workflow step.
 - [ ] **Step 4: Run** the same filter. Expected: PASS. Then run all gates.
-- [ ] **Step 5: Commit.** `feat(takeover): purge LiteSpeed, WP Rocket, W3TC, WP Super Cache and the object cache at caches_flushed`
+- [ ] **Step 5: Commit.** `feat(takeover): purge LiteSpeed, WP Rocket, W3TC, WP Super Cache, Breeze, SiteGround Optimizer and the object cache at caches_flushed`
 
 ---
 
@@ -403,7 +409,7 @@ public function test_bounded_document_never_exceeds_32768_bytes(): void { /* a 4
   1. `takeover_state`: pass for `cut_over` or `finalized`; otherwise fail with code `not_switched`.
   2. `callback_reachable`.
   3. `cache_exclusion`: warn when `cache_exclusion_missing` is present.
-  4. `provider_status`. When settings `test_mode === 'yes'`: one `credential_findings()` call. Verified → pass with `data{mode, methods}`. Reason `provider_unavailable` → fail with code `credential_unverified` and `data.reason`. Reason `cooldown` → warn. Otherwise fail. When not in test mode: skipped with code `production_mode`, and no provider call at all.
+  4. `credential`: exactly one `credential_findings()` call (one read-only probe through `Environment`) in test and live mode, with `data.test_mode`. Verified → pass with `data{mode, methods}`. Reason `cooldown` → warn with code `cooldown`; not a failure, so `ok` is unaffected. Reason `provider_unavailable` → fail with code `credential_unverified`, `data.reason` and `data.http_status`, as Preflight reports it. Reason `rejected` or `missing` → fail. No retry and no second request inside `run()`.
   5. `gateway_registered`: `Keys::GATEWAY` is in the WooCommerce gateway registry.
   6. `gateway_enabled`: `Keys::SETTINGS_OPTION['enabled'] === 'yes'`.
   7. `currency_supported`: `GatewaySettings::supported_currencies()`.
@@ -422,16 +428,18 @@ public function test_bounded_document_never_exceeds_32768_bytes(): void { /* a 4
 - [ ] **Step 1: Write the failing tests.**
 
 ```php
-public function test_self_test_in_production_mode_makes_no_provider_call(): void {
-    $calls = 0; $env = PreflightFixtures::environment(array('settings' => array('test_mode' => 'no', 'api_key' => 'k'), 'availability' => function () use (&$calls) { $calls++; return array('result' => 'success'); }));
-    $check = self::check((new SelfTest($env, self::gateway(true, true), self::status('cut_over')))->run(), 'provider_status');
-    self::assertSame(array('skipped', 'production_mode', 0), array($check['result'], $check['code'], $calls));
+public function test_self_test_in_live_mode_makes_exactly_one_probe(): void {
+    $calls = 0; $env = PreflightFixtures::environment(array('settings' => array('test_mode' => 'no', 'api_key' => 'k'), 'availability' => function () use (&$calls) { $calls++; return array('result' => 'success', 'isWhiteLabel' => false, 'payButtons' => array()); }));
+    $check = self::check((new SelfTest($env, self::gateway(true, true), self::status('cut_over')))->run(), 'credential');
+    self::assertSame(array('pass', 1, false), array($check['result'], $calls, $check['data']['test_mode']));
 }
-public function test_self_test_in_test_mode_makes_exactly_one_sandbox_call(): void { /* $calls === 1, result pass, data mode 'hosted' */ }
+public function test_self_test_in_test_mode_makes_exactly_one_probe(): void { /* test_mode 'yes': $calls === 1, result pass, data mode 'hosted', test_mode true */ }
+public function test_a_failed_probe_is_never_repeated(): void { /* availability returns array('result' => 'failure'): $calls === 1 */ }
+public function test_a_cooldown_warns_and_does_not_fail_the_self_test(): void { /* availability array('result' => 'cooldown'), everything else passing: credential warn, code cooldown; report ok === true; $calls === 1 */ }
 public function test_self_test_reports_a_provider_outage_as_provider_unavailable(): void { /* availability array('result'=>'failure','provider_unavailable'=>true,'http_status'=>502): fail, code credential_unverified, data reason provider_unavailable, http_status 502 */ }
 public function test_self_test_defers_the_event_journal(): void { /* event_journal: deferred, code event_journal_not_built */ }
 public function test_self_test_lists_its_checks_in_order(): void {
-    self::assertSame(array('takeover_state', 'callback_reachable', 'cache_exclusion', 'provider_status', 'gateway_registered', 'gateway_enabled', 'currency_supported', 'multilingual', 'event_journal'), array_column($report['checks'], 'id'));
+    self::assertSame(array('takeover_state', 'callback_reachable', 'cache_exclusion', 'credential', 'gateway_registered', 'gateway_enabled', 'currency_supported', 'multilingual', 'event_journal'), array_column($report['checks'], 'id'));
 }
 public function test_setup_checks_list_their_checks_in_order(): void {
     self::assertSame(array('credential', 'account_mode', 'currency', 'callback_reachable', 'cache_exclusion', 'cache_layers', 'multilingual', 'test_payment'), array_column($report['checks'], 'id'));
@@ -502,7 +510,7 @@ public function test_preflight_output_is_unchanged_by_the_seams(): void { /* exi
 | switch / `retire` | verified | `retire_official(consent, 'switch')` | Deactivated → phase `cutover`, **next 0 (fresh process)**. Already inactive → continue to `cutover` in the same tick. No consent → `blocked` `official_active` (state stays `verified`). Failure → `failed` `deactivation_failed`. |
 | switch / `cutover` (long) | verified | `attempts.cutover++`; above 3 → `failed` `driver_exhausted`, hint `run "wp supcheckout takeover run --deactivate-official" on the server`. Then `cutover(consent)`. | OK → phase `self_test`, next 0. `busy` / `lease_lost` / `claims_in_flight` / `transition_refused` → undo the attempt increment for `busy`, `busy_retries++` (above 17 → `failed` `busy`), next 60. `stale_claims` → `failed`, hint `release stale claims (POST /onboarding/stale-claims/release), then start the switch again`. `official_active` → phase `retire`, next 0. Mismatch → `failed`. |
 | switch / any | cut_over (moved by the CLI, or a crash after the swap) | | phase `self_test` |
-| switch / `self_test` | cut_over | `$self_test()`; a `provider_status` warn with `cooldown` → retry once in 65 s | `done`, `self_test` stored, warning `self_test_failed` when `ok` is false |
+| switch / `self_test` | cut_over | `$self_test()`; a `credential` warn with `cooldown` → retry once in 65 s, then store it as it is (a warning, not a failure) | `done`, `self_test` stored, warning `self_test_failed` when `ok` is false |
 | rollback / `guard` | | `plan_rewind('rollback')`, then, when `data.retire_official`, `retire_official(consent, 'rollback')`; a deactivation → next 0 (fresh process) | refusals → `failed` / `blocked` |
 | rollback, abort / `rewind` (long only while the state is still `cut_over` / `verified`) | | `rewind(mode, consent.reactivate_official, $system)` | `yielded` → next `max(0, resume_at - now)`. BUSY reasons → busy retry as above. OK → `done`. CONFLICTS → `done` + warning `conflicts`, with the conflicts in the report. OFFICIAL_NOT_REACTIVATED → `done` + warning `official_not_reactivated`. Other → `failed` with the reason. |
 | finalize | | `plan_finalize(force)`, then `finalize(force, $system)` (long until `finalized`) | as for rewind; CONFLICTS → `done` + warning `kept` |
@@ -720,7 +728,7 @@ Coexistence harness:
   - POST abort `{"confirm":true}` → 409 `supcheckout_operation_in_progress`;
   - driven to `done`;
   - `TakeoverState` is `cut_over`, the stand-in is inactive, and `op.steps` contains `cut_over` and `caches_flushed`.
-- **Self-test results:** `op.self_test.checks` has `provider_status` = `pass` (test mode on, the mu-plugin answers), `event_journal` = `deferred` and `gateway_registered` = `pass`.
+- **Self-test results:** `op.self_test.checks` has `credential` = `pass` (one probe, which the mu-plugin answers), `event_journal` = `deferred` and `gateway_registered` = `pass`.
 - **Invariants:**
   - order statuses equal the snapshot (no payment state touched);
   - `wp_json_encode` of every response body never contains the stored API key value (`takeover-cli-certification-key-…`).
@@ -754,7 +762,7 @@ Coexistence harness:
 - Modify: `docs/COMPATIBILITY.md`. Add a new "Onboarding API boundary (Sub-project 0c)" section covering:
   - the admin-only `supcheckout/v1` routes and their capability and nonce rules;
   - the async execution through Action Scheduler, which needs WP-Cron, a system cron or admin page loads; otherwise status reports `runner.stalled`;
-  - the purge evidence: LiteSpeed Cache 7.9.1 and W3TC 2.10.6 runtime-verified in E3; WP Rocket and WP Super Cache unit-verified only; the Cloudflare plugin manual;
+  - the purge evidence: LiteSpeed Cache 7.9.1, W3TC 2.10.6, Breeze 2.5.13 and SiteGround Optimizer 7.8.2 runtime-verified in E3 (the pinned cell versions; the APIs were source-verified at Breeze 2.6.2 and SG 7.8.4); WP Rocket and WP Super Cache unit-verified only; the Cloudflare plugin manual;
   - WCML per-currency settings, report-only.
 - Modify:
   - `docs/project/START-HERE.md` and `docs/project/PROJECT-STATUS.md`: 0c is "onboarding backend (services + REST)" and the wizard UI moves to Sub-project 2, matching the owner decision of 2026-10-18;
@@ -795,9 +803,9 @@ Coexistence harness:
   - start a switch and a rollback through the REST API (for example from the browser console with the REST nonce), and see the automatic LiteSpeed purge take effect (rehearsal follow-up 2);
   - confirm WCML per-currency checkout visibility against the `multilingual` check (follow-up 3).
 
-## Open questions for the owner
+## Owner decisions (2026-10-18)
 
-1. **Writes require the cookie REST nonce,** so Application-Password automation cannot start a switch, rollback or finalize over REST. Automation uses WP-CLI. Is that acceptable?
-2. **Paused-mode exception:** in cron, AJAX and WP-CLI contexts, the paused boot registers the two `supcheckout_onboarding_*` Action Scheduler hooks. Without them, a switch cannot run in the background while the official plugin is active. Do you accept this addition to the paused surface?
-3. **The self-test makes no provider call in production mode.** Preflight already verified the live key before cutover. Confirm?
-4. **The Cloudflare plugin purge is reported as manual,** because it has no public purge API. Breeze and SiteGround Optimizer get no purge in 0c. Is that acceptable?
+1. **Write authentication:** as planned. Every write requires the explicit `wp_rest` nonce, and Application Passwords alone cannot start a switch, rollback or finalize. Automation uses WP-CLI.
+2. **Self-test:** one read-only availability probe in test and live mode. A cooldown is a warning, and a provider outage is `provider_unavailable` (Task 5).
+3. **Cache purge:** Breeze and SiteGround Optimizer are added through their source-verified public APIs. A layer without a verifiable API is reported `manual` (Task 2).
+4. **Paused driver hooks:** kept, as required (see Design decisions).
