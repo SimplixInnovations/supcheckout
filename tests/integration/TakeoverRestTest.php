@@ -9,10 +9,15 @@
  * REST calls run in-process through rest_do_request() as an administrator with the
  * `wp_rest` nonce in X-WP-Nonce. rest_do_request() never applies `rest_post_dispatch`, so
  * the response headers are checked over real HTTP by phase rest_http instead. Every
- * Action Scheduler tick runs in a fresh process (`wp action-scheduler run --group=
- * supcheckout-onboarding --batch-size=1 --batches=1 --force`), so it boots exactly as a
- * real queue run would, paused or full; the loop runs at most MAX_RUNS times and pauses
- * PAUSE seconds after a run that found nothing due, until the operation is not running.
+ * Action Scheduler tick runs in a fresh process (`wp action-scheduler run --hooks=
+ * supcheckout_onboarding_drive,supcheckout_onboarding_watchdog --batch-size=1 --batches=1
+ * --force`), so it boots exactly as a real queue run would, paused or full; the loop runs
+ * at most MAX_RUNS times and pauses PAUSE seconds after a run that found nothing due, until
+ * the operation is not running. It filters by the two onboarding hooks, not by
+ * `--group=supcheckout-onboarding`: while Action Scheduler's own migration to its tables is
+ * incomplete (no WP-Cron in these cells), its HybridStore claims from the posts store first,
+ * which throws "The group ... does not exist" for a group it never stored
+ * (ActionScheduler_HybridStore::stake_claim()). Both hooks are only ever in that group.
  *
  *   SUPCHECKOUT_CERT_PHASE=rest_http     (tests/integration/takeover-rest-http.sh, with the
  *                                        nginx + PHP-FPM stack up) the wire headers: no-store
@@ -167,7 +172,7 @@ function supcheckout_takeover_rest_drive($op_id, $observe = null) {
             $queued = supcheckout_takeover_rest_queued($op_id);
             supcheckout_cert_assert(in_array(AsyncDriver::GROUP, array_column($queued['actions'], 'group'), true), 'the ' . $op['kind'] . ' operation has its drive action queued in the onboarding group: ' . wp_json_encode($queued));
         }
-        $result = supcheckout_takeover_cert_wp('action-scheduler run --group=' . AsyncDriver::GROUP . ' --batch-size=1 --batches=1 --force');
+        $result = supcheckout_takeover_cert_wp('action-scheduler run --hooks=' . AsyncDriver::HOOK . ',' . AsyncDriver::WATCHDOG_HOOK . ' --batch-size=1 --batches=1 --force');
         $completed = preg_match('/Success: ([0-9]+) scheduled task/', $result->stdout, $match) === 1 ? (int) $match[1] : -1;
         $log[] = '#' . $run . ' ' . $op['phase'] . ' ran ' . $completed;
         supcheckout_cert_assert($result->return_code === 0 && $completed >= 0, 'Action Scheduler run #' . $run . ' for the ' . $op['kind'] . ' operation succeeds: ' . $result->stdout . $result->stderr);
