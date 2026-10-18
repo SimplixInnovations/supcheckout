@@ -82,6 +82,9 @@
     <file>src/Takeover/Onboarding/Outcome.php</file>
     <file>src/Takeover/Onboarding/Onboarding.php</file>
     <file>src/Takeover/Onboarding/Lines.php</file>
+    <file>src/Takeover/Onboarding/Operation.php</file>
+    <file>src/Takeover/Onboarding/RateLimiter.php</file>
+    <file>src/Takeover/Onboarding/Bounded.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 

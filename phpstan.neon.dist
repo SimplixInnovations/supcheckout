@@ -98,4 +98,7 @@ parameters:
         - src/Takeover/Onboarding/Outcome.php
         - src/Takeover/Onboarding/Onboarding.php
         - src/Takeover/Onboarding/Lines.php
+        - src/Takeover/Onboarding/Operation.php
+        - src/Takeover/Onboarding/RateLimiter.php
+        - src/Takeover/Onboarding/Bounded.php
     tmpDir: .cache/phpstan
