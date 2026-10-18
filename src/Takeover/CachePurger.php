@@ -104,6 +104,7 @@ final class CachePurger {
     private static function call($name) {
         switch ($name) {
             case 'litespeed':
+                // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- LiteSpeed Cache's documented public purge API (docs.litespeedtech.com/lscache/lscwp/api/).
                 do_action('litespeed_purge_all', self::REASON);
                 return;
             case 'wp_rocket':
@@ -118,6 +119,7 @@ final class CachePurger {
                 wp_cache_clear_cache(is_multisite() ? get_current_blog_id() : 0);
                 return;
             case 'breeze':
+                // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Breeze's public clear-all-cache action, registered by Breeze_Admin and recommended by its author.
                 do_action('breeze_clear_all_cache');
                 return;
             case 'sg_optimizer':
