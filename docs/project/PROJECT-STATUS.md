@@ -43,6 +43,10 @@
 | Post-acceptance runtime on `main` | PR #133 payment lifecycle hardening (2026-10-10 review), merged main `35ea66d4cb9c8395b264cd24b4844eaa268aa470`; package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; then PR #138 non-white-label Charge fix, package `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`; **NOT owner accepted** |
 | Owner step before live evidence | **Fresh technical acceptance of the current `main` package** (`LOCAL-FINAL-VERIFICATION.md`). Live evidence must be produced with the package that will be released, not Release Candidate 1. |
 | Next executable dependency | **Fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe, 2026-10-13, [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md), runbook [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) |
+| Active engineering program | **SUPCheckout revamp** — spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`; see "Revamp program" below |
+| Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** (2026-10-17) |
+| Sub-project 0b takeover engine | **Tasks 1–12 merged**; Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
+| Revamp operational gate | **Owner takeover staging rehearsal (0b Task 12 Step 5) — IN PROGRESS**, paused on a UPayments sandbox outage |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -131,6 +135,34 @@ R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a
 4. **R5 / T4 — callback consolidation:** DONE / VERIFIED under Option B / ADR-003. Legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only.
 5. **R6 — final release qualification:** immutable exact-head gates, manual/external qualification, fresh owner re-acceptance and explicit version/publication decision.
 
+## Revamp program (reconciled 2026-10-18)
+
+Spec: [`../superpowers/specs/2026-10-16-supcheckout-revamp-design.md`](../superpowers/specs/2026-10-16-supcheckout-revamp-design.md). Delivery (spec §9) is Sub-projects 0–5; Sub-project 5 holds the final owner technical acceptance, live acceptance and release. The external certification & release readiness gate above stays open until then.
+
+**Sub-project 0a clean core — DONE / VERIFIED.** PRs #165–#172 (last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`): `supcheckout.php` main file with the header-less `UPayments.php` shim, namespaced `src/` layout, no global functions or closures in the main file. The owner staging rehearsal passed on 2026-10-17 (77-file package SHA-256 `d8dedbf94c7241e14e701e4a180d308359ab106c3c7651605a53fd1817404c05`; [evidence](evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md), merged through PR #178 `900bd67b666edeb4e5c447765bbe67f599b2344f`).
+
+**Sub-project 0b takeover engine — Tasks 1–12 merged.** Plan: [`../superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md`](../superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md).
+
+| Task | PR | Merged main |
+|---|---|---|
+| 1 — `Keys` identity registry and coverage harness | #173 | `88d216f2473f66a70aeb28c93028d2f03391ed10` |
+| 3 — persisted state machine and change journal | #174 | `c6c59a0c98ae0f6d05277fc197a844dfbd9fec5c` |
+| 2 — every persisted identity through `Keys`, switch-window model | #175 | `4177e725a5d563b53d79b1b6f255de5060ccb3a6` |
+| 4 — read-only preflight report | #176 | `7018b1d137f524bf55db87d903ab47e71d8e6578` |
+| 5–6 — per-order copier and resumable copy runner | #177 | `3778226ebb3da4ef33a14db381525c576ae4ced3` |
+| 8 — permanent `wc_upayments` callback route and the `supcheckout` route | #179 | `8c97f400d1e4e76686936a12bb715d9ade1fbe75` |
+| 7 — quiesced cutover (settings, third-party, cron, gateway ID) | #180 | `fce67ec01f943d02a411071fed17bdb2a9d00442` |
+| 9 — `wp supcheckout takeover` CLI and paused boot | #181 | `2b941852b5d9f0acc97a92c17344281358814be0` |
+| 10 — journal-driven rollback and abort | #182 | `d1a4a2ffb7da75149f19a881a6e4fe602313ff14` |
+| 11 — guarded, irreversible finalize | #183 | `e5dde2630d14d548ecdbd9ed354a997baa9967d2` |
+| 12 — real-WordPress migration matrix | #184 | `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
+
+Takeover Migration Matrix (`.github/workflows/takeover-migration-matrix.yml`) — **SUCCESS on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`** (run 39084507907): official plugin refs `V2.0.5`, `upayments-V2.2.1`, `3.0.0` and `3.1.1`, each with HPOS (sync off, WCML option shapes seeded) and legacy storage; the pre-0b SUPCheckout in-place-update lane; the 10,000-order lane (3.1.1, legacy); and the matrix gate. It sends no provider traffic (fixture responses, UPayments hosts sinkholed). WCML is report-only: Preflight reports its gateway rules and the takeover leaves them byte-for-byte unchanged. The workflow is a permanent quality control (`AGENTS.md`).
+
+**Current revamp gate: owner staging rehearsal of the takeover (plan Task 12 Step 5) — IN PROGRESS.** Started 2026-10-18 on the staging copy, with official UPayments 3.1.1 active and SUPCheckout paused. It is paused because the UPayments public sandbox (`sandboxapi.upayments.com`) returns HTTP 502 through Cloudflare, a provider outage verified from two networks. Preflight correctly blocked with `credential_unverified`. Open PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable` reason) waits on the same outage for its bounded Provider Sandbox check.
+
+**Next:** finish the rehearsal (preflight, run, verify counts, rollback, run again; evidence → `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`), then Sub-project 0c onboarding UI, then Sub-projects 1–5 per the spec. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
+
 ## Current provider-contract disposition
 
 - `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` — resolved 2026-10-13 by the owner-run account probe (see [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md), [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md)): status, button-status and Charge all accepted Bearer-only authentication. Account- and time-scoped; a written UPayments answer supersedes it. Release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released.
@@ -157,6 +189,8 @@ R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a
 ## Protected compatibility identities
 
 Protected contracts include `upayments`, `woocommerce_upayments_settings`, Blocks identity `upayments`, callback `wc_upayments`, historical `_upay_*` metadata, `UPayments_order_id`, H12 token/provenance/scope/generation state, subscription/billing-attempt identities, historical order payment-method values, frozen Phase 9I identities, `getAPIUrlForRetreiveCards()`, and normalized `whitelabled`.
+
+They stay protected until migrated by the approved takeover (Sub-project 0b): copy, never move, through `Keys`; historical order `payment_method` never rewritten; `wc_upayments` served permanently. See `AGENTS.md` for the full contract.
 
 ## Repository/release governance
 

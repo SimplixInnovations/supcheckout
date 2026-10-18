@@ -139,6 +139,15 @@ The remaining provider-related areas are deliberately outside the first-release 
 
 Authoritative public-evidence analysis: `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`.
 
+### Active engineering program: SUPCheckout revamp (reconciled 2026-10-18)
+
+Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (§9 delivery, Sub-projects 0–5). The release-readiness gate above stays open; spec §9 places the final owner technical acceptance and live acceptance in Sub-project 5.
+
+- **Sub-project 0a clean core — DONE / VERIFIED, staging-rehearsed.** PRs #165–#172, last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`; owner staging rehearsal passed 2026-10-17 ([evidence](evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md), PR #178).
+- **Sub-project 0b takeover engine — Tasks 1–12 merged** (PRs #173–#177, #179–#184; plan `docs/superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md`; per-PR merge SHAs in [`PROJECT-STATUS.md`](PROJECT-STATUS.md)). The real-WordPress Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` and is a permanent quality control.
+- **Current revamp gate: owner staging rehearsal of the takeover (plan Task 12 Step 5) — IN PROGRESS.** Started 2026-10-18 and paused: the UPayments public sandbox (`sandboxapi.upayments.com`) returns HTTP 502 through Cloudflare (provider outage, verified from two networks). Preflight correctly blocked with `credential_unverified`. Open PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable` reason) waits on the same outage for its bounded Provider Sandbox check.
+- **Next:** finish the rehearsal (evidence → `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`), then Sub-project 0c onboarding UI, then Sub-projects 1–5 per the spec.
+
 
 ## 6. Post-T3 execution sequence
 
@@ -197,6 +206,10 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R6 | **DONE / VERIFIED** — exact-head qualification and owner technical re-acceptance complete |
 | Current operational gate | **external certification & release readiness** |
 | Immediate next external gate | **Fresh owner acceptance of a package containing PR #138, then live one-time acceptance** (production auth `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`, 2026-10-13) |
+| Active engineering program | **SUPCheckout revamp** — spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` |
+| Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** 2026-10-17 (last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`) |
+| Sub-project 0b takeover engine | **Tasks 1–12 merged** (PRs #173–#177, #179–#184); Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
+| Revamp operational gate | **Owner takeover staging rehearsal (0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 on a UPayments sandbox outage (HTTP 502); PR #185 open, waiting on the same outage |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
@@ -226,6 +239,8 @@ Do not mechanically rename or refactor protected identities, including:
 - frozen Phase 9I migration identities;
 - public compatibility wrapper `getAPIUrlForRetreiveCards()`;
 - normalized `whitelabled` compatibility shape.
+
+They stay protected until migrated by the approved takeover (Sub-project 0b, `src/Takeover/`, `wp supcheckout takeover`): it copies, never moves, each mapped identity through `Keys`, never rewrites historical order `payment_method`, and serves `wc_upayments` permanently. `AGENTS.md` "Protected compatibility identities" is the full contract.
 
 `supcheckout/supcheckout.php` is the main file since Sub-project 0a (owner decision 2026-10-16, pre-release). A header-less transitional `supcheckout/UPayments.php` shim (Task 2b) moves pre-rename installs' active entry automatically on zip upload, WP-CLI and one-click/bulk updates. The exception is the classic non-JavaScript single-plugin Update-now flow (`update.php?action=upgrade-plugin`), which ends deactivated with data unchanged; see `docs/COMPATIBILITY.md`. It is removed in Sub-project 5 after the owner confirms every pre-rename install has loaded it.
 
@@ -298,6 +313,8 @@ Before proceeding, a competent continuation must know from live evidence:
 If any of these are unknown, the session is **not bootstrapped yet**.
 
 ## 13. Immediate next step
+
+**Revamp (active engineering):** resume the owner staging rehearsal of the takeover once the UPayments sandbox answers again (preflight, run, verify counts, rollback, run again; real WPML/WCML on that store), record it in `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`, settle PR #185, then start Sub-project 0c (onboarding UI). See §5 "Active engineering program".
 
 R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
 

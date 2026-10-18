@@ -115,6 +115,16 @@ R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merg
 
 The production-auth blocker can be cleared without waiting for a provider reply (owner decision, 2026-10-08): run the owner-only account probe in `PRODUCTION-AUTH-ACCOUNT-PROBE.md`. The full ordered owner action queue, the PHP 8.4 CI watch item and the contributor commit-email requirement are in `START-HERE.md` §13 "Owner action queue".
 
+## Active engineering program: SUPCheckout revamp (reconciled 2026-10-18)
+
+Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-projects 0–5; Sub-project 5 holds final owner acceptance, live acceptance and release).
+
+- Sub-project 0a clean core — **DONE / VERIFIED, staging-rehearsed** 2026-10-17 (`evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md`).
+- Sub-project 0b takeover engine — **Tasks 1–12 merged**: #173 `88d216f` Keys registry, #174 `c6c59a0` state machine/journal, #175 `4177e72` Keys routing/window model, #176 `7018b1d` preflight, #177 `3778226` copier/runner, #179 `8c97f40` callback routes, #180 `fce67ec` cutover, #181 `2b94185` CLI + paused boot, #182 `d1a4a2f` rollback/abort, #183 `e5dde26` finalize, #184 `86c65ba` migration matrix. Full SHAs in `PROJECT-STATUS.md`.
+- Takeover Migration Matrix (official 2.0.5 / 2.2.1 / 3.0.0 / 3.1.1 × HPOS/legacy, pre-0b lane, 10,000 orders) — **green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`**; permanent quality control.
+- Current revamp gate: **owner takeover staging rehearsal (0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 because the UPayments public sandbox returns HTTP 502 via Cloudflare (provider outage, two networks). Preflight correctly blocked (`credential_unverified`). PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable`) is open and waits on the same outage for its bounded Provider Sandbox check.
+- Next: finish the rehearsal (`docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`), then Sub-project 0c onboarding UI, then Sub-projects 1–5.
+
 ## Permanent invariants
 
 - Browser/provider routing data is not payment truth.

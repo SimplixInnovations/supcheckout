@@ -6,6 +6,23 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Takeover engine: switch a store to the `supcheckout` identities (Sub-project 0b Tasks 1 and 3–12)
+
+- New WP-CLI command `wp supcheckout takeover`. It moves a store from the official UPayments plugin (2.x or 3.x), or from SUPCheckout's own pre-0b names, to the `supcheckout` identities:
+  - `preflight [--format=json]`: read-only report. Any blocking finding stops the switch, for example an unverified API key;
+  - `run [--yes] [--deactivate-official]`: copy, verify and cut over. It is rerunnable after a crash at any step. An active official plugin refuses the cutover unless `--deactivate-official` is passed;
+  - `status [--format=json]`: state, progress, journal summary, warnings and stale billing claims;
+  - `release-stale-claims [--yes]`: releases billing claims stuck in `claimed` for over 600 seconds. It sends no provider request;
+  - `rollback [--yes] [--deactivate-official] [--reactivate-official]` and `abort [--yes] [--reactivate-official]`: return to the UPayments identities;
+  - `finalize [--yes] [--force-after-review] [--dry-run] [--format=json]`: removes the legacy names. It is **irreversible**.
+- Copy, never move. Orders are copied in batches of at most 50, each order in one save, with field-by-field verification and a resumable cursor. Every write to a value the takeover did not create goes into a journal of SHA-256 fingerprints, never values, secrets or PII.
+- Cutover runs quiesced: the subscription scheduler is paused and in-flight billing claims are drained. It copies the gateway settings and the SUPCheckout options, translates `woocommerce_gateway_order` and `woocommerce_default_gateway`, reschedules the cron hooks and registers the gateway as `supcheckout` for new orders. WCML, FunnelKit and other third-party options are reported, never written.
+- Historical orders keep `payment_method=upayments`. Only orders created after cutover carry `supcheckout`, and rollback returns exactly those to `upayments`. The takeover never marks, unmarks or re-verifies a payment.
+- Rollback is available for 30 days after cutover. Merchant edits made after cutover are kept and reported as conflicts. Finalize is refused before those 30 days unless `--force-after-review` is passed. It removes a legacy name only where the `supcheckout` copy verifies equal.
+- **Callback routes:** `wc_upayments` is served permanently, Finalize included, for payments started before the switch. The new `supcheckout` route is served by the same verified handlers in the same priority order. New Charges use it only after cutover.
+- **Paused boot:** while the official plugin is active, SUPCheckout stays paused and registers only the takeover command and Preflight's probe answer on the `supcheckout` route. It registers no gateway, Blocks method, payment callback or cron hook.
+- A real-WordPress migration matrix (`.github/workflows/takeover-migration-matrix.yml`) exercises official `V2.0.5`, `upayments-V2.2.1`, `3.0.0` and `3.1.1` with HPOS and legacy storage, a pre-0b SUPCheckout lane and a 10,000-order lane. It sends no provider traffic.
+
 ### Takeover engine: every persisted identity goes through `Keys` (Sub-project 0b Task 2)
 
 - A store that never switches sees exactly today's names. Until the takeover starts copying, every read, write, delete, query, lock and gateway comparison uses the legacy name (`upayments`, `UPayments_*`, `_upay_*`, `woocommerce_upayments_settings`, `wc_upayments`), and a request-controlled `supcheckout` value (posted payment method, Store API namespace, order `payment_method`) is rejected exactly as before.

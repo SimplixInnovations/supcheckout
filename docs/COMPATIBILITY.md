@@ -84,6 +84,16 @@ The gateway object no longer has the unused public methods `encrypt()`, `decrypt
 
 SUPCheckout no longer defines the constants `UP_PLUGIN_URL`, `UP_PLUGIN_PATH` and `UPAYMENTS_PLUGIN_FILE` (Sub-project 0b Task 2); the official UPayments plugin defines the same names. Its own are `SUPCHECKOUT_PLUGIN_URL`, `SUPCHECKOUT_PLUGIN_PATH` and `SUPCHECKOUT_PLUGIN_FILE`. Theme overrides of `templates/new-design-form.php` or `templates/old-design-form.php` that print `UP_PLUGIN_URL` must switch to `SUPCHECKOUT_PLUGIN_URL`. The gateway, settings, Blocks and callback identities in the table above are unchanged until the store runs the takeover's cutover.
 
+### Takeover boundary (Sub-project 0b)
+
+`wp supcheckout takeover` moves a store to the `supcheckout` identities. The Takeover Migration Matrix (`.github/workflows/takeover-migration-matrix.yml`, green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`) proves this boundary on real WordPress:
+
+- official UPayments plugin refs `V2.0.5`, `upayments-V2.2.1`, `3.0.0` and `3.1.1` (from `github.com/upaymentskwt/woocommerce`), each with HPOS (compatibility sync off) and with legacy storage: preflight, interrupted and resumed copy, cutover, legacy-route webhook, subscription claim, rollback, run again and forced finalize;
+- an in-place update from the last pre-0b SUPCheckout package, including H12 saved-card provenance;
+- 10,000 orders (3.1.1, legacy storage) with no batch over 50 orders.
+
+The matrix sends no provider traffic. Other official plugin versions are not exercised. WCML and FunnelKit gateway settings are **report-only**: the matrix seeds WCML's option shapes and asserts that Preflight reports them and that they stay byte-for-byte unchanged. Real WPML/WCML is never installed in CI and stays **External/manual**. It is covered by the owner's staging rehearsal, which is in progress and not yet evidence.
+
 Historical package-root movement remains certified for both pre-stable `simplixpay-upayments` and `sucheckout-upayments` roots moving to canonical `supcheckout`, including protected data continuity and rollback.
 
 ## Capability matrix
@@ -103,6 +113,7 @@ Historical package-root movement remains certified for both pre-stable `simplixp
 | Uninstall | **Verified non-destructive** | Merchant/payment/token state retained by default. |
 | Deterministic canonical ZIP | **Permanent exact-head gate** | HEAD-bound bytes, checksum/manifest, reproducibility and tamper rejection. |
 | Historical package-root migration | **Permanent exact-head gate** | Both pre-stable roots → `supcheckout`, continuity + rollback. |
+| Takeover from the official plugin / pre-0b SUPCheckout | **Verified — bounded** | Official `V2.0.5`, `upayments-V2.2.1`, `3.0.0`, `3.1.1` × HPOS/legacy, pre-0b lane and 10,000 orders on real WordPress, without provider traffic. WCML/FunnelKit settings are report-only; real WPML/WCML is external/manual. |
 | Official WordPress Plugin Check | **Permanent packaged-artifact gate** | Runs against unpacked deterministic package with `strict: true`. |
 | Browser/callback payment updates | **Non-authoritative alone** | Cannot establish paid state without trusted provider verification. |
 | Free-theme WooCommerce runtime interoperability | **Verified — bounded** | Twenty Twenty-Five 1.5, Storefront 4.6.2, Astra 4.13.11, Blocksy 2.1.56 and Kadence 1.5.2, including real child-theme WooCommerce template override precedence, server-side checkout validation and finalized economics. |
@@ -149,6 +160,7 @@ The evidence stack is layered:
 - deterministic release artifact builder/verifier;
 - packaged legacy/HPOS smoke;
 - historical package-root migration/rollback;
+- real-WordPress takeover migration matrix;
 - official packaged WordPress Plugin Check;
 - bounded provider-sandbox certification;
 - CodeQL/security analysis at merge/release boundaries.
