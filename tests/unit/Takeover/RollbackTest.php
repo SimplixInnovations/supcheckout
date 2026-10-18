@@ -170,6 +170,116 @@ final class RollbackTest extends TestCase {
         self::assertStringNotContainsString('aaaaaaaa', (string) json_encode(Journal::entries()), 'no H12 scope in the journal');
     }
 
+    public function test_rollback_purges_at_the_transition_and_again_after_reactivation(): void {
+        $this->seed_cut_over();
+        $before = $this->system->purges;
+
+        $result = $this->rollback()->run(true);
+
+        self::assertSame(2, $this->system->purges - $before);
+        self::assertSame(array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array()), $result['report']['cache_purge']);
+        self::assertSame(array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array()), $result['report']['cache_purge_after_reactivation']);
+        $log = $this->system->log;
+        $transition = array_search('rolled_back', $log, true);
+        self::assertSame(array('rolled_back', 'purge', 'caches_flushed'), array_slice($log, $transition, 3));
+        self::assertSame(array('official_reactivated', 'purge'), array_slice($log, -2));
+    }
+
+    public function test_rollback_without_reactivation_purges_once(): void {
+        $this->seed_cut_over();
+        $before = $this->system->purges;
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame(1, $this->system->purges - $before);
+        self::assertArrayNotHasKey('cache_purge_after_reactivation', $result['report']);
+    }
+
+    public function test_a_throwing_purge_never_fails_a_rollback_that_already_happened(): void {
+        $this->seed_cut_over();
+        $this->system->purge_throws = true;
+
+        $result = $this->rollback()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertNull($result['error']);
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
+        self::assertSame(array('ran' => array(), 'manual' => array(), 'failed' => array('system')), $result['report']['cache_purge']);
+        self::assertSame(array('ran' => array(), 'manual' => array(), 'failed' => array('system')), $result['report']['cache_purge_after_reactivation']);
+        self::assertSame(array('upayments/UPayments.php'), $this->system->activated);
+    }
+
+    public function test_a_rollback_killed_after_the_transition_purges_once_on_the_rerun_and_never_again(): void {
+        $this->seed_cut_over();
+        $before = $this->system->purges;
+        $this->system->on_step = static function ($step) {
+            if ($step === 'rolled_back') {
+                throw new \RuntimeException('killed between the transition and the purge');
+            }
+        };
+        $crashed = $this->rollback()->run(false);
+        self::assertSame('error', $crashed['error']);
+        self::assertSame(TakeoverState::ROLLED_BACK, TakeoverState::get()['status']);
+        self::assertSame(0, $this->system->purges - $before);
+        $this->system->on_step = null;
+
+        $rerun = $this->rollback()->run(false);
+
+        self::assertTrue($rerun['ok'], (string) json_encode($rerun));
+        self::assertSame(1, $this->system->purges - $before);
+        self::assertContains('caches_flushed', $rerun['steps']);
+        self::assertArrayHasKey('cache_purge', $rerun['report']);
+
+        $again = $this->rollback()->run(false);
+
+        self::assertSame(1, $this->system->purges - $before, 'the recorded purge is not repeated');
+        self::assertNotContains('caches_flushed', $again['steps']);
+        self::assertArrayNotHasKey('cache_purge', $again['report']);
+    }
+
+    public function test_a_rollback_killed_after_the_reactivation_purges_that_once_on_the_rerun(): void {
+        $this->seed_cut_over();
+        $before = $this->system->purges;
+        $this->system->on_step = static function ($step) {
+            if ($step === 'official_reactivated') {
+                throw new \RuntimeException('killed between the reactivation and its purge');
+            }
+        };
+        $crashed = $this->rollback()->run(true);
+        self::assertSame('error', $crashed['error']);
+        self::assertSame(1, $this->system->purges - $before, 'only the transition purge ran');
+        $this->system->on_step = null;
+
+        $rerun = $this->rollback()->run(false);
+
+        self::assertSame(2, $this->system->purges - $before);
+        self::assertArrayHasKey('cache_purge_after_reactivation', $rerun['report']);
+        self::assertArrayNotHasKey('cache_purge', $rerun['report'], 'the transition purge was already recorded');
+
+        $this->rollback()->run(false);
+
+        self::assertSame(2, $this->system->purges - $before, 'neither purge repeats');
+    }
+
+    public function test_an_abort_killed_after_the_transition_purges_once_on_the_rerun(): void {
+        $this->seed_verified();
+        $this->system->on_step = static function ($step) {
+            if ($step === 'aborted') {
+                throw new \RuntimeException('killed between the transition and the purge');
+            }
+        };
+        self::assertSame('error', $this->rollback()->abort(false)['error']);
+        self::assertSame(0, $this->system->purges);
+        $this->system->on_step = null;
+
+        $rerun = $this->rollback()->abort(false);
+
+        self::assertSame(1, $this->system->purges);
+        self::assertContains('caches_flushed', $rerun['steps']);
+        $this->rollback()->abort(false);
+        self::assertSame(1, $this->system->purges);
+    }
+
     public function test_a_later_edit_wins_is_reported_as_a_conflict_and_every_untouched_value_is_restored(): void {
         $this->seed_cut_over();
         $merchant_order = array('supcheckout' => 0, 'bacs' => 1, 'upayments' => 2);

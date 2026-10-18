@@ -415,6 +415,11 @@ jobs:
       - name: Verify finalized economics under cache plugin
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/OrderEconomicsRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: Verify takeover cache purge under cache plugin
+        env:
+          SUPCHECKOUT_CACHE_PLUGIN: ${{ matrix.slug }}
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CachePurgeRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
   r4-scheduling-enrollment:
     name: R4 scheduling enrollment / stale-action
     runs-on: ubuntu-latest

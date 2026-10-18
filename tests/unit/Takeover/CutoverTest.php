@@ -387,7 +387,7 @@ final class CutoverTest extends TestCase {
         $this->system->official = 'upayments/UPayments.php';
         $result = $this->cutover()->run(true);
         self::assertTrue($result['ok']);
-        self::assertSame(array('already_cut_over', 'official_deactivated'), $result['steps']);
+        self::assertSame(array('already_cut_over', 'official_deactivated', 'caches_flushed'), $result['steps'], 'a cut-over store whose purge was never recorded gets it once');
         self::assertFalse(Quiesce::is_active(1800000000));
     }
 
@@ -411,6 +411,81 @@ final class CutoverTest extends TestCase {
 
         self::assertTrue($this->cutover()->run(false)['ok']);
         self::assertSame(array('pay-7'), $order->persisted_values('_supcheckout_payment_id'));
+    }
+
+    public function test_cutover_purges_caches_once_after_the_transition(): void {
+        $this->seed_store();
+
+        $result = $this->cutover()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(1, $this->system->purges);
+        self::assertSame(array('cut_over', 'purge', 'caches_flushed'), array_slice($this->system->log, -3));
+        self::assertSame(array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array()), $result['report']['cache_purge']);
+    }
+
+    public function test_a_throwing_purge_never_fails_a_completed_cutover(): void {
+        $this->seed_store();
+        $this->system->purge_throws = true;
+
+        $result = $this->cutover()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertNull($result['error']);
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+        self::assertSame(array('ran' => array(), 'manual' => array(), 'failed' => array('system')), $result['report']['cache_purge']);
+        self::assertSame('caches_flushed', end($result['steps']));
+        self::assertStringNotContainsString('boom', (string) json_encode($result));
+    }
+
+    public function test_a_worker_killed_after_the_transition_purges_once_on_the_rerun_and_never_again(): void {
+        $this->seed_store();
+        $this->system->on_step = static function ($step) {
+            if ($step === 'cut_over') {
+                throw new \RuntimeException('killed between the transition and the purge');
+            }
+        };
+        $crashed = $this->cutover()->run(false);
+        self::assertSame('error', $crashed['error']);
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+        self::assertSame(0, $this->system->purges, 'killed before the purge');
+        $this->system->on_step = null;
+
+        $rerun = $this->cutover()->run(false);
+
+        self::assertTrue($rerun['ok'], (string) json_encode($rerun));
+        self::assertSame(1, $this->system->purges);
+        self::assertSame(array('already_cut_over', 'caches_flushed'), $rerun['steps']);
+        self::assertSame(array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array()), $rerun['report']['cache_purge']);
+
+        $again = $this->cutover()->run(false);
+
+        self::assertSame(1, $this->system->purges, 'the recorded purge is not repeated');
+        self::assertSame(array('already_cut_over'), $again['steps']);
+        self::assertArrayNotHasKey('cache_purge', $again['report']);
+    }
+
+    public function test_a_purge_failure_on_the_rerun_never_fails_the_cutover_and_is_still_recorded(): void {
+        self::state('cut_over');
+        $this->system->purge_throws = true;
+
+        $result = $this->cutover()->run(false);
+
+        self::assertTrue($result['ok']);
+        self::assertSame(array('system'), $result['report']['cache_purge']['failed']);
+        $this->cutover()->run(false);
+        self::assertSame(1, $this->system->purges);
+    }
+
+    public function test_a_refused_cutover_never_purges(): void {
+        $this->seed_store();
+        $this->system->official = 'upayments/UPayments.php';
+
+        $result = $this->cutover()->run(false);
+
+        self::assertSame('official_active', $result['error']);
+        self::assertSame(0, $this->system->purges);
+        self::assertArrayNotHasKey('cache_purge', $result['report']);
     }
 
     private function cutover(): Cutover {

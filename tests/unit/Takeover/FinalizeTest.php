@@ -223,6 +223,58 @@ final class FinalizeTest extends TestCase {
         self::assertSame(array(), $order->persisted_values('UPayments_PaymentID'));
     }
 
+    public function test_finalize_purges_once_after_finalized(): void {
+        $this->seed_cut_over();
+        $before = $this->system->purges;
+
+        $result = $this->finalize()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(1, $this->system->purges - $before);
+        $log = $this->system->log;
+        self::assertSame(array('finalized', 'purge', 'caches_flushed'), array_slice($log, array_search('finalized', $log, true), 3));
+        self::assertSame(array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array()), $result['report']['cache_purge']);
+    }
+
+    public function test_a_finalize_killed_after_the_transition_purges_once_on_the_rerun_and_never_again(): void {
+        $this->seed_cut_over();
+        $before = $this->system->purges;
+        $this->system->on_step = static function ($step) {
+            if ($step === 'finalized') {
+                throw new \RuntimeException('killed between the transition and the purge');
+            }
+        };
+        $crashed = $this->finalize()->run(true);
+        self::assertSame('error', $crashed['error']);
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
+        self::assertSame(0, $this->system->purges - $before);
+        $this->system->on_step = null;
+
+        $rerun = $this->finalize()->run(true);
+
+        self::assertTrue($rerun['ok'], (string) json_encode($rerun));
+        self::assertSame(1, $this->system->purges - $before);
+        self::assertContains('caches_flushed', $rerun['steps']);
+        self::assertArrayHasKey('cache_purge', $rerun['report']);
+
+        $again = $this->finalize()->run(true);
+
+        self::assertSame(1, $this->system->purges - $before, 'the recorded purge is not repeated');
+        self::assertNotContains('caches_flushed', $again['steps']);
+        self::assertArrayNotHasKey('cache_purge', $again['report']);
+    }
+
+    public function test_a_throwing_purge_never_fails_a_finalize_that_already_happened(): void {
+        $this->seed_cut_over();
+        $this->system->purge_throws = true;
+
+        $result = $this->finalize()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(TakeoverState::FINALIZED, TakeoverState::get()['status']);
+        self::assertSame(array('ran' => array(), 'manual' => array(), 'failed' => array('system')), $result['report']['cache_purge']);
+    }
+
     public function test_an_active_official_plugin_refuses_finalize(): void {
         $order = $this->seed_cut_over();
         self::age(31);
