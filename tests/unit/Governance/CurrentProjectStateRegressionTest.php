@@ -17,7 +17,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const CURRENT_GATE = '**owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**';
     /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
     private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
-    private const SUPERSEDED_GATE = 'Current executable gate: **external certification & release readiness**.';
+    /** The same current gate as a machine identifier (architecture contract). */
+    private const CURRENT_GATE_ID = 'subproject_0b_takeover_staging_rehearsal';
+    private const SUPERSEDED_GATE ='Current executable gate: **external certification & release readiness**.';
 
     /**
      * Canonical living records that a fresh chat/agent may use to establish the
@@ -180,7 +182,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('r4_status: done_verified', $contract);
         self::assertStringContainsString('r5_status: done_verified', $contract);
         self::assertStringContainsString('r6_status: done_verified', $contract);
-        self::assertStringContainsString('current_gate: external_certification_release_readiness', $contract);
+        self::assertStringContainsString('release_gate: external_certification_release_readiness', $contract);
+        self::assertStringContainsString('current_gate: ' . self::CURRENT_GATE_ID, $contract);
+        self::assertStringNotContainsString('current_gate: external_certification_release_readiness', $contract);
         self::assertStringContainsString('approach3_status: owner_accepted', $contract);
         self::assertStringContainsString('owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=' . self::RC1_ACCEPTANCE_TOKEN, $contract);
         self::assertStringContainsString('historical_approach3_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $contract);
@@ -337,10 +341,40 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('  external_readiness:', $content);
         self::assertStringContainsString('    name: external-certification-release-readiness', $content);
         self::assertStringContainsString('    plan: docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('    current_gate: external_certification_release_readiness', $content);
+        self::assertStringContainsString('    release_gate: external_certification_release_readiness', $content);
         self::assertStringContainsString('    next_external_gate: provider_contract_clarification', $content);
         self::assertStringNotContainsString('  next_runtime_candidate:', $content);
         self::assertStringNotContainsString('post-t02-evidence-review', $content);
+    }
+
+    public function test_control_plane_records_name_the_same_current_gate(): void {
+        $contract = self::read_repository_file('.ai-architect/architecture-contract.yaml');
+        self::assertStringContainsString("  revamp:\n", $contract);
+        self::assertStringContainsString('    subproject_0a_status: done_verified', $contract);
+        self::assertStringContainsString('    subproject_0b_status: tasks_1_12_merged', $contract);
+        self::assertStringContainsString('    current_gate: ' . self::CURRENT_GATE_ID, $contract);
+        self::assertSame(1, substr_count($contract, 'current_gate:'), 'the architecture contract names exactly one current gate');
+
+        $implementation = self::read_repository_file('.ai-architect/implementation-plan.md');
+        self::assertStringContainsString('## Current program — SUPCheckout revamp', $implementation);
+        self::assertStringContainsString(self::RELEASE_GATE, $implementation);
+        self::assertStringNotContainsString('Current executable gate: **R6 final qualification**', $implementation);
+        self::assertStringNotContainsString('## Current successor — post-T3 ecosystem hardening', $implementation);
+
+        $records = array(
+            'docs/project/START-HERE.md' => 'Current operational gate | ',
+            'docs/project/PROJECT-STATUS.md' => 'Current executable gate: ',
+            'docs/project/NEW-CHAT-HANDOFF.md' => 'Current executable gate: ',
+            '.ai-architect/implementation-plan.md' => 'Current executable gate: ',
+            'AGENTS.md' => 'Current executable gate: ',
+        );
+        foreach ($records as $path => $label) {
+            $content = self::read_repository_file($path);
+            self::assertStringContainsString($label . self::CURRENT_GATE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_GATE, $content, $path);
+            self::assertStringNotContainsString('Current executable gate: **R6', $content, $path);
+            self::assertStringNotContainsString('Current operational gate | **external certification & release readiness** |', $content, $path);
+        }
     }
 
     private static function read_repository_file(string $path): string {

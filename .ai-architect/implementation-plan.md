@@ -43,7 +43,18 @@ Only the legacy `check_ipn_response()` fallback was delegated to `PaymentLifecyc
 
 T3 proved direct `return_from_upayments()` callers may lack the GET `page` marker used by the active lifecycle to infer browser mode. T3 therefore does **not** authorize naive direct T4 delegation.
 
-## Current successor — post-T3 ecosystem hardening
+## Current program — SUPCheckout revamp
+
+Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-projects 0–5).
+
+- Sub-project 0a clean core — **DONE / VERIFIED**, staging-rehearsed 2026-10-17.
+- Sub-project 0b takeover engine — Tasks 1–12 **merged** (PRs #173–#177, #179–#184; plan `docs/superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md`). The Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`.
+- Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**, paused on the UPayments sandbox outage.
+- Next: Sub-project 0c onboarding UI, then Sub-projects 1–5.
+
+Release gate (open): **external certification & release readiness**. Public release authorization remains false.
+
+## Successor — post-T3 ecosystem hardening (history)
 
 Canonical plan:
 
@@ -65,7 +76,7 @@ At that exact E3 head, Quality/H12, all 20 Compatibility cells + Compatibility G
 
 GitHub default CodeQL JavaScript/TypeScript did not reach a terminal verdict for that historical SHA. Descendant merge/release qualification still requires CodeQL/security green.
 
-Current executable gate: **R6 final qualification**.
+The gate after that checkpoint was R6 final qualification, since **DONE / VERIFIED** (history).
 
 ## R2 implementation contract (closed)
 
