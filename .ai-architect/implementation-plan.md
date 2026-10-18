@@ -49,7 +49,7 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-proj
 
 - Sub-project 0a clean core — **DONE / VERIFIED**, staging-rehearsed 2026-10-17.
 - Sub-project 0b takeover engine — Tasks 1–12 **merged** (PRs #173–#177, #179–#184; plan `docs/superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md`). The Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`.
-- Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**, paused on the UPayments sandbox outage.
+- Current executable gate: **Sub-project 0c onboarding UI — NEXT** (0b takeover rehearsal PASSED 2026-10-18).
 - Next: Sub-project 0c onboarding UI, then Sub-projects 1–5.
 
 Release gate (open): **external certification & release readiness**. Public release authorization remains false.

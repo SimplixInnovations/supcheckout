@@ -145,8 +145,8 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (§9 deli
 
 - **Sub-project 0a clean core — DONE / VERIFIED, staging-rehearsed.** PRs #165–#172, last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`; owner staging rehearsal passed 2026-10-17 ([evidence](evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md), PR #178).
 - **Sub-project 0b takeover engine — Tasks 1–12 merged** (PRs #173–#177, #179–#184; plan `docs/superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md`; per-PR merge SHAs in [`PROJECT-STATUS.md`](PROJECT-STATUS.md)). The real-WordPress Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` and is a permanent quality control.
-- Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**. Started 2026-10-18 and paused: the UPayments public sandbox (`sandboxapi.upayments.com`) returns HTTP 502 through Cloudflare (provider outage, verified from two networks). Preflight correctly blocked with `credential_unverified`. Open PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable` reason) waits on the same outage for its bounded Provider Sandbox check.
-- **Next:** finish the rehearsal (evidence → `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`), then Sub-project 0c onboarding UI, then Sub-projects 1–5 per the spec.
+- Current executable gate: **Sub-project 0c onboarding UI — NEXT**. The 0b takeover staging rehearsal PASSED on 2026-10-18 (`docs/project/evidence/TAKEOVER-REHEARSAL-2026-10-18.md`): preflight blocked correctly during a UPayments sandbox outage; then the switch, an in-flight payment from the official plugin, rollback with reactivation, a second switch and a forced Finalize all behaved as designed. Its two findings were fixed in #185.
+- **Next:** Sub-project 0c onboarding UI (includes the automatic LiteSpeed purge at cutover and the owner check of WCML per-currency checkout visibility), then Sub-projects 1–5 per the spec.
 
 
 ## 6. Post-T3 execution sequence
@@ -185,7 +185,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 
 | Field | Current value |
 |---|---|
-| Program phase | **SUPCheckout revamp — Sub-project 0b takeover** (spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`); release program external certification & release readiness stays open |
+| Program phase | **SUPCheckout revamp — Sub-project 0c onboarding UI** (spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`); release program external certification & release readiness stays open |
 | Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED — HISTORICAL, superseded by Release Candidate 1** |
 | Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
 | Frozen accepted baseline | `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (Release Candidate 1; supersedes Approach 3 `146d65a1c182630c1acc651cacafe30cff5f6b79`) |
@@ -193,7 +193,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active task | **owner takeover staging rehearsal; PR #185** |
+| Active task | **Sub-project 0c onboarding UI** (0b takeover rehearsal PASSED 2026-10-18) |
 | Latest repository-executable E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | Latest candidate package at that checkpoint | 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c` |
 | R0 / R1 / E1 | **DONE / VERIFIED and integrated through PR #108** |
@@ -204,7 +204,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R4 | **DONE / VERIFIED** — certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, squash-merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | R6 | **DONE / VERIFIED** — exact-head qualification and owner technical re-acceptance complete |
-| Current operational gate | **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 on a UPayments sandbox outage (HTTP 502); PR #185 waits on the same outage |
+| Current operational gate | **Sub-project 0c onboarding UI — NEXT**; the 0b takeover rehearsal PASSED 2026-10-18 (`TAKEOVER-REHEARSAL-2026-10-18.md`) |
 | Release gate | **external certification & release readiness — open** (owner acceptance and live acceptance in Sub-project 5) |
 | Next release gate step | **Fresh owner acceptance of a package containing PR #138, then live one-time acceptance** (production auth `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`, 2026-10-13) |
 | Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** 2026-10-17 (last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`) |
@@ -313,7 +313,7 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 ## 13. Immediate next step
 
-**Revamp (active engineering):** resume the owner staging rehearsal of the takeover once the UPayments sandbox answers again (preflight, run, verify counts, rollback, run again; real WPML/WCML on that store), record it in `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`, settle PR #185, then start Sub-project 0c (onboarding UI). See §5 "Active engineering program".
+**Revamp (active engineering):** the 0b takeover staging rehearsal PASSED on 2026-10-18 (`docs/project/evidence/TAKEOVER-REHEARSAL-2026-10-18.md`; findings fixed in #185). Next: Sub-project 0c (onboarding UI), including the automatic LiteSpeed purge at cutover and the owner check of WCML per-currency checkout visibility. See §5 "Active engineering program".
 
 R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
 
