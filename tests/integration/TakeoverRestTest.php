@@ -163,6 +163,10 @@ function supcheckout_takeover_rest_drive($op_id, $observe = null) {
         if (is_callable($observe)) {
             call_user_func($observe, $op);
         }
+        if ($run === 1) {
+            $queued = supcheckout_takeover_rest_queued($op_id);
+            supcheckout_cert_assert(in_array(AsyncDriver::GROUP, array_column($queued['actions'], 'group'), true), 'the ' . $op['kind'] . ' operation has its drive action queued in the onboarding group: ' . wp_json_encode($queued));
+        }
         $result = supcheckout_takeover_cert_wp('action-scheduler run --group=' . AsyncDriver::GROUP . ' --batch-size=1 --batches=1 --force');
         $completed = preg_match('/Success: ([0-9]+) scheduled task/', $result->stdout, $match) === 1 ? (int) $match[1] : -1;
         $log[] = '#' . $run . ' ' . $op['phase'] . ' ran ' . $completed;
@@ -172,6 +176,31 @@ function supcheckout_takeover_rest_drive($op_id, $observe = null) {
         }
     }
     throw new RuntimeException('FAIL: operation ' . $op_id . ' still running after ' . SUPCHECKOUT_TAKEOVER_REST_MAX_RUNS . ' Action Scheduler runs (' . (time() - $started) . ' s): ' . implode('; ', $log) . ' ' . wp_json_encode(Operation::current()));
+}
+
+/**
+ * The operation's drive actions as Action Scheduler stored them, read from its tables.
+ *
+ * @param string $op_id Operation ID.
+ * @return array{store:string, actions:list<array<string, mixed>>, group_row:mixed}
+ */
+function supcheckout_takeover_rest_queued($op_id) {
+    global $wpdb;
+    $actions_table = $wpdb->prefix . 'actionscheduler_actions';
+    $groups_table = $wpdb->prefix . 'actionscheduler_groups';
+    $rows = $wpdb->get_results($wpdb->prepare(
+        'SELECT a.action_id, a.status, a.group_id, a.scheduled_date_gmt, g.slug AS `group` FROM %i a LEFT JOIN %i g ON g.group_id = a.group_id WHERE a.hook = %s AND a.args = %s ORDER BY a.action_id',
+        $actions_table,
+        $groups_table,
+        AsyncDriver::HOOK,
+        (string) wp_json_encode(array($op_id))
+    ), ARRAY_A);
+    return array(
+        'store' => class_exists('ActionScheduler') ? get_class(ActionScheduler::store()) : 'none',
+        'actions' => is_array($rows) ? $rows : array(),
+        'group_row' => $wpdb->get_row($wpdb->prepare('SELECT * FROM %i WHERE slug = %s', $groups_table, AsyncDriver::GROUP), ARRAY_A),
+        'db_error' => $wpdb->last_error,
+    );
 }
 
 /**
