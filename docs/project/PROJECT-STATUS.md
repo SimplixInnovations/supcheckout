@@ -1,7 +1,7 @@
 # SUPCheckout for UPayments — Project Status
 
 **Status document:** canonical living engineering state
-**Last reconciled:** 2026-10-13
+**Last reconciled:** 2026-10-18
 **Canonical repository:** `SimplixInnovations/supcheckout`
 **Development version:** `0.1.0`
 **Owner technical acceptance:** **ACCEPTED for Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, recorded 2026-10-07)
@@ -31,7 +31,7 @@
 | Approach 3 T2 | **DONE / VERIFIED / runtime-bearing** |
 | Approach 3 T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active program | `external-certification-release-readiness` |
+| Active program | **SUPCheckout revamp** — spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`; see "Revamp program" below. The release program `external-certification-release-readiness` stays open until Sub-project 5 |
 | E2 repository-executable generic | **DONE / CERTIFIED** |
 | E3 repository-executable runtime evidence | **DONE / VERIFIED** |
 | Latest E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
@@ -39,14 +39,13 @@
 | R3 | **DONE / VERIFIED** — PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
 | R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
-| Current executable gate | **external certification & release readiness** |
+| Current executable gate | **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 on a UPayments sandbox outage (HTTP 502); PR #185 waits on the same outage |
+| Release gate | **external certification & release readiness — open**; spec §9 places its owner acceptance and live acceptance in Sub-project 5 |
 | Post-acceptance runtime on `main` | PR #133 payment lifecycle hardening (2026-10-10 review), merged main `35ea66d4cb9c8395b264cd24b4844eaa268aa470`; package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; then PR #138 non-white-label Charge fix, package `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`; **NOT owner accepted** |
 | Owner step before live evidence | **Fresh technical acceptance of the current `main` package** (`LOCAL-FINAL-VERIFICATION.md`). Live evidence must be produced with the package that will be released, not Release Candidate 1. |
-| Next executable dependency | **Fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe, 2026-10-13, [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md), runbook [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) |
-| Active engineering program | **SUPCheckout revamp** — spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`; see "Revamp program" below |
+| Next release dependency | **Fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe, 2026-10-13, [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md), runbook [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) |
 | Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** (2026-10-17) |
 | Sub-project 0b takeover engine | **Tasks 1–12 merged**; Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
-| Revamp operational gate | **Owner takeover staging rehearsal (0b Task 12 Step 5) — IN PROGRESS**, paused on a UPayments sandbox outage |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -121,7 +120,7 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
+Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS** (see "Revamp program"). Release gate (open): **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
 
 R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003; PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
@@ -159,7 +158,7 @@ Spec: [`../superpowers/specs/2026-10-16-supcheckout-revamp-design.md`](../superp
 
 Takeover Migration Matrix (`.github/workflows/takeover-migration-matrix.yml`) — **SUCCESS on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`** (run 39084507907): official plugin refs `V2.0.5`, `upayments-V2.2.1`, `3.0.0` and `3.1.1`, each with HPOS (sync off, WCML option shapes seeded) and legacy storage; the pre-0b SUPCheckout in-place-update lane; the 10,000-order lane (3.1.1, legacy); and the matrix gate. It sends no provider traffic (fixture responses, UPayments hosts sinkholed). WCML is report-only: Preflight reports its gateway rules and the takeover leaves them byte-for-byte unchanged. The workflow is a permanent quality control (`AGENTS.md`).
 
-**Current revamp gate: owner staging rehearsal of the takeover (plan Task 12 Step 5) — IN PROGRESS.** Started 2026-10-18 on the staging copy, with official UPayments 3.1.1 active and SUPCheckout paused. It is paused because the UPayments public sandbox (`sandboxapi.upayments.com`) returns HTTP 502 through Cloudflare, a provider outage verified from two networks. Preflight correctly blocked with `credential_unverified`. Open PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable` reason) waits on the same outage for its bounded Provider Sandbox check.
+Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**. Started 2026-10-18 on the staging copy, with official UPayments 3.1.1 active and SUPCheckout paused. It is paused because the UPayments public sandbox (`sandboxapi.upayments.com`) returns HTTP 502 through Cloudflare, a provider outage verified from two networks. Preflight correctly blocked with `credential_unverified`. Open PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable` reason) waits on the same outage for its bounded Provider Sandbox check.
 
 **Next:** finish the rehearsal (preflight, run, verify counts, rollback, run again; evidence → `docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`), then Sub-project 0c onboarding UI, then Sub-projects 1–5 per the spec. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
 

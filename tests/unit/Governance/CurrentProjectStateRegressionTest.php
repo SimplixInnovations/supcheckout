@@ -13,6 +13,11 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const RC1_ACCEPTANCE_TOKEN = 'RELEASE_CANDIDATE_1';
     private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
     private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
+    /** The current executable gate (reconciled 2026-10-18): the Sub-project 0b takeover staging rehearsal. */
+    private const CURRENT_GATE = '**owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**';
+    /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
+    private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
+    private const SUPERSEDED_GATE = 'Current executable gate: **external certification & release readiness**.';
 
     /**
      * Canonical living records that a fresh chat/agent may use to establish the
@@ -48,7 +53,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $content = self::read_repository_file('docs/project/START-HERE.md');
 
         self::assertStringContainsString('docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('Program phase | **external certification & release readiness**', $content);
+        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Sub-project 0b takeover**', $content);
+        self::assertStringContainsString('release program external certification & release readiness stays open', $content);
+        self::assertStringNotContainsString('Program phase | **external certification & release readiness** |', $content);
         self::assertStringContainsString('R6 | **DONE / VERIFIED**', $content);
         self::assertStringNotContainsString('Plan: `docs/superpowers/plans/2026-09-10-post-t3-ecosystem-hardening.md`', $content);
         self::assertStringNotContainsString('Program phase | **Approach 3 post-T3 ecosystem hardening**', $content);
@@ -146,14 +153,25 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('R3 subscription safety is **DONE / VERIFIED**', $agents);
         self::assertStringContainsString('R5 callback lifecycle consolidation is **DONE / VERIFIED**', $agents);
         self::assertStringContainsString('.github/workflows/ecosystem-certification.yml', $agents);
-        self::assertStringContainsString('Current operational gate | **external certification & release readiness**', $start);
+        self::assertStringContainsString('Current operational gate | ' . self::CURRENT_GATE, $start);
+        self::assertStringContainsString('Release gate | **external certification & release readiness — open**', $start);
+        self::assertStringNotContainsString('Current operational gate | **external certification & release readiness** |', $start);
         self::assertStringContainsString('E3 repository-executable | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R2 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R3 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R4 | **DONE / VERIFIED**', $start);
         self::assertStringContainsString('R5 | **DONE / VERIFIED**', $start);
-        self::assertStringContainsString('Current executable gate: **external certification & release readiness**.', $status);
-        self::assertStringContainsString('Current executable gate: **external certification & release readiness**.', $handoff);
+        self::assertStringContainsString('Current executable gate: ' . self::CURRENT_GATE, $status);
+        self::assertStringContainsString('Current executable gate: ' . self::CURRENT_GATE, $handoff);
+        self::assertStringContainsString('| Current executable gate | ' . self::CURRENT_GATE, $status);
+        self::assertStringContainsString(self::RELEASE_GATE, $status);
+        self::assertStringContainsString(self::RELEASE_GATE, $handoff);
+        self::assertStringNotContainsString(self::SUPERSEDED_GATE, $status);
+        self::assertStringNotContainsString(self::SUPERSEDED_GATE, $handoff);
+        foreach (array('docs/project/START-HERE.md' => $start, 'docs/project/PROJECT-STATUS.md' => $status) as $living => $text) {
+            self::assertStringContainsString('Publication remains **NOT AUTHORIZED**', $text, $living);
+            self::assertStringContainsString('Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED', $text, $living);
+        }
         self::assertStringContainsString('E3 repository-executable exact-head checkpoint: `' . self::POST_T3_E3_RUNTIME_CHECKPOINT_SHA . '`', $implementation);
         self::assertStringContainsString('latest_e3_runtime_checkpoint: ' . self::POST_T3_E3_RUNTIME_CHECKPOINT_SHA, $contract);
         self::assertStringContainsString('e3_repository_status: done_verified', $contract);
@@ -199,9 +217,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
-        self::assertStringContainsString('**Last reconciled:** 2026-10-13', $status_hdr);
+        self::assertStringContainsString('**Last reconciled:** 2026-10-18', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
-        self::assertStringContainsString('Next executable dependency: **fresh owner acceptance of a package containing PR #138**', $handoff);
+        self::assertStringContainsString('Next release dependency: **fresh owner acceptance of a package containing PR #138**', $handoff);
         // Owner decision 2026-10-08: the account probe is an accepted resolution path, so every
         // living handoff surface must name it instead of implying a provider answer is the only route.
         foreach (array('docs/project/PROJECT-STATUS.md', 'docs/project/OWNER-HANDOFF.md', 'docs/project/NEW-CHAT-HANDOFF.md') as $living) {

@@ -49,7 +49,8 @@ T3 proved that a direct `return_from_upayments()` caller may not carry the GET `
 
 ## Current program
 
-Current program: **`external-certification-release-readiness`**
+Active engineering program: **SUPCheckout revamp** (see "Active engineering program" below)
+Release program (open): **`external-certification-release-readiness`**
 Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`
 R0/R1/E1-E3 integration milestone: **PR #108 — MERGED to `main` at `d69377d3e26831270a00151025d24cc64be9d36b`; temporary branch deleted**
 Publication: **NOT AUTHORIZED**
@@ -80,7 +81,7 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **external certification & release readiness**. Next executable dependency: **fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe `PRODUCTION-AUTH-ACCOUNT-PROBE.md`, 2026-10-13, `evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md`). Release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released. Release Candidate 1 is owner accepted (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`)), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
+Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS** (see "Active engineering program" below). Release gate (open): **external certification & release readiness**. Next release dependency: **fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe `PRODUCTION-AUTH-ACCOUNT-PROBE.md`, 2026-10-13, `evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md`). Release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released. Release Candidate 1 is owner accepted (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`)), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 `main` now carries post-acceptance runtime: PR #133 payment lifecycle hardening, merged at `35ea66d4cb9c8395b264cd24b4844eaa268aa470`, package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; PR #138 (non-white-label Charge fix) then changes the package to `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`. Neither is **owner accepted**. Before any live evidence, the owner runs `LOCAL-FINAL-VERIFICATION.md` on an exact `main` SHA and records a fresh technical acceptance (or keeps Release Candidate 1); the production-auth probe and live acceptance must then use that accepted package. See the owner action queue in `START-HERE.md`.
 
@@ -109,7 +110,7 @@ R3 is **DONE / VERIFIED** (PR #112 certified head `de0162b4a1cca77c62f07290224b0
 
 For the narrower first public core one-time-payment scope, the provider-dependent contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13, account-scoped, packages containing PR #138). saved-card/token persistence: FUTURE FEATURE GATE. auto-deduct capture/cycle identity: FUTURE RECURRING GATE. Webhook signature mechanics remain future defense-in-depth and sandbox credential-family migration remains a future test-infrastructure gate. Do not promote deferred surfaces into first-release production claims.
 
-## Current next work: UPayments provider-contract clarification — production auth (not R6, not publication)
+## Release gate: production auth (resolved 2026-10-13)
 
 R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`. Owner acceptance recorded at that time: `OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3` (since superseded by `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`). Publication unauthorized.
 
@@ -122,7 +123,7 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-proj
 - Sub-project 0a clean core — **DONE / VERIFIED, staging-rehearsed** 2026-10-17 (`evidence/SUBPROJECT-0A-CLEAN-CORE-2026-10-17.md`).
 - Sub-project 0b takeover engine — **Tasks 1–12 merged**: #173 `88d216f` Keys registry, #174 `c6c59a0` state machine/journal, #175 `4177e72` Keys routing/window model, #176 `7018b1d` preflight, #177 `3778226` copier/runner, #179 `8c97f40` callback routes, #180 `fce67ec` cutover, #181 `2b94185` CLI + paused boot, #182 `d1a4a2f` rollback/abort, #183 `e5dde26` finalize, #184 `86c65ba` migration matrix. Full SHAs in `PROJECT-STATUS.md`.
 - Takeover Migration Matrix (official 2.0.5 / 2.2.1 / 3.0.0 / 3.1.1 × HPOS/legacy, pre-0b lane, 10,000 orders) — **green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`**; permanent quality control.
-- Current revamp gate: **owner takeover staging rehearsal (0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 because the UPayments public sandbox returns HTTP 502 via Cloudflare (provider outage, two networks). Preflight correctly blocked (`credential_unverified`). PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable`) is open and waits on the same outage for its bounded Provider Sandbox check.
+- Current executable gate: **owner takeover staging rehearsal (Sub-project 0b Task 12 Step 5) — IN PROGRESS**, paused since 2026-10-18 because the UPayments public sandbox returns HTTP 502 via Cloudflare (provider outage, two networks). Preflight correctly blocked (`credential_unverified`). PR #185 (paused-boot WooCommerce feature declarations; preflight `provider_unavailable`) is open and waits on the same outage for its bounded Provider Sandbox check.
 - Next: finish the rehearsal (`docs/project/evidence/TAKEOVER-REHEARSAL-<date>.md`), then Sub-project 0c onboarding UI, then Sub-projects 1–5.
 
 ## Permanent invariants
