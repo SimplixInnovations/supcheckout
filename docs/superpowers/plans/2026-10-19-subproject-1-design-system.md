@@ -115,7 +115,17 @@
   - WordPress loads translation JSON only for registered handles, so a custom plugin in `webpack.config.js` also emits `app.chunks.json`. `AdminAssets` inlines `wp.i18n.setLocaleData` for each chunk before the app runs.
   - Sub-project 1 proves this with one real lazy chunk, the command-palette panel.
 - **Plugin Check impact.** The packaged ZIP gains JS, CSS, JSON and TS files under `assets/` only. It has no hidden files and no compressed, PHP-generated or `.map` files. The strict packaged Plugin Check (`wordpress-org-submission-check.yml`) stays unchanged and must stay green. The CodeQL JS extractor analyzes `assets/admin/src`. It skips minified bundles on its own; no CodeQL configuration changes.
-- **Locked dependency audit.** `npm audit --omit=dev` must report nothing at any level, because those packages ship in the bundle. `npm audit --audit-level=high` must pass for the full tree. Both block the merge.
+- **Locked dependency audit.** `npm audit --omit=dev` must report nothing at any level, because those packages ship in the bundle. The full tree is gated by `npm run audit:full` (see the controller ruling below). Both block the merge.
+- **Controller ruling (2026-10-19): the full-tree audit is an allow-list gate.**
+  - **Why.** Task 1 found that a bare `npm audit --audit-level=high` cannot pass. GHSA-vfj7-8cjw-p6xm (braces, high, published 2026-09-18) affects every braces release and has no patched version. It reaches only build tooling: micromatch/fast-glob, chokidar and stylelint inside `@wordpress/scripts`.
+  - **The gate.** `tools/admin-ui/audit/audit-gate.mjs` fails on any high or critical advisory unless `tools/admin-ui/audit/audit-allowlist.json` lists it by GHSA id and package, and that entry:
+    - has not expired (the braces entry expires 2027-01-17);
+    - is still reported, so a stale entry fails;
+    - is absent from the production tree.
+  - **Scope.** The allow-list holds that single entry. `npm audit --omit=dev` stays unconditional.
+  - **Owner input.** The owner may require a bare `npm audit --audit-level=high` instead. That needs either an upstream braces fix or a dependency override.
+  - **Related.** `serialize-javascript` is overridden to 7.1.2 for GHSA-5c6j-r48x-rmvq, which is fixed upstream.
+  - **`.npmrc`.** It also sets `min-release-age=14`, so every transitive version resolves to at least 14 days old. A security fix younger than that needs a `min-release-age-exclude` entry.
 - **SBOM.** `scripts/generate-sbom-evidence.py` adds the root `package-lock.json` to the development SBOM. It adds every bundled package listed in `assets/admin/build/third-party-notices.json` to the runtime SBOM as `pkg:npm` components with their license. This strengthens the supply-chain evidence; nothing is removed.
 
 ### Component-library approach
@@ -171,7 +181,7 @@
 
 | Layer | Tool | Runs | What it proves |
 |---|---|---|---|
-| Unit and behavior | Jest (`wp-scripts test-unit-js`, jsdom), `@testing-library/react`, `user-event` | `npm run test:unit` | Roles, names, keyboard, state and i18n per component |
+| Unit and behavior | Jest 30.5.2 invoked directly (`node --experimental-vm-modules`, jsdom), `@testing-library/react`, `user-event` | `npm run test:unit` | Roles, names, keyboard, state and i18n per component |
 | Unit a11y | `jest-axe` through `renderInModes()` (light/dark × ltr/rtl) | same | Structural ARIA and labelling per state |
 | React 19 lane | Jest with `react@19.3.0` aliased through `moduleNameMapper` (`SUP_REACT=19`) | `npm run test:unit:react19` | Forward compatibility with the planned WordPress React 19 runtime |
 | Tokens | Node tests on the resolved tokens, `culori` WCAG contrast | in `test:unit` | Every semantic pair, both modes, nine schemes, plus the brand file |
@@ -224,6 +234,7 @@
 | `react`, `react-dom` | 18.3.1 | dev only; matches WP 6.9 and 7.1 `wp-element` |
 | `react-19` / `react-dom-19` | `npm:react@19.3.0` / `npm:react-dom@19.3.0` | React 19 Jest lane only |
 | `typescript` | 6.0.3 (or the newest version inside `@wordpress/eslint-plugin` 27's `@typescript-eslint` peer range) | `tsc --noEmit` |
+| `jest` / `jest-environment-jsdom` | 30.5.2 / 30.5.2 | `@wordpress/scripts` 36 `test-unit-js` runs Vitest, so Jest is a direct dependency |
 | `@testing-library/react` / `user-event` / `jest-axe` | 16.3.3 / 14.6.7 / 11.0.0 | |
 | `@playwright/test` / `@axe-core/playwright` | 1.63.0 / 4.13.0 | |
 | `culori` | 4.0.2 | contrast math |
@@ -242,8 +253,10 @@ tools/admin-ui/
   tokens/build-tokens.mjs         CLI: JSON -> tokens.generated.css (--check)
   tokens/resolve.mjs              loadTokens, resolveColor, renderCss, validateBrand
   tokens/contrast.mjs             checkContrast (culori wcagContrast)
+  audit/audit-gate.mjs, audit/audit-allowlist.json   full-tree audit allow-list gate (controller ruling)
 assets/admin/src/                 SHIPPED source
   app/index.tsx                   domReady -> createRoot(#supcheckout-admin-root) -> <SupRoot><AppShell/></SupRoot>
+  app/app.css, app/Placeholder.tsx (Task 1 CSS input and lazy chunk; Placeholder removed in Task 7), types/assets.d.ts
   tokens/core.tokens.json, admin-schemes.tokens.json, brand.tokens.json, contrast-pairs.json, tokens.generated.css
   ui/index.ts                     the only import surface for SP2
   ui/foundations/                 SupRoot.tsx theme.ts direction.ts portal.tsx motion.ts Icon.tsx icons.ts VisuallyHidden.tsx Heading.tsx Text.tsx Numeric.tsx Spinner.tsx foundations.css
@@ -274,7 +287,12 @@ Modified: `.gitignore`, `.gitattributes`, `.distignore`, `scripts/verify-release
 - Create:
   - the toolchain files: `package.json`, `package-lock.json`, `.nvmrc`, `.npmrc`, `webpack.config.js`, `tsconfig.json`, `eslint.config.mjs`, `.stylelintrc.json`, `jest.config.js`;
   - `tools/admin-ui/webpack/notices-plugin.cjs`;
-  - `assets/admin/src/app/index.tsx`, a placeholder mount with one translated string (`__( 'SUPCheckout', 'supcheckout' )`);
+  - `tools/admin-ui/audit/audit-gate.mjs` and `tools/admin-ui/audit/audit-allowlist.json` (see the controller ruling under Design decisions → Toolchain);
+  - the placeholder entry:
+    - `assets/admin/src/app/index.tsx` holds the one translated string (`__( 'SUPCheckout', 'supcheckout' )`). It passes the string to a lazily imported `Placeholder.tsx`. Without at least one `import()` chunk, webpack omits the chunk-loading runtime, so the chunk-global, chunk-manifest and chunk-budget tests would be vacuous or fail.
+    - `assets/admin/src/app/Placeholder.tsx` is the lazy chunk. Task 7 deletes it once the command-palette chunk exists.
+    - `assets/admin/src/app/app.css`, imported by `index.tsx`, holds one rule scoped under `.supcheckout-admin` that uses a logical property (for example `padding-block: 0`). It gives webpack a CSS input, so `app.css` and `app-rtl.css` exist from Task 1. Task 2 adds the token import next to it.
+    - `assets/admin/src/types/assets.d.ts` (`declare module '*.css'`). TypeScript 6 checks side-effect imports, so it needs this. It ships with the source.
   - the committed `assets/admin/build/*`;
   - `tests/admin-ui/build/build-contract.test.mjs`;
   - `.github/workflows/admin-ui-certification.yml`, with jobs `static`, `build-windows` and `gate`.
@@ -292,7 +310,12 @@ Modified: `.gitignore`, `.gitattributes`, `.distignore`, `scripts/verify-release
 **Interfaces:**
 - Produces npm scripts:
   - `build`: `wp-scripts build --config webpack.config.js`. Task 2 prefixes it with `node tools/admin-ui/tokens/build-tokens.mjs &&`.
-  - `build:gallery`, `lint:js`, `lint:css`, `typecheck`, `test:unit`, `test:unit:react19`, `test:browser`, `test:visual`.
+  - `test:unit`: `node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.js`. In `@wordpress/scripts` 36, `test-unit-js` runs Vitest and `test-unit-jest` is a bare passthrough, so Jest is invoked directly. The flag lets the `*.test.mjs` suites run as native ESM. `jest.config.js` owns the whole configuration: `babel-jest` with `@wordpress/babel-preset-default` for `ts`/`tsx`/`js`, the jsdom environment for `*.test.tsx`, and `testRegex` rather than globs, because globs skip dot-directories such as `.claude/worktrees`.
+  - `audit:full`: `node tools/admin-ui/audit/audit-gate.mjs`.
+  - `build:gallery`, `lint:js`, `lint:css` and `typecheck`.
+  - `test:browser`: `playwright test -c tests/admin-ui/playwright.config.ts --project=light-ltr --project=dark-ltr --project=light-rtl --project=dark-rtl`.
+  - `test:visual`: the same command with `--project=visual-light-ltr --project=visual-dark-ltr --project=visual-light-rtl --project=visual-dark-rtl`.
+  - `build:gallery`, `test:browser` and `test:visual` fail until Tasks 4 and 8 add their configuration. `test:unit:react19` is added in Task 3.
   - `check:drift`: `git diff --exit-code -- assets/admin && test -z "$(git status --porcelain -- assets/admin)"`.
   - `quality`: lint:js → lint:css → typecheck → test:unit → build → check:drift.
 - Produces build files:
@@ -322,7 +345,8 @@ test( 'React and the JSX runtime are never bundled', () => {
 	for ( const needle of [ '__SECRET_INTERNALS', 'react.transitional.element', 'react.production' ] ) expect( allJs() ).not.toContain( needle );
 } );
 test( 'no source maps ship', () => { expect( listBuild().filter( ( f ) => f.endsWith( '.map' ) ) ).toEqual( [] ); expect( allText() ).not.toMatch( /sourceMappingURL/ ); } );
-test( 'translator calls and the supcheckout domain survive minification', () => { expect( appJs() ).toMatch( /\b__\(/ ); expect( appJs() ).toContain( '"supcheckout"' ); } );
+// Webpack emits imported calls as `(0,c.__)("SUPCheckout","supcheckout")`; `wp i18n make-pot` extracts both forms.
+test( 'translator calls and the supcheckout domain survive minification', () => { expect( allJs() ).toMatch( /\b__\)?\(/ ); expect( allJs() ).toContain( '"supcheckout"' ); } );
 test( 'the webpack runtime uses a SUPCheckout-owned chunk global', () => { expect( appJs() ).toContain( 'supCheckoutAdminChunks' ); expect( appJs() ).not.toMatch( /webpackChunk/ ); } );
 test( 'every stylesheet has an RTL twin', () => { expect( listBuild() ).toEqual( expect.arrayContaining( [ 'app.css', 'app-rtl.css' ] ) ); } );
 test( 'the chunk manifest lists exactly the emitted chunks', () => { expect( readJson( 'assets/admin/build/app.chunks.json' ) ).toEqual( listBuild( 'chunks' ).sort() ); } );
@@ -334,27 +358,47 @@ test( 'bundled packages carry an allowed license and none is WordPress or React'
 test( 'gzip sizes stay within budget', () => { expect( gz( 'app.js' ) ).toBeLessThanOrEqual( BUDGET.appJs ); expect( gz( 'app.css' ) ).toBeLessThanOrEqual( BUDGET.appCss ); for ( const c of listBuild( 'chunks' ) ) expect( gz( c ) ).toBeLessThanOrEqual( BUDGET.chunk ); } );
 ```
 
-- [ ] **Step 2: Run it.** `npx wp-scripts test-unit-js tests/admin-ui/build`. Expected: FAIL, `ENOENT … assets/admin/build/app.asset.json`.
-- [ ] **Step 3: Add the toolchain, `webpack.config.js`, the notices plugin and the placeholder entry, then build.** `nvm use && npm ci --ignore-scripts && npm run build`. The notices plugin collects every module resource under `node_modules` from `compilation.modules`, maps it to its package `name`, `version` and `license`, and writes the TXT (each package's LICENSE text, sorted) and the JSON deterministically (sorted, LF, trailing newline).
-- [ ] **Step 4: Run.** `npm run test:unit -- tests/admin-ui/build`. Expected: PASS. Then run `npm run build && npm run check:drift` twice. Expected: exit 0 both times (byte-identical rebuild).
-- [ ] **Step 5: Extend the release harnesses.** In `release-artifact-harness.php`:
+- [ ] **Step 2: Run it.** `node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.js tests/admin-ui/build`. If the toolchain is not installed yet, install it first and run the same command. Expected: FAIL, `ENOENT … assets/admin/build/app.asset.json`.
+- [ ] **Step 3: Add the toolchain, `webpack.config.js`, the notices plugin and the placeholder entry, then build.** `nvm use && npm ci --ignore-scripts && npm run build`.
+  - The notices plugin collects every module resource under `node_modules` from `compilation.modules` and maps it to its package `name`, `version` and `license`. It writes the TXT (each package's LICENSE text) and the JSON deterministically: sorted by code point, LF, trailing newline.
+  - In Task 1 nothing bundles third-party code, so `third-party-notices.json` is `[]`. Task 3 is the first task that bundles a package.
+- [ ] **Step 4: Run.** `npm run test:unit -- tests/admin-ui/build`. Expected: PASS.
+- [ ] **Step 5: Commit the toolchain and the committed build.** `chore(admin-ui): pin the @wordpress/scripts toolchain and the committed-build contract`. Every later step in this task is bound to Git HEAD:
+  - `check:drift` rejects untracked and modified paths under `assets/admin`;
+  - the release builder reads only HEAD blobs.
+
+  Those steps can therefore only pass on committed content.
+- [ ] **Step 6: Prove the drift gate.** Run `npm run build && npm run check:drift` twice, then delete `assets/admin/build` and the Babel cache and run it a third time. Expected: exit 0 all three times (byte-identical rebuild).
+
+  Negative check on a scratch commit that is dropped afterwards: change `app.css` without rebuilding, commit, then run `npm run build && npm run check:drift`. Expected: exit 1, with a diff in `app.css` and `app.asset.json`.
+- [ ] **Step 7: Extend the release harnesses.** In `release-artifact-harness.php`:
   - assert that each new `.distignore` rule is present;
   - in the packaged-ZIP inspection, require `supcheckout/assets/admin/build/app.js`, `app.asset.json`, `app.css`, `app-rtl.css`, `THIRD-PARTY-NOTICES.txt` and `supcheckout/assets/admin/src/app/index.tsx`;
   - reject any entry ending in `.map`, containing `/__tests__/`, or under `tools/`, `node_modules/` or `tests/admin-ui/`.
 
   In `wordpress-org-submission-harness.php`, assert that `readme.txt` contains the "Source code and build" section with the repository URL.
 
-  Run `php tests/harness/release-artifact-harness.php && php tests/harness/wordpress-org-submission-harness.php`. Expected: PASS.
-- [ ] **Step 6: Build and verify the package.** `bash scripts/build-release.sh dist && bash scripts/verify-release.sh dist/supcheckout-0.1.0.zip`. Expected: VERIFIED. Record the file count.
-- [ ] **Step 7: Add the workflow and the SBOM change.**
-  - `static` (ubuntu): setup-node with `node-version-file: .nvmrc`, `npm ci --ignore-scripts`, `npm audit --omit=dev`, `npm audit --audit-level=high`, `npx wp-scripts check-engines`, then `npm run quality`, then `npm run build && npm run check:drift` a second time.
-  - `build-windows` (windows-latest, `shell: bash`): `npm ci --ignore-scripts && npm run build && npm run check:drift`.
-  - `gate`: `needs: [static, build-windows]` with `if: always()`; it fails unless every result is `success`.
-  - SBOM: the dev components gain the root `package-lock.json`; the runtime components gain the `pkg:npm` entries from `third-party-notices.json`.
+- [ ] **Step 8: Add the workflow, the audit gate and the SBOM change.**
+  - `static` (ubuntu), in this order:
+    - setup-node with `node-version-file: .nvmrc`;
+    - `npm ci --ignore-scripts`;
+    - `npm audit --omit=dev`;
+    - `npm run audit:full`;
+    - `npx wp-scripts check-engines`;
+    - `npm run quality`;
+    - `npm run build && npm run check:drift` a second time.
+  - `build-windows` (windows-latest, `shell: bash`, `npm_config_script_shell` set to Git Bash so the POSIX `check:drift` runs under npm): `npm ci --ignore-scripts && npm run build && npm run check:drift`.
+  - `gate`: `needs: [static, build-windows]` with `if: always()`. It fails unless every result is `success`.
+  - SBOM: the dev components gain the root `package-lock.json`, and the runtime components gain the `pkg:npm` entries from `third-party-notices.json`. A package with only a legacy `licenses` array is resolved through an exact name + version table, verified against its LICENSE file. Every other unknown license still fails closed.
+- [ ] **Step 9: Commit the harnesses, `readme.txt`, the workflow and the SBOM change.** `ci(admin-ui): certify the committed admin build in the release, SBOM and workflow gates`
+- [ ] **Step 10: Run the HEAD-bound gates on the committed tree.**
+  - `php tests/harness/release-artifact-harness.php && php tests/harness/wordpress-org-submission-harness.php`. Expected: PASS.
+  - `bash scripts/build-release.sh dist && bash scripts/verify-release.sh dist/supcheckout-0.1.0.zip`. Expected: VERIFIED. Record the file count and the SHA-256.
+  - The SBOM generator and validator, with the same arguments and `SOURCE_DATE_EPOCH` (the HEAD commit time) that `supply-chain-evidence.yml` uses. Expected: PASS. The runtime SBOM has file components only, because `third-party-notices.json` is `[]`. The `@base-ui/react` assertion belongs to Task 3.
+  - `npm run audit:full` negative probes: an empty allow-list fails, and an expired entry fails.
 
-  Run the generator and the validator with the same arguments and `SOURCE_DATE_EPOCH` that `supply-chain-evidence.yml` uses. Expected: PASS, and the runtime SBOM lists `pkg:npm/@base-ui/react@1.8.0`.
-- [ ] **Step 8: Run all gates** (Global Constraints → Gates).
-- [ ] **Step 9: Commit.** `chore(admin-ui): pin the @wordpress/scripts toolchain and the committed-build contract`
+  If any gate fails, fix the cause, commit the fix, and rerun Step 10. Never run these gates on an uncommitted tree.
+- [ ] **Step 11: Run all gates** (Global Constraints → Gates).
 
 ---
 
@@ -507,8 +551,23 @@ test( 'foundations have no axe violations in four modes', () => renderInModes( <
   - `isolation: isolate` on both roots;
   - `.sup-icon--mirrored { transform: scaleX(-1) }`.
 - [ ] **Step 4: Run.** `npm run test:unit -- tests/admin-ui/unit/foundations && npm run test:unit:react19 -- tests/admin-ui/unit/foundations && npm run typecheck`. Expected: PASS.
-- [ ] **Step 5: Run all gates**, rebuild and commit the build output.
-- [ ] **Step 6: Commit.** `feat(admin-ui): add SupRoot, the scoped portal layer and RTL-aware foundations`
+- [ ] **Step 5: Assert the first bundled third-party package.** `SupRoot` imports Base UI `DirectionProvider`, so this is the first task that bundles a package. Add this test to `tests/admin-ui/build/build-contract.test.mjs`:
+
+```js
+test( 'Base UI is bundled, noticed and licensed', () => {
+	expect( readJson( 'assets/admin/build/third-party-notices.json' ) ).toEqual( expect.arrayContaining( [ { name: '@base-ui/react', version: '1.8.0', license: 'MIT' } ] ) );
+	expect( read( 'assets/admin/build/THIRD-PARTY-NOTICES.txt' ) ).toContain( '@base-ui/react' );
+} );
+```
+
+  Run it before rebuilding. Expected: FAIL, because the committed notices are `[]`. Then run `npm run build && npm run test:unit -- tests/admin-ui/build`. Expected: PASS. Transitive packages such as `@base-ui/utils`, `@floating-ui/utils` and `use-sync-external-store` appear as well, all with allowed licenses.
+- [ ] **Step 6: Commit.** `feat(admin-ui): add SupRoot, the scoped portal layer and RTL-aware foundations` (source and rebuilt `assets/admin/build` together).
+- [ ] **Step 7: Run the HEAD-bound gates on the committed tree.**
+  - `npm run check:drift`;
+  - `bash scripts/build-release.sh dist && bash scripts/verify-release.sh dist/supcheckout-0.1.0.zip`;
+  - the SBOM generator and validator with the arguments and `SOURCE_DATE_EPOCH` that `supply-chain-evidence.yml` uses. Expected: PASS, and the runtime SBOM lists `pkg:npm/@base-ui/react@1.8.0` (moved here from Task 1).
+
+  Then run all gates (Global Constraints → Gates). Fix any failure in a new commit and rerun.
 
 ---
 
@@ -524,7 +583,7 @@ test( 'foundations have no axe violations in four modes', () => renderInModes( <
   - `tests/admin-ui/browser/{scoping,foundations-a11y,admin-schemes,i18n}.spec.ts`.
 - Modify:
   - `phpcs.xml.dist` and `phpstan.neon.dist`: add `src/Admin/AdminAssets.php`;
-  - `assets/admin/src/app/index.tsx`: mounts `<SupRoot>` into `#supcheckout-admin-root`;
+  - `assets/admin/src/app/index.tsx`: mounts `<SupRoot>` into `#supcheckout-admin-root` and keeps the lazy `Placeholder` chunk;
   - `.github/workflows/admin-ui-certification.yml`: add the `browser` job; `gate.needs` gains `browser`.
 
 **Interfaces:**
@@ -618,7 +677,7 @@ The Playwright projects are `light-ltr`, `dark-ltr` (`colorScheme: 'dark'`, pref
   - `busy` sets `aria-disabled="true"`, suppresses `onClick`, shows a decorative spinner, keeps the visible label and keeps focus;
   - `busyLabel` is announced through a visually hidden polite status;
   - `type` defaults to `'button'`.
-- `IconButton({ icon: IconName; label: string; … })`. `label` is required by the type, becomes the `aria-label` and adds a `Tooltip` from Task 6 when `showTooltip` is set.
+- `IconButton({ icon: IconName; label: string; … })`. `label` is required by the type and becomes the `aria-label`. Task 5 adds no tooltip, so this task merges without Task 6; Task 6 adds the `showTooltip` prop.
 - `Field({ label: string; description?: string; error?: string; required?: boolean; children: (control: { id: string; 'aria-describedby'?: string; 'aria-invalid'?: true; required?: boolean }) => ReactNode })`. It shows "(required)" as visible text, not only an asterisk.
 - Text controls:
   - `TextInput` (`InputHTMLAttributes & { invalid?: boolean }`) and `Textarea`;
@@ -689,7 +748,11 @@ test( 'forced colors keep the focus indicator', async ( { page } ) => { await pa
   - `tests/admin-ui/unit/feedback/*.test.tsx`;
   - `tests/admin-ui/gallery/specimens/feedback.tsx`;
   - `tests/admin-ui/browser/feedback.spec.ts`.
-- Modify: `assets/admin/src/ui/index.ts`, and `SupRoot`, which renders `<Toaster/>` inside the portal layer.
+- Modify:
+  - `assets/admin/src/ui/index.ts`;
+  - `SupRoot`, which renders `<Toaster/>` inside the portal layer;
+  - `assets/admin/src/ui/controls/IconButton.tsx`, which gains the `Tooltip` integration;
+  - `tests/admin-ui/unit/controls/IconButton.test.tsx`.
 
 **Interfaces:**
 - Containers:
@@ -707,6 +770,7 @@ test( 'forced colors keep the focus indicator', async ( { page } ) => { await pa
   - `useToast(): { show(t: { tone: 'success'|'info'|'error'; title: string; description?: string; action?: { label: string; onClick(): void } }): string; dismiss(id: string): void }`;
   - `TOAST_TIMEOUT_MS = 6000` for success and info, paused while the toast is hovered or focused. Errors never auto-dismiss;
   - at most 3 visible, `aria-live="polite"`, viewport at block-end / inline-end inside the portal layer.
+- `IconButton` gains `showTooltip?: boolean` (default `false`). When it is set, the button is wrapped in `Tooltip` with `content={ label }`. The accessible name stays the `aria-label`; the tooltip adds no `aria-describedby` that would duplicate the name.
 - `Tooltip({ content: string; children: ReactElement; side?: 'top'|'bottom'|'inline-start'|'inline-end' })`:
   - `TOOLTIP_DELAY_MS = 400` on hover, immediate on keyboard focus;
   - hoverable, Escape dismisses (1.4.13), wired through `aria-describedby`;
@@ -724,6 +788,10 @@ test( 'success toasts dismiss after 6000 ms but pause while hovered', async () =
 test( 'error toasts persist until dismissed', () => { /* advance 60000 -> still there */ } );
 test( 'toasts render inside the scoped portal layer', () => { expect( toastEl().closest( '.sup-portal-layer' ) ).not.toBeNull(); } );
 test( 'Tooltip opens on focus, closes on Escape and describes its trigger', async () => { /* tab to trigger -> role tooltip; trigger aria-describedby; Escape -> hidden */ } );
+test( 'IconButton with showTooltip shows its label as a tooltip on focus', async () => {
+	render( <IconButton icon="close" label="Dismiss" showTooltip /> ); await userEvent.tab();
+	expect( await screen.findByRole( 'tooltip' ) ).toHaveTextContent( 'Dismiss' ); expect( screen.getByRole( 'button', { name: 'Dismiss' } ) ).toBeInTheDocument();
+} );
 test( 'feedback components have no axe violations in four modes', () => renderInModes( <FeedbackSpecimen /> ) );
 ```
 
@@ -821,6 +889,8 @@ test( 'overlays have no axe violations in four modes when open', () => renderInM
 
 Build contract addition: `expect( readJson( 'assets/admin/build/app.chunks.json' ).some( ( c ) => /^chunks\/command-palette\.[a-f0-9]{8}\.js$/.test( c ) ) ).toBe( true );`
 
+Delete `assets/admin/src/app/Placeholder.tsx` and its `import()` in this task. The command-palette chunk now keeps the chunk-loading runtime, so the Task 1 chunk tests stay meaningful.
+
 - [ ] **Step 2: Run them.** `npm run test:unit -- tests/admin-ui/unit/overlays tests/admin-ui/build`. Expected: FAIL.
 - [ ] **Step 3: Implement** the overlays, `AppShell`, `DataTable` and the palette. `ConfirmDialog`'s result panel is the one signature moment: a calm, generous panel with the status pill and the message in `--sup-font-size-lg`. It has no animation beyond the shared overlay transition.
 - [ ] **Step 4: Run** the unit, react19, typecheck, lint and build commands. Expected: PASS. The palette chunk stays within the 30 KB gzip budget.
@@ -851,7 +921,17 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
   - `tests/admin-ui/gallery/vr-brand.tokens.json`, which only sets `font.family.sans` and `font.family.arabic` to the vendored faces;
   - `tests/admin-ui/visual/coverage.test.mjs`.
 - Modify:
-  - `tests/admin-ui/playwright.config.ts`: a `visual` project with `snapshotPathTemplate: '{testDir}/baselines/{arg}{ext}'`, `updateSnapshots: process.env.SUP_UPDATE_BASELINES ? 'all' : 'none'`, `expect.toHaveScreenshot: { maxDiffPixelRatio: 0.0005, animations: 'disabled', caret: 'hide', scale: 'css' }`, `viewport: { width: 1280, height: 900 }`, `deviceScaleFactor: 1`, `reducedMotion: 'reduce'` and `launchOptions.args: ['--font-render-hinting=none', '--force-color-profile=srgb']`;
+  - `tests/admin-ui/playwright.config.ts`: four visual projects, one per mode, generated from `VISUAL_MODES`.
+    - Each is named `visual-<mode>`: `visual-light-ltr`, `visual-dark-ltr`, `visual-light-rtl` and `visual-dark-rtl`.
+    - Each has `testMatch: 'visual/**/*.visual.spec.ts'` and `metadata: { mode }`.
+    - Each has `colorScheme: 'light'|'dark'` from the mode, and `storageState` for `admin` (ltr) or `sup-ar` (rtl).
+    - Shared settings:
+      - `snapshotPathTemplate: '{testDir}/visual/baselines/{arg}{ext}'`;
+      - `updateSnapshots: process.env.SUP_UPDATE_BASELINES ? 'all' : 'none'`;
+      - `expect.toHaveScreenshot: { maxDiffPixelRatio: 0.0005, animations: 'disabled', caret: 'hide', scale: 'css' }`;
+      - `viewport: { width: 1280, height: 900 }`, `deviceScaleFactor: 1`, `reducedMotion: 'reduce'`;
+      - `launchOptions.args: ['--font-render-hinting=none', '--force-color-profile=srgb']`.
+    - The four Task 4 a11y projects (`light-ltr` … `dark-rtl`) keep `testMatch: 'browser/**/*.spec.ts'`, so the two families never run each other's specs.
   - `.github/workflows/admin-ui-certification.yml`: a `visual` job on WP 7.1.3 / WC 11.1.2 / PHP 8.3, the `workflow_dispatch` input `update_visual_baselines`, and `gate.needs` gaining `visual`.
 
 **Interfaces:**
@@ -872,14 +952,25 @@ test( 'the gallery mu-plugin returns early unless SUPCHECKOUT_UI_GALLERY is true
 ```
 
 ```ts
+// Runs once per visual-<mode> project; the mode comes from project metadata, never from the project name.
 for ( const group of SPECIMEN_GROUPS ) test( `visual ${ group }`, async ( { page }, info ) => {
-	await gotoGallery( page, info.project.name ); await page.evaluate( () => document.fonts.ready );
-	await expect( page.locator( `[data-specimen-group="${ group }"]` ) ).toHaveScreenshot( `${ group }--${ info.project.name }.png` );
+	const mode = info.project.metadata.mode as ( typeof VISUAL_MODES )[ number ];
+	await gotoGallery( page, mode ); await page.evaluate( () => document.fonts.ready );
+	await expect( page.locator( `[data-specimen-group="${ group }"]` ) ).toHaveScreenshot( `${ group }--${ mode }.png` );
+} );
+for ( const extra of [ 'data-table-compact', 'focus-forced-colors' ] ) test( `visual ${ extra }`, async ( { page }, info ) => {
+	test.skip( info.project.metadata.mode !== 'light-ltr', 'light-ltr only' );
+	if ( extra === 'focus-forced-colors' ) await page.emulateMedia( { forcedColors: 'active' } );
+	await gotoGallery( page, 'light-ltr' );
+	await expect( page.locator( `[data-specimen-group="${ extra }"]` ) ).toHaveScreenshot( `${ extra }--light-ltr.png` );
+} );
+test( 'the four visual projects cover VISUAL_MODES exactly', () => {
+	expect( config.projects.filter( ( p ) => p.name.startsWith( 'visual-' ) ).map( ( p ) => p.metadata.mode ).sort() ).toEqual( [ ...VISUAL_MODES ].sort() );
 } );
 ```
 
 - [ ] **Step 2: Run them.** `npm run test:unit -- tests/admin-ui/visual`. Expected: FAIL, `ENOENT … baselines`. In CI, `visual` also fails, with "A snapshot doesn't exist".
-- [ ] **Step 3: Add the fonts, the test brand file and the `visual` job.** The job builds the gallery with `SUP_BRAND=tests/admin-ui/gallery/vr-brand.tokens.json`; the gallery config passes it to `build-tokens.mjs` and writes the output into the gallery build only, never into `assets/`. It then runs `npm run test:visual`.
+- [ ] **Step 3: Add the fonts, the test brand file and the `visual` job.** The job builds the gallery with `SUP_BRAND=tests/admin-ui/gallery/vr-brand.tokens.json`; the gallery config passes it to `build-tokens.mjs` and writes the output into the gallery build only, never into `assets/`. It then runs `npm run test:visual`, which selects the four `visual-<mode>` projects.
 
   When dispatched with `update_visual_baselines: true`, the job sets `SUP_UPDATE_BASELINES=1`, uploads `tests/admin-ui/visual/baselines` as an artifact, and fails the gate with "baselines regenerated; commit them and rerun".
 - [ ] **Step 4: Generate the baselines.** Dispatch the workflow with `update_visual_baselines: true` on the task branch. Download the artifact, review every image in light, dark and RTL by eye against the design decisions, and commit it as `test(admin-ui): record the visual baselines`.
