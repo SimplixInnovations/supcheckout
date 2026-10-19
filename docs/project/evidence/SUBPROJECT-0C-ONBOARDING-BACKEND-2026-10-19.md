@@ -8,7 +8,7 @@ This record covers Sub-project 0c, the onboarding backend (services + REST). Pla
 - Task 10 is the closeout: living documents, the package record, this security review, and the Task 9 review follow-ups (below).
 
 ## Package
-`supcheckout-0.1.0.zip`: **133 files** (114 before 0c), SHA-256 `29367033c85ad23bcf439138ce1d38afefb32c1ca4adfdc00a97af31e890a91a`. Built with `scripts/build-release.sh` and verified with `scripts/verify-release.sh` from the distributable tree of `8d4435d45d2e57fd9f6ed89e2b37a126f22edf40`; the later commits on this branch change documentation only. 0c adds 19 source files. The plan estimated 17 (131 files); `Checks.php` and `Lines.php` were extracted to keep files small. This package is **not owner accepted**. The Release Artifact job at the merge head is authoritative.
+`supcheckout-0.1.0.zip`: **133 files** (114 before 0c), SHA-256 `eb341df39a87a42eecc964c33f22c3f2e6843fc6a9e4adfb3246d13d1cd75d7c`. Built with `scripts/build-release.sh` and verified with `scripts/verify-release.sh` from the distributable tree of `e6983739deda5e06a5a4e28f8b6e394de81a8ee6`; the later commits on this branch change documentation only. 0c adds 19 source files. The plan estimated 17 (131 files); `Checks.php` and `Lines.php` were extracted to keep files small. This package is **not owner accepted**. The Release Artifact job at the merge head is authoritative.
 
 ## Real-WordPress certification (Task 9)
 Compatibility Certification run **39177850394** (`workflow_dispatch` on `test/0c-rest-certification` at `535b1b4b80b308731bb7352def785130b86d6b72`): **all 20 cells and the Compatibility Gate SUCCESS**. That covers WP 6.9.10–7.1.3, WC 10.8.1–11.1.2, PHP 7.4–8.5, HPOS and legacy storage.
