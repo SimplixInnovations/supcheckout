@@ -825,3 +825,4 @@ Coexistence harness:
 2. **Self-test:** one read-only availability probe in test and live mode. A cooldown is a warning, and a provider outage is `provider_unavailable` (Task 5).
 3. **Cache purge:** Breeze and SiteGround Optimizer are added through their source-verified public APIs. A layer without a verifiable API is reported `manual` (Task 2).
 4. **Paused driver hooks:** kept, as required (see Design decisions).
+5. **Plugin capability (2026-10-19, Task 10 security review):** `manage_woocommerce` stays on every route. Consent to deactivate or reactivate the official plugin, and a real finalize (`force_after_review` included; a dry run excepted), also need `activate_plugins`, checked after the nonce and before an operation or rate slot: 403 `supcheckout_capability_plugins`. The driver acts on the consent recorded at start and does not check again.

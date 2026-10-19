@@ -165,7 +165,7 @@ The 0b takeover staging rehearsal PASSED on 2026-10-18 (`docs/project/evidence/T
 
 - `Onboarding` service, used by WP-CLI, the driver and REST. `wp supcheckout takeover` keeps every exit code, flag and output line.
 - Action Scheduler driver (`AsyncDriver` + `DriverStep`): one persisted, single-flight `Operation` advanced by bounded ticks. Long work gets 3 attempts, a busy store 17 retries 60 s apart, and a provider cooldown 3 retries 65 s apart; the 120 s settle barrier is a scheduled resume, never a sleeping worker. It needs WP-Cron, a system cron or admin page loads; otherwise the status route reports `runner.stalled`.
-- Admin-only REST API `supcheckout/v1`: 12 routes on the full boot, 8 while paused (the official plugin active). Every route needs `manage_woocommerce`; every write also needs the explicit `wp_rest` nonce, so an Application Password alone is refused (403 `supcheckout_nonce_invalid`).
+- Admin-only REST API `supcheckout/v1`: 12 routes on the full boot, 8 while paused (the official plugin active). Every route needs `manage_woocommerce`; every write also needs the explicit `wp_rest` nonce, so an Application Password alone is refused (403 `supcheckout_nonce_invalid`). Official-plugin consent and a real finalize also need `activate_plugins` (403 `supcheckout_capability_plugins` for a Shop Manager; security review finding fixed).
 - Cache purge after the compare-and-swap: LiteSpeed Cache, WP Rocket, W3 Total Cache, WP Super Cache, Breeze and SiteGround Optimizer, plus the object cache; the Cloudflare plugin is reported `manual`.
 - Self-test: one read-only availability probe in test and live mode alike.
 
