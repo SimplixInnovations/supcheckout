@@ -415,6 +415,29 @@ final class AsyncDriverTest extends TestCase {
         self::assertSame(array('cutover' => 1), $seen);
     }
 
+    public function test_a_stored_long_attempt_does_not_read_as_a_stalled_runner(): void {
+        // A long tick may legitimately run for minutes: while it runs, a status poll must not
+        // report the runner stalled. The stored attempt moves next_at to the long watchdog.
+        $system = new FakeBudgetedSystem();
+        $this->seed_verified($system);
+        $op = self::start(Operation::KIND_SWITCH);
+        self::update($op, array('phase' => 'cutover'));
+        $seen = null;
+        $before = time();
+
+        AsyncDriver::drive($op['id'], static function () use (&$seen) {
+            $seen = Operation::current();
+            throw new \RuntimeException('killed');
+        }, $this->defer());
+
+        self::assertGreaterThanOrEqual($before + AsyncDriver::LONG_WATCHDOG_DELAY, $seen['next_at']);
+        self::assertLessThanOrEqual(time() + AsyncDriver::LONG_WATCHDOG_DELAY, $seen['next_at']);
+        foreach (array(120, 600, AsyncDriver::LONG_WATCHDOG_DELAY) as $elapsed) {
+            self::assertFalse(AsyncDriver::runner_health($seen, time() + $elapsed)['stalled'], $elapsed . ' seconds into the long attempt');
+        }
+        self::assertTrue(AsyncDriver::runner_health($seen, (int) $seen['next_at'] + AsyncDriver::RUNNER_STALL_SECONDS + 1)['stalled'], 'a killed long tick still reads stalled once its watchdog is overdue');
+    }
+
     public function test_a_long_phase_waits_for_real_and_a_short_one_within_its_budget(): void {
         $system = new FakeBudgetedSystem();
         $this->seed_verified($system);

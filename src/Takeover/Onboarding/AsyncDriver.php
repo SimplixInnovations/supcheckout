@@ -311,7 +311,9 @@ final class AsyncDriver {
     }
 
     /**
-     * Store the long phase's attempt before the work starts.
+     * Store the long phase's attempt before the work starts. It also moves next_at to the long
+     * watchdog's deadline: a long tick may run for minutes, and until that deadline a status
+     * poll must neither read the runner as stalled nor queue another tick.
      *
      * @param array<string, mixed>                          $op       The record.
      * @param array{phase:string, long:bool, attempt:?string} $upcoming DriverStep::upcoming().
@@ -322,7 +324,7 @@ final class AsyncDriver {
         $attempts = $op['attempts'];
         $key = (string) $upcoming['attempt'];
         $attempts[$key] = (isset($attempts[$key]) ? (int) $attempts[$key] : 0) + 1;
-        return Operation::update($op['id'], array('attempts' => $attempts), $now);
+        return Operation::update($op['id'], array('attempts' => $attempts, 'next_at' => (int) $now + self::LONG_WATCHDOG_DELAY), $now);
     }
 
     /**
