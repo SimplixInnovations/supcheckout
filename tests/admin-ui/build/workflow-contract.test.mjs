@@ -53,3 +53,71 @@ test( 'the gate needs both lanes and treats skipped or cancelled as failure', ()
 test( 'the static lane also runs the React 19 component lane', () => {
 	expect( job( 'static' ) ).toContain( 'run: npm run test:unit:react19' );
 } );
+
+test( 'the gate also needs the browser lane and fails on its skip or cancel', () => {
+	const gate = job( 'gate' );
+	expect( gate ).toMatch( /- build-windows\n\s+- browser\n/ );
+	expect( gate ).toContain( 'BROWSER_RESULT: ${{ needs.browser.result }}' );
+	expect( gate ).toContain( '"$BROWSER_RESULT" != success' );
+} );
+
+test( 'the browser lane runs real WordPress 6.9.10/WC 10.8.1 and 7.1.3/WC 11.1.2', () => {
+	const browser = job( 'browser' );
+	expect( browser ).toMatch(
+		/- wordpress: '6\.9\.10'\n\s+woocommerce: '10\.8\.1'/
+	);
+	expect( browser ).toMatch(
+		/- wordpress: '7\.1\.3'\n\s+woocommerce: '11\.1\.2'/
+	);
+	expect( browser ).toContain( 'fail-fast: false' );
+	expect( browser ).toContain( "php-version: '8.3'" );
+	expect( browser ).toContain(
+		'bash scripts/install-wp-test-environment.sh'
+	);
+	expect( browser ).toContain(
+		"echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -"
+	);
+} );
+
+test( 'the browser lane builds the gallery, extracts strings and runs four modes', () => {
+	const browser = job( 'browser' );
+	expect( browser ).toContain( 'run: npm ci --ignore-scripts' );
+	expect( browser ).toContain(
+		'php tests/admin-ui/wp/make-fixture-translations.php "$WP"'
+	);
+	expect( browser ).toContain(
+		'i18n make-pot . "$RUNNER_TEMP/sup.pot" --include=assets/admin/build --domain=supcheckout'
+	);
+	expect( browser ).toContain(
+		`grep -q 'msgid "SUPCheckout"' "$RUNNER_TEMP/sup.pot"`
+	);
+	expect( browser ).toContain( 'run: npm run build:gallery' );
+	expect( browser ).toContain(
+		'run: npx playwright install --with-deps chromium'
+	);
+	expect( browser ).toContain( 'npm run test:browser' );
+	expect( browser ).toContain( 'if: ${{ failure() }}' );
+} );
+
+test( 'every lane checks out the exact head without credentials and has a timeout', () => {
+	for ( const name of [ 'static', 'build-windows', 'browser', 'gate' ] ) {
+		expect( job( name ) ).toMatch( /timeout-minutes: \d+/ );
+	}
+	for ( const name of [ 'static', 'build-windows', 'browser' ] ) {
+		expect( job( name ) ).toContain( 'persist-credentials: false' );
+		expect( job( name ) ).toContain(
+			'test "$(git rev-parse HEAD)" = "$ADMIN_UI_SOURCE_SHA"'
+		);
+	}
+	expect( WORKFLOW ).toMatch( /\npermissions:\n\s+contents: read\n/ );
+	expect( WORKFLOW ).not.toMatch( /\|\|\s*true/ );
+} );
+
+test( 'test:browser runs exactly the four browser projects', () => {
+	const pkg = JSON.parse(
+		readFileSync( join( ROOT, 'package.json' ), 'utf8' )
+	);
+	expect( pkg.scripts[ 'test:browser' ] ).toBe(
+		'playwright test --config tests/admin-ui/playwright.config.ts --project=light-ltr --project=dark-ltr --project=light-rtl --project=dark-rtl'
+	);
+} );
