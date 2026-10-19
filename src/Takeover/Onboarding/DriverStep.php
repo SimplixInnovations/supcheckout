@@ -49,12 +49,8 @@ final class DriverStep {
     /** Option name prefix of the stored check reports: <prefix><kind>_v1. */
     public const LAST_REPORT_PREFIX = 'supcheckout_onboarding_last_';
 
-    public const HINT_ERROR = 'restart the operation; every step resumes from the saved state';
-    private const HINT_STATE = 'the takeover state changed meanwhile; check the status, then start again';
-    private const HINT_BUSY = 'another takeover step holds the store; wait until it ends (at most 15 minutes), then start again';
-    private const HINT_PREFLIGHT = 'fix the blocking preflight findings, then start again';
-    private const HINT_OFFICIAL = 'deactivate the official UPayments plugin, or start again with deactivate_official';
-    private const HINT_MISMATCH = 'review the mismatches; the store was not switched';
+    /** The restart hint (DriverHints holds every operator hint). */
+    public const HINT_ERROR = DriverHints::ERROR;
 
     /** Times the switch's self-test retries a provider cooldown. */
     private const SELF_TEST_COOLDOWN_RETRIES = 1;
@@ -143,7 +139,7 @@ final class DriverStep {
                 $this->dispatch((string) $op['kind'], $status);
             }
         } catch (\Throwable $e) {
-            $this->end(Operation::FAILED, 'error', self::HINT_ERROR, array('exception' => get_class($e)));
+            $this->end(Operation::FAILED, 'error', DriverHints::ERROR, array('exception' => get_class($e)));
         }
         if (!$this->busy && self::new_steps(self::stored_steps($op), $this->result['steps']) !== array()) {
             $this->result['busy_retries'] = 0;
@@ -306,12 +302,12 @@ final class DriverStep {
         $preflight = $this->onboarding->check_preflight();
         $report = $preflight->data()['report'];
         if (!$preflight->is_ok()) {
-            if (self::only_cooldown($report) && $this->result['cooldown_retries'] < self::MAX_COOLDOWN_RETRIES) {
+            if (DriverHints::only_cooldown($report) && $this->result['cooldown_retries'] < self::MAX_COOLDOWN_RETRIES) {
                 ++$this->result['cooldown_retries'];
                 $this->next('preflight', self::COOLDOWN_RETRY_DELAY, $report);
                 return;
             }
-            $this->end(Operation::BLOCKED, 'preflight_blocking', self::HINT_PREFLIGHT, $report);
+            $this->end(Operation::BLOCKED, 'preflight_blocking', DriverHints::PREFLIGHT, $report);
             return;
         }
         $copy = $this->onboarding->start_copy();
@@ -364,7 +360,7 @@ final class DriverStep {
         }
         if ($result->code() === Outcome::MISMATCH) {
             $data = $result->data();
-            $this->end(Operation::FAILED, 'verify_mismatch', self::HINT_MISMATCH, array('mismatches' => isset($data['mismatches']) ? $data['mismatches'] : array()));
+            $this->end(Operation::FAILED, 'verify_mismatch', DriverHints::MISMATCH, array('mismatches' => isset($data['mismatches']) ? $data['mismatches'] : array()));
             return;
         }
         $this->state_changed($status);
@@ -403,11 +399,11 @@ final class DriverStep {
         if (in_array($reason, self::BUSY_REASONS, true)) {
             $this->busy_retry('cutover', $reason, $report);
         } elseif ($reason === 'stale_claims') {
-            $this->end(Operation::FAILED, 'stale_claims', $this->stale_claims_hint(), $report);
+            $this->end(Operation::FAILED, 'stale_claims', DriverHints::stale_claims((string) $this->op['kind']), $report);
         } elseif ($reason === 'official_active') {
             $this->next('retire', 0, $report);
         } elseif ($cutover->code() === Outcome::OFFICIAL_STILL_ACTIVE) {
-            $this->end(Operation::BLOCKED, 'official_still_active', self::HINT_OFFICIAL, $report);
+            $this->end(Operation::BLOCKED, 'official_still_active', DriverHints::OFFICIAL, $report);
         } elseif ($cutover->code() === Outcome::STATE) {
             TakeoverState::refresh();
             $status = (string) TakeoverState::get()['status'];
@@ -417,7 +413,7 @@ final class DriverStep {
                 $this->state_changed($status);
             }
         } else {
-            $this->end(Operation::FAILED, $reason, $cutover->code() === Outcome::MISMATCH ? self::HINT_MISMATCH : null, $report);
+            $this->end(Operation::FAILED, $reason, $cutover->code() === Outcome::MISMATCH ? DriverHints::MISMATCH : null, $report);
         }
     }
 
@@ -430,7 +426,7 @@ final class DriverStep {
         } catch (\Throwable $e) {
             $exception = get_class($e);
         }
-        if (is_array($report) && self::check_cooldown($report) && $this->result['cooldown_retries'] < self::SELF_TEST_COOLDOWN_RETRIES) {
+        if (is_array($report) && DriverHints::check_cooldown($report) && $this->result['cooldown_retries'] < self::SELF_TEST_COOLDOWN_RETRIES) {
             ++$this->result['cooldown_retries'];
             $this->next('self_test', self::COOLDOWN_RETRY_DELAY);
             return;
@@ -545,9 +541,9 @@ final class DriverStep {
         } elseif ($outcome->code() === Outcome::OFFICIAL_NOT_REACTIVATED) {
             $this->end(Operation::DONE, null, null, $report + array('warnings' => array('official_not_reactivated')));
         } elseif ($outcome->code() === Outcome::BLOCKED) {
-            $this->end(Operation::BLOCKED, $reason, self::HINT_OFFICIAL, $report);
+            $this->end(Operation::BLOCKED, $reason, DriverHints::OFFICIAL, $report);
         } elseif ($reason === 'stale_claims') {
-            $this->end(Operation::FAILED, 'stale_claims', $this->stale_claims_hint(), $report);
+            $this->end(Operation::FAILED, 'stale_claims', DriverHints::stale_claims((string) $this->op['kind']), $report);
         } else {
             $this->end(Operation::FAILED, $reason, null, $report);
         }
@@ -562,13 +558,13 @@ final class DriverStep {
     private function check_tick($kind) {
         if ($kind === Operation::KIND_PREFLIGHT) {
             $report = $this->onboarding->preflight();
-            $cooldown = self::has_cooldown($report);
+            $cooldown = DriverHints::has_cooldown($report);
         } else {
             $report = call_user_func($kind === Operation::KIND_SELF_TEST ? $this->self_test : $this->setup_checks);
             if (!is_array($report)) {
                 throw new \UnexpectedValueException('check report');
             }
-            $cooldown = self::check_cooldown($report);
+            $cooldown = DriverHints::check_cooldown($report);
         }
         if ($cooldown && $this->result['cooldown_retries'] < self::MAX_COOLDOWN_RETRIES) {
             ++$this->result['cooldown_retries'];
@@ -618,7 +614,7 @@ final class DriverStep {
      * @return void
      */
     private function state_changed($status) {
-        $this->end(Operation::FAILED, 'state_changed', self::HINT_STATE, array('status' => (string) $status));
+        $this->end(Operation::FAILED, 'state_changed', DriverHints::STATE, array('status' => (string) $status));
     }
 
     /**
@@ -631,7 +627,7 @@ final class DriverStep {
     private function refused(Outcome $outcome) {
         $blocked = in_array($outcome->code(), array(Outcome::BLOCKED, Outcome::OFFICIAL_STILL_ACTIVE), true);
         $reason = $outcome->reason() === null ? 'error' : (string) $outcome->reason();
-        $hint = $blocked ? self::HINT_OFFICIAL : ($reason === 'stale_claims' ? $this->stale_claims_hint() : null);
+        $hint = $blocked ? DriverHints::OFFICIAL : ($reason === 'stale_claims' ? DriverHints::stale_claims((string) $this->op['kind']) : null);
         $this->end($blocked ? Operation::BLOCKED : Operation::FAILED, $reason, $hint, self::outcome_report($outcome));
     }
 
@@ -641,10 +637,10 @@ final class DriverStep {
      */
     private function retire_refused(Outcome $retired) {
         if ($retired->reason() === 'official_active') {
-            $this->end(Operation::BLOCKED, 'official_active', self::HINT_OFFICIAL, self::outcome_report($retired));
+            $this->end(Operation::BLOCKED, 'official_active', DriverHints::OFFICIAL, self::outcome_report($retired));
             return;
         }
-        $this->end(Operation::FAILED, 'deactivation_failed', self::HINT_OFFICIAL, self::outcome_report($retired));
+        $this->end(Operation::FAILED, 'deactivation_failed', DriverHints::OFFICIAL, self::outcome_report($retired));
     }
 
     /**
@@ -662,7 +658,7 @@ final class DriverStep {
         }
         $this->busy = true;
         if (++$this->result['busy_retries'] > self::MAX_BUSY_RETRIES) {
-            $this->end(Operation::FAILED, 'busy', self::HINT_BUSY, $report);
+            $this->end(Operation::FAILED, 'busy', DriverHints::BUSY, $report);
             return;
         }
         $this->next($phase, self::BUSY_RETRY_DELAY, $report);
@@ -680,7 +676,7 @@ final class DriverStep {
         $this->result['attempts'][$key] = $attempts + 1;
         $this->counted = $key;
         if ($attempts + 1 > self::MAX_LONG_ATTEMPTS) {
-            $this->end(Operation::FAILED, 'driver_exhausted', $this->exhausted_hint(), array('attempts' => $attempts + 1));
+            $this->end(Operation::FAILED, 'driver_exhausted', DriverHints::exhausted((string) $this->op['kind'], $this->consent('force_after_review')), array('attempts' => $attempts + 1));
             return false;
         }
         return true;
@@ -728,26 +724,6 @@ final class DriverStep {
      */
     private function consent($key) {
         return isset($this->op['consent'][$key]) && $this->op['consent'][$key] === true;
-    }
-
-    /** @return string */
-    private function exhausted_hint() {
-        switch ($this->op['kind']) {
-            case Operation::KIND_ROLLBACK:
-                return 'run "wp supcheckout takeover rollback" on the server';
-            case Operation::KIND_ABORT:
-                return 'run "wp supcheckout takeover abort" on the server';
-            case Operation::KIND_FINALIZE:
-                return 'run "wp supcheckout takeover finalize' . ($this->consent('force_after_review') ? ' --force-after-review' : '') . '" on the server';
-            case Operation::KIND_FINALIZE_DRY_RUN:
-                return 'run "wp supcheckout takeover finalize --dry-run" on the server';
-        }
-        return 'run "wp supcheckout takeover run --deactivate-official" on the server';
-    }
-
-    /** @return string */
-    private function stale_claims_hint() {
-        return 'release stale claims (POST /onboarding/stale-claims/release), then start the ' . (string) $this->op['kind'] . ' again';
     }
 
     /** @return int */
@@ -800,56 +776,5 @@ final class DriverStep {
             }
         }
         return $new;
-    }
-
-    /**
-     * @param array<string, mixed> $report Preflight report.
-     * @return bool Every blocking finding is the provider cooldown (and there is one).
-     */
-    private static function only_cooldown(array $report) {
-        $blocking = isset($report['blocking']) && is_array($report['blocking']) ? $report['blocking'] : array();
-        foreach ($blocking as $finding) {
-            if (!self::is_cooldown_finding($finding)) {
-                return false;
-            }
-        }
-        return $blocking !== array();
-    }
-
-    /**
-     * @param array<string, mixed> $report Preflight report.
-     * @return bool Some blocking finding is the provider cooldown.
-     */
-    private static function has_cooldown(array $report) {
-        foreach (isset($report['blocking']) && is_array($report['blocking']) ? $report['blocking'] : array() as $finding) {
-            if (self::is_cooldown_finding($finding)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * @param mixed $finding Preflight finding.
-     * @return bool
-     */
-    private static function is_cooldown_finding($finding) {
-        return is_array($finding) && isset($finding['code'], $finding['data']['reason'])
-            && $finding['code'] === 'credential_unverified' && $finding['data']['reason'] === 'cooldown';
-    }
-
-    /**
-     * @param array<string, mixed> $report SelfTest / SetupChecks report.
-     * @return bool The credential check is the provider cooldown warning.
-     */
-    private static function check_cooldown(array $report) {
-        foreach (isset($report['checks']) && is_array($report['checks']) ? $report['checks'] : array() as $check) {
-            if (is_array($check) && isset($check['id'], $check['result'], $check['code'])
-                && $check['id'] === 'credential' && $check['result'] === Checks::WARN && $check['code'] === 'cooldown'
-            ) {
-                return true;
-            }
-        }
-        return false;
     }
 }

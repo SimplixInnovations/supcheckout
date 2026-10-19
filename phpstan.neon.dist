@@ -106,6 +106,7 @@ parameters:
         - src/Takeover/Onboarding/SelfTest.php
         - src/Takeover/Onboarding/SetupChecks.php
         - src/Takeover/Onboarding/BudgetedWordPressSystem.php
+        - src/Takeover/Onboarding/DriverHints.php
         - src/Takeover/Onboarding/DriverStep.php
         - src/Takeover/Onboarding/AsyncDriver.php
         - src/Rest/Responses.php

@@ -89,6 +89,7 @@
     <file>src/Takeover/Onboarding/SelfTest.php</file>
     <file>src/Takeover/Onboarding/SetupChecks.php</file>
     <file>src/Takeover/Onboarding/BudgetedWordPressSystem.php</file>
+    <file>src/Takeover/Onboarding/DriverHints.php</file>
     <file>src/Takeover/Onboarding/DriverStep.php</file>
     <file>src/Takeover/Onboarding/AsyncDriver.php</file>
     <file>src/Rest/Responses.php</file>
