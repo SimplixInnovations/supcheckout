@@ -50,8 +50,8 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-proj
 - Sub-project 0a clean core — **DONE / VERIFIED**, staging-rehearsed 2026-10-17.
 - Sub-project 0b takeover engine — Tasks 1–12 **merged** (PRs #173–#177, #179–#184; plan `docs/superpowers/plans/2026-10-16-subproject-0b-takeover-engine.md`). The Takeover Migration Matrix is green on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`.
 - Sub-project 0c onboarding backend (services + REST) — Tasks 1–10 (plan `docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md`): the UI-agnostic `Onboarding` service, the Action Scheduler driver and the admin-only `supcheckout/v1` REST API. 0c ships no screens; the wizard UI moves to Sub-project 2 (owner decision 2026-10-18). The 0c exit gate's owner staging review (a REST switch and rollback with the automatic LiteSpeed purge, and the WCML per-currency check) is pending.
-- Current executable gate: **Sub-project 1 design-token system and admin component library — NEXT** (spec §9).
-- Next: Sub-project 1, then Sub-projects 2–5.
+- Current executable gate: **Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT**. 0c engineering is complete (Tasks 4–10 in one PR, merged only after its exact-head CI is green); the project does not move past 0c until the owner's staging review passes.
+- Next after the 0c exit gate: Sub-project 1 design-token system and admin component library (spec §9), then Sub-projects 2–5.
 
 Release gate (open): **external certification & release readiness**. Public release authorization remains false.
 

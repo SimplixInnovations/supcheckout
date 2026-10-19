@@ -39,7 +39,7 @@
 | R3 | **DONE / VERIFIED** — PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
 | R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
-| Current executable gate | **Sub-project 1 design-token system and admin component library — NEXT**; Sub-project 0c onboarding backend (services + REST) complete, its owner staging review pending |
+| Current executable gate | **Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT**; 0c engineering (services + REST) complete. Next after the 0c exit gate: Sub-project 1 design-token system and admin component library |
 | Release gate | **external certification & release readiness — open**; spec §9 places its owner acceptance and live acceptance in Sub-project 5 |
 | Post-acceptance runtime on `main` | PR #133 payment lifecycle hardening (2026-10-10 review), merged main `35ea66d4cb9c8395b264cd24b4844eaa268aa470`; package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; then PR #138 non-white-label Charge fix, package `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`; **NOT owner accepted** |
 | Owner step before live evidence | **Fresh technical acceptance of the current `main` package** (`LOCAL-FINAL-VERIFICATION.md`). Live evidence must be produced with the package that will be released, not Release Candidate 1. |
@@ -121,7 +121,7 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **Sub-project 1 design-token system and admin component library — NEXT** (see "Revamp program"). Release gate (open): **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
+Current executable gate: **Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT** (see "Revamp program"). Release gate (open): **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
 
 R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003; PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
@@ -173,9 +173,9 @@ The real-WordPress REST and driver certification (compatibility run 39177850394)
 
 0c exit gate, owner action: on the My Organic World staging copy, start a switch and a rollback through the REST API and see the automatic LiteSpeed purge take effect (rehearsal follow-up 2), and confirm WCML per-currency checkout visibility against the `multilingual` check (follow-up 3).
 
-Current executable gate: **Sub-project 1 design-token system and admin component library — NEXT** (spec §9; exit gate: visual-regression and accessibility suites green).
+Current executable gate: **Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT**. 0c engineering is complete; Tasks 4–10 ship as one PR that merges only after its exact-head CI is green. The project does not move past 0c until the owner's staging review passes.
 
-**Next:** Sub-project 1, then Sub-projects 2–5. Follow-up: provider `status: "error"` with a null result stays Pending through bounded reconciliation; closing it sooner needs provider-contract evidence. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
+**Next after the 0c exit gate: Sub-project 1 design-token system and admin component library** (spec §9; its exit gate: visual-regression and accessibility suites green), then Sub-projects 2–5. Follow-up: provider `status: "error"` with a null result stays Pending through bounded reconciliation; closing it sooner needs provider-contract evidence. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
 
 ## Current provider-contract disposition
 

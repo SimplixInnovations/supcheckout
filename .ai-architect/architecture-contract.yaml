@@ -231,7 +231,8 @@ tranches:
     subproject_0c_status: onboarding_backend_tasks_1_10
     subproject_0c_scope: services_and_admin_rest_api_no_ui
     subproject_0c_owner_staging_review: pending
-    current_gate: subproject_1_design_tokens
+    subproject_0c_engineering: complete
+    current_gate: subproject_0c_exit_owner_staging_review
     current_gate_status: next
     next: subproject_1_design_tokens
 
