@@ -282,7 +282,17 @@ describe( 'token source', () => {
 		const deltas = source.$wpAdminThemeColorDeltas;
 		expect( deltas ).toEqual( {
 			$description: expect.stringMatching( /7\.1\.3/ ),
-			'6.9.10': { light: '#0085ba' },
+			// Observed in real wp-admin on WordPress 6.9.10 (Admin UI
+			// Certification browser lane): the pre-7.0 scheme highlights.
+			'6.9.10': {
+				light: '#0085ba',
+				blue: '#096484',
+				coffee: '#46403c',
+				ectoplasm: '#523f6d',
+				midnight: '#e14d43',
+				ocean: '#627c83',
+				sunrise: '#dd823b',
+			},
 		} );
 		for ( const [ version, schemes ] of Object.entries( deltas ) ) {
 			if ( version === '$description' ) {

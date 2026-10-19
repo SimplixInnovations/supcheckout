@@ -3,7 +3,13 @@
 	"$wpAdminThemeColorDeltas": {
 		"$description": "Metadata, never rendered: where another WordPress version in the browser matrix defines a different --wp-admin-theme-color than the WordPress 7.1.3 value recorded in schemes.*.wpAdminThemeColor. Observed in real wp-admin by tests/admin-ui/browser/admin-schemes.spec.ts, which asserts the mismatches equal exactly this list.",
 		"6.9.10": {
-			"light": "#0085ba"
+			"light": "#0085ba",
+			"blue": "#096484",
+			"coffee": "#46403c",
+			"ectoplasm": "#523f6d",
+			"midnight": "#e14d43",
+			"ocean": "#627c83",
+			"sunrise": "#dd823b"
 		}
 	},
 	"schemes": {
