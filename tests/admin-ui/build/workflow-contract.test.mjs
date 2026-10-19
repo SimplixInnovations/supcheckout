@@ -86,7 +86,13 @@ test( 'the browser lane builds the gallery, extracts strings and runs four modes
 		'php tests/admin-ui/wp/make-fixture-translations.php "$WP"'
 	);
 	expect( browser ).toContain(
-		'i18n make-pot . "$RUNNER_TEMP/sup.pot" --include=assets/admin/build --domain=supcheckout'
+		'cp tests/admin-ui/wp/supcheckout-ui-gallery.php "$WP/wp-content/mu-plugins/"'
+	);
+	expect( browser ).toContain(
+		'config set SUPCHECKOUT_UI_GALLERY true --raw'
+	);
+	expect( browser ).toContain(
+		'i18n make-pot ."$RUNNER_TEMP/sup.pot" --include=assets/admin/build --domain=supcheckout'
 	);
 	expect( browser ).toContain(
 		`grep -q 'msgid "SUPCheckout"' "$RUNNER_TEMP/sup.pot"`

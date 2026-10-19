@@ -187,6 +187,9 @@ jobs:
         run: |
           set -euo pipefail
           WP="$RUNNER_TEMP/wordpress"
+          mkdir -p "$WP/wp-content/mu-plugins"
+          cp tests/admin-ui/wp/supcheckout-ui-gallery.php "$WP/wp-content/mu-plugins/"
+          /tmp/wp-cli.phar config set SUPCHECKOUT_UI_GALLERY true --raw --type=constant --path="$WP"
           /tmp/wp-cli.phar user create "$SUP_UI_AR_USER" sup-ar@example.test --role=administrator \
             --user_pass="$SUP_UI_AR_PASSWORD" --porcelain --path="$WP"
           /tmp/wp-cli.phar user meta update "$SUP_UI_AR_USER" locale ar --path="$WP"
