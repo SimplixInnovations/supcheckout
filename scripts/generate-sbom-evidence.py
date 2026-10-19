@@ -126,8 +126,17 @@ def npm_lock_components(packages: dict, source: str) -> tuple[list[dict], list[d
 
     An npm alias (`react-19@npm:react@19.3.0`) is installed under its alias path
     while the lock entry's `name` holds the real package. The component and the
-    inventory row use the real name and purl; the alias is kept as the
-    `npm:alias` property (inventory: `alias`).
+    inventory row use the real name and purl.
+
+    Component properties:
+    - `cdx:npm:package:path` (CycloneDX property taxonomy) records the lockfile
+      path on every component, so repeated `name@version` copies (nested
+      installs, aliases) stay distinguishable.
+    - `supcheckout:npm:alias` is a SUPCheckout-local property that names the
+      alias an aliased package was installed under.
+
+    Inventory rows carry an optional `alias` key, and a `(package, version)`
+    pair may repeat. Readers must not key on that pair alone.
     """
     comps = []
     licenses = []
@@ -154,8 +163,9 @@ def npm_lock_components(packages: dict, source: str) -> tuple[list[dict], list[d
             "class": "development",
             "source": source,
         }
+        comp["properties"] = [{"name": "cdx:npm:package:path", "value": path}]
         if alias:
-            comp["properties"] = [{"name": "npm:alias", "value": alias}]
+            comp["properties"].append({"name": "supcheckout:npm:alias", "value": alias})
             row["alias"] = alias
         comps.append(comp)
         licenses.append(row)

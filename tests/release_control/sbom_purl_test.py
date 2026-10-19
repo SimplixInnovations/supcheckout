@@ -9,6 +9,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Importing the generator must not leave scripts/__pycache__ in the checkout.
+sys.dont_write_bytecode = True
+
 ROOT = Path(__file__).resolve().parents[2]
 GEN = ROOT / "scripts" / "generate-sbom-evidence.py"
 VALIDATE = ROOT / "scripts" / "validate-sbom-evidence.py"
@@ -66,8 +69,13 @@ def check_npm_aliases(gen) -> None:
         "an npm alias gets the real package purl pkg:npm/react@19.3.0",
     )
     check(
-        alias is not None and alias.get("properties") == [{"name": "npm:alias", "value": "react-19"}],
-        "the alias name is kept as the npm:alias property",
+        alias is not None
+        and alias.get("properties")
+        == [
+            {"name": "cdx:npm:package:path", "value": "node_modules/react-19"},
+            {"name": "supcheckout:npm:alias", "value": "react-19"},
+        ],
+        "an alias keeps its lockfile path (cdx:npm:package:path) and alias name (supcheckout:npm:alias)",
     )
     check(
         all("react-19" not in c["purl"] for c in comps),
@@ -77,11 +85,17 @@ def check_npm_aliases(gen) -> None:
     check(
         plain is not None
         and plain["purl"] == "pkg:npm/%40base-ui/react@1.8.0"
-        and "properties" not in plain,
-        "a non-aliased scoped package keeps its name and has no alias property",
+        and plain.get("properties") == [{"name": "cdx:npm:package:path", "value": "node_modules/@base-ui/react"}],
+        "a non-aliased scoped package keeps its name and records only its lockfile path",
     )
     nested = by_path_name.get("3.0.3:braces")
     check(nested is not None and nested["purl"] == "pkg:npm/braces@3.0.3", "a nested package uses its leaf name")
+    check(
+        nested is not None
+        and nested.get("properties")
+        == [{"name": "cdx:npm:package:path", "value": "node_modules/jest/node_modules/braces"}],
+        "a nested copy is told apart by its lockfile path",
+    )
     inventory = {(entry["package"], entry["version"]): entry for entry in licenses}
     check(
         inventory.get(("react", "19.3.0"), {}).get("alias") == "react-19",
