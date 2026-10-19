@@ -89,6 +89,12 @@ SUPCheckout itself does not add an independent analytics or advertising service.
 
 Do not expose merchant credentials, card data, customer tokens, private webhook payloads or unnecessary personal data in logs or support requests.
 
+== Source code and build ==
+
+The admin interface JavaScript and CSS in `assets/admin/build/` are compiled from the human-readable TypeScript and CSS source shipped in `assets/admin/src/`. The full source, including the build tooling, is public at https://github.com/SimplixInnovations/supcheckout.
+
+To rebuild, use the Node.js version in `.nvmrc` and run `npm ci && npm run build` in a clone of the repository.
+
 == Changelog ==
 
 = 0.1.0 =

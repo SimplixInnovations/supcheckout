@@ -54,6 +54,12 @@ wporg_assert(
     'readme clearly separates plugin maintenance from provider ownership'
 );
 wporg_assert(strpos($readme, 'Stable tag: trunk') === false, 'new-plugin readme never uses trunk as stable tag');
+wporg_assert(
+    strpos($readme, '== Source code and build ==') !== false
+        && strpos($readme, 'https://github.com/SimplixInnovations/supcheckout') !== false
+        && strpos($readme, 'npm ci && npm run build') !== false,
+    'readme links the human-readable source and documents the admin build (guideline 4)'
+);
 wporg_assert(stripos($readme, 'guaranteed PCI') === false && stripos($readme, 'PCI compliant plugin') === false, 'readme makes no plugin-level PCI compliance guarantee');
 
 wporg_assert(strpos($plugin, 'Plugin Name: SUPCheckout for UPayments') !== false, 'plugin header uses canonical product name');

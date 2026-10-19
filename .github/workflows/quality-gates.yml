@@ -37,11 +37,13 @@ jobs:
             AGENTS.md README.md CHANGELOG.md LICENSE NOTICE.md SECURITY.md SUPPORT.md
             .distignore .github/CODEOWNERS
             composer.json composer.lock phpcs.xml.dist phpstan.neon.dist phpunit.xml.dist
+            package.json package-lock.json
             .github/workflows/quality-gates.yml
             .github/workflows/compatibility-certification.yml
             .github/workflows/provider-sandbox-certification.yml
             .github/workflows/release-artifact.yml
             .github/workflows/wordpress-org-submission-check.yml
+            .github/workflows/admin-ui-certification.yml
             scripts/build-release.sh scripts/verify-release.sh scripts/install-wp-test-environment.sh
             tests/harness/release-artifact-harness.php
             tests/harness/wordpress-org-submission-harness.php

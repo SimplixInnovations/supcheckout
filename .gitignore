@@ -20,3 +20,8 @@ debug.log
 .phpunit.cache/
 coverage/
 .cache/
+
+# Admin UI toolchain (package.json / package-lock.json are committed)
+/node_modules/
+/tests/admin-ui/gallery/build/
+/tests/admin-ui/artifacts/

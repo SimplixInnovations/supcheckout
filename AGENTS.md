@@ -131,6 +131,7 @@ Do not remove, skip, soften or blanket-ignore:
 - `.github/workflows/release-artifact.yml`;
 - `.github/workflows/wordpress-org-submission-check.yml`;
 - `.github/workflows/takeover-migration-matrix.yml`;
+- `.github/workflows/admin-ui-certification.yml`;
 - CodeQL/security analysis;
 - architecture harnesses;
 - Quality Platform Q1-Q19 harnesses;

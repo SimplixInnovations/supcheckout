@@ -1,0 +1,4 @@
+SUPCheckout for UPayments: third-party notices for the bundled admin code.
+React, the JSX runtime and every @wordpress/* package are provided by WordPress at runtime and are not bundled.
+
+No third-party package is bundled.

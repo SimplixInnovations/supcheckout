@@ -28,3 +28,14 @@
 /DESIGN.md
 /UX-CONTRACT.md
 /premium-ui.json
+/node_modules/
+/tools/
+/package.json
+/package-lock.json
+/.nvmrc
+/.npmrc
+/webpack.config.js
+/tsconfig.json
+/eslint.config.mjs
+/.stylelintrc.json
+/jest.config.js
