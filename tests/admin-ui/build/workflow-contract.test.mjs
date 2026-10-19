@@ -92,7 +92,7 @@ test( 'the browser lane builds the gallery, extracts strings and runs four modes
 		'config set SUPCHECKOUT_UI_GALLERY true --raw'
 	);
 	expect( browser ).toContain(
-		'i18n make-pot ."$RUNNER_TEMP/sup.pot" --include=assets/admin/build --domain=supcheckout'
+		'i18n make-pot . "$RUNNER_TEMP/sup.pot" --include=assets/admin/build --domain=supcheckout'
 	);
 	expect( browser ).toContain(
 		`grep -q 'msgid "SUPCheckout"' "$RUNNER_TEMP/sup.pot"`

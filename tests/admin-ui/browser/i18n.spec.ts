@@ -40,7 +40,12 @@ test( 'RTL users get the generated -rtl stylesheet', async ( {
 
 	const rtl = page.locator( 'link[href*="assets/admin/build/app-rtl.css"]' );
 	const ltr = page.locator( 'link[href*="assets/admin/build/app.css"]' );
-	await expect( page.locator( 'html' ) ).toHaveAttribute( 'dir', dir );
+	// WordPress prints dir="rtl" on <html> for RTL locales and no dir for LTR.
+	if ( dir === 'rtl' ) {
+		await expect( page.locator( 'html' ) ).toHaveAttribute( 'dir', 'rtl' );
+	} else {
+		expect( await page.locator( 'html' ).getAttribute( 'dir' ) ).toBeNull();
+	}
 	await expect( page.locator( APP_ROOT ) ).toHaveAttribute( 'dir', dir );
 	await expect(
 		page.locator( 'body > .supcheckout-admin.sup-portal-layer' )
