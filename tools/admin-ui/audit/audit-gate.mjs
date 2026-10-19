@@ -1,19 +1,25 @@
 /**
  * Full-tree npm audit gate (the `--audit-level=high` contract).
  *
- * Fails on every high or critical advisory in the locked tree, except one that
- * `audit-allowlist.json` names by GHSA id and package, that has not expired,
- * that is still reported (stale entries fail so the list cannot rot) and that
- * does not reach a production (bundled) dependency. The bundled tree is gated
- * separately by `npm audit --omit=dev`, which must report nothing at all.
+ * Runs `npm audit` on the whole locked tree and on the production tree, then
+ * applies `audit-policy.mjs`: every high or critical advisory fails unless a
+ * valid, unexpired `audit-allowlist.json` entry covers it, the entry is still
+ * reported, it does not reach the production tree and its package is not
+ * bundled into the admin build. The bundled tree is also gated separately by
+ * `npm audit --omit=dev`, which must report nothing at all.
  *
  * Run through npm (`npm run audit:full`) so `npm_execpath` names the npm CLI.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const BLOCKING = new Set( [ 'high', 'critical' ] );
+import { advisoriesOf, evaluateAudit } from './audit-policy.mjs';
+
 const ALLOWLIST_URL = new URL( './audit-allowlist.json', import.meta.url );
+const NOTICES_URL = new URL(
+	'../../../assets/admin/build/third-party-notices.json',
+	import.meta.url
+);
 
 function runAudit( extraArgs ) {
 	const npmCli = process.env.npm_execpath;
@@ -50,60 +56,17 @@ function runAudit( extraArgs ) {
 	return report;
 }
 
-function advisoriesOf( report ) {
-	const advisories = new Map();
-	for ( const vulnerability of Object.values(
-		report.vulnerabilities || {}
-	) ) {
-		for ( const via of vulnerability.via ) {
-			if ( typeof via === 'object' && via.url ) {
-				const id = via.url.split( '/' ).pop();
-				advisories.set( `${ id } ${ via.name }`, {
-					id,
-					package: via.name,
-					severity: via.severity,
-					title: via.title,
-				} );
-			}
-		}
-	}
-	return [ ...advisories.values() ];
-}
+const readJson = ( url ) => JSON.parse( readFileSync( url, 'utf8' ) );
 
-const allowlist = JSON.parse( readFileSync( ALLOWLIST_URL, 'utf8' ) );
-const today = new Date().toISOString().slice( 0, 10 );
+const allowlist = readJson( ALLOWLIST_URL );
 const full = advisoriesOf( runAudit( [] ) );
-const production = advisoriesOf( runAudit( [ '--omit=dev' ] ) );
-const failures = [];
-const key = ( entry ) => `${ entry.id } ${ entry.package }`;
-const allowed = new Map(
-	allowlist.map( ( entry ) => [ key( entry ), entry ] )
-);
-
-for ( const advisory of full.filter( ( a ) => BLOCKING.has( a.severity ) ) ) {
-	const entry = allowed.get( key( advisory ) );
-	if ( ! entry ) {
-		failures.push(
-			`${ advisory.severity } ${ advisory.id } in ${ advisory.package }: ${ advisory.title }`
-		);
-	} else if ( entry.expires < today ) {
-		failures.push(
-			`allow-list entry ${ key( entry ) } expired on ${ entry.expires }`
-		);
-	}
-}
-for ( const entry of allowlist ) {
-	if ( ! full.some( ( advisory ) => key( advisory ) === key( entry ) ) ) {
-		failures.push(
-			`stale allow-list entry ${ key( entry ) }: no longer reported, remove it`
-		);
-	}
-	if ( production.some( ( advisory ) => advisory.id === entry.id ) ) {
-		failures.push(
-			`allow-listed ${ entry.id } reaches a production (bundled) dependency`
-		);
-	}
-}
+const failures = evaluateAudit( {
+	full,
+	production: advisoriesOf( runAudit( [ '--omit=dev' ] ) ),
+	allowlist,
+	bundledNames: readJson( NOTICES_URL ).map( ( pkg ) => pkg.name ),
+	today: new Date().toISOString().slice( 0, 10 ),
+} );
 
 if ( failures.length > 0 ) {
 	process.stderr.write(
