@@ -37,10 +37,10 @@ test( 'both lanes assert the pinned npm version', () => {
 	expect( job( 'build-windows' ) ).toContain( assertion );
 } );
 
-test( 'the Windows lane rejects CRLF in the working-tree build', () => {
+test( 'the Windows lane rejects CRLF and mixed endings in the working-tree build', () => {
 	const windows = job( 'build-windows' );
 	expect( windows ).toContain( 'git ls-files --eol -- assets/admin/build' );
-	expect( windows ).toMatch( /w\/crlf/ );
+	expect( windows ).toContain( "grep -E 'w/(crlf|mixed)'" );
 } );
 
 test( 'the gate needs both lanes and treats skipped or cancelled as failure', () => {

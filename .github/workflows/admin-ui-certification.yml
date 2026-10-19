@@ -96,8 +96,8 @@ jobs:
         run: |
           set -euo pipefail
           git ls-files --eol -- assets/admin/build
-          if git ls-files --eol -- assets/admin/build | grep -F 'w/crlf'; then
-            echo "CRLF found in the Windows working-tree build"
+          if git ls-files --eol -- assets/admin/build | grep -E 'w/(crlf|mixed)'; then
+            echo "CRLF or mixed line endings found in the Windows working-tree build"
             exit 1
           fi
 

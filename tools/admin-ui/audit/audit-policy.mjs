@@ -90,7 +90,18 @@ export function validateAllowlist( allowlist, today ) {
 	if ( ! Array.isArray( allowlist ) ) {
 		return [ 'allow-list must be a JSON array' ];
 	}
-	return allowlist.flatMap( ( entry ) => entryProblems( entry, today ) );
+	const problems = allowlist.flatMap( ( entry ) =>
+		entryProblems( entry, today )
+	);
+	const seen = new Set();
+	for ( const entry of allowlist ) {
+		const key = `${ entry?.id } ${ entry?.package }`;
+		if ( seen.has( key ) ) {
+			problems.push( `duplicate allow-list entry ${ key }` );
+		}
+		seen.add( key );
+	}
+	return problems;
 }
 
 /**

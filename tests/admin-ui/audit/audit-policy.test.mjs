@@ -85,6 +85,12 @@ describe( 'validateAllowlist', () => {
 		);
 	} );
 
+	test( 'rejects a duplicate id and package pair', () => {
+		expect( validateAllowlist( [ ENTRY, { ...ENTRY } ], TODAY ) ).toEqual( [
+			'duplicate allow-list entry GHSA-vfj7-8cjw-p6xm braces',
+		] );
+	} );
+
 	test( 'accepts an entry that expires today', () => {
 		expect(
 			validateAllowlist( withEntry( { expires: TODAY } ), TODAY )
