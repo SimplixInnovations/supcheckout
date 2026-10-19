@@ -82,9 +82,40 @@ test( 'brand values are validated', () => {
 		'brand palette.accent.light.600 must be a #rrggbb color',
 		'brand accent ramp palette.accent.light is missing steps 50, 100, 200, 300, 400, 500, 700, 800, 900',
 		'brand accent ramp palette.accent.dark is missing',
-		'brand font.family.sans must be a font stack without ; { } or url(',
+		'brand font.family.sans must be a comma-separated font stack of quoted names or plain identifiers, with no comments, functions, escapes or CSS-wide keywords',
 		'brand radius.scale must be a number from 0 to 2',
 	] );
+} );
+
+const fontError = ( stack ) =>
+	validateBrand( { font: { family: { sans: { $value: stack } } } } );
+
+test.each( [
+	[ 'an unterminated comment', 'Arial /*' ],
+	[ 'a closed comment', 'Arial /* x */, sans-serif' ],
+	[ 'a CSS-wide keyword', 'initial' ],
+	[ 'a CSS-wide keyword in the list', 'Inter, revert-layer' ],
+	[ 'var()', 'var(--x), sans-serif' ],
+	[ 'any function', 'Inter, local(Inter)' ],
+	[ 'an unmatched double quote', '"Inter, sans-serif' ],
+	[ 'an unmatched single quote', "'Inter, sans-serif" ],
+	[ 'an escape', 'In\\74er' ],
+	[ 'an empty family', 'Inter,, sans-serif' ],
+	[ '!important', 'Inter !important' ],
+	[ 'a newline', 'Inter,\nsans-serif' ],
+] )( 'a brand font stack with %s is rejected', ( _label, stack ) => {
+	expect( fontError( stack ) ).toEqual( [
+		'brand font.family.sans must be a comma-separated font stack of quoted names or plain identifiers, with no comments, functions, escapes or CSS-wide keywords',
+	] );
+} );
+
+test.each( [
+	'Inter, "Segoe UI", system-ui, sans-serif',
+	"'Noto Naskh Arabic', Tahoma, serif",
+	'"IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, sans-serif',
+	'ui-monospace, "SF Mono", Menlo, monospace',
+] )( 'a well-formed brand font stack is accepted: %s', ( stack ) => {
+	expect( fontError( stack ) ).toEqual( [] );
 } );
 
 test( 'a brand that is not an object is rejected', () => {

@@ -206,13 +206,42 @@ function validateAccentRamp( ramp, path, errors ) {
 	}
 }
 
+// One family: a quoted name (no quote, backslash or line break inside) or
+// plain identifiers separated by single spaces. Everything else — comments,
+// functions such as var() or url(), escapes, `!important`, empty entries —
+// cannot be expressed, so the generated stylesheet cannot be broken.
+const QUOTED_FAMILY = /^(?:"[^"\\\r\n]+"|'[^'\\\r\n]+')$/u;
+const IDENT_FAMILY =
+	/^-?[\p{L}_][\p{L}\p{N}_-]*(?: -?[\p{L}_][\p{L}\p{N}_-]*)*$/u;
+const CSS_WIDE_KEYWORDS = new Set( [
+	'inherit',
+	'initial',
+	'unset',
+	'revert',
+	'revert-layer',
+	'default',
+] );
+
+function isFontFamily( family ) {
+	if ( QUOTED_FAMILY.test( family ) ) {
+		return true;
+	}
+	return (
+		IDENT_FAMILY.test( family ) &&
+		! CSS_WIDE_KEYWORDS.has( family.toLowerCase() )
+	);
+}
+
 function validateFontStack( value ) {
 	const valid =
 		typeof value === 'string' &&
-		value.trim() !== '' &&
 		value.length <= 300 &&
-		! /[;{}]|url\(/i.test( value );
-	return valid ? '' : 'must be a font stack without ; { } or url(';
+		value.trim() !== '' &&
+		! /\p{Cc}/u.test( value ) &&
+		value.split( ',' ).every( ( family ) => isFontFamily( family.trim() ) );
+	return valid
+		? ''
+		: 'must be a comma-separated font stack of quoted names or plain identifiers, with no comments, functions, escapes or CSS-wide keywords';
 }
 
 function validateRadiusScale( value ) {
