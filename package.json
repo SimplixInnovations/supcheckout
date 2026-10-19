@@ -14,7 +14,7 @@
 	},
 	"packageManager": "npm@11.19.0",
 	"scripts": {
-		"build": "wp-scripts build --config webpack.config.js",
+		"build": "node tools/admin-ui/tokens/build-tokens.mjs && wp-scripts build --config webpack.config.js",
 		"build:gallery": "wp-scripts build --config tests/admin-ui/gallery/webpack.gallery.config.cjs",
 		"lint:js": "wp-scripts lint-js assets/admin/src tools/admin-ui tests/admin-ui webpack.config.js jest.config.js eslint.config.mjs",
 		"lint:css": "wp-scripts lint-style \"assets/admin/src/**/*.css\"",
@@ -49,6 +49,7 @@
 		"jest": "30.5.2",
 		"jest-axe": "11.0.0",
 		"jest-environment-jsdom": "30.5.2",
+		"postcss": "8.5.29",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
 		"stylelint-use-logical": "2.1.3",

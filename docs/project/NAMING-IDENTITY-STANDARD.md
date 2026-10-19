@@ -45,6 +45,8 @@ Forbidden technical form: `supcheckout-for-upayments`.
 | Constants | `SUPCHECKOUT_*` |
 | CSS component root | `.supcheckout` |
 | CSS custom properties | `--supcheckout-*` |
+| Admin design tokens (amendment, spec §4.1, owner decision 2026-10-16) | `--sup-*` CSS custom properties, defined only under `.supcheckout-admin` (the admin app root and its portal layer) |
+| Admin component classes (amendment, spec §4.1, owner decision 2026-10-16) | `sup-<component>`, `sup-<component>__<element>` and `sup-<component>--<modifier>`, every rule scoped under `.supcheckout-admin` or `body.supcheckout-admin-page` |
 | JS namespace | `supCheckout` |
 | Localized JS config | `supCheckoutConfig` |
 | REST namespace | `supcheckout/v1` |
@@ -108,6 +110,7 @@ New metadata uses `_supcheckout_*` only where new storage is genuinely required;
 
 New script/style handles use `supcheckout-*`.
 New CSS uses `.supcheckout` component scoping and `--supcheckout-*` custom properties.
+Amendment (spec §4.1, owner decision 2026-10-16): the admin app's design tokens use `--sup-*` and its component classes use `sup-*`, all scoped under `.supcheckout-admin` (or `body.supcheckout-admin-page`). The source is `assets/admin/src/tokens/*.tokens.json`, rendered to `tokens.generated.css`. Checkout and every other plugin stylesheet keep `.supcheckout` and `--supcheckout-*`, and checkout never uses `--sup-*` tokens or `.supcheckout-admin`.
 A JS global is allowed only when necessary and must use `supCheckout`; localized configuration uses `supCheckoutConfig`.
 New REST routes use `supcheckout/v1`.
 

@@ -1,0 +1,105 @@
+{
+	"$description": "Test brand: a violet accent tuned like the admin-scheme ramps, a font stack and a 0.5 radius scale.",
+	"palette": {
+		"accent": {
+			"light": {
+				"50": {
+					"$value": "#f4f3ff",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#e8e5ff",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#d7ceff",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#c0b2ff",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#aa90ff",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#7d40ee",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#6d28d9",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#5f04c7",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#5000aa",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#40008b",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#eae7ff",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#dcd5ff",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#c9bcff",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#b4a0ff",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#9c7aff",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#905fff",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#864cf9",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#7738e7",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#6a22d5",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#301d5d",
+					"$type": "color"
+				}
+			}
+		}
+	},
+	"font": {
+		"family": {
+			"sans": {
+				"$value": "\"Noto Sans\", sans-serif",
+				"$type": "fontFamily"
+			}
+		}
+	},
+	"radius": {
+		"scale": {
+			"$value": 0.5,
+			"$type": "number"
+		}
+	}
+}

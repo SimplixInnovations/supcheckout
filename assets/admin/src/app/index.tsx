@@ -11,6 +11,7 @@ import domReady from '@wordpress/dom-ready';
 import { createRoot, lazy, Suspense } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 
+import '../tokens/tokens.generated.css';
 import './app.css';
 
 const ROOT_ID = 'supcheckout-admin-root';

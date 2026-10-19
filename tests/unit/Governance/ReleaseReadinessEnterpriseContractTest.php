@@ -161,6 +161,20 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
         self::assertStringContainsString('"canonicalMap": "UX-CONTRACT.md"', $manifest);
     }
 
+    public function test_design_documents_name_the_generated_admin_token_layer(): void {
+        foreach (array('DESIGN.md', 'UX-CONTRACT.md') as $path) {
+            $doc = self::read_repository_file($path);
+
+            self::assertStringContainsString('tokens.generated.css', $doc, $path . ' must name the generated admin token layer.');
+            self::assertStringContainsString('`--sup-*`', $doc, $path . ' must name the admin token prefix.');
+            self::assertStringContainsString('`--supcheckout-*`', $doc, $path . ' must keep the checkout token prefix.');
+        }
+        self::assertStringNotContainsString(
+            '**Mapping/export/adapters:** no generated token layer.',
+            self::read_repository_file('UX-CONTRACT.md')
+        );
+    }
+
     private static function read_repository_file(string $path): string {
         $root = dirname(__DIR__, 3);
         $full_path = $root . '/' . $path;

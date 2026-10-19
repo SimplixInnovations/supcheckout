@@ -52,7 +52,10 @@ SUPCheckout should feel like a **WooCommerce-native payment instrument panel**, 
 - **Memorable signature:** A restrained, full-width payment-method row that keeps provider iconography, method name, selected state, and downstream WooCommerce checkout action visually coherent.
 - **Restraint:** Financial authority, accessibility, host-theme compatibility, and stable control geometry always outrank decoration or animation.
 - **Anti-references:** Do not make SUPCheckout look like an independent dashboard, marketing landing page, glassmorphic widget, or bespoke theme that fights WooCommerce.
-- **Token ownership/runtime mapping:** Existing runtime CSS and WordPress/WooCommerce primitives remain canonical. This document records their durable intent and exact recurring values. Runtime owners are `assets/css/customer.css`, `assets/css/new-design.css`, and `assets/css/admin-style.css`. A future durable token change must update this file and the relevant runtime owner in the same changeset.
+- **Token ownership/runtime mapping:** There are two owners, split by surface.
+  - **Checkout, account and the legacy admin screens:** existing runtime CSS and WordPress/WooCommerce primitives remain canonical. Runtime owners are `assets/css/customer.css`, `assets/css/new-design.css`, and `assets/css/admin-style.css`, using `--supcheckout-*` custom properties.
+  - **The React admin app (Sub-project 1 onward):** the generated token layer is canonical. Its source of truth is `assets/admin/src/tokens/*.tokens.json` plus `contrast-pairs.json`. `tools/admin-ui/tokens/build-tokens.mjs` writes `assets/admin/src/tokens/tokens.generated.css`, which defines `--sup-*` custom properties scoped under `.supcheckout-admin`. That file is never edited by hand, and `--check` fails on drift or on any WCAG 2.2 AA contrast failure. Branding goes only through `brand.tokens.json`, an allow-listed file that is validated and contrast-checked.
+  - This document records durable intent and exact recurring values for both. A durable token change must update this file and the owning source in the same changeset.
 
 ## Colors
 
