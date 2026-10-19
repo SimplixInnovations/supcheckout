@@ -439,6 +439,13 @@ final class DriverStep {
             // The store is switched: an unusable self-test is a warning, never the switch's failure.
             $report = array('ok' => false, 'ran_at' => $this->clock(), 'checks' => array(), 'error' => 'self_test_error', 'exception' => $exception);
         }
+        if (!isset($report['ran_at']) || !is_int($report['ran_at'])) {
+            $report['ran_at'] = $this->clock();
+        }
+        // Stored like a self_test operation's report: GET /onboarding/self-test and
+        // status.last.self_test_at show the switch's self-test.
+        $report = Bounded::document($report);
+        update_option(self::last_report_option(Operation::KIND_SELF_TEST), $report, false);
         $this->add_steps(array('self_test_ran'));
         $warnings = empty($report['ok']) ? array('self_test_failed') : array();
         $this->end(Operation::DONE, null, null, array('self_test' => $report, 'warnings' => $warnings));

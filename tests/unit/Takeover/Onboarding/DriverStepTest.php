@@ -437,6 +437,34 @@ final class DriverStepTest extends TestCase {
         self::assertSame(array(), $result['report']['warnings']);
     }
 
+    public function test_the_switch_self_test_is_stored_as_the_last_self_test_report(): void {
+        // The post-switch self-test is the merchant's first self-test: GET /onboarding/self-test
+        // and status.last.self_test_at read it, as after a self_test operation.
+        CutoverTest::state('cut_over');
+        $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'self_test'));
+
+        $result = $this->tick();
+
+        self::assertSame('done', $result['outcome']);
+        $stored = get_option(DriverStep::last_report_option(Operation::KIND_SELF_TEST), false);
+        self::assertIsArray($stored, 'the switch stored its self-test report');
+        self::assertSame($result['report']['self_test'], $stored);
+        self::assertIsInt($stored['ran_at']);
+    }
+
+    public function test_a_throwing_switch_self_test_is_stored_with_its_ran_at(): void {
+        CutoverTest::state('cut_over');
+        $this->checks_throw = true;
+        $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'self_test'));
+
+        $this->tick();
+
+        $stored = get_option(DriverStep::last_report_option(Operation::KIND_SELF_TEST), false);
+        self::assertIsArray($stored);
+        self::assertSame(array('ok' => false, 'ran_at' => self::T0, 'error' => 'self_test_error'), array_intersect_key($stored, array_flip(array('ok', 'ran_at', 'error'))));
+        self::assertStringNotContainsString(self::SECRET_MESSAGE, (string) json_encode($stored));
+    }
+
     public function test_a_failing_self_test_is_a_warning_not_a_failure(): void {
         CutoverTest::state('cut_over');
         $this->self_test_report = self::self_test(false);

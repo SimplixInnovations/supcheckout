@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Tests\Rest;
 
 use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Bounded;
+use Simplixi\SUPCheckout\Takeover\Onboarding\Checks;
 use Simplixi\SUPCheckout\Takeover\Onboarding\DriverStep;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Operation;
 use Simplixi\SUPCheckout\Takeover\Onboarding\RateLimiter;
@@ -386,6 +387,26 @@ final class OnboardingControllerTest extends RestTestCase {
 
         self::assertSame(202, $response->get_status(), (string) json_encode($response->get_data()));
         self::assertSame('self_test', self::body($response)['data']['operation']['kind']);
+    }
+
+    public function test_the_switch_self_test_reads_back_from_get_self_test(): void {
+        self::state(TakeoverState::CUT_OVER, time() - 60);
+        $op = Operation::start(Operation::KIND_SWITCH, array(), 7, time());
+        self::assertNotNull($op);
+        $report = Checks::report(array(Checks::check('event_journal', Checks::DEFERRED, 'event_journal_not_built', 'later')), 1700000200);
+        $runner = static function () use ($report) {
+            return $report;
+        };
+        $driver = new DriverStep($this->onboarding(), $this->system, $runner, $runner, 'time');
+
+        $result = $driver->tick(array_merge($op, array('phase' => 'self_test')));
+
+        self::assertSame('done', $result['outcome']);
+        $read = self::body(self::serve('GET', '/onboarding/self-test'))['data']['report'];
+        self::assertIsArray($read, 'GET /onboarding/self-test shows the self-test of the switch');
+        self::assertSame(1700000200, $read['ran_at']);
+        self::assertSame($result['report']['self_test']['checks'], $read['checks']);
+        self::assertSame(1700000200, self::body(self::serve('GET', '/onboarding/status'))['data']['last']['self_test_at']);
     }
 
     public function test_setup_checks_start_and_the_reports_read_back(): void {
