@@ -129,3 +129,103 @@ test( 'the app CSS has no violations', () => {
 		expect( findCssViolations( read( f ), f ) ).toEqual( [] );
 	}
 } );
+
+const fg = '{ color: var(--sup-color-fg-default); }';
+
+test( 'a scope followed by a sibling combinator or only inside a pseudo-class argument is unscoped', () => {
+	const selectors = [
+		'.supcheckout-admin ~ div',
+		'.supcheckout-admin + *',
+		'body:has( .supcheckout-admin) #wpadminbar',
+		':is(.supcheckout-admin) a',
+		':where(.supcheckout-admin) a',
+		'div:not(.supcheckout-admin) a',
+		'body.supcheckout-admin-page + div',
+	];
+	const css = selectors.map( ( s ) => `${ s } ${ fg }` ).join( '\n' );
+	expect( findCssViolations( css, 'x' ) ).toEqual(
+		selectors.map( ( s ) => `x: unscoped selector ${ s }` )
+	);
+} );
+
+test( 'descendant, child and argument selectors inside the scope stay allowed', () => {
+	const css = [
+		'.supcheckout-admin > .sup-x',
+		'.supcheckout-admin .sup-x:has(> svg)',
+		'.supcheckout-admin .sup-a ~ .sup-b',
+		'.supcheckout-admin:not([data-sup-theme="light"]) .sup-x',
+		'body.admin-color-blue .supcheckout-admin[data-sup-x="a + b"]',
+		'.supcheckout-admin:lang(ar) .sup-x',
+		'.supcheckout-admin',
+	]
+		.map( ( s ) => `${ s } ${ fg }` )
+		.join( '\n' );
+	expect( findCssViolations( css, 'x' ) ).toEqual( [] );
+} );
+
+test( 'declarations inside keyframes are still checked and keyframe names need sup-', () => {
+	const css = [
+		'@keyframes sup-pulse { from { color: #fff; } 50% { margin-left: 0; } to { opacity: 1; } }',
+		'@keyframes spin { to { rotate: 360deg; } }',
+	].join( '\n' );
+	expect( findCssViolations( css, 'x' ) ).toEqual( [
+		'x: raw color #fff in color',
+		'x: physical property margin-left',
+		'x: keyframes name spin is not sup-*',
+	] );
+} );
+
+test( 'only the exact token file is exempt from raw values', () => {
+	const css = '.supcheckout-admin { --sup-x: #123456; }';
+	for ( const file of [
+		'tokens',
+		'assets/admin/src/tokens/tokens.generated.css',
+		'assets\\admin\\src\\tokens\\tokens.generated.css',
+	] ) {
+		expect( findCssViolations( css, file ) ).toEqual( [] );
+	}
+	for ( const file of [
+		'assets/admin/src/ui/x/tokens.generated.css',
+		'assets/admin/src/ui/tokens',
+		'x/tokens',
+	] ) {
+		expect( findCssViolations( css, file ) ).toEqual( [
+			`${ file }: raw color #123456 in --sup-x`,
+		] );
+	}
+} );
+
+test( 'the custom-property prefix check is case-sensitive', () => {
+	expect(
+		findCssViolations( '.supcheckout-admin { --Sup-x: 0; }', 'x' )
+	).toEqual( [ 'x: custom property --Sup-x is not --sup-*' ] );
+} );
+
+test( 'physical scroll margins and paddings are flagged', () => {
+	const css =
+		'.supcheckout-admin .sup-a { scroll-margin-left: 0; scroll-margin-right: 0; scroll-padding-left: 0; scroll-padding-right: 0; scroll-margin-inline-start: 0; }';
+	expect( findCssViolations( css, 'x' ) ).toEqual( [
+		'x: physical property scroll-margin-left',
+		'x: physical property scroll-margin-right',
+		'x: physical property scroll-padding-left',
+		'x: physical property scroll-padding-right',
+	] );
+} );
+
+test( 'only @media, @supports, @keyframes and @container at-rules are allowed', () => {
+	const css = [
+		'@import url(x.css);',
+		'@font-face { font-family: x; }',
+		`@layer base { .supcheckout-admin ${ fg } }`,
+		'@page { color: inherit; }',
+		`@media (min-width: 782px) { .supcheckout-admin ${ fg } }`,
+		'@supports (display: grid) { .supcheckout-admin { display: grid; } }',
+		'@container (min-width: 1px) { .supcheckout-admin { display: grid; } }',
+	].join( '\n' );
+	expect( findCssViolations( css, 'x' ) ).toEqual( [
+		'x: at-rule @import is not allowed',
+		'x: at-rule @font-face is not allowed',
+		'x: at-rule @layer is not allowed',
+		'x: at-rule @page is not allowed',
+	] );
+} );
