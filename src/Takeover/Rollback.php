@@ -511,9 +511,18 @@ final class Rollback {
             $locked = 0;
             $this->found += $this->pass > 1 ? $out['removed'] : 0;
             $removal = $out['progress'];
+            // Asked before the save so the `yielded` flag goes into the same write.
             $spent = $this->budget_spent();
             if (!$this->save_progress($status, $removal, true, $spent)) {
                 return 'transition_refused';
+            }
+            if (!$spent && $this->budget_spent()) {
+                // The save itself used up the budget: record the yield on the same cursor
+                // rather than starting another unit.
+                if (!$this->save_progress($status, $removal, true, true)) {
+                    return 'transition_refused';
+                }
+                $spent = true;
             }
             if ($was === CopyRemoval::PHASE_CRON && $this->pass === 1) {
                 $this->step('cron_restored');

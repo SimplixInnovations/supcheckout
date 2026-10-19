@@ -1020,6 +1020,32 @@ final class RollbackTest extends TestCase {
         self::assertSame(array(), $this->store->tables['new']);
     }
 
+    public function test_a_budget_spent_by_the_save_itself_yields_before_another_unit(): void {
+        $system = $this->budgeted(5000);
+        $this->seed_cut_over();
+        $system->spent = static function () {
+            // Spent once the first unit's save has landed (a slow database write crossed the deadline).
+            return self::progress()['removal']['phase'] !== CopyRemoval::PHASE_CRON;
+        };
+
+        $result = $this->rollback()->run(false);
+
+        self::assertSame('yielded', $result['error'], (string) json_encode($result));
+        self::assertSame(5000, $result['report']['resume_at']);
+        self::assertSame(2, $system->budget_checks, 'asked before the save (false) and again after it (true)');
+        self::assertSame(array('cron_restored', 'yielded'), array_slice($result['steps'], -2));
+        $progress = self::progress();
+        self::assertSame(array('phase' => CopyRemoval::PHASE_ORDERS, 'cursor' => 0), $progress['removal'], 'no second unit was started');
+        self::assertTrue($progress['yielded'], 'the yield is recorded on the same cursor');
+        self::assertTrue(Rollback::removal_pending(TakeoverState::get()));
+
+        $system->spent = false;
+        $system->now = 5120;
+        $again = $this->rollback()->run(false);
+        self::assertTrue($again['ok'], (string) json_encode($again));
+        self::assertSame('preflight_ok', TakeoverState::get()['status']);
+    }
+
     public function test_a_rescan_yielded_mid_pass_resumes_from_its_cursor_and_keeps_its_count(): void {
         $system = $this->budgeted(self::T0);
         $this->seed_cut_over();
@@ -1033,10 +1059,9 @@ final class RollbackTest extends TestCase {
                 $armed = true;
             }
         };
-        $checks = 0;
-        $system->spent = static function () use (&$armed, &$checks) {
-            // Out of budget after the rescan's cron unit and its first order batch.
-            return $armed && ++$checks === 2;
+        $system->spent = static function () use (&$armed) {
+            // Out of budget once the rescan's first order batch has saved the late copy it removed.
+            return $armed && self::progress()['found'] >= 1;
         };
 
         $first = $this->rollback()->run(false);
