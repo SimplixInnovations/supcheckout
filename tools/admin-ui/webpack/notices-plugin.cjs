@@ -115,10 +115,15 @@ function collectPackages( compilation ) {
 			text: readLicenseText( directory ),
 		} );
 	}
+	// Code-point order, independent of the ICU build and the host locale.
+	const order = ( left, right ) => {
+		if ( left === right ) {
+			return 0;
+		}
+		return left < right ? -1 : 1;
+	};
 	return [ ...packages.values() ].sort(
-		( a, b ) =>
-			a.name.localeCompare( b.name, 'en' ) ||
-			a.version.localeCompare( b.version, 'en' )
+		( a, b ) => order( a.name, b.name ) || order( a.version, b.version )
 	);
 }
 

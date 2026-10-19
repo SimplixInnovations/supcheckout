@@ -161,6 +161,13 @@ test( 'gzip sizes stay within budget', () => {
 	}
 } );
 
+test( 'the notices JSON is sorted by package name', () => {
+	const names = readJson( 'assets/admin/build/third-party-notices.json' ).map(
+		( p ) => p.name
+	);
+	expect( names ).toEqual( [ ...names ].sort() );
+} );
+
 test( 'the human-readable notices file ships next to the bundle', () => {
 	expect( listBuild() ).toEqual(
 		expect.arrayContaining( [
