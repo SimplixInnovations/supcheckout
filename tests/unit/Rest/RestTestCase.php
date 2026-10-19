@@ -45,6 +45,7 @@ abstract class RestTestCase extends TestCase {
         \Action_Scheduler::$initialized = true;
         $GLOBALS['supcheckout_test_subscription_presentation_active'] = false;
         $GLOBALS['supcheckout_test_migration_admin']['capability_allowed'] = true;
+        $GLOBALS['supcheckout_test_migration_admin']['denied_capabilities'] = array();
         $GLOBALS['supcheckout_test_migration_admin']['capability_calls'] = array();
         $GLOBALS['supcheckout_test_status_logged_in'] = true;
         $GLOBALS['supcheckout_test_status_user_id'] = 7;
@@ -69,6 +70,7 @@ abstract class RestTestCase extends TestCase {
         unset($GLOBALS['supcheckout_test_valid_nonces'], $GLOBALS['supcheckout_test_nonce_checks'], $GLOBALS['supcheckout_test_as_schedule_throws']);
         $GLOBALS['supcheckout_test_unique_hook_group_only'] = false;
         $GLOBALS['supcheckout_test_migration_admin']['capability_allowed'] = true;
+        $GLOBALS['supcheckout_test_migration_admin']['denied_capabilities'] = array();
         \Action_Scheduler::$initialized = true;
     }
 

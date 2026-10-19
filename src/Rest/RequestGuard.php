@@ -19,6 +19,8 @@ defined('ABSPATH') || exit;
  *     args nor WordPress' reserved keys) → 400 supcheckout_unknown_parameter, so a
  *     misspelled consent flag is never silently ignored;
  *  4. the args' JSON schema, by WordPress core → 400 rest_invalid_param;
+ *  4b. check_plugin_capability(): consent to (de)activate the official plugin, or a real
+ *     finalize, also needs `activate_plugins` → 403 supcheckout_capability_plugins;
  *  5. check_consent(): `confirm` strictly true (finalize: the typed word unless dry_run is
  *     true) → 400 supcheckout_confirmation_required;
  *  6. check_rate() → 429 supcheckout_rate_limited with `retry_after`.
@@ -39,6 +41,14 @@ final class RequestGuard {
     private const FINALIZE = '/onboarding/finalize';
     /** What the owner types to finalize. */
     public const FINALIZE_WORD = 'FINALIZE';
+
+    /** Also needed to consent to an official-plugin (de)activation or to finalize. */
+    public const PLUGIN_CAPABILITY = 'activate_plugins';
+    /** Consent flag => the routes where it (de)activates the official plugin. */
+    private const PLUGIN_FLAGS = array(
+        'deactivate_official' => array('/onboarding/switch', '/onboarding/rollback'),
+        'reactivate_official' => array('/onboarding/rollback', '/onboarding/abort'),
+    );
 
     /** @return true|\WP_Error */
     public static function can_manage() {
@@ -65,6 +75,46 @@ final class RequestGuard {
             return Responses::error('supcheckout_unknown_parameter', 'Unknown parameter(s); nothing was done.', 400, array('params' => $unknown));
         }
         return true;
+    }
+
+    /**
+     * Step 4b (owner ruling 2026-10-19, 0c security review): a request that consents to
+     * deactivating or reactivating the official plugin, and a real finalize (with or without
+     * force_after_review; a dry run is exempt), also needs `activate_plugins`, which a
+     * WooCommerce Shop Manager lacks. It reads the sanitized flags exactly as the controller
+     * records consent (strictly true), so a recorded consent always passed this check. The
+     * driver acts on that recorded consent later and does not check again.
+     *
+     * @param \WP_REST_Request $request Request (after core sanitized the args).
+     * @param string           $route   Route relative to the namespace.
+     * @return true|\WP_Error
+     */
+    public static function check_plugin_capability(\WP_REST_Request $request, $route) {
+        if (!self::needs_plugin_capability($request, $route) || current_user_can(self::PLUGIN_CAPABILITY)) {
+            return true;
+        }
+        return Responses::error(
+            'supcheckout_capability_plugins',
+            'Deactivating or reactivating the official UPayments plugin, and finalizing the switch, need the activate_plugins capability (an administrator); nothing was done.',
+            403
+        );
+    }
+
+    /**
+     * @param \WP_REST_Request $request Request.
+     * @param string           $route   Route.
+     * @return bool
+     */
+    private static function needs_plugin_capability(\WP_REST_Request $request, $route) {
+        if ($route === self::FINALIZE) {
+            return $request->get_param('dry_run') !== true;
+        }
+        foreach (self::PLUGIN_FLAGS as $flag => $routes) {
+            if (in_array($route, $routes, true) && $request->get_param($flag) === true) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

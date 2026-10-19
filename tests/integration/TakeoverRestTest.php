@@ -533,6 +533,11 @@ if ($phase === 'rest_paused') {
     $unknown = supcheckout_takeover_rest_call('POST', '/onboarding/switch', array('confirm' => true, 'deactivateOfficial' => true));
     supcheckout_takeover_rest_expect($unknown, 400, 'supcheckout_unknown_parameter', 'POST switch {"confirm":true,"deactivateOfficial":true}');
     supcheckout_cert_assert(($unknown['data']['data']['params'] ?? null) === array('deactivateOfficial'), 'the misspelled consent flag is named: ' . $unknown['json']);
+    // A Shop Manager has manage_woocommerce but not activate_plugins (0c security review).
+    $manager_id = (int) wp_insert_user(array('user_login' => 'supcheckout-rest-shop-manager', 'user_pass' => wp_generate_password(24), 'user_email' => 'supcheckout-rest-shop-manager@example.test', 'role' => 'shop_manager'));
+    supcheckout_cert_assert($manager_id > 0 && user_can($manager_id, 'manage_woocommerce') && !user_can($manager_id, 'activate_plugins'), 'a shop manager with manage_woocommerce and without activate_plugins exists');
+    supcheckout_takeover_rest_expect(supcheckout_takeover_rest_call('POST', '/onboarding/switch', array('confirm' => true, 'deactivate_official' => true), $manager_id), 403, 'supcheckout_capability_plugins', 'a shop manager with the nonce, POST switch with deactivate_official');
+    wp_delete_user($manager_id);
     supcheckout_cert_assert(Operation::current() === null && supcheckout_takeover_rest_option_raw(RateLimiter::OPTION_PREFIX . 'switch') === $switch_bucket, 'the refused requests created no operation and spent no rate slot');
     supcheckout_cert_assert(supcheckout_takeover_rest_official_active(), 'nothing was deactivated');
 

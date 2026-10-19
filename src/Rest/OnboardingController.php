@@ -269,8 +269,8 @@ final class OnboardingController {
     }
 
     /**
-     * RequestGuard steps 2-3 (again: Routes::guard() may be removed by another plugin), 5
-     * and 6.
+     * RequestGuard steps 2-3 (again: Routes::guard() may be removed by another plugin), 4b,
+     * 5 and 6.
      *
      * @param \WP_REST_Request $request Request.
      * @param string           $route   Route.
@@ -280,6 +280,9 @@ final class OnboardingController {
      */
     private function admit(\WP_REST_Request $request, $route, $bucket, $now) {
         $result = RequestGuard::check_write($request, array_keys(Routes::args($route)));
+        if ($result === true) {
+            $result = RequestGuard::check_plugin_capability($request, $route);
+        }
         if ($result === true) {
             $result = RequestGuard::check_consent($request, $route);
         }

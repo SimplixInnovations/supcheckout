@@ -4,6 +4,9 @@ function supcheckout_test_reset_migration_admin() {
     $GLOBALS['supcheckout_test_subscription_presentation_active'] = false;
     $GLOBALS['supcheckout_test_migration_admin'] = array(
         'capability_allowed' => true,
+        // Capabilities the current user lacks even while capability_allowed is true (a Shop
+        // Manager: manage_woocommerce without activate_plugins).
+        'denied_capabilities' => array(),
         'capability_calls' => array(),
         'submenu_calls' => array(),
         'nonce_checks' => array(),
@@ -22,6 +25,10 @@ function current_user_can($capability, $object_id = null) {
         return $GLOBALS['supcheckout_test_subscription_presentation']['capability_allowed'] === true;
     }
     $GLOBALS['supcheckout_test_migration_admin']['capability_calls'][] = $capability;
+    $denied = isset($GLOBALS['supcheckout_test_migration_admin']['denied_capabilities']) ? $GLOBALS['supcheckout_test_migration_admin']['denied_capabilities'] : array();
+    if (in_array($capability, $denied, true)) {
+        return false;
+    }
     return $GLOBALS['supcheckout_test_migration_admin']['capability_allowed'] === true;
 }
 
