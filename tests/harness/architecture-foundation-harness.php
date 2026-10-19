@@ -565,7 +565,9 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // Sub-project 0b Task 9 adds 160 bytes: inside the pause guard, before its early return,
 // the PausedBoot::boot(__FILE__) call (takeover CLI and probe answer only) and one comment
 // line saying so.
-$acceptedGatewayBytes = 1098;
+// Sub-project 0c Task 8 adds 65 bytes: the pause-guard comment now names the takeover REST
+// routes and the onboarding driver (comment only, no code).
+$acceptedGatewayBytes = 1163;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
 // Sub-project 0a Task 5: on top of the exact ratchet, the main file is held to the
 // bootstrap shape itself, so it can never grow responsibilities again.

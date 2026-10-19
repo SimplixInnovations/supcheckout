@@ -6,6 +6,15 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Onboarding backend: services and the admin REST API (Sub-project 0c)
+
+- **Admin-only REST API `supcheckout/v1`** for the smart switch and the new-merchant checks: status, preflight, switch, rollback, abort, finalize (with a dry run), stale-claims release, self-test and setup checks. While the official UPayments plugin is active, only the 8 takeover routes are registered. There are no screens yet; the wizard comes in Sub-project 2.
+- Every route needs `manage_woocommerce`. Every write also needs the `wp_rest` nonce in `X-WP-Nonce`, so an Application Password alone cannot start a switch, rollback or finalize; automation uses WP-CLI. Consent to deactivate or reactivate the official plugin, and a real finalize, also need `activate_plugins`, so a Shop Manager cannot do them. Unknown parameters are refused, consent flags are booleans that default to `false`, `confirm` is required (finalize: the word `FINALIZE`), and writes are rate limited per site. Responses are bounded (32 KB, lists of 20) and carry no API key, token, card data or customer personal data; engine results appear only inside the bounded operation report and hold names, codes, counts and numeric order/user IDs.
+- **Background execution through Action Scheduler.** One single-flight operation at a time, advanced in bounded ticks with retry and attempt limits; the rollback's 120 s settle wait is a scheduled resume. It needs WP-Cron, a system cron or admin page loads; otherwise the status route reports `runner.stalled`.
+- **Cache purge** after a switch, rollback, abort or finalize: LiteSpeed Cache, WP Rocket, W3 Total Cache, WP Super Cache, Breeze and SiteGround Speed Optimizer through their public APIs, plus the object cache. The Cloudflare plugin is reported for a manual purge. A failing purge never fails the step.
+- **Self-test** after the switch: one read-only availability request to UPayments in test and live mode, callback reachability, cache exclusion, gateway registration and currency checks. **Setup checks** for new merchants.
+- `wp supcheckout takeover` is unchanged: same commands, flags, exit codes and output, plus the cache-purge line.
+
 ### Takeover engine: switch a store to the `supcheckout` identities (Sub-project 0b Tasks 1 and 3–12)
 
 - New WP-CLI command `wp supcheckout takeover`. It moves a store from the official UPayments plugin (2.x or 3.x), or from SUPCheckout's own pre-0b names, to the `supcheckout` identities:

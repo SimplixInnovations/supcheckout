@@ -111,3 +111,22 @@ function delete_transient($transient) {}
  * @return bool
  */
 function wp_using_ext_object_cache($using = null) {}
+
+/**
+ * Onboarding driver (0c Task 6).
+ *
+ * @param string            $hook
+ * @param array<mixed>|null $args
+ * @param string            $group
+ * @return void
+ */
+function as_unschedule_all_actions($hook, $args = null, $group = '') {}
+
+/** @return bool */
+function wp_doing_cron() {}
+
+/**
+ * @param int $limit
+ * @return void
+ */
+function wc_set_time_limit($limit = 0) {}

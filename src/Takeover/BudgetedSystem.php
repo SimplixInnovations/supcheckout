@@ -18,6 +18,10 @@ defined('ABSPATH') || exit;
  * - after each removal unit whose progress was saved, when budget_spent() is true, it
  *   returns `yielded` with `report['resume_at']` = now. The rerun continues from the saved
  *   cursor (a yielded rescan keeps its pass and count, see Rollback::remove());
+ * - in Finalize's table retirement, while legacy claims are still draining and
+ *   budget_spent() is true, it releases that lease and returns `yielded` with
+ *   `report['resume_at']` = now + Cutover::DRAIN_POLL; the drain start is persisted, so the
+ *   Cutover::DRAIN_TIMEOUT bound holds across reruns (0c Task 6);
  * - the last step is `yielded`, and the result is never `ok`.
  *
  * The rerun is the same call (Rollback::run() / abort(), Finalize::run()), through the

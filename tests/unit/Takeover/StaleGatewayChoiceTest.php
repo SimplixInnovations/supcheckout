@@ -23,20 +23,9 @@ final class StaleGatewayChoiceTest extends TestCase {
         TakeoverState::flush_cache();
         $this->wc_before = $GLOBALS['supcheckout_test_subscription_presentation']['wc'] ?? null;
         self::available(array('cod' => (object) array('id' => 'cod'), 'supcheckout' => self::our_gateway()));
-        if (!class_exists('WP_REST_Request', false)) {
-            eval('class WP_REST_Request implements ArrayAccess {
-                private $route; private $method; private $params;
-                public function __construct($method, $route, array $params) { $this->method = $method; $this->route = $route; $this->params = $params; }
-                public function get_route() { return $this->route; }
-                public function get_method() { return $this->method; }
-                public function get_param($key) { return isset($this->params[$key]) ? $this->params[$key] : null; }
-                public function set_param($key, $value) { $this->params[$key] = $value; }
-                #[\ReturnTypeWillChange] public function offsetExists($key) { return isset($this->params[$key]); }
-                #[\ReturnTypeWillChange] public function offsetGet($key) { return $this->get_param($key); }
-                #[\ReturnTypeWillChange] public function offsetSet($key, $value) { $this->set_param($key, $value); }
-                #[\ReturnTypeWillChange] public function offsetUnset($key) { unset($this->params[$key]); }
-            }');
-        }
+        // One WP_REST_Request for the whole suite (0c Task 7 REST stubs: ArrayAccess, set_param,
+        // and a third constructor argument that seeds the parameters).
+        require_once dirname(__DIR__, 2) . '/support/wordpress-rest-stubs.php';
     }
 
     protected function tearDown(): void {

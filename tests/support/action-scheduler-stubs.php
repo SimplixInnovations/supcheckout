@@ -28,10 +28,17 @@ if (!function_exists('did_action')) {
 if (!function_exists('as_schedule_single_action')) {
     function as_schedule_single_action($timestamp, $hook, $args = array(), $group = '', $unique = false)
     {
+        if (!empty($GLOBALS['supcheckout_test_as_schedule_throws'])) {
+            // Real Action Scheduler throws when its store cannot save the action.
+            throw new RuntimeException('Error saving action');
+        }
         $args = (array) $args;
         if ($unique) {
+            // Real Action Scheduler compares only hook and group (functions.php); set
+            // $GLOBALS['supcheckout_test_unique_hook_group_only'] to mirror that exactly.
+            $hook_group_only = !empty($GLOBALS['supcheckout_test_unique_hook_group_only']);
             foreach ($GLOBALS['supcheckout_as_calls']['scheduled'] as $row) {
-                if ($row['hook'] === $hook && $row['args'] === $args && $row['group'] === $group) {
+                if ($row['hook'] === $hook && ($hook_group_only || $row['args'] === $args) && $row['group'] === $group) {
                     return 0;
                 }
             }

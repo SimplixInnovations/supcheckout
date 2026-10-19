@@ -999,3 +999,4 @@ public function test_multi_valued_public_status_is_copied_in_full(): void {
 
 - The branded wizard and onboarding screens, built on `Preflight::run()` codes, the `TakeoverState` statuses and the CLI-equivalent services.
 - Health-screen surfacing of `official_debug_log_present` and the cache-exclusion warnings.
+- Delivered by `docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md` (services + admin REST API); the screens moved to Sub-project 2 (owner decision 2026-10-18).

@@ -140,28 +140,32 @@ final class Preflight {
     public static function run_with(Environment $env) {
         $official_plugins = OfficialFootprint::plugins($env);
         list($settings_finding, $settings) = self::settings_source($env);
-        $availability = self::probe_credential($env, $settings);
-        $probe = self::probe_callback($env);
+        $credential = self::credential_findings($env, $settings);
+        $probe = self::callback_probe($env);
         $official_names = OfficialFootprint::names($env);
 
-        $findings = array(
-            self::official_plugin_active($official_plugins),
-            self::official_network_active($official_plugins, $env),
-            $settings_finding,
-            self::credential_unverified($settings, $availability),
-            self::account_mode($settings, $availability),
-            self::currency_unsupported($env),
-            self::pending_with_open_link($env),
-            self::hpos_meta_disagreement($env),
-            self::whs_multi_valued($env),
-            self::duplicate_renewals($env),
-            self::official_debug_log_present($official_plugins),
-            self::third_party_references($env),
-            self::callback_unreachable($probe),
-            self::cache_exclusion_missing($probe),
-            self::official_only_names($official_names),
-            self::upay_subscriptions_table_present($env),
-            self::leftovers($env, $official_names),
+        $findings = array_merge(
+            array(
+                self::official_plugin_active($official_plugins),
+                self::official_network_active($official_plugins, $env),
+                $settings_finding,
+            ),
+            $credential,
+            array(
+                self::currency_unsupported($env),
+                self::pending_with_open_link($env),
+                self::hpos_meta_disagreement($env),
+                self::whs_multi_valued($env),
+                self::duplicate_renewals($env),
+                self::official_debug_log_present($official_plugins),
+            ),
+            self::reference_findings($env),
+            self::callback_findings($probe),
+            array(
+                self::official_only_names($official_names),
+                self::upay_subscriptions_table_present($env),
+                self::leftovers($env, $official_names),
+            )
         );
 
         $report = array('blocking' => array(), 'warnings' => array(), 'facts' => array());
@@ -177,6 +181,50 @@ final class Preflight {
             );
         }
         return $report;
+    }
+
+    /**
+     * The credential check on its own (also used by the 0c self-test and setup checks):
+     * exactly one read-only availability probe through Environment, and none when the
+     * settings hold no key. Findings: credential_unverified when the key is not verified,
+     * then account_mode.
+     *
+     * @param Environment          $env      Environment.
+     * @param array<string, mixed> $settings Gateway settings (the API key is read, never returned).
+     * @return list<array{severity:string, code:string, message:string, data:array<string,mixed>}>
+     */
+    public static function credential_findings(Environment $env, array $settings) {
+        $availability = self::probe_credential($env, $settings);
+        $findings = array();
+        $unverified = self::credential_unverified($settings, $availability);
+        if ($unverified !== null) {
+            $findings[] = $unverified;
+        }
+        $findings[] = self::account_mode($settings, $availability);
+        return $findings;
+    }
+
+    /**
+     * callback_unreachable and cache_exclusion_missing, when present.
+     *
+     * @param list<array{status:int, headers:array<string,string>}|null> $probe Responses from callback_probe().
+     * @return list<array{severity:string, code:string, message:string, data:array<string,mixed>}>
+     */
+    public static function callback_findings(array $probe) {
+        return array_values(array_filter(
+            array(self::callback_unreachable($probe), self::cache_exclusion_missing($probe))
+        ));
+    }
+
+    /**
+     * third_party_references, when present.
+     *
+     * @param Environment $env Environment.
+     * @return list<array{severity:string, code:string, message:string, data:array<string,mixed>}>
+     */
+    public static function reference_findings(Environment $env) {
+        $finding = self::third_party_references($env);
+        return $finding === null ? array() : array($finding);
     }
 
     /**
@@ -619,7 +667,7 @@ final class Preflight {
      * @param Environment $env Environment.
      * @return list<array{status:int, headers:array<string,string>}|null>
      */
-    private static function probe_callback(Environment $env) {
+    public static function callback_probe(Environment $env) {
         $url = $env->callback_probe_url();
         if ($url === '') {
             return array(null);

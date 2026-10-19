@@ -13,12 +13,23 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const RC1_ACCEPTANCE_TOKEN = 'RELEASE_CANDIDATE_1';
     private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
     private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
-    /** The current executable gate (reconciled 2026-10-18): Sub-project 0c onboarding UI, after the 0b takeover rehearsal passed. */
-    private const CURRENT_GATE = '**Sub-project 0c onboarding UI — NEXT**';
+    /**
+     * The current executable gate (reconciled 2026-10-19): the Sub-project 0c exit gate. 0c
+     * engineering (onboarding backend, services + REST) is complete; the project does not move
+     * past 0c until the owner's staging review passes. The owner moved the wizard UI to
+     * Sub-project 2 (2026-10-18).
+     */
+    private const CURRENT_GATE = '**Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT**';
+    /** What follows the 0c exit gate. */
+    private const FOLLOWING_SUBPROJECT = 'Sub-project 1 design-token system and admin component library';
+    /** Sub-project 1 is not current until the 0c staging review passes. */
+    private const PREMATURE_SUBPROJECT_1_GATE = 'Sub-project 1 design-token system and admin component library — NEXT';
+    /** The superseded 0c gate wording: 0c shipped no UI. */
+    private const SUPERSEDED_0C_GATE = 'Sub-project 0c onboarding UI — NEXT';
     /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
     private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
     /** The same current gate as a machine identifier (architecture contract). */
-    private const CURRENT_GATE_ID = 'subproject_0c_onboarding_ui';
+    private const CURRENT_GATE_ID = 'subproject_0c_exit_owner_staging_review';
     private const SUPERSEDED_GATE ='Current executable gate: **external certification & release readiness**.';
 
     /**
@@ -55,8 +66,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $content = self::read_repository_file('docs/project/START-HERE.md');
 
         self::assertStringContainsString('docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c onboarding UI**', $content);
+        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c exit gate (owner staging review of the onboarding backend)**', $content);
+        self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 1', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0b takeover**', $content);
+        self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c onboarding UI**', $content);
         self::assertStringNotContainsString('finish the rehearsal', $content);
         self::assertStringContainsString('release program external certification & release readiness stays open', $content);
         self::assertStringNotContainsString('Program phase | **external certification & release readiness** |', $content);
@@ -223,7 +236,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
-        self::assertStringContainsString('**Last reconciled:** 2026-10-18', $status_hdr);
+        self::assertStringContainsString('**Last reconciled:** 2026-10-19', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
         self::assertStringContainsString('Next release dependency: **fresh owner acceptance of a package containing PR #138**', $handoff);
         // Owner decision 2026-10-08: the account probe is an accepted resolution path, so every
@@ -354,7 +367,11 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString("  revamp:\n", $contract);
         self::assertStringContainsString('    subproject_0a_status: done_verified', $contract);
         self::assertStringContainsString('    subproject_0b_status: tasks_1_12_merged', $contract);
+        self::assertStringContainsString('    subproject_0c_plan: docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md', $contract);
+        self::assertStringContainsString('    subproject_0c_status: onboarding_backend_tasks_1_10', $contract);
         self::assertStringContainsString('    current_gate: ' . self::CURRENT_GATE_ID, $contract);
+        self::assertStringContainsString('    subproject_0c_owner_staging_review: pending', $contract);
+        self::assertStringContainsString('    next: subproject_1_design_tokens', $contract);
         self::assertSame(1, substr_count($contract, 'current_gate:'), 'the architecture contract names exactly one current gate');
 
         $implementation = self::read_repository_file('.ai-architect/implementation-plan.md');
@@ -374,9 +391,57 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             $content = self::read_repository_file($path);
             self::assertStringContainsString($label . self::CURRENT_GATE, $content, $path);
             self::assertStringNotContainsString(self::SUPERSEDED_GATE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_0C_GATE, $content, $path);
+            self::assertStringNotContainsString(self::PREMATURE_SUBPROJECT_1_GATE, $content, $path);
             self::assertStringNotContainsString('Current executable gate: **R6', $content, $path);
             self::assertStringNotContainsString('Current operational gate | **external certification & release readiness** |', $content, $path);
         }
+    }
+
+    public function test_sub_project_1_follows_the_0c_exit_gate_in_every_living_record(): void {
+        $records = array(
+            'docs/project/START-HERE.md',
+            'docs/project/PROJECT-STATUS.md',
+            'docs/project/NEW-CHAT-HANDOFF.md',
+            'docs/project/OWNER-HANDOFF.md',
+            '.ai-architect/implementation-plan.md',
+        );
+        foreach ($records as $path) {
+            $content = self::read_repository_file($path);
+            self::assertStringContainsString(self::CURRENT_GATE, $content, $path);
+            self::assertStringContainsString('Next after the 0c exit gate: ' . self::FOLLOWING_SUBPROJECT, $content, $path);
+            self::assertStringNotContainsString(self::PREMATURE_SUBPROJECT_1_GATE, $content, $path);
+        }
+        self::assertStringContainsString('Current executable gate: ' . self::CURRENT_GATE, self::read_repository_file('docs/project/OWNER-HANDOFF.md'));
+    }
+
+    public function test_the_onboarding_api_boundary_and_its_package_are_recorded(): void {
+        $compatibility = self::read_repository_file('docs/COMPATIBILITY.md');
+        self::assertStringContainsString('### Onboarding API boundary (Sub-project 0c)', $compatibility);
+        self::assertStringContainsString('`supcheckout/v1`', $compatibility);
+        self::assertStringContainsString('runner.stalled', $compatibility);
+        self::assertStringContainsString('supcheckout_nonce_invalid', $compatibility);
+
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md') as $living) {
+            $text = self::read_repository_file($living);
+            self::assertStringContainsString('onboarding backend (services + REST)', $text, $living);
+            self::assertStringContainsString('wizard UI moves to Sub-project 2', $text, $living);
+        }
+
+        self::assertStringContainsString('Sub-project 0c onboarding backend: **134 files**', self::read_repository_file('docs/project/RELEASE-ENGINEERING.md'));
+    }
+
+    public function test_the_0c_certification_is_not_claimed_for_the_pr_head(): void {
+        // Run 39177850394 certified 535b1b4, before the activate_plugins fix and the final
+        // review wave: it is historical, and the exact-head CI gates are pending on the PR head.
+        $evidence = self::read_repository_file('docs/project/evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md');
+        self::assertStringContainsString('**pending on the PR head**', $evidence);
+        self::assertStringContainsString('historical', $evidence);
+        self::assertStringContainsString('**134 files**', $evidence);
+        $status = self::read_repository_file('docs/project/PROJECT-STATUS.md');
+        self::assertStringContainsString('pending on the PR head', $status);
+        self::assertStringNotContainsString('package 133 files', $status);
+        self::assertStringNotContainsString('package 133 files', self::read_repository_file('docs/project/START-HERE.md'));
     }
 
     private static function read_repository_file(string $path): string {

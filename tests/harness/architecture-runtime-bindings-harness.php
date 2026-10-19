@@ -1086,10 +1086,14 @@ arch2_assert(
             . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();'
             // 0b Task 6: the takeover copy runner, registered only while copying.
             . 'CopyRunner::register();'
+            // 0c Task 6: the async onboarding driver, registered only in cron, AJAX and WP-CLI contexts.
+            . 'AsyncDriver::register();'
+            // 0c Task 7: the admin-only supcheckout/v1 REST routes, registered at rest_api_init.
+            . 'RestRoutes::register();'
             // 0b Task 9: `wp supcheckout takeover`, registered only under WP-CLI.
             . 'TakeoverCli::register();'
             . 'self::load_runtime(self::$main_file);',
-    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner and CLI, then loads the former main-file runtime'
+    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner, the onboarding driver, the admin REST routes and CLI, then loads the former main-file runtime'
 );
 // The former main-file runtime block (constants, ordered loads, release constants) is pinned
 // exactly: before Task 5 the main-file byte ratchet guarded it, so a dropped or reordered

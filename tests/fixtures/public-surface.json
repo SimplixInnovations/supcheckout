@@ -1,6 +1,14 @@
 [
     {
         "kind": "action",
+        "hook": "action_scheduler_before_process_queue",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
         "hook": "added_post_meta",
         "priority": 10,
         "accepted_args": 4,
@@ -81,6 +89,14 @@
     },
     {
         "kind": "action",
+        "hook": "rest_api_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
         "hook": "simplixpay_upayments_reconcile_order",
         "priority": 10,
         "accepted_args": 1,
@@ -94,6 +110,22 @@
         "accepted_args": 1,
         "registered_in": "load",
         "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
+        "hook": "supcheckout_onboarding_drive",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "cli"
+    },
+    {
+        "kind": "action",
+        "hook": "supcheckout_onboarding_watchdog",
+        "priority": 10,
+        "accepted_args": 2,
+        "registered_in": "load",
+        "contexts": "cli"
     },
     {
         "kind": "action",
@@ -682,6 +714,22 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "action_scheduler_before_process_queue",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "action_scheduler_before_process_queue",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "action_scheduler_init",
         "priority": 10,
         "accepted_args": 1,
@@ -773,6 +821,38 @@
         "hook": "plugins_loaded",
         "priority": 10,
         "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "rest_api_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "rest_api_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "supcheckout_onboarding_drive",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "supcheckout_onboarding_watchdog",
+        "priority": 10,
+        "accepted_args": 2,
         "contexts": "static"
     },
     {
@@ -1034,6 +1114,22 @@
     {
         "kind": "hook_reference",
         "type": "filter",
+        "hook": "rest_post_dispatch",
+        "priority": 10,
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "rest_request_before_callbacks",
+        "priority": 10,
+        "accepted_args": 3,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
         "hook": "rest_request_before_callbacks",
         "priority": 10,
         "accepted_args": 3,
@@ -1182,6 +1278,30 @@
     {
         "kind": "schedule_reference",
         "function": "as_has_scheduled_action",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_has_scheduled_action",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_has_scheduled_action",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "[0:string]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_has_scheduled_action",
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
         "args": "<param:array $args>",
@@ -1214,6 +1334,24 @@
     {
         "kind": "schedule_reference",
         "function": "as_schedule_single_action",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "[0:string]",
+        "unique": true,
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_schedule_single_action",
+        "hook": "supcheckout_onboarding_watchdog",
+        "group": "supcheckout-onboarding",
+        "args": "[0:string,1:string]",
+        "unique": false,
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_schedule_single_action",
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
         "args": "[parent_order_id:int,cycle_due_gmt:int,retry_attempt:int]",
@@ -1227,6 +1365,14 @@
         "group": "supcheckout",
         "args": "[]",
         "unique": true,
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_onboarding_watchdog",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
         "contexts": "static"
     },
     {

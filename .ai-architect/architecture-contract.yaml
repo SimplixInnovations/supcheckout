@@ -227,9 +227,14 @@ tranches:
     subproject_0b_status: tasks_1_12_merged
     takeover_migration_matrix_main: 86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b
     subproject_0b_rehearsal: passed_2026_10_18
-    current_gate: subproject_0c_onboarding_ui
+    subproject_0c_plan: docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md
+    subproject_0c_status: onboarding_backend_tasks_1_10
+    subproject_0c_scope: services_and_admin_rest_api_no_ui
+    subproject_0c_owner_staging_review: pending
+    subproject_0c_engineering: complete
+    current_gate: subproject_0c_exit_owner_staging_review
     current_gate_status: next
-    next: subproject_0c_onboarding_ui
+    next: subproject_1_design_tokens
 
 r2_contract:
   url_generation:

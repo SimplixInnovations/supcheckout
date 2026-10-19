@@ -82,6 +82,21 @@
     <file>src/Takeover/Onboarding/Outcome.php</file>
     <file>src/Takeover/Onboarding/Onboarding.php</file>
     <file>src/Takeover/Onboarding/Lines.php</file>
+    <file>src/Takeover/Onboarding/Operation.php</file>
+    <file>src/Takeover/Onboarding/RateLimiter.php</file>
+    <file>src/Takeover/Onboarding/Bounded.php</file>
+    <file>src/Takeover/Onboarding/Checks.php</file>
+    <file>src/Takeover/Onboarding/SelfTest.php</file>
+    <file>src/Takeover/Onboarding/SetupChecks.php</file>
+    <file>src/Takeover/Onboarding/BudgetedWordPressSystem.php</file>
+    <file>src/Takeover/Onboarding/DriverHints.php</file>
+    <file>src/Takeover/Onboarding/DriverStep.php</file>
+    <file>src/Takeover/Onboarding/AsyncDriver.php</file>
+    <file>src/Rest/Responses.php</file>
+    <file>src/Rest/RequestGuard.php</file>
+    <file>src/Rest/Routes.php</file>
+    <file>src/Rest/OnboardingController.php</file>
+    <file>src/Rest/SetupController.php</file>
 
     <exclude-pattern>vendor/*</exclude-pattern>
 
