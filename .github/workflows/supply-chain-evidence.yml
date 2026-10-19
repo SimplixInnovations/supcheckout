@@ -51,6 +51,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/release_control/sbom_determinism_test.py
+      - name: npm package URL encoding regression
+        run: |
+          set -euo pipefail
+          python3 tests/release_control/sbom_purl_test.py
       - name: Unknown-license negative regression
         run: |
           set -euo pipefail

@@ -14,11 +14,18 @@ import hashlib
 import json
 import sys
 import zipfile
+from urllib.parse import quote
 from datetime import datetime, timezone
 from pathlib import Path
 import os
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def npm_purl(name: str, version: str) -> str:
+    """Package URL for an npm package; the purl spec percent-encodes a scope's leading @."""
+    segments = [quote(segment, safe="") for segment in name.split("/")]
+    return f"pkg:npm/{'/'.join(segments)}@{quote(str(version), safe='.+-_~')}"
 
 
 def sha256_file(p: Path) -> str:
@@ -85,7 +92,7 @@ def bundled_npm_components(z: zipfile.ZipFile) -> list[dict]:
                 "type": "library",
                 "name": pkg["name"],
                 "version": pkg["version"],
-                "purl": f"pkg:npm/{pkg['name']}@{pkg['version']}",
+                "purl": npm_purl(pkg["name"], pkg["version"]),
                 "licenses": [license_entry(pkg["license"])],
             }
         )
@@ -163,7 +170,7 @@ def dev_sbom() -> tuple[dict, list[dict]]:
                     "type": "library",
                     "name": name,
                     "version": version,
-                    "purl": f"pkg:npm/{name}@{version}",
+                    "purl": npm_purl(name, version),
                 }
             )
             licenses.append(
