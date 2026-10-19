@@ -13,12 +13,17 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const RC1_ACCEPTANCE_TOKEN = 'RELEASE_CANDIDATE_1';
     private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
     private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
-    /** The current executable gate (reconciled 2026-10-18): Sub-project 0c onboarding UI, after the 0b takeover rehearsal passed. */
-    private const CURRENT_GATE = '**Sub-project 0c onboarding UI — NEXT**';
+    /**
+     * The current executable gate (reconciled 2026-10-19): Sub-project 1, after the Sub-project 0c
+     * onboarding backend (services + REST). The owner moved the wizard UI to Sub-project 2 (2026-10-18).
+     */
+    private const CURRENT_GATE = '**Sub-project 1 design-token system and admin component library — NEXT**';
+    /** The superseded 0c gate wording: 0c shipped no UI. */
+    private const SUPERSEDED_0C_GATE = 'Sub-project 0c onboarding UI — NEXT';
     /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
     private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
     /** The same current gate as a machine identifier (architecture contract). */
-    private const CURRENT_GATE_ID = 'subproject_0c_onboarding_ui';
+    private const CURRENT_GATE_ID = 'subproject_1_design_tokens';
     private const SUPERSEDED_GATE ='Current executable gate: **external certification & release readiness**.';
 
     /**
@@ -55,8 +60,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $content = self::read_repository_file('docs/project/START-HERE.md');
 
         self::assertStringContainsString('docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c onboarding UI**', $content);
+        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Sub-project 1 design-token system and admin component library**', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0b takeover**', $content);
+        self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c onboarding UI**', $content);
         self::assertStringNotContainsString('finish the rehearsal', $content);
         self::assertStringContainsString('release program external certification & release readiness stays open', $content);
         self::assertStringNotContainsString('Program phase | **external certification & release readiness** |', $content);
@@ -223,7 +229,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
-        self::assertStringContainsString('**Last reconciled:** 2026-10-18', $status_hdr);
+        self::assertStringContainsString('**Last reconciled:** 2026-10-19', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
         self::assertStringContainsString('Next release dependency: **fresh owner acceptance of a package containing PR #138**', $handoff);
         // Owner decision 2026-10-08: the account probe is an accepted resolution path, so every
@@ -354,6 +360,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString("  revamp:\n", $contract);
         self::assertStringContainsString('    subproject_0a_status: done_verified', $contract);
         self::assertStringContainsString('    subproject_0b_status: tasks_1_12_merged', $contract);
+        self::assertStringContainsString('    subproject_0c_plan: docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md', $contract);
+        self::assertStringContainsString('    subproject_0c_status: onboarding_backend_tasks_1_10', $contract);
         self::assertStringContainsString('    current_gate: ' . self::CURRENT_GATE_ID, $contract);
         self::assertSame(1, substr_count($contract, 'current_gate:'), 'the architecture contract names exactly one current gate');
 
@@ -374,9 +382,26 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             $content = self::read_repository_file($path);
             self::assertStringContainsString($label . self::CURRENT_GATE, $content, $path);
             self::assertStringNotContainsString(self::SUPERSEDED_GATE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_0C_GATE, $content, $path);
             self::assertStringNotContainsString('Current executable gate: **R6', $content, $path);
             self::assertStringNotContainsString('Current operational gate | **external certification & release readiness** |', $content, $path);
         }
+    }
+
+    public function test_the_onboarding_api_boundary_and_its_package_are_recorded(): void {
+        $compatibility = self::read_repository_file('docs/COMPATIBILITY.md');
+        self::assertStringContainsString('### Onboarding API boundary (Sub-project 0c)', $compatibility);
+        self::assertStringContainsString('`supcheckout/v1`', $compatibility);
+        self::assertStringContainsString('runner.stalled', $compatibility);
+        self::assertStringContainsString('supcheckout_nonce_invalid', $compatibility);
+
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md') as $living) {
+            $text = self::read_repository_file($living);
+            self::assertStringContainsString('onboarding backend (services + REST)', $text, $living);
+            self::assertStringContainsString('wizard UI moves to Sub-project 2', $text, $living);
+        }
+
+        self::assertStringContainsString('Sub-project 0c onboarding backend: **133 files**', self::read_repository_file('docs/project/RELEASE-ENGINEERING.md'));
     }
 
     private static function read_repository_file(string $path): string {

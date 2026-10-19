@@ -23,6 +23,7 @@ Sections below labeled Historical are retained audit evidence and are not curren
 **Accepted package:** `supcheckout-0.1.0.zip` — **62 files**, SHA-256 `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`
 **Historical Approach 3 (superseded):** `146d65a1c182630c1acc651cacafe30cff5f6b79` / 62 files / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
 **Historical Approach 2 (superseded):** `0c883d609906676966002eb022a82a9656eeacc5` / 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
+**Revamp development package (NOT owner accepted):** Sub-project 0c onboarding backend: **133 files** (114 before 0c), SHA-256 `29367033c85ad23bcf439138ce1d38afefb32c1ca4adfdc00a97af31e890a91a`, built with `scripts/build-release.sh` and verified with `scripts/verify-release.sh` on the 0c closeout branch (distributable tree of `8d4435d45d2e57fd9f6ed89e2b37a126f22edf40`). 0c adds 19 source files: `src/Rest/` (5), `src/Takeover/CachePurger.php`, `src/Takeover/BudgetedSystem.php` and 12 under `src/Takeover/Onboarding/`. The plan estimated 131; the two extracted helpers `Checks.php` and `Lines.php` make it 133. The Release Artifact job at the merge head is authoritative.
 
 ## Certification anchors
 

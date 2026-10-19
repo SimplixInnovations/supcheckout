@@ -1,7 +1,7 @@
 # SUPCheckout for UPayments — Project Status
 
 **Status document:** canonical living engineering state
-**Last reconciled:** 2026-10-18
+**Last reconciled:** 2026-10-19
 **Canonical repository:** `SimplixInnovations/supcheckout`
 **Development version:** `0.1.0`
 **Owner technical acceptance:** **ACCEPTED for Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, recorded 2026-10-07)
@@ -39,13 +39,14 @@
 | R3 | **DONE / VERIFIED** — PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
 | R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
-| Current executable gate | **Sub-project 0c onboarding UI — NEXT**; the 0b takeover rehearsal PASSED 2026-10-18 (`TAKEOVER-REHEARSAL-2026-10-18.md`) |
+| Current executable gate | **Sub-project 1 design-token system and admin component library — NEXT**; Sub-project 0c onboarding backend (services + REST) complete, its owner staging review pending |
 | Release gate | **external certification & release readiness — open**; spec §9 places its owner acceptance and live acceptance in Sub-project 5 |
 | Post-acceptance runtime on `main` | PR #133 payment lifecycle hardening (2026-10-10 review), merged main `35ea66d4cb9c8395b264cd24b4844eaa268aa470`; package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; then PR #138 non-white-label Charge fix, package `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`; **NOT owner accepted** |
 | Owner step before live evidence | **Fresh technical acceptance of the current `main` package** (`LOCAL-FINAL-VERIFICATION.md`). Live evidence must be produced with the package that will be released, not Release Candidate 1. |
 | Next release dependency | **Fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe, 2026-10-13, [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md), runbook [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) |
 | Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** (2026-10-17) |
 | Sub-project 0b takeover engine | **Tasks 1–12 merged**; Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
+| Sub-project 0c onboarding backend | **Tasks 1–10** — services + admin-only `supcheckout/v1` REST API, no UI (wizard in Sub-project 2); package 133 files; owner staging review pending |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -120,7 +121,7 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **Sub-project 0c onboarding UI — NEXT** (see "Revamp program"). Release gate (open): **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
+Current executable gate: **Sub-project 1 design-token system and admin component library — NEXT** (see "Revamp program"). Release gate (open): **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
 
 R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003; PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
@@ -134,7 +135,7 @@ R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a
 4. **R5 / T4 — callback consolidation:** DONE / VERIFIED under Option B / ADR-003. Legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only.
 5. **R6 — final release qualification:** immutable exact-head gates, manual/external qualification, fresh owner re-acceptance and explicit version/publication decision.
 
-## Revamp program (reconciled 2026-10-18)
+## Revamp program (reconciled 2026-10-19)
 
 Spec: [`../superpowers/specs/2026-10-16-supcheckout-revamp-design.md`](../superpowers/specs/2026-10-16-supcheckout-revamp-design.md). Delivery (spec §9) is Sub-projects 0–5; Sub-project 5 holds the final owner technical acceptance, live acceptance and release. The external certification & release readiness gate above stays open until then.
 
@@ -158,9 +159,23 @@ Spec: [`../superpowers/specs/2026-10-16-supcheckout-revamp-design.md`](../superp
 
 Takeover Migration Matrix (`.github/workflows/takeover-migration-matrix.yml`) — **SUCCESS on `main` at `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b`** (run 39084507907): official plugin refs `V2.0.5`, `upayments-V2.2.1`, `3.0.0` and `3.1.1`, each with HPOS (sync off, WCML option shapes seeded) and legacy storage; the pre-0b SUPCheckout in-place-update lane; the 10,000-order lane (3.1.1, legacy); and the matrix gate. It sends no provider traffic (fixture responses, UPayments hosts sinkholed). WCML is report-only: Preflight reports its gateway rules and the takeover leaves them byte-for-byte unchanged. The workflow is a permanent quality control (`AGENTS.md`).
 
-Current executable gate: **Sub-project 0c onboarding UI — NEXT**. The 0b takeover staging rehearsal PASSED on 2026-10-18 (`docs/project/evidence/TAKEOVER-REHEARSAL-2026-10-18.md`): preflight blocked correctly during a UPayments sandbox outage; then the switch, an in-flight payment from the official plugin, rollback with reactivation, a second switch and a forced Finalize all behaved as designed. Its two findings were fixed in #185.
+The 0b takeover staging rehearsal PASSED on 2026-10-18 (`docs/project/evidence/TAKEOVER-REHEARSAL-2026-10-18.md`): preflight blocked correctly during a UPayments sandbox outage; then the switch, an in-flight payment from the official plugin, rollback with reactivation, a second switch and a forced Finalize all behaved as designed. Its two findings were fixed in #185.
 
-**Next:** Sub-project 0c onboarding UI (includes the automatic LiteSpeed purge at cutover and the owner check of WCML per-currency checkout visibility), then Sub-projects 1–5. Follow-up: provider `status: "error"` with a null result stays Pending through bounded reconciliation; closing it sooner needs provider-contract evidence. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
+**Sub-project 0c onboarding backend (services + REST) — Tasks 1–10.** Plan: [`../superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md`](../superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md). Owner decision 2026-10-18: 0c is the onboarding backend (services + REST) and ships no screens; the wizard UI moves to Sub-project 2, on top of this API and after Sub-project 1. Tasks 1–2 merged through #190 (`032d9a4efc1573b36d6c54031b283de5e3ed9645`, the UI-agnostic `Onboarding` service) and #191 (`41a2b1ce5383bc94bcc4e3ffb5fcf0e755fd8790`, the cache purge at `caches_flushed`).
+
+- `Onboarding` service, used by WP-CLI, the driver and REST. `wp supcheckout takeover` keeps every exit code, flag and output line.
+- Action Scheduler driver (`AsyncDriver` + `DriverStep`): one persisted, single-flight `Operation` advanced by bounded ticks. Long work gets 3 attempts, a busy store 17 retries 60 s apart, and a provider cooldown 3 retries 65 s apart; the 120 s settle barrier is a scheduled resume, never a sleeping worker. It needs WP-Cron, a system cron or admin page loads; otherwise the status route reports `runner.stalled`.
+- Admin-only REST API `supcheckout/v1`: 12 routes on the full boot, 8 while paused (the official plugin active). Every route needs `manage_woocommerce`; every write also needs the explicit `wp_rest` nonce, so an Application Password alone is refused (403 `supcheckout_nonce_invalid`).
+- Cache purge after the compare-and-swap: LiteSpeed Cache, WP Rocket, W3 Total Cache, WP Super Cache, Breeze and SiteGround Optimizer, plus the object cache; the Cloudflare plugin is reported `manual`.
+- Self-test: one read-only availability probe in test and live mode alike.
+
+The real-WordPress REST and driver certification (compatibility run 39177850394), the on-the-wire notes and the independent security review (no Critical or High finding) are in [`evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md`](evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md). The public boundary is `docs/COMPATIBILITY.md` "Onboarding API boundary (Sub-project 0c)". Deterministic package: 133 files (`RELEASE-ENGINEERING.md`).
+
+0c exit gate, owner action: on the My Organic World staging copy, start a switch and a rollback through the REST API and see the automatic LiteSpeed purge take effect (rehearsal follow-up 2), and confirm WCML per-currency checkout visibility against the `multilingual` check (follow-up 3).
+
+Current executable gate: **Sub-project 1 design-token system and admin component library — NEXT** (spec §9; exit gate: visual-regression and accessibility suites green).
+
+**Next:** Sub-project 1, then Sub-projects 2–5. Follow-up: provider `status: "error"` with a null result stays Pending through bounded reconciliation; closing it sooner needs provider-contract evidence. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
 
 ## Current provider-contract disposition
 
