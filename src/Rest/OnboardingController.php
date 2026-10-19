@@ -34,7 +34,8 @@ final class OnboardingController {
     public const HINT_SCHEDULER = 'Action Scheduler is not available; retry, or use WP-CLI (wp supcheckout takeover).';
     /** A \Throwable is answered with this and its message is never sent (it may hold anything). */
     private const MESSAGE_UNEXPECTED = 'The request failed unexpectedly; check the status, then retry.';
-    private const HINT_STALLED = 'Action Scheduler has not run the operation on time: WP-Cron may be disabled. Open any wp-admin page, run `wp action-scheduler run`, or enable WP-Cron.';
+    /** An operation takes many ticks: the hint asks for a lasting runner, not one queue run. */
+    private const HINT_STALLED = 'Action Scheduler has not run the operation on time: WP-Cron may be disabled. To let every step run, enable WP-Cron, or add a system cron that requests wp-cron.php every minute. `wp supcheckout takeover status` on the server shows the progress.';
 
     /** Operation record fields a response may carry. */
     private const OPERATION_FIELDS = array('id', 'kind', 'outcome', 'phase', 'consent', 'started_at', 'updated_at', 'next_at', 'error', 'hint', 'steps', 'attempts', 'busy_retries', 'cooldown_retries', 'report', 'self_test');

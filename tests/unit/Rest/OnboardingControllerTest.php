@@ -296,6 +296,20 @@ final class OnboardingControllerTest extends RestTestCase {
         self::assertNotSame('', $runner['hint']);
     }
 
+    public function test_the_stalled_hint_asks_for_a_lasting_runner_and_names_the_status_command(): void {
+        // One `wp action-scheduler run` advances a single tick; a switch needs many, so the
+        // hint asks for WP-Cron (or a system cron for wp-cron.php) and names the status command.
+        \Action_Scheduler::$initialized = false;
+        Operation::start(Operation::KIND_SWITCH, array(), 1, time() - 120);
+
+        $hint = (string) self::body(self::serve('GET', '/onboarding/status'))['data']['runner']['hint'];
+
+        self::assertStringContainsString('enable WP-Cron', $hint);
+        self::assertStringContainsString('wp-cron.php', $hint);
+        self::assertStringContainsString('wp supcheckout takeover status', $hint);
+        self::assertStringNotContainsString('wp action-scheduler run', $hint, 'one queue run does not complete an operation');
+    }
+
     public function test_status_never_contains_the_api_key(): void {
         $GLOBALS['supcheckout_test_options']['woocommerce_upayments_settings'] = array('enabled' => 'yes', 'api_key' => self::SECRET);
         $GLOBALS['supcheckout_test_options']['supcheckout_settings'] = array('enabled' => 'yes', 'api_key' => self::SECRET);
