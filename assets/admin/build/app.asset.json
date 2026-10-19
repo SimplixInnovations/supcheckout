@@ -1,9 +1,10 @@
 {
 	"dependencies": [
+		"react",
 		"react-jsx-runtime",
 		"wp-dom-ready",
 		"wp-element",
 		"wp-i18n"
 	],
-	"version": "34babde06afa867a1ca7"
+	"version": "44e730c482fb575635fc"
 }

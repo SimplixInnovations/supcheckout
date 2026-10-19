@@ -502,6 +502,11 @@
 					"$value": 20,
 					"$type": "number"
 				},
+				"portal": {
+					"$value": 100000,
+					"$type": "number",
+					"$description": "The body-level scoped portal layer. It isolates its own stacking context, so overlay, popover, toast and tooltip order inside it."
+				},
 				"overlay": {
 					"$value": 100000,
 					"$type": "number"
@@ -547,6 +552,10 @@
 				},
 				"icon-md": {
 					"$value": "20px",
+					"$type": "dimension"
+				},
+				"icon-lg": {
+					"$value": "24px",
 					"$type": "dimension"
 				},
 				"focus-offset": {

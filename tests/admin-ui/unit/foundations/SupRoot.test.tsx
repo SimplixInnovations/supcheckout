@@ -1,0 +1,137 @@
+/**
+ * SupRoot: the scoped app root and its body-level portal layer (SP1 Task 3,
+ * Review Focus 2).
+ */
+import { render, screen } from '@testing-library/react';
+import { createPortal } from '@wordpress/element';
+
+import {
+	Heading,
+	Icon,
+	Numeric,
+	Spinner,
+	SupRoot,
+	Text,
+	VisuallyHidden,
+	usePortalContainer,
+} from '../../../../assets/admin/src/ui';
+import { mockIsRTL, mockMatchMedia, renderInModes } from '../support/render';
+
+const root = ( container: HTMLElement ) =>
+	container.firstElementChild as HTMLElement;
+const layers = () =>
+	document.body.querySelectorAll( ':scope > .sup-portal-layer' );
+const layer = () => layers()[ 0 ] as HTMLElement | undefined;
+
+beforeEach( () => {
+	mockMatchMedia( false );
+} );
+
+test( 'SupRoot renders the scoped root with direction, language and density', () => {
+	document.documentElement.lang = 'en-US';
+	const { container } = render( <SupRoot>x</SupRoot> );
+	expect( root( container ) ).toHaveClass( 'supcheckout-admin' );
+	expect( root( container ) ).toHaveAttribute( 'dir', 'ltr' );
+	expect( root( container ) ).toHaveAttribute( 'lang', 'en-US' );
+	expect( root( container ) ).toHaveAttribute(
+		'data-sup-density',
+		'comfortable'
+	);
+} );
+
+test( 'SupRoot sets data-sup-theme only for an explicit preference', () => {
+	const { container, rerender } = render(
+		<SupRoot preference="system">x</SupRoot>
+	);
+	expect( root( container ) ).not.toHaveAttribute( 'data-sup-theme' );
+	rerender( <SupRoot preference="dark">x</SupRoot> );
+	expect( root( container ) ).toHaveAttribute( 'data-sup-theme', 'dark' );
+	rerender( <SupRoot preference="light">x</SupRoot> );
+	expect( root( container ) ).toHaveAttribute( 'data-sup-theme', 'light' );
+} );
+
+test( 'SupRoot mirrors theme, dir and lang onto the portal layer', () => {
+	mockIsRTL( true );
+	document.documentElement.lang = 'ar';
+	render( <SupRoot preference="dark">x</SupRoot> );
+	expect( layers() ).toHaveLength( 1 );
+	expect( layer() ).toHaveClass( 'supcheckout-admin' );
+	expect( layer() ).toHaveAttribute( 'data-sup-theme', 'dark' );
+	expect( layer() ).toHaveAttribute( 'dir', 'rtl' );
+	expect( layer() ).toHaveAttribute( 'lang', 'ar' );
+	expect( layer() ).toHaveAttribute( 'data-sup-density', 'comfortable' );
+} );
+
+test( 'the portal layer stays in sync with the root', () => {
+	const { rerender } = render(
+		<SupRoot preference="dark" density="compact">
+			x
+		</SupRoot>
+	);
+	expect( layer() ).toHaveAttribute( 'data-sup-density', 'compact' );
+	rerender( <SupRoot preference="system">x</SupRoot> );
+	expect( layers() ).toHaveLength( 1 );
+	expect( layer() ).not.toHaveAttribute( 'data-sup-theme' );
+	expect( layer() ).toHaveAttribute( 'data-sup-density', 'comfortable' );
+} );
+
+test( 'the portal layer is removed on unmount', () => {
+	const { unmount } = render( <SupRoot>x</SupRoot> );
+	expect( layers() ).toHaveLength( 1 );
+	unmount();
+	expect( layers() ).toHaveLength( 0 );
+} );
+
+function PortalProbe() {
+	const container = usePortalContainer();
+	return container
+		? createPortal( <p>Portaled content</p>, container )
+		: null;
+}
+
+test( 'usePortalContainer returns the layer so overlays render inside the token scope', () => {
+	render(
+		<SupRoot preference="dark">
+			<PortalProbe />
+		</SupRoot>
+	);
+	const portaled = screen.getByText( 'Portaled content' );
+	expect( portaled.parentElement ).toBe( layer() );
+	expect( portaled.closest( '.supcheckout-admin' ) ).toBe( layer() );
+} );
+
+test( 'usePortalContainer is null outside SupRoot', () => {
+	let seen: HTMLElement | null | undefined;
+	function Probe() {
+		seen = usePortalContainer();
+		return null;
+	}
+	render( <Probe /> );
+	expect( seen ).toBeNull();
+} );
+
+function FoundationsSpecimen() {
+	return (
+		<div>
+			<Heading level={ 1 }>Payments</Heading>
+			<Heading level={ 2 } size="md">
+				Recent activity
+			</Heading>
+			<Text>
+				Order <Numeric kind="id">#10234</Numeric> was charged{ ' ' }
+				<Numeric kind="amount">12.500 KWD</Numeric>.
+			</Text>
+			<Text variant="muted" as="span">
+				Updated <Numeric kind="count">3</Numeric> minutes ago
+			</Text>
+			<Icon name="success" label="Verified" />
+			<Icon name="chevron-end" />
+			<Spinner label="Loading payments" />
+			<Spinner />
+			<VisuallyHidden>Hidden helper text</VisuallyHidden>
+		</div>
+	);
+}
+
+test( 'foundations have no axe violations in four modes', () =>
+	renderInModes( <FoundationsSpecimen /> ) );

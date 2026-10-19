@@ -57,6 +57,9 @@ jobs:
       - name: Lint, typecheck, unit and build-contract tests, build and drift
         run: npm run quality
 
+      - name: Component tests on React 19 (forward compatibility)
+        run: npm run test:unit:react19
+
       - name: Second clean build is byte-identical
         run: rm -rf assets/admin/build node_modules/.cache && npm run build && npm run check:drift
 

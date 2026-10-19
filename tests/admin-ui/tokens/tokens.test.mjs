@@ -187,6 +187,7 @@ describe( 'token source', () => {
 	test( 'overlay layers sit above the WordPress admin bar (z-index 99999)', () => {
 		const { light } = loadTokens().semantic;
 		for ( const layer of [
+			'z-portal',
 			'z-overlay',
 			'z-popover',
 			'z-toast',
@@ -194,6 +195,18 @@ describe( 'token source', () => {
 		] ) {
 			expect( Number( light[ layer ] ) ).toBeGreaterThan( 99999 );
 		}
+		// The portal layer is the body-level scoped root (SP1 Task 3); it
+		// isolates its own stack, so overlays order inside it.
+		expect( light[ 'z-portal' ] ).toBe( '100000' );
+	} );
+
+	test( 'icon sizes cover every Icon size (16, 20 and 24)', () => {
+		const { light } = loadTokens().semantic;
+		expect( [
+			light[ 'size-icon-sm' ],
+			light[ 'size-icon-md' ],
+			light[ 'size-icon-lg' ],
+		] ).toEqual( [ '16px', '20px', '24px' ] );
 	} );
 
 	test( 'component tokens reference semantic tokens only', () => {

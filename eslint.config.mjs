@@ -3,10 +3,28 @@
  *
  * Starts from the `@wordpress/scripts` default (WordPress coding standards,
  * TypeScript, React and Jest rules) and adds Node globals for the build
- * tooling and the Node tests.
+ * tooling and the Node tests, plus the UI library boundary: screens import
+ * primitives only through `assets/admin/src/ui`.
  */
 import globals from 'globals';
 import wordpressConfig from '@wordpress/scripts/config/eslint.config.cjs';
+
+const WP_COMPONENTS = {
+	group: [ '@wordpress/components', '@wordpress/components/*' ],
+	message:
+		'@wordpress/components is not a dependency: its markup and CSS change between WordPress versions. Use the SUPCheckout UI library.',
+};
+
+const PRIMITIVES = {
+	group: [
+		'@base-ui/react',
+		'@base-ui/react/*',
+		'lucide-react',
+		'lucide-react/*',
+	],
+	message:
+		'Import UI primitives through assets/admin/src/ui (the only import surface), never directly.',
+};
 
 export default [
 	{
@@ -35,9 +53,46 @@ export default [
 		},
 	},
 	{
-		files: [ 'tests/admin-ui/**/*.test.{mjs,js,ts,tsx}' ],
+		files: [
+			'tests/admin-ui/**/*.test.{mjs,js,ts,tsx}',
+			'tests/admin-ui/unit/support/**',
+		],
 		languageOptions: {
 			globals: { ...globals.jest },
+		},
+	},
+	{
+		// renderInModes() asserts axe has no violations in every mode.
+		files: [ 'tests/admin-ui/**/*.test.{js,ts,tsx}' ],
+		rules: {
+			'vitest/expect-expect': [
+				'error',
+				{ assertFunctionNames: [ 'expect', 'renderInModes' ] },
+			],
+		},
+	},
+	{
+		files: [
+			'assets/admin/src/**/*.{js,ts,tsx}',
+			'tests/admin-ui/**/*.{js,ts,tsx}',
+		],
+		rules: {
+			'react/no-unknown-property': 'error',
+			'no-restricted-imports': [
+				'error',
+				{ patterns: [ WP_COMPONENTS, PRIMITIVES ] },
+			],
+		},
+	},
+	{
+		// The library itself wraps the primitives; @wordpress/components
+		// stays forbidden here too.
+		files: [ 'assets/admin/src/ui/**/*.{js,ts,tsx}' ],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{ patterns: [ WP_COMPONENTS ] },
+			],
 		},
 	},
 ];

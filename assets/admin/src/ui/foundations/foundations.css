@@ -1,0 +1,175 @@
+/*
+ * Foundations: the scoped roots, typography, Numeric, Icon, Spinner and
+ * VisuallyHidden. Every rule is scoped under .supcheckout-admin and uses
+ * --sup-* tokens only.
+ */
+
+/* Both roots (the app root and the body-level portal layer). */
+.supcheckout-admin {
+	isolation: isolate;
+	color: var(--sup-color-fg-default);
+	font-family: var(--sup-font-family-sans);
+	font-size: var(--sup-font-size-md);
+	line-height: var(--sup-line-height-body);
+	letter-spacing: var(--sup-letter-spacing-normal);
+}
+
+/* The app root paints the canvas so dark mode never sits on the light wp-admin background. */
+.supcheckout-admin:not(.sup-portal-layer) {
+	background-color: var(--sup-color-bg-canvas);
+}
+
+/*
+ * The portal layer: a zero-size, positioned stacking context above the
+ * WordPress admin bar (z-index 99999). Overlays inside it are fixed or
+ * absolutely positioned and order by their own --sup-z-* tokens.
+ */
+.supcheckout-admin.sup-portal-layer {
+	position: relative;
+	z-index: var(--sup-z-portal);
+}
+
+.supcheckout-admin .sup-heading {
+	margin-block: 0;
+	color: var(--sup-color-fg-default);
+	font-weight: var(--sup-font-weight-semibold);
+	line-height: var(--sup-line-height-heading);
+	letter-spacing: var(--sup-letter-spacing-tight);
+}
+
+.supcheckout-admin .sup-heading--xl {
+	font-size: var(--sup-font-size-2xl);
+}
+
+.supcheckout-admin .sup-heading--lg {
+	font-size: var(--sup-font-size-xl);
+}
+
+.supcheckout-admin .sup-heading--md {
+	font-size: var(--sup-font-size-lg);
+}
+
+.supcheckout-admin .sup-heading--sm {
+	font-size: var(--sup-font-size-md);
+}
+
+.supcheckout-admin .sup-text {
+	margin-block: 0;
+	font-size: var(--sup-font-size-md);
+	line-height: var(--sup-line-height-body);
+}
+
+.supcheckout-admin .sup-text--body {
+	color: var(--sup-color-fg-default);
+}
+
+.supcheckout-admin .sup-text--muted {
+	color: var(--sup-color-fg-muted);
+}
+
+.supcheckout-admin .sup-text--caption {
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-xs);
+}
+
+.supcheckout-admin .sup-text--strong {
+	color: var(--sup-color-fg-default);
+	font-weight: var(--sup-font-weight-semibold);
+}
+
+/* Amounts, identifiers and counts: isolated LTR runs in tabular figures. */
+.supcheckout-admin .sup-numeric {
+	unicode-bidi: isolate;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: var(--sup-letter-spacing-normal);
+}
+
+.supcheckout-admin .sup-icon {
+	display: inline-block;
+	flex-shrink: 0;
+	vertical-align: middle;
+}
+
+.supcheckout-admin .sup-icon--16 {
+	inline-size: var(--sup-size-icon-sm);
+	block-size: var(--sup-size-icon-sm);
+}
+
+.supcheckout-admin .sup-icon--20 {
+	inline-size: var(--sup-size-icon-md);
+	block-size: var(--sup-size-icon-md);
+}
+
+.supcheckout-admin .sup-icon--24 {
+	inline-size: var(--sup-size-icon-lg);
+	block-size: var(--sup-size-icon-lg);
+}
+
+/* Applied by Icon in RTL to directional glyphs only. */
+.supcheckout-admin .sup-icon--mirrored {
+	transform: scaleX(-1);
+}
+
+.supcheckout-admin .sup-spinner {
+	display: inline-flex;
+	flex-shrink: 0;
+	vertical-align: middle;
+}
+
+.supcheckout-admin .sup-spinner--16 {
+	inline-size: var(--sup-size-icon-sm);
+	block-size: var(--sup-size-icon-sm);
+}
+
+.supcheckout-admin .sup-spinner--20 {
+	inline-size: var(--sup-size-icon-md);
+	block-size: var(--sup-size-icon-md);
+}
+
+.supcheckout-admin .sup-spinner__ring {
+	box-sizing: border-box;
+	inline-size: 100%;
+	block-size: 100%;
+	border: var(--sup-border-width-focus) solid var(--sup-color-border-default);
+	border-block-start-color: var(--sup-color-accent-bg);
+	border-radius: var(--sup-radius-pill);
+	animation: sup-spin calc(var(--sup-motion-duration-slow) * 3) linear infinite;
+}
+
+@keyframes sup-spin {
+
+	to {
+		rotate: 360deg;
+	}
+}
+
+/* The arc stays visible without rotation; the label carries the meaning. */
+@media (prefers-reduced-motion: reduce) {
+
+	.supcheckout-admin .sup-spinner__ring {
+		animation: none;
+	}
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-spinner__ring {
+		border-color: canvastext;
+		border-block-start-color: highlight;
+	}
+}
+
+.supcheckout-admin .sup-visually-hidden {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+
+	/* Opposite insets over 100% scale down to 50% each: an empty clip box. */
+	clip-path: inset(100%);
+	white-space: nowrap;
+	border: 0;
+}
