@@ -46,7 +46,7 @@ Forbidden technical form: `supcheckout-for-upayments`.
 | CSS component root | `.supcheckout` |
 | CSS custom properties | `--supcheckout-*` |
 | Admin design tokens (amendment, spec §4.1, owner decision 2026-10-16) | `--sup-*` CSS custom properties, defined only under `.supcheckout-admin` (the admin app root and its portal layer) |
-| Admin component classes (amendment, spec §4.1, owner decision 2026-10-16) | `sup-<component>` / `sup-<component>--<modifier>`, every rule scoped under `.supcheckout-admin` or `body.supcheckout-admin-page` |
+| Admin component classes (amendment, spec §4.1, owner decision 2026-10-16) | `sup-<component>`, `sup-<component>__<element>` and `sup-<component>--<modifier>`, every rule scoped under `.supcheckout-admin` or `body.supcheckout-admin-page` |
 | JS namespace | `supCheckout` |
 | Localized JS config | `supCheckoutConfig` |
 | REST namespace | `supcheckout/v1` |
