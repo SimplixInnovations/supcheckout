@@ -2,6 +2,7 @@
 
 namespace Simplixi\SUPCheckout\Rest;
 
+use Simplixi\SUPCheckout\Payment\OrderLock;
 use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Bounded;
 use Simplixi\SUPCheckout\Takeover\Onboarding\DriverStep;
@@ -348,11 +349,16 @@ final class OnboardingController {
     }
 
     /**
+     * The report a queue-runner process stored, read past this process's object cache
+     * like the operation record and the takeover state.
+     *
      * @param string $kind A check kind.
      * @return array<array-key, mixed>|null
      */
     private static function stored_report($kind) {
-        $report = get_option(DriverStep::last_report_option($kind), null);
+        $option = DriverStep::last_report_option($kind);
+        OrderLock::flush_option_cache($option);
+        $report = get_option($option, null);
         return is_array($report) ? $report : null;
     }
 

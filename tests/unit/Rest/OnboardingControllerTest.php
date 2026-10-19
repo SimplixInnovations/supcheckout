@@ -8,6 +8,7 @@ use Simplixi\SUPCheckout\Takeover\Onboarding\DriverStep;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Operation;
 use Simplixi\SUPCheckout\Takeover\Onboarding\RateLimiter;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
+use Simplixi\SUPCheckout\Tests\Takeover\Onboarding\StaleObjectCache;
 
 /**
  * 0c Task 7: the onboarding and setup routes end to end on the REST stubs: they validate,
@@ -15,6 +16,8 @@ use Simplixi\SUPCheckout\Takeover\TakeoverState;
  * run long work inline and never return raw engine results.
  */
 final class OnboardingControllerTest extends RestTestCase {
+    use StaleObjectCache;
+
     private const SECRET = 'sk-test-SECRET-0c';
 
     private static function drive_actions(): array {
@@ -344,6 +347,16 @@ final class OnboardingControllerTest extends RestTestCase {
         update_option(DriverStep::last_report_option('preflight'), array('blocking' => array(array('code' => 'callback_unreachable', 'message' => 'm', 'data' => array())), 'warnings' => array(), 'facts' => array()), false);
 
         self::assertSame('callback_unreachable', self::body(self::serve('GET', '/onboarding/preflight'))['data']['report']['blocking'][0]['code']);
+    }
+
+    public function test_stored_reports_are_read_past_a_stale_object_cache(): void {
+        $option = DriverStep::last_report_option('preflight');
+        update_option($option, array('blocking' => array(), 'warnings' => array(), 'facts' => array(), 'ran_at' => 1700000100), false);
+        self::plant_stale_cache_entry($option, null);
+        self::assertNull(get_option($option, null), 'the planted cache entry is stale');
+
+        self::assertSame(1700000100, self::body(self::serve('GET', '/onboarding/preflight'))['data']['report']['ran_at']);
+        self::assertSame(1700000100, self::body(self::serve('GET', '/onboarding/status'))['data']['last']['preflight_at']);
     }
 
     public function test_preflight_start_uses_the_shared_provider_probe_bucket(): void {
