@@ -110,6 +110,10 @@ test( 'React and the JSX runtime are never bundled', () => {
 	}
 } );
 
+test( 'no PHP file is generated into the build', () => {
+	expect( listBuild().filter( ( f ) => f.endsWith( '.php' ) ) ).toEqual( [] );
+} );
+
 test( 'no source maps ship', () => {
 	expect( listBuild().filter( ( f ) => f.endsWith( '.map' ) ) ).toEqual( [] );
 	expect( allText() ).not.toMatch( /sourceMappingURL/ );

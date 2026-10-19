@@ -58,7 +58,7 @@ jobs:
         run: npm run quality
 
       - name: Second clean build is byte-identical
-        run: npm run build && npm run check:drift
+        run: rm -rf assets/admin/build node_modules/.cache && npm run build && npm run check:drift
 
   build-windows:
     name: Build and drift (Windows)
@@ -87,9 +87,19 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$ADMIN_UI_SOURCE_SHA"
           test "$(node --version)" = "v$(cat .nvmrc)"
+          test "$(npm --version)" = "$(node -p 'require("./package.json").engines.npm')"
 
       - name: Clean install, build and drift
         run: npm ci --ignore-scripts && npm run build && npm run check:drift
+
+      - name: Committed build has LF line endings in the Windows working tree
+        run: |
+          set -euo pipefail
+          git ls-files --eol -- assets/admin/build
+          if git ls-files --eol -- assets/admin/build | grep -F 'w/crlf'; then
+            echo "CRLF found in the Windows working-tree build"
+            exit 1
+          fi
 
   gate:
     name: Admin UI Gate
