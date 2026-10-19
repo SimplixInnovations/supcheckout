@@ -5,12 +5,14 @@ namespace Simplixi\SUPCheckout\Tests\Takeover\Onboarding;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Takeover\CliCommands;
+use Simplixi\SUPCheckout\Takeover\Finalize;
 use Simplixi\SUPCheckout\Takeover\Journal;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Onboarding;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Outcome;
 use Simplixi\SUPCheckout\Takeover\Rollback;
 use Simplixi\SUPCheckout\Takeover\StaleClaims;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
+use Simplixi\SUPCheckout\Tests\Takeover\FakeBudgetedSystem;
 use Simplixi\SUPCheckout\Tests\Takeover\FakeCopyStore;
 use Simplixi\SUPCheckout\Tests\Takeover\FakeCutoverSystem;
 use Simplixi\SUPCheckout\Tests\Takeover\FakeStaleClaimStore;
@@ -258,6 +260,55 @@ final class OnboardingTest extends TestCase {
         self::assertSame(Outcome::MISMATCH, Onboarding::FINALIZE_EXIT['cut_over_time_invalid']);
         self::assertSame(Outcome::BUSY, Onboarding::ROLLBACK_EXIT['removal_unsettled']);
         self::assertSame(Outcome::BLOCKED, Onboarding::CUTOVER_EXIT['official_active']);
+    }
+
+    // --- yielded (0c Task 3). ---
+
+    /** @param array<string, mixed> $fields State fields beyond the lifecycle ones. */
+    private function seed_progress(string $status, int $cut_over_at, array $fields): FakeBudgetedSystem {
+        $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array_merge(array(
+            'status' => $status,
+            'cut_over_at' => $cut_over_at,
+            'cursor' => 0,
+            'totals' => array(),
+        ), $fields));
+        TakeoverState::flush_cache();
+        $system = new FakeBudgetedSystem();
+        $system->now = 5000;
+        $system->official = null;
+        return $system;
+    }
+
+    public function test_rewind_maps_yielded_to_busy_with_resume_at(): void {
+        $system = $this->seed_progress('rolled_back', 0, array(Rollback::PROGRESS => array(
+            'mode' => Rollback::MODE_ROLLBACK, 'conflicts' => array(), 'restored' => 0, 'removal' => array('phase' => 'done', 'cursor' => 0),
+            'removal_pending' => true, 'transitioned_at' => 5000, 'pass' => 1, 'found' => 0,
+        )));
+
+        $outcome = $this->onboarding()->rewind(Rollback::MODE_ROLLBACK, false, $system);
+
+        self::assertSame(array(4, 'yielded'), array($outcome->code(), $outcome->reason()));
+        self::assertSame(5120, $outcome->data()['resume_at']);
+        self::assertSame('yielded', $outcome->data()['result']['error']);
+        self::assertSame(0, $system->sleeps);
+    }
+
+    public function test_finalize_maps_yielded_to_busy_with_resume_at(): void {
+        $system = $this->seed_progress('finalized', time() - 31 * 86400, array(Finalize::PROGRESS => array(
+            'removal' => array('phase' => 'table', 'cursor' => 0), 'removed' => array(), 'kept' => array(), 'reported' => array(), 'pending' => true,
+            'transitioned_at' => 5000, 'pass' => 1, 'found' => 0, 'settled' => false,
+        )));
+
+        $outcome = $this->onboarding()->finalize(false, $system);
+
+        self::assertSame(array(Outcome::BUSY, 'yielded'), array($outcome->code(), $outcome->reason()));
+        self::assertSame(5120, $outcome->data()['resume_at']);
+        self::assertSame(0, $system->sleeps);
+    }
+
+    public function test_the_exit_maps_list_yielded_as_busy(): void {
+        self::assertSame(Outcome::BUSY, Onboarding::ROLLBACK_EXIT['yielded']);
+        self::assertSame(Outcome::BUSY, Onboarding::FINALIZE_EXIT['yielded']);
     }
 
     // --- stale claims. ---

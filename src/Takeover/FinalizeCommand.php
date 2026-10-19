@@ -2,6 +2,7 @@
 
 namespace Simplixi\SUPCheckout\Takeover;
 
+use Simplixi\SUPCheckout\Takeover\Onboarding\Lines;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Onboarding;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Outcome;
 
@@ -92,7 +93,7 @@ final class FinalizeCommand {
             $this->line((string) wp_json_encode($plan));
             return CliCommands::OK;
         }
-        foreach (Onboarding::finalize_plan_lines($plan) as $line) {
+        foreach (Lines::finalize_plan_lines($plan) as $line) {
             $this->line($line);
         }
         return CliCommands::OK;

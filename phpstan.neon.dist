@@ -85,6 +85,7 @@ parameters:
         - src/Takeover/PausedBoot.php
         - src/Takeover/RollbackStore.php
         - src/Takeover/RollbackSystem.php
+        - src/Takeover/BudgetedSystem.php
         - src/Takeover/QuiesceLease.php
         - src/Takeover/BackSync.php
         - src/Takeover/JournalReplay.php
@@ -96,4 +97,5 @@ parameters:
         - src/Takeover/FinalizeCommand.php
         - src/Takeover/Onboarding/Outcome.php
         - src/Takeover/Onboarding/Onboarding.php
+        - src/Takeover/Onboarding/Lines.php
     tmpDir: .cache/phpstan
