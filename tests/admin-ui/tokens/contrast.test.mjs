@@ -140,6 +140,58 @@ test( 'R2: subtle text reaches 4.5:1 on every surface', () => {
 	).toEqual( [] );
 } );
 
+test( 'subtle text also reaches 4.5:1 on the accent tint and every status background', () => {
+	expect( backgroundsFor( 'color-fg-subtle', 'text' ) ).toEqual(
+		expect.arrayContaining( [
+			'color-accent-subtle-bg',
+			...STATUSES.map( ( status ) => `color-status-${ status }-bg` ),
+		] )
+	);
+} );
+
+test( 'every text foreground is paired wherever default text is, or excluded with a reason', () => {
+	const textForegrounds = [
+		'color-fg-default',
+		'color-fg-muted',
+		'color-fg-subtle',
+		'color-fg-link',
+		'color-fg-on-accent',
+		'color-accent-fg',
+		...STATUSES.map( ( status ) => `color-status-${ status }-fg` ),
+	];
+	// Every semantic text foreground is in the list, so a new one cannot be
+	// added without joining this check.
+	const pairedText = new Set(
+		pairs.filter( ( p ) => p.kind === 'text' ).map( ( p ) => p.fg )
+	);
+	expect(
+		[ ...pairedText ].filter( ( fg ) => ! textForegrounds.includes( fg ) )
+	).toEqual( [] );
+	const required = backgroundsFor( 'color-fg-default', 'text' );
+	expect( required ).toEqual(
+		expect.arrayContaining( controlBackgrounds() )
+	);
+	const gaps = [];
+	for ( const fg of textForegrounds ) {
+		const paired = new Set( backgroundsFor( fg, 'text' ) );
+		const excluded = new Set(
+			exclusions
+				.filter( ( entry ) => entry.fg === fg )
+				.flatMap( ( entry ) => entry.bg )
+		);
+		for ( const bg of required ) {
+			if ( ! paired.has( bg ) && ! excluded.has( bg ) ) {
+				gaps.push( `${ fg } on ${ bg }` );
+			}
+		}
+		expect( [
+			fg,
+			[ ...excluded ].filter( ( bg ) => paired.has( bg ) ),
+		] ).toEqual( [ fg, [] ] );
+	}
+	expect( gaps ).toEqual( [] );
+} );
+
 test( 'R3: on-accent text reaches 4.5:1 on every status solid', () => {
 	expect( backgroundsFor( 'color-fg-on-accent', 'text' ) ).toEqual(
 		expect.arrayContaining(
