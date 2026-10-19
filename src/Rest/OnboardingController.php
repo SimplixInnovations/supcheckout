@@ -27,8 +27,10 @@ defined('ABSPATH') || exit;
  * `scheduler_unavailable` (a compare-and-swap on the record just created, so no running
  * operation is left without an action), gives the rate slot back and answers 503.
  *
- * Responses carry allow-listed projections only: never the user ID, never Outcome::data()'s
- * raw engine results, never a setting (the API key is write-only and never read here).
+ * Responses carry allow-listed projections only: never the operation's user ID and never a
+ * setting (the API key is write-only and never read here). They hold no API key, token, card
+ * data or customer personal data; engine results appear only inside the bounded operation
+ * report and hold names, codes, counts and numeric order/user IDs.
  */
 final class OnboardingController {
     public const HINT_SCHEDULER = 'Action Scheduler is not available; retry, or use WP-CLI (wp supcheckout takeover).';

@@ -19,8 +19,8 @@ defined('ABSPATH') || exit;
  * updated_at, outcome, phase, steps (last 50 strings), attempts (string => int),
  * busy_retries, cooldown_retries, error, hint, next_at, report, self_test.
  *
- * The record holds no secret and no customer data: callers pass only step names, counts,
- * codes and the bounded engine reports. Every report and free-form field goes through
+ * The record holds no secret and no customer personal data: callers pass only step names,
+ * counts, codes and the bounded engine reports (names, codes, counts and numeric order/user IDs). Every report and free-form field goes through
  * Bounded::document(), and every string in steps is cut to Bounded::STRING_LIMIT.
  */
 final class Operation {
