@@ -129,8 +129,8 @@ def npm_lock_components(packages: dict, source: str) -> tuple[list[dict], list[d
     inventory row use the real name and purl.
 
     Component properties:
-    - `cdx:npm:package:path` (CycloneDX property taxonomy) records the lockfile
-      path on every component, so repeated `name@version` copies (nested
+    - `cdx:npm:package:path` (CycloneDX property taxonomy) records the
+      repository-relative install path on every component, so repeated `name@version` copies (nested
       installs, aliases) stay distinguishable.
     - `supcheckout:npm:alias` is a SUPCheckout-local property that names the
       alias an aliased package was installed under.
@@ -140,6 +140,10 @@ def npm_lock_components(packages: dict, source: str) -> tuple[list[dict], list[d
     """
     comps = []
     licenses = []
+    # Paths are recorded relative to the repository, so the root and tests/e2e
+    # copies of one package stay distinguishable.
+    lock_dir = Path(source).parent.as_posix()
+    prefix = "" if lock_dir in ("", ".") else lock_dir + "/"
     for path, meta in packages.items():
         if not path:
             continue
@@ -163,7 +167,7 @@ def npm_lock_components(packages: dict, source: str) -> tuple[list[dict], list[d
             "class": "development",
             "source": source,
         }
-        comp["properties"] = [{"name": "cdx:npm:package:path", "value": path}]
+        comp["properties"] = [{"name": "cdx:npm:package:path", "value": prefix + path}]
         if alias:
             comp["properties"].append({"name": "supcheckout:npm:alias", "value": alias})
             row["alias"] = alias

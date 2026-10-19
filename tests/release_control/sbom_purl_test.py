@@ -96,6 +96,14 @@ def check_npm_aliases(gen) -> None:
         == [{"name": "cdx:npm:package:path", "value": "node_modules/jest/node_modules/braces"}],
         "a nested copy is told apart by its lockfile path",
     )
+    nested_lock, _ = gen.npm_lock_components(ALIAS_LOCK, "tests/e2e/package-lock.json")
+    e2e = {c.get("version") + ":" + c["name"]: c for c in nested_lock}.get("3.0.3:braces")
+    check(
+        e2e is not None
+        and e2e.get("properties")
+        == [{"name": "cdx:npm:package:path", "value": "tests/e2e/node_modules/jest/node_modules/braces"}],
+        "a nested lockfile's paths are repository-relative (prefixed with its directory)",
+    )
     inventory = {(entry["package"], entry["version"]): entry for entry in licenses}
     check(
         inventory.get(("react", "19.3.0"), {}).get("alias") == "react-19",
