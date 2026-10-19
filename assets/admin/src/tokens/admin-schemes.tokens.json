@@ -1,0 +1,860 @@
+{
+	"$description": "Contrast-verified accent ramps (palette.accent.50-900) for the nine core WordPress admin color schemes, applied through body.admin-color-<scheme> .supcheckout-admin. The scheme drives the accent only, never the mode. Each ramp is tuned in OKLCH from the scheme source color (same hue): light 600 is the source color when white text on it reaches 4.6:1, otherwise the source darkened to WCAG luminance 0.17; the other steps are luminance targets. Dark ramps target luminance 0.17 at 600 (white text at 4.5:1 and 3:1 against the raised surface). wpAdminThemeColor records --wp-admin-theme-color at WordPress 7.1.3 (@wordpress/base-styles wordpress-admin-schemes() at the Gutenberg revision pinned by wordpress-develop 7.1.3); a real-WordPress test alarms on drift. brand.tokens.json overrides all of it.",
+	"schemes": {
+		"fresh": {
+			"$description": "Fresh. wordpress-develop 7.1.3 has no src/wp-admin/css/colors/fresh/colors.scss (Fresh is compiled into the core admin CSS); the source color #2271b1 is the Fresh highlight registered in src/wp-includes/general-template.php register_admin_color_schemes() and used by src/wp-admin/css/common.css. Fresh has no body.admin-color-fresh rule in wp-base-styles, so --wp-admin-theme-color is the @wordpress/base-styles :root default #007cba where defined. Also the fallback ramp for unknown and custom schemes.",
+			"sourceColor": {
+				"$value": "#2271b1",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#007cba",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#ecf4fd",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#d7eafb",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#b8d8f8",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#8ec0f1",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#69a6e0",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#3b86c8",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#2271b1",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#025e9d",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#004f84",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#003f6b",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#d9ecff",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#bbddff",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#97cbfb",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#74b2ed",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#4a95d8",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#3884c6",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#2976b7",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#1366a6",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#005793",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#17324b",
+					"$type": "color"
+				}
+			}
+		},
+		"light": {
+			"$description": "Light. wordpress-develop 7.1.3 src/wp-admin/css/colors/light/colors.scss $highlight-color #007cba.",
+			"sourceColor": {
+				"$value": "#007cba",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#007cba",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#eaf5fd",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#d5eafb",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#b2d9f8",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#84c3f1",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#5baae0",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#288fcf",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#0079b5",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#006498",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#005581",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#004468",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#d6edff",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#b6e0ff",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#8ecdfb",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#67b5ed",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#3397d7",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#1a86c5",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#0079b5",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#00699e",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#005988",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#0f334b",
+					"$type": "color"
+				}
+			}
+		},
+		"modern": {
+			"$description": "Modern (the WordPress 7 default). wordpress-develop 7.1.3 src/wp-admin/css/colors/modern/colors.scss $highlight-color #3858e9.",
+			"sourceColor": {
+				"$value": "#3858e9",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#3858e9",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#eff4ff",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#dee7ff",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#c3d4ff",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#a0baff",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#7d9eff",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#496eff",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#3858e9",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#2a43d4",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#2031c2",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#181bb1",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#e1e9ff",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#cadaff",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#aec5ff",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#8cabff",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#648aff",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#4f75ff",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#4165f6",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#3453e3",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#2942d2",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#1c2c64",
+					"$type": "color"
+				}
+			}
+		},
+		"blue": {
+			"$description": "Blue. wordpress-develop 7.1.3 src/wp-admin/css/colors/blue/colors.scss $highlight-color #437aa8.",
+			"sourceColor": {
+				"$value": "#437aa8",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#437aa8",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#eef4fb",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#dbe9f6",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#bed8ee",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#99c0e2",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#78a7d0",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#558dbc",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#4077a5",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#2c6490",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#1b537f",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#02426d",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#dbebfb",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#c1def7",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#a2c9ed",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#83b2dc",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#5e95c5",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#4d84b3",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#4077a5",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#306794",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#205984",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#1e3344",
+					"$type": "color"
+				}
+			}
+		},
+		"coffee": {
+			"$description": "Coffee. wordpress-develop 7.1.3 src/wp-admin/css/colors/coffee/colors.scss $highlight-color #916745.",
+			"sourceColor": {
+				"$value": "#916745",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#916745",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#f8f2ee",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#f1e5dc",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#e6d0c0",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#d6b59d",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#c19b7d",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#a77c5a",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#916745",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#7d5533",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#6d4523",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#5b3513",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#f6e8dc",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#edd6c3",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#e0bfa6",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#cda688",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#b48865",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#a27754",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#946a47",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#835a39",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#744c2a",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#3d2d20",
+					"$type": "color"
+				}
+			}
+		},
+		"ectoplasm": {
+			"$description": "Ectoplasm. wordpress-develop 7.1.3 src/wp-admin/css/colors/ectoplasm/colors.scss $highlight-color #646c3e.",
+			"sourceColor": {
+				"$value": "#646c3e",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#646c3e",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#f3f5ee",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#e6e9dc",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#d2d6c0",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#b8bf9d",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#9ea67d",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#788051",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#646c3e",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#535b2d",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#444c1e",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#363d0e",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#e8ebdc",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#d7ddc4",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#c2c9a7",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#a9b288",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#8c9465",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#7c8556",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#6e7748",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#60673a",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#51592b",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#2f3321",
+					"$type": "color"
+				}
+			}
+		},
+		"midnight": {
+			"$description": "Midnight. wordpress-develop 7.1.3 src/wp-admin/css/colors/midnight/colors.scss $highlight-color #cf4339.",
+			"sourceColor": {
+				"$value": "#cf4339",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#cf4339",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#fff0ee",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#ffe1dc",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#ffc8bf",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#ffa397",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#f77e70",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#e95b4f",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#cf4339",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#b72b25",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#a41011",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#880006",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#ffe3df",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#ffcec7",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#ffb3a8",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#ff8d80",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#f06255",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#dd5044",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#cd4137",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#ba2e27",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#a81716",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#54201a",
+					"$type": "color"
+				}
+			}
+		},
+		"ocean": {
+			"$description": "Ocean. wordpress-develop 7.1.3 src/wp-admin/css/colors/ocean/colors.scss $highlight-color #567958.",
+			"sourceColor": {
+				"$value": "#567958",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#567958",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#f0f5f0",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#e0eae0",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#c7d9c8",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#a8c2a9",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#8aa98c",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#6b8e6d",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#567958",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#436545",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#345637",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#244627",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#e1ece1",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#ccdfcd",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#b2cdb3",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#96b697",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#759a77",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#658967",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#587b5a",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#496b4b",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#3b5c3d",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#263327",
+					"$type": "color"
+				}
+			}
+		},
+		"sunrise": {
+			"$description": "Sunrise. wordpress-develop 7.1.3 src/wp-admin/css/colors/sunrise/colors.scss $highlight-color #ad631e.",
+			"sourceColor": {
+				"$value": "#ad631e",
+				"$type": "color"
+			},
+			"wpAdminThemeColor": {
+				"$value": "#ad631e",
+				"$type": "color"
+			},
+			"light": {
+				"50": {
+					"$value": "#fcf1ea",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#f9e3d4",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#f3cdb2",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#e8b086",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#d69360",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#c17635",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#aa601a",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#924d00",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#7b4100",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#643300",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#ffe5d3",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#fbd2b4",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#f3ba8f",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#e29f6a",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#cb7f3e",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#b86e2b",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#aa601a",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#985100",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#824500",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#462912",
+					"$type": "color"
+				}
+			}
+		}
+	}
+}

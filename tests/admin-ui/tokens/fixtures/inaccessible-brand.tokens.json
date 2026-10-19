@@ -1,0 +1,91 @@
+{
+	"$description": "Test brand: a yellow accent that white on-accent text cannot meet 4.5:1 on.",
+	"palette": {
+		"accent": {
+			"light": {
+				"50": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				}
+			},
+			"dark": {
+				"50": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"100": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"200": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"300": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"400": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"500": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"600": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"700": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"800": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				},
+				"900": {
+					"$value": "#ffcc00",
+					"$type": "color"
+				}
+			}
+		}
+	}
+}

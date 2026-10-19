@@ -1,3 +1,19 @@
 {
-	"extends": "@wordpress/stylelint-config"
+	"extends": "@wordpress/stylelint-config",
+	"plugins": [ "stylelint-use-logical" ],
+	"rules": {
+		"csstools/use-logical": "always",
+		"selector-class-pattern": [
+			"^(sup|supcheckout)-[a-z0-9-]+(__[a-z0-9-]+)?(--[a-z0-9-]+)?$",
+			{
+				"message": "Use sup-<component>, sup-<component>--<modifier> or supcheckout-* class names (selector-class-pattern)"
+			}
+		],
+		"value-keyword-case": [
+			"lower",
+			{
+				"ignoreProperties": [ "/^--sup-font-family-/" ]
+			}
+		]
+	}
 }
