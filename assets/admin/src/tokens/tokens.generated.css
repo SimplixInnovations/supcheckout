@@ -183,6 +183,7 @@
 	--sup-size-control-md: 36px;
 	--sup-size-control-sm: 28px;
 	--sup-size-focus-offset: 2px;
+	--sup-size-icon-lg: 24px;
 	--sup-size-icon-md: 20px;
 	--sup-size-icon-sm: 16px;
 	--sup-size-table-row: 48px;
@@ -203,6 +204,7 @@
 	--sup-table-row-height: var(--sup-size-table-row);
 	--sup-z-overlay: 100000;
 	--sup-z-popover: 100010;
+	--sup-z-portal: 100000;
 	--sup-z-sticky: 20;
 	--sup-z-toast: 100020;
 	--sup-z-tooltip: 100030;

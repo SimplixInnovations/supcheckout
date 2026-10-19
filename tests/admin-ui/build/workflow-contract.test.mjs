@@ -49,3 +49,7 @@ test( 'the gate needs both lanes and treats skipped or cancelled as failure', ()
 	expect( gate ).toContain( 'if: ${{ always() }}' );
 	expect( gate ).toMatch( /!= success/ );
 } );
+
+test( 'the static lane also runs the React 19 component lane', () => {
+	expect( job( 'static' ) ).toContain( 'run: npm run test:unit:react19' );
+} );

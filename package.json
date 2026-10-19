@@ -13,6 +13,9 @@
 		"npm": "11.19.0"
 	},
 	"packageManager": "npm@11.19.0",
+	"sideEffects": [
+		"*.css"
+	],
 	"scripts": {
 		"build": "node tools/admin-ui/tokens/build-tokens.mjs && wp-scripts build --config webpack.config.js",
 		"build:gallery": "wp-scripts build --config tests/admin-ui/gallery/webpack.gallery.config.cjs",
@@ -20,6 +23,7 @@
 		"lint:css": "wp-scripts lint-style \"assets/admin/src/**/*.css\"",
 		"typecheck": "tsc --noEmit --project tsconfig.json",
 		"test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.js",
+		"test:unit:react19": "node tools/admin-ui/jest/react19.mjs",
 		"test:browser": "playwright test --config tests/admin-ui/playwright.config.ts --project=browser",
 		"test:visual": "playwright test --config tests/admin-ui/playwright.config.ts --project=visual",
 		"audit:full": "node tools/admin-ui/audit/audit-gate.mjs",
@@ -34,6 +38,7 @@
 		"@axe-core/playwright": "4.13.0",
 		"@playwright/test": "1.63.0",
 		"@testing-library/dom": "10.4.2",
+		"@testing-library/jest-dom": "7.0.1",
 		"@testing-library/react": "16.3.3",
 		"@testing-library/user-event": "14.6.7",
 		"@types/react": "18.3.31",
@@ -51,11 +56,16 @@
 		"jest-environment-jsdom": "30.5.2",
 		"postcss": "8.5.29",
 		"react": "18.3.1",
+		"react-19": "npm:react@19.3.0",
 		"react-dom": "18.3.1",
+		"react-dom-19": "npm:react-dom@19.3.0",
 		"stylelint-use-logical": "2.1.3",
 		"typescript": "6.0.3"
 	},
 	"overrides": {
-		"serialize-javascript": "7.1.2"
+		"serialize-javascript": "7.1.2",
+		"react-dom-19": {
+			"react": "$react"
+		}
 	}
 }

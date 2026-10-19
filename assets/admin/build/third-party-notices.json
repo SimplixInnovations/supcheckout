@@ -1,1 +1,7 @@
-[]
+[
+	{
+		"name": "@base-ui/react",
+		"version": "1.8.0",
+		"license": "MIT"
+	}
+]
