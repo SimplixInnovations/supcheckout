@@ -22,8 +22,8 @@ jobs:
   runtime-matrix:
     name: WP ${{ matrix.wordpress }} / WC ${{ matrix.woocommerce }} / PHP ${{ matrix.php }} / ${{ matrix.storage }}
     runs-on: ubuntu-latest
-    # 0c Task 9 adds the REST/Action Scheduler steps, about 5 minutes per cell (the rollback
-    # waits out its real 120 s settle barrier).
+    # 0c Task 9 adds the REST/Action Scheduler steps, about 3 minutes per cell (the rollback
+    # waits out its real 120 s settle barrier). The 30-minute timeout is margin for slow cells.
     timeout-minutes: 30
 
     strategy:

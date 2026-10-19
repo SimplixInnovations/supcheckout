@@ -663,7 +663,7 @@ if ($phase === 'rest_rollback') {
     };
     $op = supcheckout_takeover_rest_drive_done($rollback_id, $observe);
     $longest = $yields === array() ? 0 : max($yields);
-    supcheckout_cert_assert($longest >= CopyRemoval::SETTLE_SECONDS - 60 && $longest <= CopyRemoval::SETTLE_SECONDS, 'the rollback yielded at the settle barrier and was resumed by an action scheduled ' . $longest . ' s later (yields seen: ' . wp_json_encode(array_values(array_unique($yields))) . ')');
+    supcheckout_cert_assert($longest >= CopyRemoval::SETTLE_SECONDS - 5 && $longest <= CopyRemoval::SETTLE_SECONDS, 'the rollback yielded at the settle barrier and was resumed by an action scheduled ' . $longest . ' s later (yields seen: ' . wp_json_encode(array_values(array_unique($yields))) . ')');
     foreach (array('rolled_back', 'copies_removed', 'preflight_ok', 'official_reactivated') as $step) {
         supcheckout_cert_assert(in_array($step, $op['steps'], true), 'the rollback reached ' . $step . ': ' . wp_json_encode($op['steps']));
     }
