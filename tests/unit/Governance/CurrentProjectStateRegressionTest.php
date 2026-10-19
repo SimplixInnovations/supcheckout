@@ -428,7 +428,20 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringContainsString('wizard UI moves to Sub-project 2', $text, $living);
         }
 
-        self::assertStringContainsString('Sub-project 0c onboarding backend: **133 files**', self::read_repository_file('docs/project/RELEASE-ENGINEERING.md'));
+        self::assertStringContainsString('Sub-project 0c onboarding backend: **134 files**', self::read_repository_file('docs/project/RELEASE-ENGINEERING.md'));
+    }
+
+    public function test_the_0c_certification_is_not_claimed_for_the_pr_head(): void {
+        // Run 39177850394 certified 535b1b4, before the activate_plugins fix and the final
+        // review wave: it is historical, and the exact-head CI gates are pending on the PR head.
+        $evidence = self::read_repository_file('docs/project/evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md');
+        self::assertStringContainsString('**pending on the PR head**', $evidence);
+        self::assertStringContainsString('historical', $evidence);
+        self::assertStringContainsString('**134 files**', $evidence);
+        $status = self::read_repository_file('docs/project/PROJECT-STATUS.md');
+        self::assertStringContainsString('pending on the PR head', $status);
+        self::assertStringNotContainsString('package 133 files', $status);
+        self::assertStringNotContainsString('package 133 files', self::read_repository_file('docs/project/START-HERE.md'));
     }
 
     private static function read_repository_file(string $path): string {

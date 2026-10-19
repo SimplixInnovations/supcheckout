@@ -46,7 +46,7 @@
 | Next release dependency | **Fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe, 2026-10-13, [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md), runbook [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) |
 | Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** (2026-10-17) |
 | Sub-project 0b takeover engine | **Tasks 1–12 merged**; Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
-| Sub-project 0c onboarding backend | **Tasks 1–10** — services + admin-only `supcheckout/v1` REST API, no UI (wizard in Sub-project 2); package 133 files; owner staging review pending |
+| Sub-project 0c onboarding backend | **Tasks 1–10** — services + admin-only `supcheckout/v1` REST API, no UI (wizard in Sub-project 2); package 134 files; owner staging review pending |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -169,7 +169,7 @@ The 0b takeover staging rehearsal PASSED on 2026-10-18 (`docs/project/evidence/T
 - Cache purge after the compare-and-swap: LiteSpeed Cache, WP Rocket, W3 Total Cache, WP Super Cache, Breeze and SiteGround Optimizer, plus the object cache; the Cloudflare plugin is reported `manual`.
 - Self-test: one read-only availability probe in test and live mode alike.
 
-The real-WordPress REST and driver certification (compatibility run 39177850394), the on-the-wire notes and the independent security review (no Critical or High finding) are in [`evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md`](evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md). The public boundary is `docs/COMPATIBILITY.md` "Onboarding API boundary (Sub-project 0c)". Deterministic package: 133 files (`RELEASE-ENGINEERING.md`).
+The on-the-wire notes and the independent security review (no Critical or High finding) are in [`evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md`](evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md). Its real-WordPress REST and driver certification (compatibility run 39177850394) is historical: it certified `535b1b4b80b308731bb7352def785130b86d6b72`, before the `activate_plugins` fix and the final review wave. The exact-head CI gates (Compatibility Certification (all 20 cells and the Compatibility Gate, including the new real `shop_manager` assertion), Ecosystem Certification E3, the Takeover Migration Matrix, Release Artifact, the WordPress.org Submission Check and CodeQL) are pending on the PR head. The public boundary is `docs/COMPATIBILITY.md` "Onboarding API boundary (Sub-project 0c)". Deterministic package: 134 files, SHA-256 `55ff2a95d984f5327c5a4f4a4deabbe9601cf5feb67541b8d853b00f06f24be1` (`RELEASE-ENGINEERING.md`).
 
 0c exit gate, owner action: on the My Organic World staging copy, start a switch and a rollback through the REST API and see the automatic LiteSpeed purge take effect (rehearsal follow-up 2), and confirm WCML per-currency checkout visibility against the `multilingual` check (follow-up 3).
 
