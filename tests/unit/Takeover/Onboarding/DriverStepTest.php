@@ -229,7 +229,8 @@ final class DriverStepTest extends TestCase {
     }
 
     public function test_a_refused_plan_fails_with_its_reason(): void {
-        CutoverTest::state('finalized');
+        // A state run cannot start from (a finalized store goes to the self-test instead).
+        CutoverTest::state('rolled_back');
         $this->start(Operation::KIND_SWITCH);
 
         self::assertSame(array('failed', 'state'), array($this->tick()['outcome'], $this->last['error']));
@@ -435,6 +436,55 @@ final class DriverStepTest extends TestCase {
         self::assertSame(array('done', null, null), array($result['outcome'], $result['error'], $result['next_delay']));
         self::assertSame('deferred', $result['report']['self_test']['checks'][8]['result']);
         self::assertSame(array(), $result['report']['warnings']);
+    }
+
+    public function test_a_switch_still_in_preflight_when_the_cli_cut_over_runs_and_stores_the_self_test(): void {
+        // PR #194 review: a concurrent `wp supcheckout takeover run` completed the cutover
+        // while the REST switch was still in its preflight phase.
+        $this->seed_cut_over();
+        $this->start(Operation::KIND_SWITCH);
+
+        $first = $this->tick();
+
+        self::assertSame(array('running', 'self_test', 0), array($first['outcome'], $first['phase'], $first['next_delay']), 'never finished without the self-test');
+        self::assertSame(0, $this->check_runs);
+
+        $result = $this->tick();
+
+        self::assertSame(array('done', null), array($result['outcome'], $result['error']));
+        self::assertSame(1, $this->check_runs);
+        self::assertSame($result['report']['self_test'], get_option(DriverStep::last_report_option(Operation::KIND_SELF_TEST), false), 'the post-switch self-test is stored');
+        self::assertContains('self_test_ran', $this->op['steps']);
+    }
+
+    public function test_a_switch_in_preflight_retries_the_deactivation_tail_then_runs_the_self_test(): void {
+        $this->seed_cut_over();
+        $this->system->official = self::OFFICIAL;
+        $this->start(Operation::KIND_SWITCH, array('deactivate_official' => true));
+
+        $first = $this->tick();
+
+        self::assertSame(array('running', 'self_test'), array($first['outcome'], $first['phase']), (string) json_encode($first));
+        self::assertNull($this->system->official, 'the tail deactivated the official plugin');
+
+        $result = $this->tick();
+
+        self::assertSame('done', $result['outcome']);
+        self::assertIsArray(get_option(DriverStep::last_report_option(Operation::KIND_SELF_TEST), false));
+    }
+
+    public function test_a_switch_on_a_finalized_store_goes_to_the_self_test_from_any_phase(): void {
+        foreach (array('preflight', 'copy', 'retire', 'cutover') as $phase) {
+            \supcheckout_test_reset_wp_options();
+            CutoverTest::state('finalized');
+            $this->start(Operation::KIND_SWITCH, array(), array('phase' => $phase));
+
+            $first = $this->tick();
+
+            self::assertSame(array('running', 'self_test'), array($first['outcome'], $first['phase']), $phase);
+            self::assertSame('self_test', DriverStep::upcoming(array('phase' => $phase) + $this->op)['phase'], $phase);
+            self::assertSame('done', $this->tick()['outcome'], $phase);
+        }
     }
 
     public function test_the_switch_self_test_is_stored_as_the_last_self_test_report(): void {

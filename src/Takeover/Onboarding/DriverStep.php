@@ -162,7 +162,7 @@ final class DriverStep {
         $long = null;
         switch (isset($op['kind']) ? $op['kind'] : '') {
             case Operation::KIND_SWITCH:
-                if ($status === TakeoverState::CUT_OVER && in_array($phase, array('copy', 'retire', 'cutover'), true)) {
+                if (self::switched_past($status, $phase)) {
                     $phase = 'self_test';
                 } elseif ($status === TakeoverState::VERIFIED && in_array($phase, array('retire', 'cutover'), true)) {
                     $long = 'cutover';
@@ -257,8 +257,8 @@ final class DriverStep {
      */
     private function switch_tick($status) {
         $phase = $this->result['phase'];
-        if ($status === TakeoverState::CUT_OVER && in_array($phase, array('copy', 'retire', 'cutover'), true)) {
-            // Moved by the CLI, or a crash after the swap.
+        if (self::switched_past($status, $phase)) {
+            // Moved by the CLI, or a crash after the swap: the switch still ends with its self-test.
             $this->next('self_test', 0);
             return;
         }
@@ -277,6 +277,26 @@ final class DriverStep {
         }
     }
 
+    /**
+     * A switch whose store is already switched goes to its self-test: from any phase on a
+     * finalized store, and from the copy, retire and cutover phases on a cut-over one. The
+     * preflight phase on a cut-over store still asks plan_run() first, so an official
+     * plugin that is active again is retired (with consent) or refused before the self-test.
+     *
+     * @param string $status TakeoverState status.
+     * @param string $phase  Operation phase.
+     * @return bool
+     */
+    private static function switched_past($status, $phase) {
+        if ($phase === 'self_test') {
+            return false;
+        }
+        if ($status === TakeoverState::FINALIZED) {
+            return true;
+        }
+        return $status === TakeoverState::CUT_OVER && in_array($phase, array('copy', 'retire', 'cutover'), true);
+    }
+
     /** @return void */
     private function switch_preflight() {
         $plan = $this->onboarding->plan_run($this->consent('deactivate_official'));
@@ -286,14 +306,15 @@ final class DriverStep {
         }
         $next = $plan->data()['next'];
         if ($next === 'done') {
-            $this->end(Operation::DONE, null, null, array('message' => $plan->message()));
+            // Cut over meanwhile (a concurrent CLI run): never finish without the self-test.
+            $this->next('self_test', 0, array('message' => $plan->message()));
             return;
         }
         if ($next === 'cutover_tail') {
             $tail = $this->onboarding->cutover(true);
             $this->engine_steps($tail);
             if ($tail->is_ok()) {
-                $this->end(Operation::DONE, null, null, self::outcome_report($tail));
+                $this->next('self_test', 0, self::outcome_report($tail));
                 return;
             }
             $this->refused($tail);

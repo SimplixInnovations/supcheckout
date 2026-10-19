@@ -173,6 +173,55 @@ final class OnboardingControllerTest extends RestTestCase {
         self::assertCount(1, self::drive_actions());
     }
 
+    public function test_a_start_refused_because_another_operation_runs_leaves_its_bucket_open(): void {
+        // PR #194 review: only a started operation keeps the rate slot.
+        self::state(TakeoverState::VERIFIED);
+        $switch = self::serve('POST', '/onboarding/switch', array('confirm' => true));
+        $refused = self::serve('POST', '/onboarding/abort', array('confirm' => true));
+        self::assertSame(array(202, 409), array($switch->get_status(), $refused->get_status()));
+
+        Operation::finish(Operation::current()['id'], Operation::DONE, null, null, array(), time());
+        $retry = self::serve('POST', '/onboarding/abort', array('confirm' => true));
+
+        self::assertSame(202, $retry->get_status(), (string) json_encode($retry->get_data()));
+        self::assertSame('abort', Operation::current()['kind']);
+    }
+
+    public function test_a_start_refused_by_its_state_leaves_its_bucket_open(): void {
+        $refused = self::serve('POST', '/onboarding/self-test');
+        self::assertSame(array(409, 'supcheckout_state'), array($refused->get_status(), self::error_code($refused)));
+
+        self::state(TakeoverState::CUT_OVER, time() - 60);
+        $retry = self::serve('POST', '/onboarding/self-test');
+
+        self::assertSame(202, $retry->get_status(), (string) json_encode($retry->get_data()));
+    }
+
+    public function test_a_start_refused_by_its_plan_leaves_its_bucket_open(): void {
+        self::state(TakeoverState::CUT_OVER, time() - 60);
+        $this->system->official = 'upayments/UPayments.php';
+        $refused = self::serve('POST', '/onboarding/switch', array('confirm' => true));
+        self::assertSame(array(409, 'supcheckout_official_still_active'), array($refused->get_status(), self::error_code($refused)));
+
+        $retry = self::serve('POST', '/onboarding/switch', array('confirm' => true, 'deactivate_official' => true));
+
+        self::assertSame(202, $retry->get_status(), (string) json_encode($retry->get_data()));
+    }
+
+    public function test_an_answer_without_an_operation_leaves_the_bucket_open_and_a_start_keeps_it(): void {
+        self::state(TakeoverState::CUT_OVER, time() - 60);
+        $done = self::serve('POST', '/onboarding/switch', array('confirm' => true));
+        self::assertSame(200, $done->get_status(), 'already cut over: no operation');
+
+        $started = self::serve('POST', '/onboarding/rollback', array('confirm' => true));
+        Operation::finish(Operation::current()['id'], Operation::DONE, null, null, array(), time());
+        $again = self::serve('POST', '/onboarding/rollback', array('confirm' => true));
+
+        self::assertSame(202, $started->get_status());
+        self::assertSame(array(429, 'supcheckout_rate_limited'), array($again->get_status(), self::error_code($again)), 'a started operation keeps its slot');
+        self::assertSame(0, RateLimiter::hit('switch', RateLimiter::WRITE_WINDOW, time()), 'the switch bucket was given back');
+    }
+
     public function test_a_start_runs_the_watchdog_for_a_stalled_operation(): void {
         $op = Operation::start(Operation::KIND_SETUP_CHECKS, array(), 1, time() - 600);
         self::assertTrue(Operation::update($op['id'], array('next_at' => time() - 300), time() - 300));
