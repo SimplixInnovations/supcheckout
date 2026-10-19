@@ -108,10 +108,17 @@ final class AdminAssets {
     /**
      * Add the page-level scope class on SUPCheckout screens.
      *
-     * @param string $classes Space-separated admin body classes.
-     * @return string
+     * Untyped on purpose: an earlier `admin_body_class` filter may return a
+     * non-string, and a TypeError here would break every admin screen. Such a
+     * value is returned unchanged.
+     *
+     * @param mixed $classes Space-separated admin body classes.
+     * @return mixed
      */
-    public function body_class(string $classes): string {
+    public function body_class($classes) {
+        if (! is_string($classes)) {
+            return $classes;
+        }
         $hook_suffix = isset($GLOBALS['hook_suffix']) && is_string($GLOBALS['hook_suffix'])
             ? $GLOBALS['hook_suffix']
             : '';

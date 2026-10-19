@@ -244,6 +244,67 @@ final class AdminAssetsTest extends TestCase {
         self::assertSame(' supcheckout-admin-page', $assets->body_class(' supcheckout-admin-page'));
     }
 
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function non_string_body_classes(): array {
+        return array(
+            'null from an earlier filter'   => array(null),
+            'array from an earlier filter'  => array(array('folded')),
+            'integer from an earlier filter' => array(0),
+        );
+    }
+
+    /**
+     * @param mixed $classes
+     */
+    #[DataProvider('non_string_body_classes')]
+    public function test_body_class_returns_a_non_string_from_an_earlier_filter_unchanged($classes): void {
+        $assets = $this->assets();
+        $assets->hook(self::SCREEN);
+        $GLOBALS['hook_suffix'] = self::SCREEN;
+
+        self::assertSame($classes, $assets->body_class($classes));
+    }
+
+    public function test_an_invalid_chunk_manifest_still_enqueues_the_app_without_chunk_handles(): void {
+        $plugin = $this->plugin('{"dependencies":["wp-i18n"],"version":"v1"}', '["../../wp-config.php"]');
+        $assets = new AdminAssets($plugin);
+        $assets->hook(self::SCREEN);
+
+        self::assertTrue($assets->enqueue_for(self::SCREEN));
+        self::assertSame(
+            array('script:' . AdminAssets::HANDLE, 'style:' . AdminAssets::HANDLE),
+            \supcheckout_test_enqueued()
+        );
+        self::assertSame(array(AdminAssets::HANDLE), array_keys($GLOBALS['supcheckout_test_admin_assets']['scripts']));
+        self::assertSame(array(), $GLOBALS['supcheckout_test_admin_assets']['textdomain_calls']);
+        self::assertSame(array(), \supcheckout_test_inline_scripts());
+    }
+
+    public function test_chunk_json_keyed_by_the_supcheckout_domain_is_inlined(): void {
+        $plugin = $this->plugin('{"dependencies":[],"version":"v1"}', '["chunks/panel.0123abcd.js"]');
+        $GLOBALS['supcheckout_test_admin_assets']['textdomain_json']['supcheckout-admin-chunk-panel'] = json_encode(array(
+            'domain'      => 'supcheckout',
+            'locale_data' => array(
+                'supcheckout' => array(
+                    ''       => array('domain' => 'supcheckout', 'lang' => 'ar'),
+                    'Search' => array('بحث'),
+                ),
+            ),
+        ));
+        $assets = new AdminAssets($plugin);
+        $assets->hook(self::SCREEN);
+
+        self::assertTrue($assets->enqueue_for(self::SCREEN));
+        $inline = \supcheckout_test_inline_scripts();
+        self::assertCount(1, $inline);
+        self::assertSame('before', $inline[0]['position']);
+        self::assertStringContainsString('wp.i18n.setLocaleData(l,"supcheckout")', $inline[0]['data']);
+        self::assertStringContainsString('"locale_data":{"supcheckout":{"":{"domain":"supcheckout"', $inline[0]['data']);
+        self::assertStringContainsString('"Search"', $inline[0]['data']);
+    }
+
     public function test_construct_and_hook_register_no_global_callbacks_beyond_the_two_filters(): void {
         $assets = $this->assets();
         self::assertSame(array(), $GLOBALS['supcheckout_test_hook_calls']);
