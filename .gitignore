@@ -25,3 +25,7 @@ coverage/
 /node_modules/
 /tests/admin-ui/gallery/build/
 /tests/admin-ui/artifacts/
+
+# Python bytecode from release-control scripts
+__pycache__/
+*.pyc
