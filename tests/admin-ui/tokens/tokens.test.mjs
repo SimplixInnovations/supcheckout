@@ -275,6 +275,33 @@ describe( 'token source', () => {
 		}
 	} );
 
+	test( 'other WordPress versions record only their real --wp-admin-theme-color deltas, as metadata', () => {
+		const source = readJson(
+			'assets/admin/src/tokens/admin-schemes.tokens.json'
+		);
+		const deltas = source.$wpAdminThemeColorDeltas;
+		expect( deltas ).toEqual( {
+			$description: expect.stringMatching( /7\.1\.3/ ),
+			'6.9.10': { light: '#0085ba' },
+		} );
+		for ( const [ version, schemes ] of Object.entries( deltas ) ) {
+			if ( version === '$description' ) {
+				continue;
+			}
+			expect( version ).toMatch( /^\d+\.\d+\.\d+$/ );
+			expect( version ).not.toBe( '7.1.3' );
+			for ( const [ scheme, color ] of Object.entries( schemes ) ) {
+				expect( SCHEME_NAMES ).toContain( scheme );
+				expect( color ).toMatch( /^#[0-9a-f]{6}$/ );
+				expect( color ).not.toBe(
+					source.schemes[ scheme ].wpAdminThemeColor.$value
+				);
+			}
+		}
+		// Metadata only: it never reaches the token set.
+		expect( JSON.stringify( loadTokens() ) ).not.toContain( '#0085ba' );
+	} );
+
 	test( 'each scheme records the --wp-admin-theme-color that WordPress 7.1.3 ships', () => {
 		const source = readJson(
 			'assets/admin/src/tokens/admin-schemes.tokens.json'
