@@ -1,5 +1,36 @@
 {
-	"$description": "WCAG 2.2 AA pairs checked by tools/admin-ui/tokens/contrast.mjs in light and dark for every core admin color scheme (or the brand accent). kind text needs 4.5:1 (SC 1.4.3), large-text 3:1 (24px or more), non-text 3:1 (SC 1.4.11: control boundaries, focus indicators, meaningful icons). Token names omit the --sup- prefix. Backdrop and skeleton colors carry no information and are not paired. Control boundaries (border-strong) sit on surface or raised surface; on the canvas, controls are placed inside a card.",
+	"$description": "WCAG 2.2 AA pairs checked by tools/admin-ui/tokens/contrast.mjs in light and dark for every core admin color scheme (or the brand accent). kind text needs 4.5:1 (SC 1.4.3), large-text 3:1 (24px or more), non-text 3:1 (SC 1.4.11: control boundaries, focus indicators, meaningful icons). Token names omit the --sup- prefix. Every semantic color is either paired or listed in decorative with a reason; every background a control boundary or focus ring can meet is either paired or listed in exclusions with a reason.",
+	"decorative": [
+		{
+			"token": "color-bg-overlay-backdrop",
+			"reason": "Translucent scrim behind modal overlays; it carries no information and no text sits on it."
+		},
+		{
+			"token": "color-border-default",
+			"reason": "Hairline dividers and card edges that only group content; control boundaries use color-border-strong."
+		},
+		{
+			"token": "color-skeleton-base",
+			"reason": "Loading placeholder shape; the loading state is announced as text, not conveyed by the shape's color."
+		},
+		{
+			"token": "color-skeleton-highlight",
+			"reason": "Loading shimmer highlight, static under reduced motion; purely decorative."
+		}
+	],
+	"exclusions": [
+		{
+			"fg": "color-border-strong",
+			"bg": [
+				"color-status-success-bg",
+				"color-status-warning-bg",
+				"color-status-danger-bg",
+				"color-status-info-bg",
+				"color-status-neutral-bg"
+			],
+			"reason": "Status backgrounds belong to Notices and pills, which carry text, icons and buttons but no bordered form controls; each status uses its own color-status-*-border instead."
+		}
+	],
 	"pairs": [
 		{
 			"fg": "color-fg-default",
@@ -8,8 +39,7 @@
 				"color-bg-surface",
 				"color-bg-surface-raised",
 				"color-bg-surface-sunken",
-				"color-accent-subtle-bg",
-				"color-border-default"
+				"color-accent-subtle-bg"
 			],
 			"kind": "text"
 		},
@@ -20,8 +50,7 @@
 				"color-bg-surface",
 				"color-bg-surface-raised",
 				"color-bg-surface-sunken",
-				"color-accent-subtle-bg",
-				"color-border-default"
+				"color-accent-subtle-bg"
 			],
 			"kind": "text"
 		},
@@ -33,7 +62,7 @@
 				"color-bg-surface-raised",
 				"color-bg-surface-sunken"
 			],
-			"kind": "non-text"
+			"kind": "text"
 		},
 		{
 			"fg": "color-fg-link",
@@ -51,6 +80,17 @@
 				"color-accent-bg",
 				"color-accent-bg-hover",
 				"color-accent-bg-active"
+			],
+			"kind": "text"
+		},
+		{
+			"fg": "color-fg-on-accent",
+			"bg": [
+				"color-status-success-solid",
+				"color-status-warning-solid",
+				"color-status-danger-solid",
+				"color-status-info-solid",
+				"color-status-neutral-solid"
 			],
 			"kind": "text"
 		},
@@ -77,8 +117,11 @@
 		{
 			"fg": "color-border-strong",
 			"bg": [
+				"color-bg-canvas",
 				"color-bg-surface",
-				"color-bg-surface-raised"
+				"color-bg-surface-raised",
+				"color-bg-surface-sunken",
+				"color-accent-subtle-bg"
 			],
 			"kind": "non-text"
 		},
@@ -88,7 +131,13 @@
 				"color-bg-canvas",
 				"color-bg-surface",
 				"color-bg-surface-raised",
-				"color-bg-surface-sunken"
+				"color-bg-surface-sunken",
+				"color-accent-subtle-bg",
+				"color-status-success-bg",
+				"color-status-warning-bg",
+				"color-status-danger-bg",
+				"color-status-info-bg",
+				"color-status-neutral-bg"
 			],
 			"kind": "non-text"
 		},

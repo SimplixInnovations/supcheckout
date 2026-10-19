@@ -1,7 +1,7 @@
 {
 	"$description": "SUPCheckout admin design tokens (spec section 4.1). Tiers: palette (primitives, never used by components), semantic (base for every mode, plus light and dark color and shadow sets), component (aliases of semantic tokens only) and modifiers (Arabic script and compact density overrides). Names flatten to --sup-<path-joined-by-dashes>; {a.b} is an alias rendered as var(--sup-a-b). Reduced motion zeroes every motion-duration-* and motion-distance-* token, and the Arabic scope zeroes every letter-spacing-* token; both are derived by tools/admin-ui/tokens/resolve.mjs. The accent ramp (palette.accent.*) comes from admin-schemes.tokens.json or brand.tokens.json.",
 	"palette": {
-		"$description": "Raw ramps. Cool graphite neutrals hold the light and dark anchors; status ramps are luminance-tuned in OKLCH from GitHub-Primer-like seeds.",
+		"$description": "Raw ramps. Cool graphite neutrals hold the light and dark anchors; status ramps are luminance-tuned in OKLCH from GitHub-Primer-like seeds; step 550 (luminance 0.17) is the dark-mode solid, which carries white text at 4.5:1 and reaches 3:1 on the raised surface.",
 		"neutral": {
 			"0": {
 				"$value": "#ffffff",
@@ -28,19 +28,19 @@
 				"$type": "color"
 			},
 			"400": {
-				"$value": "#8a919c",
+				"$value": "#858e99",
 				"$type": "color"
 			},
 			"450": {
-				"$value": "#7b838e",
+				"$value": "#858b96",
 				"$type": "color"
 			},
 			"500": {
-				"$value": "#737a85",
+				"$value": "#6b737e",
 				"$type": "color"
 			},
 			"550": {
-				"$value": "#6b737e",
+				"$value": "#676e79",
 				"$type": "color"
 			},
 			"600": {
@@ -101,6 +101,10 @@
 				"$value": "#308f47",
 				"$type": "color"
 			},
+			"550": {
+				"$value": "#21843b",
+				"$type": "color"
+			},
 			"600": {
 				"$value": "#167c35",
 				"$type": "color"
@@ -145,6 +149,10 @@
 			},
 			"500": {
 				"$value": "#a8741c",
+				"$type": "color"
+			},
+			"550": {
+				"$value": "#9c6904",
 				"$type": "color"
 			},
 			"600": {
@@ -193,6 +201,10 @@
 				"$value": "#e73f42",
 				"$type": "color"
 			},
+			"550": {
+				"$value": "#d92e36",
+				"$type": "color"
+			},
 			"600": {
 				"$value": "#d1242f",
 				"$type": "color"
@@ -237,6 +249,10 @@
 			},
 			"500": {
 				"$value": "#257cee",
+				"$type": "color"
+			},
+			"550": {
+				"$value": "#1570e1",
 				"$type": "color"
 			},
 			"600": {
@@ -583,9 +599,9 @@
 						"$type": "color"
 					},
 					"subtle": {
-						"$value": "{palette.neutral.500}",
+						"$value": "{palette.neutral.550}",
 						"$type": "color",
-						"$description": "Icons and large text only (3:1); never body text or placeholders."
+						"$description": "Secondary text, placeholders and icons; 4.5:1 on every surface."
 					},
 					"on-accent": {
 						"$value": "{palette.neutral.0}",
@@ -603,9 +619,9 @@
 						"$description": "Decorative hairlines and dividers."
 					},
 					"strong": {
-						"$value": "{palette.neutral.400}",
+						"$value": "{palette.neutral.450}",
 						"$type": "color",
-						"$description": "Control boundaries (3:1 on surface and raised surface)."
+						"$description": "Control boundaries: 3:1 on canvas, surface, raised, sunken and the accent tint."
 					}
 				},
 				"accent": {
@@ -713,11 +729,11 @@
 							"$type": "color"
 						},
 						"border": {
-							"$value": "{palette.neutral.500}",
+							"$value": "{palette.neutral.550}",
 							"$type": "color"
 						},
 						"solid": {
-							"$value": "{palette.neutral.500}",
+							"$value": "{palette.neutral.550}",
 							"$type": "color"
 						}
 					}
@@ -785,7 +801,7 @@
 						"$type": "color"
 					},
 					"subtle": {
-						"$value": "{palette.neutral.450}",
+						"$value": "{palette.neutral.400}",
 						"$type": "color"
 					},
 					"on-accent": {
@@ -803,7 +819,7 @@
 						"$type": "color"
 					},
 					"strong": {
-						"$value": "{palette.neutral.550}",
+						"$value": "{palette.neutral.500}",
 						"$type": "color"
 					}
 				},
@@ -844,7 +860,7 @@
 							"$type": "color"
 						},
 						"solid": {
-							"$value": "{palette.green.400}",
+							"$value": "{palette.green.550}",
 							"$type": "color"
 						}
 					},
@@ -862,7 +878,7 @@
 							"$type": "color"
 						},
 						"solid": {
-							"$value": "{palette.amber.400}",
+							"$value": "{palette.amber.550}",
 							"$type": "color"
 						}
 					},
@@ -880,7 +896,7 @@
 							"$type": "color"
 						},
 						"solid": {
-							"$value": "{palette.red.400}",
+							"$value": "{palette.red.550}",
 							"$type": "color"
 						}
 					},
@@ -898,7 +914,7 @@
 							"$type": "color"
 						},
 						"solid": {
-							"$value": "{palette.blue.400}",
+							"$value": "{palette.blue.550}",
 							"$type": "color"
 						}
 					},
@@ -912,11 +928,11 @@
 							"$type": "color"
 						},
 						"border": {
-							"$value": "{palette.neutral.550}",
+							"$value": "{palette.neutral.500}",
 							"$type": "color"
 						},
 						"solid": {
-							"$value": "{palette.neutral.450}",
+							"$value": "{palette.neutral.500}",
 							"$type": "color"
 						}
 					}

@@ -15,7 +15,18 @@ import {
 } from '../../../tools/admin-ui/tokens/resolve.mjs';
 import { readJson } from './support.mjs';
 
-const pairs = readJson( 'assets/admin/src/tokens/contrast-pairs.json' ).pairs;
+const contrastSource = readJson(
+	'assets/admin/src/tokens/contrast-pairs.json'
+);
+const { pairs, decorative, exclusions } = contrastSource;
+
+const STATUSES = [ 'success', 'warning', 'danger', 'info', 'neutral' ];
+const SURFACES = [
+	'color-bg-canvas',
+	'color-bg-surface',
+	'color-bg-surface-raised',
+	'color-bg-surface-sunken',
+];
 
 function semanticColorNames() {
 	return Object.keys( loadTokens().semantic.light ).filter( ( key ) =>
@@ -23,20 +34,135 @@ function semanticColorNames() {
 	);
 }
 
+/**
+ * Every background a control or focus indicator can sit on.
+ *
+ * @return {string[]} Token names.
+ */
+function controlBackgrounds() {
+	return [
+		...SURFACES,
+		'color-accent-subtle-bg',
+		...STATUSES.map( ( status ) => `color-status-${ status }-bg` ),
+	];
+}
+
+function pairFor( fg, kind ) {
+	return pairs.filter( ( p ) => p.fg === fg && p.kind === kind );
+}
+
+function backgroundsFor( fg, kind ) {
+	return pairFor( fg, kind ).flatMap( ( p ) => p.bg );
+}
+
 test( 'every contrast pair meets WCAG 2.2 AA in both modes for every admin scheme', () => {
 	expect( checkContrast( loadTokens() ) ).toEqual( [] );
 } );
 
-test( 'every semantic color token is covered by a contrast pair', () => {
+test( 'every semantic color token is covered by a contrast pair or listed as decorative', () => {
 	const covered = new Set( pairs.flatMap( ( p ) => [ p.fg, ...p.bg ] ) );
+	const exempt = new Set( decorative.map( ( entry ) => entry.token ) );
 	expect(
 		semanticColorNames().filter(
-			( n ) =>
-				! covered.has( n ) &&
-				! n.includes( 'backdrop' ) &&
-				! n.includes( 'skeleton' )
+			( n ) => ! covered.has( n ) && ! exempt.has( n )
 		)
 	).toEqual( [] );
+} );
+
+test( 'decorative tokens are known, give a reason and never appear in a pair', () => {
+	const names = new Set( semanticColorNames() );
+	const paired = new Set( pairs.flatMap( ( p ) => [ p.fg, ...p.bg ] ) );
+	expect( decorative.length ).toBeGreaterThan( 0 );
+	for ( const entry of decorative ) {
+		expect( [ entry.token, names.has( entry.token ) ] ).toEqual( [
+			entry.token,
+			true,
+		] );
+		expect( [ entry.token, paired.has( entry.token ) ] ).toEqual( [
+			entry.token,
+			false,
+		] );
+		expect( entry.reason ).toMatch( /\w{3,}.*\w{3,}/ );
+	}
+	expect( decorative.map( ( entry ) => entry.token ).sort() ).toEqual( [
+		'color-bg-overlay-backdrop',
+		'color-border-default',
+		'color-skeleton-base',
+		'color-skeleton-highlight',
+	] );
+} );
+
+test( 'control boundaries and focus rings cover every background or exclude it with a reason', () => {
+	const names = new Set( semanticColorNames() );
+	for ( const fg of [ 'color-border-strong', 'color-focus-ring' ] ) {
+		const paired = new Set( backgroundsFor( fg, 'non-text' ) );
+		const excluded = new Set(
+			exclusions
+				.filter( ( entry ) => entry.fg === fg )
+				.flatMap( ( entry ) => entry.bg )
+		);
+		expect(
+			controlBackgrounds().filter(
+				( bg ) => ! paired.has( bg ) && ! excluded.has( bg )
+			)
+		).toEqual( [] );
+		expect( [ ...excluded ].filter( ( bg ) => paired.has( bg ) ) ).toEqual(
+			[]
+		);
+	}
+	for ( const entry of exclusions ) {
+		expect( names.has( entry.fg ) ).toBe( true );
+		expect( entry.bg.every( ( bg ) => names.has( bg ) ) ).toBe( true );
+		expect( entry.reason ).toMatch( /\w{3,}.*\w{3,}/ );
+	}
+} );
+
+test( 'R1: the strong border reaches 3:1 on every surface and the accent tint', () => {
+	expect( backgroundsFor( 'color-border-strong', 'non-text' ) ).toEqual(
+		expect.arrayContaining( [ ...SURFACES, 'color-accent-subtle-bg' ] )
+	);
+	expect( exclusions ).toEqual(
+		expect.arrayContaining( [
+			expect.objectContaining( {
+				fg: 'color-border-strong',
+				bg: STATUSES.map( ( status ) => `color-status-${ status }-bg` ),
+			} ),
+		] )
+	);
+} );
+
+test( 'R2: subtle text reaches 4.5:1 on every surface', () => {
+	expect( backgroundsFor( 'color-fg-subtle', 'text' ) ).toEqual(
+		expect.arrayContaining( SURFACES )
+	);
+	expect(
+		pairs.filter( ( p ) => p.fg === 'color-fg-subtle' && p.kind !== 'text' )
+	).toEqual( [] );
+} );
+
+test( 'R3: on-accent text reaches 4.5:1 on every status solid', () => {
+	expect( backgroundsFor( 'color-fg-on-accent', 'text' ) ).toEqual(
+		expect.arrayContaining(
+			STATUSES.map( ( status ) => `color-status-${ status }-solid` )
+		)
+	);
+	for ( const status of STATUSES ) {
+		expect(
+			backgroundsFor( `color-status-${ status }-solid`, 'non-text' )
+		).toEqual(
+			expect.arrayContaining( [
+				'color-bg-canvas',
+				'color-bg-surface',
+				'color-bg-surface-raised',
+			] )
+		);
+	}
+} );
+
+test( 'the focus ring reaches 3:1 on the accent tint and every status background', () => {
+	expect( backgroundsFor( 'color-focus-ring', 'non-text' ) ).toEqual(
+		expect.arrayContaining( controlBackgrounds() )
+	);
 } );
 
 test( 'every pair names known tokens and a known kind', () => {

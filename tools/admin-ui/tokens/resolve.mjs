@@ -649,7 +649,7 @@ export function renderCss( set ) {
 				[ SCOPE ],
 				{
 					...zeroed( light, 'motion-duration-', '0ms' ),
-					...zeroed( light, 'motion-distance-', '0' ),
+					...zeroed( light, 'motion-distance-', '0px' ),
 				},
 				[],
 				'\t'

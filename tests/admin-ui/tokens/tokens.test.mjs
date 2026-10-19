@@ -98,7 +98,7 @@ describe( 'token source', () => {
 				'color-fg-default': '#16191d',
 				'color-fg-muted': '#59606b',
 				'color-border-default': '#d9dce1',
-				'color-border-strong': '#8a919c',
+				'color-border-strong': '#858b96',
 			},
 			dark: {
 				'color-bg-canvas': '#121519',
@@ -437,7 +437,7 @@ describe( 'generated stylesheet', () => {
 			durations.map( () => '0ms' )
 		);
 		expect( distances.map( ( key ) => block[ `--sup-${ key }` ] ) ).toEqual(
-			distances.map( () => '0' )
+			distances.map( () => '0px' )
 		);
 	} );
 
