@@ -121,6 +121,47 @@ def runtime_sbom(zip_path: Path) -> dict:
     )
 
 
+def npm_lock_components(packages: dict, source: str) -> tuple[list[dict], list[dict]]:
+    """CycloneDX components and license-inventory rows for a v3 lockfile's `packages`.
+
+    An npm alias (`react-19@npm:react@19.3.0`) is installed under its alias path
+    while the lock entry's `name` holds the real package. The component and the
+    inventory row use the real name and purl; the alias is kept as the
+    `npm:alias` property (inventory: `alias`).
+    """
+    comps = []
+    licenses = []
+    for path, meta in packages.items():
+        if not path:
+            continue
+        path_name = path.split("node_modules/")[-1]
+        name = meta.get("name") or path_name
+        alias = path_name if name != path_name else None
+        version = meta.get("version")
+        comp = {
+            "type": "library",
+            "name": name,
+            "version": version,
+            "purl": npm_purl(name, version),
+        }
+        row = {
+            "package": name,
+            "version": version,
+            "ecosystem": "npm",
+            "license": meta.get("license")
+            or NPM_LICENSE_RESOLUTIONS.get((name, version))
+            or "UNKNOWN",
+            "class": "development",
+            "source": source,
+        }
+        if alias:
+            comp["properties"] = [{"name": "npm:alias", "value": alias}]
+            row["alias"] = alias
+        comps.append(comp)
+        licenses.append(row)
+    return comps, licenses
+
+
 def dev_sbom() -> tuple[dict, list[dict]]:
     comps = []
     licenses = []
@@ -159,32 +200,9 @@ def dev_sbom() -> tuple[dict, list[dict]]:
         if not pkg_lock.exists():
             continue
         data = json.loads(pkg_lock.read_text(encoding="utf-8"))
-        packages = data.get("packages") or {}
-        for path, meta in packages.items():
-            if not path:
-                continue
-            name = path.split("node_modules/")[-1]
-            version = meta.get("version")
-            comps.append(
-                {
-                    "type": "library",
-                    "name": name,
-                    "version": version,
-                    "purl": npm_purl(name, version),
-                }
-            )
-            licenses.append(
-                {
-                    "package": name,
-                    "version": version,
-                    "ecosystem": "npm",
-                    "license": meta.get("license")
-                    or NPM_LICENSE_RESOLUTIONS.get((name, version))
-                    or "UNKNOWN",
-                    "class": "development",
-                    "source": source,
-                }
-            )
+        npm_comps, npm_licenses = npm_lock_components(data.get("packages") or {}, source)
+        comps.extend(npm_comps)
+        licenses.extend(npm_licenses)
     return (
         cyclone_dx(
             "supcheckout-development-dependencies",

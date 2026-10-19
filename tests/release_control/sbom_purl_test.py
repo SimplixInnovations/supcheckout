@@ -47,6 +47,52 @@ def validator_accepts(purl: str) -> bool:
         return result.returncode == 0
 
 
+ALIAS_LOCK = {
+    "": {"name": "supcheckout"},
+    # npm alias: react-19@npm:react@19.3.0 is installed under its alias path.
+    "node_modules/react-19": {"name": "react", "version": "19.3.0", "license": "MIT", "dev": True},
+    "node_modules/@base-ui/react": {"version": "1.8.0", "license": "MIT"},
+    "node_modules/jest/node_modules/braces": {"version": "3.0.3", "license": "MIT", "dev": True},
+}
+
+
+def check_npm_aliases(gen) -> None:
+    comps, licenses = gen.npm_lock_components(ALIAS_LOCK, "package-lock.json")
+    by_path_name = {c.get("version") + ":" + c["name"]: c for c in comps}
+    alias = by_path_name.get("19.3.0:react")
+    check(alias is not None, "an npm alias is recorded under its real package name")
+    check(
+        alias is not None and alias["purl"] == "pkg:npm/react@19.3.0",
+        "an npm alias gets the real package purl pkg:npm/react@19.3.0",
+    )
+    check(
+        alias is not None and alias.get("properties") == [{"name": "npm:alias", "value": "react-19"}],
+        "the alias name is kept as the npm:alias property",
+    )
+    check(
+        all("react-19" not in c["purl"] for c in comps),
+        "no purl carries the alias name",
+    )
+    plain = by_path_name.get("1.8.0:@base-ui/react")
+    check(
+        plain is not None
+        and plain["purl"] == "pkg:npm/%40base-ui/react@1.8.0"
+        and "properties" not in plain,
+        "a non-aliased scoped package keeps its name and has no alias property",
+    )
+    nested = by_path_name.get("3.0.3:braces")
+    check(nested is not None and nested["purl"] == "pkg:npm/braces@3.0.3", "a nested package uses its leaf name")
+    inventory = {(entry["package"], entry["version"]): entry for entry in licenses}
+    check(
+        inventory.get(("react", "19.3.0"), {}).get("alias") == "react-19",
+        "the license inventory names the real package and records the alias",
+    )
+    check(
+        "alias" not in inventory.get(("braces", "3.0.3"), {"alias": None}),
+        "a non-aliased inventory entry has no alias field",
+    )
+
+
 def main() -> int:
     gen = load_generator()
     check(
@@ -61,6 +107,7 @@ def main() -> int:
     check(validator_accepts("pkg:npm/%40wordpress/element@8.8.0"), "validator accepts an encoded scope")
     check(not validator_accepts("pkg:npm/@wordpress/element@8.8.0"), "validator rejects a raw @ scope")
     check(not validator_accepts("pkg:npm/@8.8.0"), "validator rejects an npm purl without a name")
+    check_npm_aliases(gen)
     if FAILS:
         print(f"SBOM_PURL FAIL ({len(FAILS)})")
         return 1
