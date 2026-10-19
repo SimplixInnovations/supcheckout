@@ -489,17 +489,47 @@ if ($phase === 'rest_http') {
     supcheckout_cert_assert(supcheckout_takeover_rest_option_raw(Operation::OPTION) === $operation_before && supcheckout_takeover_rest_option_raw(RateLimiter::OPTION_PREFIX . 'switch') === $bucket_before, 'the refused switch created no operation and spent no rate slot');
     WP_Application_Passwords::delete_application_password($admin, $app_item['uuid']);
 
-    // Retry-After on a 429: a second abort inside the 10 s window. The abort is refused by
-    // its plan (no store in this state can be aborted), so nothing is started.
+    // A refused start gives its rate slot back (PR #194 review): an abort, which no store in
+    // this state allows, is refused by its plan, and an immediate retry is refused the same
+    // way, never rate limited.
     supcheckout_takeover_rest_open_bucket('abort');
     $abort = $call('POST', '/onboarding/abort', array(), $session, array('confirm' => true));
     supcheckout_cert_assert($abort['status'] === 409 && ($abort['data']['code'] ?? '') === 'supcheckout_state', 'POST abort over HTTP → 409 supcheckout_state (state ' . supcheckout_takeover_rest_state() . '): ' . $abort['status'] . ' ' . $abort['json']);
     supcheckout_cert_assert(supcheckout_takeover_rest_uncacheable($abort['cache_control']), 'the 409 is no-store, private on the wire: ' . wp_json_encode($abort['cache_control']));
-    $again = $call('POST', '/onboarding/abort', array(), $session, array('confirm' => true));
+    $abort_again = $call('POST', '/onboarding/abort', array(), $session, array('confirm' => true));
+    supcheckout_cert_assert($abort_again['status'] === 409 && ($abort_again['data']['code'] ?? '') === 'supcheckout_state', 'an immediate second abort over HTTP is refused by its plan again (409 supcheckout_state), not rate limited: ' . $abort_again['status'] . ' ' . $abort_again['json']);
+    supcheckout_cert_assert(supcheckout_takeover_rest_uncacheable($abort_again['cache_control']), 'the second 409 is no-store, private on the wire: ' . wp_json_encode($abort_again['cache_control']));
+
+    // Retry-After on a 429: a start that STARTS an operation keeps its slot, so a second
+    // preflight inside the 65 s provider_probe window is rate limited. The preflight never
+    // runs here (DISABLE_WP_CRON, and REST never dispatches Action Scheduler's runner): its
+    // operation record, action and bucket are put back afterwards, so the next phases find
+    // this step's store unchanged.
+    $operation_raw = supcheckout_takeover_rest_option_raw(Operation::OPTION);
+    supcheckout_cert_assert(!Operation::is_running(Operation::current()), 'no operation is running before the HTTP preflight start: ' . wp_json_encode(Operation::current()));
+    supcheckout_takeover_rest_open_bucket('provider_probe');
+    $probe_raw = supcheckout_takeover_rest_option_raw(RateLimiter::OPTION_PREFIX . 'provider_probe');
+    $started = $call('POST', '/onboarding/preflight', array(), $session, array());
+    $started_id = isset($started['data']['data']['operation']['id']) ? (string) $started['data']['data']['operation']['id'] : '';
+    supcheckout_cert_assert($started['status'] === 202 && $started_id !== '' && ($started['data']['data']['operation']['kind'] ?? '') === Operation::KIND_PREFLIGHT, 'POST preflight over HTTP → 202 with a running preflight operation: ' . $started['status'] . ' ' . $started['json']);
+    supcheckout_cert_assert(supcheckout_takeover_rest_uncacheable($started['cache_control']), 'the 202 is no-store, private on the wire: ' . wp_json_encode($started['cache_control']));
+    $again = $call('POST', '/onboarding/preflight', array(), $session, array());
     $retry_after = isset($again['data']['data']['retry_after']) ? $again['data']['data']['retry_after'] : null;
-    supcheckout_cert_assert($again['status'] === 429 && ($again['data']['code'] ?? '') === 'supcheckout_rate_limited' && is_int($retry_after) && $retry_after >= 1 && $retry_after <= RateLimiter::WRITE_WINDOW, 'a second abort within 10 s over HTTP → 429 supcheckout_rate_limited with retry_after 1-10: ' . $again['status'] . ' ' . $again['json']);
+    supcheckout_cert_assert($again['status'] === 429 && ($again['data']['code'] ?? '') === 'supcheckout_rate_limited' && is_int($retry_after) && $retry_after >= 1 && $retry_after <= RateLimiter::PROBE_WINDOW, 'a second preflight within 65 s over HTTP → 429 supcheckout_rate_limited with retry_after 1-65: ' . $again['status'] . ' ' . $again['json']);
     supcheckout_cert_assert($again['retry_after'] === (string) $retry_after, 'the 429 carries Retry-After: ' . $retry_after . ' on the wire: ' . wp_json_encode($again['retry_after']));
     supcheckout_cert_assert(supcheckout_takeover_rest_uncacheable($again['cache_control']), 'the 429 is no-store, private on the wire: ' . wp_json_encode($again['cache_control']));
+    supcheckout_cert_assert(Operation::current()['id'] === $started_id, 'the rate-limited start started nothing: the HTTP preflight is still the current operation');
+
+    // Put the store back: no action, the operation record and the bucket as they were.
+    as_unschedule_all_actions(AsyncDriver::HOOK, array($started_id), AsyncDriver::GROUP);
+    foreach (array(Operation::OPTION => $operation_raw, RateLimiter::OPTION_PREFIX . 'provider_probe' => $probe_raw) as $name => $raw) {
+        delete_option($name);
+        if ($raw !== null) {
+            add_option($name, $raw, '', false);
+        }
+        wp_cache_delete($name, 'options');
+    }
+    supcheckout_cert_assert(supcheckout_takeover_rest_option_raw(Operation::OPTION) === $operation_raw && !as_has_scheduled_action(AsyncDriver::HOOK, array($started_id), AsyncDriver::GROUP), 'the HTTP preflight left no operation record change and no pending action behind');
 
     unset($_COOKIE[LOGGED_IN_COOKIE]);
     WP_Session_Tokens::get_instance($admin)->destroy($token);
