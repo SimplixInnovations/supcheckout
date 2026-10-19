@@ -107,7 +107,7 @@ function esc_html_e($text, $domain = 'default') {}
 function selected($selected, $current = true, $display = true) {}
 
 /** @return void */
-function wp_enqueue_style($handle, $source, $dependencies = array(), $version = false, $media = 'all') {}
+function wp_enqueue_style($handle, $source = '', $dependencies = array(), $version = false, $media = 'all') {}
 
 /** @return void */
 function wp_enqueue_script($handle, $source = '', $dependencies = array(), $version = false, $in_footer = false) {}

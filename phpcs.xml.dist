@@ -18,6 +18,7 @@
     <file>src/Provider/EndpointResolver.php</file>
     <file>src/Provider/PaymentMethodAvailability.php</file>
     <file>src/Admin/GatewaySettings.php</file>
+    <file>src/Admin/AdminAssets.php</file>
     <file>src/Gateway/Availability.php</file>
     <file>src/Gateway/CheckoutAssets.php</file>
     <file>src/Gateway/OrderPresentation.php</file>

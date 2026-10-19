@@ -16,6 +16,7 @@ parameters:
         - tests/phpstan/takeover-preflight-stubs.php
         - tests/phpstan/takeover-copy-stubs.php
         - tests/phpstan/rest-api-stubs.php
+        - tests/phpstan/admin-assets-stubs.php
     paths:
         - src/Payment/CheckoutPayload.php
         - src/Payment/OrderLock.php
@@ -29,6 +30,7 @@ parameters:
         - src/Provider/EndpointResolver.php
         - src/Provider/PaymentMethodAvailability.php
         - src/Admin/GatewaySettings.php
+        - src/Admin/AdminAssets.php
         - src/Gateway/Availability.php
         - src/Gateway/CheckoutAssets.php
         - src/Gateway/OrderPresentation.php
