@@ -42,7 +42,8 @@ defined('ABSPATH') || exit;
  *   and queues the continuation at shutdown, when the running action no longer counts as
  *   unique (as CopyRunner::handle_action() does).
  * - watchdog() re-queues a running operation that is due and has no pending or running
- *   action. It runs from the scheduled watchdog action, from status polls and start calls.
+ *   action. It runs from the scheduled watchdog action, from status polls and start calls;
+ *   the scheduled one that declines for a pending or running drive action reschedules itself.
  * - runner_health() tells a status poll that Action Scheduler is not running (WP-Cron
  *   disabled and no admin page dispatching the async runner): the operation stays running
  *   with nothing half-done, and after RUNNER_STALL_SECONDS past due it reads `stalled`.
@@ -198,6 +199,10 @@ final class AsyncDriver {
 
     /**
      * Re-queue the running operation when it is due and nothing is pending or running.
+     * Run as the scheduled watchdog action ($op_id given) and declining because a drive
+     * action is pending or in progress, it reschedules itself WATCHDOG_DELAY ahead: the
+     * running watchdog action is consumed, and a drive action that later dies must still
+     * be recovered. A status poll or a start ($op_id null) never touches the watchdog.
      *
      * @param string|null $op_id Operation the watchdog was set for; another one is ignored.
      * @param string|null $phase Phase it was set in (informational).
@@ -213,6 +218,9 @@ final class AsyncDriver {
             return false;
         }
         if (as_has_scheduled_action(self::HOOK, null, self::GROUP)) {
+            if ($op_id !== null) {
+                self::replace_watchdog($op['id'], DriverStep::upcoming($op)['phase'], time() + self::WATCHDOG_DELAY);
+            }
             return false;
         }
         return self::enqueue($op['id'], 0);

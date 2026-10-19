@@ -474,6 +474,35 @@ final class AsyncDriverTest extends TestCase {
         self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
+    public function test_a_watchdog_declining_for_a_pending_drive_action_reschedules_itself(): void {
+        // The scheduled watchdog is consumed when it runs: if it only declined, a drive action
+        // that later dies (a killed in-progress tick) would leave nothing to recover it.
+        $op = self::start(Operation::KIND_PREFLIGHT);
+        self::assertTrue(AsyncDriver::enqueue($op['id'], 0));
+        self::assertCount(0, self::scheduled(AsyncDriver::WATCHDOG_HOOK));
+        $t = time();
+
+        self::assertFalse(AsyncDriver::watchdog($op['id'], 'preflight'), 'a drive action is pending (or running)');
+
+        $watchdogs = self::scheduled(AsyncDriver::WATCHDOG_HOOK);
+        self::assertCount(1, $watchdogs, 'the declining watchdog rescheduled itself');
+        self::assertSame(array($op['id'], 'preflight'), $watchdogs[0]['args']);
+        self::assertSame(AsyncDriver::GROUP, $watchdogs[0]['group']);
+        self::assertGreaterThanOrEqual($t + AsyncDriver::WATCHDOG_DELAY, $watchdogs[0]['timestamp']);
+        self::assertLessThanOrEqual(time() + AsyncDriver::WATCHDOG_DELAY, $watchdogs[0]['timestamp']);
+        self::assertCount(1, self::scheduled(AsyncDriver::HOOK), 'no second drive action');
+
+        // A status poll or a start (no operation ID) leaves the scheduled watchdog alone.
+        $unscheduled = count($GLOBALS['supcheckout_as_calls']['unscheduled_all']);
+        self::assertFalse(AsyncDriver::watchdog());
+        self::assertCount(1, self::scheduled(AsyncDriver::WATCHDOG_HOOK));
+        self::assertCount($unscheduled, $GLOBALS['supcheckout_as_calls']['unscheduled_all']);
+
+        // Another operation's watchdog never reschedules.
+        self::assertFalse(AsyncDriver::watchdog('another-operation-id', 'copy'));
+        self::assertSame(array($op['id'], 'preflight'), self::scheduled(AsyncDriver::WATCHDOG_HOOK)[0]['args']);
+    }
+
     // --- runner health. ---
 
     public function test_runner_health_reports_stalled_after_60_seconds_past_due(): void {
