@@ -109,13 +109,32 @@ describe( 'evaluateAudit', () => {
 		] );
 	} );
 
-	test( 'ignores moderate and low advisories', () => {
-		const moderate = {
+	test.each( [ 'moderate', 'low' ] )(
+		'fails a %s advisory that is not allow-listed',
+		( severity ) => {
+			const advisory = {
+				...BRACES,
+				id: 'GHSA-2222-3333-4444',
+				package: 'smol-toml',
+				severity,
+			};
+			expect( evaluate( { full: [ BRACES, advisory ] } ) ).toEqual( [
+				expect.stringMatching(
+					new RegExp(
+						`^${ severity } GHSA-2222-3333-4444 in smol-toml`
+					)
+				),
+			] );
+		}
+	);
+
+	test( 'ignores informational advisories', () => {
+		const info = {
 			...BRACES,
 			id: 'GHSA-2222-3333-4444',
-			severity: 'moderate',
+			severity: 'info',
 		};
-		expect( evaluate( { full: [ BRACES, moderate ] } ) ).toEqual( [] );
+		expect( evaluate( { full: [ BRACES, info ] } ) ).toEqual( [] );
 	} );
 
 	test( 'fails when the live severity is higher than the recorded one', () => {
