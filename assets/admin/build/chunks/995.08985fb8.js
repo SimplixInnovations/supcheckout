@@ -1,0 +1,1 @@
+"use strict";(globalThis.supCheckoutAdminChunks||=[]).push([[995],{995(s,e,u){u.r(e),u.d(e,{default:()=>t});var l=u(790);function t({title:s}){return(0,l.jsx)("p",{className:"sup-app-placeholder",children:s})}}}]);

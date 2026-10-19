@@ -85,11 +85,18 @@ with zipfile.ZipFile(zip_path, "r") as archive:
         "MAINTAINERS.md", "SUPPORT.md", "UPSTREAM.md", "README.md",
         "CHANGELOG.md", "SECURITY.md", "DESIGN.md", "UX-CONTRACT.md",
         "premium-ui.json",
+        "package.json", "package-lock.json", ".nvmrc", ".npmrc",
+        "webpack.config.js", "tsconfig.json", "eslint.config.mjs",
+        ".stylelintrc.json", "jest.config.js",
     }
-    forbidden_prefixes = (".github/", ".cache/", ".phpunit.cache/", "tests/", "vendor/", "docs/", "scripts/")
+    forbidden_prefixes = (
+        ".github/", ".cache/", ".phpunit.cache/", "tests/", "vendor/", "docs/", "scripts/",
+        "node_modules/", "tools/",
+    )
+    forbidden_suffixes = (".map",)
     rel_names = [n[len(prefix):] for n in names]
     for rel in rel_names:
-        if rel in forbidden_exact or rel.startswith(forbidden_prefixes):
+        if rel in forbidden_exact or rel.startswith(forbidden_prefixes) or rel.endswith(forbidden_suffixes):
             raise SystemExit(f"Forbidden development/control path: {rel}")
 
     allowed_exact = {

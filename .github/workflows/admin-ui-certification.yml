@@ -1,0 +1,124 @@
+name: Admin UI Certification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ADMIN_UI_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: admin-ui-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Static — lint, types, unit, build contract, drift (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.ADMIN_UI_SOURCE_SHA }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Require exact-head checkout and pinned toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ADMIN_UI_SOURCE_SHA"
+          test "$(node --version)" = "v$(cat .nvmrc)"
+          test "$(npm --version)" = "$(node -p 'require("./package.json").engines.npm')"
+          echo "ADMIN UI SOURCE: $(git rev-parse HEAD) node $(node --version) npm $(npm --version)"
+
+      - name: Install locked dependencies without install scripts
+        run: npm ci --ignore-scripts
+
+      - name: Locked dependency audit (bundled dependencies, every severity)
+        run: npm audit --omit=dev
+
+      - name: Locked dependency audit (full tree, high and critical)
+        run: npm run audit:full
+
+      - name: Toolchain engines
+        run: npx wp-scripts check-engines
+
+      - name: Lint, typecheck, unit and build-contract tests, build and drift
+        run: npm run quality
+
+      - name: Second clean build is byte-identical
+        run: rm -rf assets/admin/build node_modules/.cache && npm run build && npm run check:drift
+
+  build-windows:
+    name: Build and drift (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      # npm runs package scripts through cmd.exe on Windows; check:drift is a
+      # POSIX command, so point npm at Git Bash (not the WSL bash on PATH).
+      npm_config_script_shell: 'C:\Program Files\Git\bin\bash.exe'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.ADMIN_UI_SOURCE_SHA }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Require exact-head checkout and pinned toolchain
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ADMIN_UI_SOURCE_SHA"
+          test "$(node --version)" = "v$(cat .nvmrc)"
+          test "$(npm --version)" = "$(node -p 'require("./package.json").engines.npm')"
+
+      - name: Clean install, build and drift
+        run: npm ci --ignore-scripts && npm run build && npm run check:drift
+
+      - name: Committed build has LF line endings in the Windows working tree
+        run: |
+          set -euo pipefail
+          git ls-files --eol -- assets/admin/build
+          if git ls-files --eol -- assets/admin/build | grep -E 'w/(crlf|mixed)'; then
+            echo "CRLF or mixed line endings found in the Windows working-tree build"
+            exit 1
+          fi
+
+  gate:
+    name: Admin UI Gate
+    needs:
+      - static
+      - build-windows
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every admin UI lane to succeed
+        shell: bash
+        env:
+          STATIC_RESULT: ${{ needs.static.result }}
+          BUILD_WINDOWS_RESULT: ${{ needs.build-windows.result }}
+        run: |
+          set -euo pipefail
+          echo "static=$STATIC_RESULT build-windows=$BUILD_WINDOWS_RESULT"
+          if [[ "$STATIC_RESULT" != success || "$BUILD_WINDOWS_RESULT" != success ]]; then
+            echo "Admin UI certification failed: skipped or cancelled counts as failure."
+            exit 1
+          fi

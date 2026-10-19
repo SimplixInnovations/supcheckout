@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Deterministic SBOM + license inventory generator (CycloneDX JSON).
 
-Runtime SBOM: from unpacked supcheckout-0.1.0.zip file manifest.
-Dev SBOM: from composer.lock + tests/e2e/package-lock.json.
+Runtime SBOM: from unpacked supcheckout-0.1.0.zip file manifest, plus every npm
+package bundled into the committed admin build (the packaged
+assets/admin/build/third-party-notices.json).
+Dev SBOM: from composer.lock + tests/e2e/package-lock.json + package-lock.json.
 
 Never adds runtime plugin dependencies. Evidence files stay outside the ZIP.
 """
@@ -12,11 +14,18 @@ import hashlib
 import json
 import sys
 import zipfile
+from urllib.parse import quote
 from datetime import datetime, timezone
 from pathlib import Path
 import os
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def npm_purl(name: str, version: str) -> str:
+    """Package URL for an npm package; the purl spec percent-encodes a scope's leading @."""
+    segments = [quote(segment, safe="") for segment in name.split("/")]
+    return f"pkg:npm/{'/'.join(segments)}@{quote(str(version), safe='.+-_~')}"
 
 
 def sha256_file(p: Path) -> str:
@@ -55,6 +64,41 @@ def cyclone_dx(name: str, components: list[dict], serial: str) -> dict:
     }
 
 
+# Bundled-package notices emitted by the admin build (tools/admin-ui/webpack/notices-plugin.cjs).
+ADMIN_NOTICES = "supcheckout/assets/admin/build/third-party-notices.json"
+
+# Exact name/version pairs whose package.json predates the SPDX `license` field.
+# Each was checked against the package's LICENSE file. Any other version is not
+# covered and still fails closed as UNKNOWN until it is reviewed.
+NPM_LICENSE_RESOLUTIONS = {
+    ("svg-tags", "1.0.0"): "MIT",  # legacy `licenses` array; LICENSE file is MIT
+}
+
+
+def license_entry(spdx: str) -> dict:
+    if any(token in spdx for token in (" OR ", " AND ", " WITH ", "(")):
+        return {"expression": spdx}
+    return {"license": {"id": spdx}}
+
+
+def bundled_npm_components(z: zipfile.ZipFile) -> list[dict]:
+    if ADMIN_NOTICES not in z.namelist():
+        return []
+    notices = json.loads(z.read(ADMIN_NOTICES).decode("utf-8"))
+    comps = []
+    for pkg in sorted(notices, key=lambda p: (p["name"], p["version"])):
+        comps.append(
+            {
+                "type": "library",
+                "name": pkg["name"],
+                "version": pkg["version"],
+                "purl": npm_purl(pkg["name"], pkg["version"]),
+                "licenses": [license_entry(pkg["license"])],
+            }
+        )
+    return comps
+
+
 def runtime_sbom(zip_path: Path) -> dict:
     comps = []
     with zipfile.ZipFile(zip_path) as z:
@@ -69,6 +113,7 @@ def runtime_sbom(zip_path: Path) -> dict:
                     "hashes": [{"alg": "SHA-256", "content": hashlib.sha256(data).hexdigest()}],
                 }
             )
+        comps.extend(bundled_npm_components(z))
     return cyclone_dx(
         "supcheckout-runtime-artifact",
         comps,
@@ -109,30 +154,35 @@ def dev_sbom() -> tuple[dict, list[dict]]:
                         "source": "composer.lock",
                     }
                 )
-    pkg_lock = ROOT / "tests" / "e2e" / "package-lock.json"
-    if pkg_lock.exists():
+    for source in ("tests/e2e/package-lock.json", "package-lock.json"):
+        pkg_lock = ROOT / source
+        if not pkg_lock.exists():
+            continue
         data = json.loads(pkg_lock.read_text(encoding="utf-8"))
         packages = data.get("packages") or {}
         for path, meta in packages.items():
             if not path:
                 continue
             name = path.split("node_modules/")[-1]
+            version = meta.get("version")
             comps.append(
                 {
                     "type": "library",
                     "name": name,
-                    "version": meta.get("version"),
-                    "purl": f"pkg:npm/{name}@{meta.get('version')}",
+                    "version": version,
+                    "purl": npm_purl(name, version),
                 }
             )
             licenses.append(
                 {
                     "package": name,
-                    "version": meta.get("version"),
+                    "version": version,
                     "ecosystem": "npm",
-                    "license": meta.get("license") or "UNKNOWN",
+                    "license": meta.get("license")
+                    or NPM_LICENSE_RESOLUTIONS.get((name, version))
+                    or "UNKNOWN",
                     "class": "development",
-                    "source": "tests/e2e/package-lock.json",
+                    "source": source,
                 }
             )
     return (

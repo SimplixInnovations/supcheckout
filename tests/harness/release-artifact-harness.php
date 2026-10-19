@@ -137,6 +137,26 @@ foreach (array('"DESIGN.md"', '"UX-CONTRACT.md"', '"premium-ui.json"') as $forbi
     release_assert(strpos($verify, $forbidden) !== false, 'verifier forbids governance/design control document: ' . $forbidden);
 }
 
+// Sub-project 1: the admin UI toolchain (npm manifests, build/lint/type/test
+// configs, tools/ and node_modules/) is development-only. The committed build
+// under assets/admin/build and the source under assets/admin/src ship; nothing
+// else from the toolchain may enter the package.
+$admin_ui_toolchain = array(
+    '/node_modules/', '/tools/', '/package.json', '/package-lock.json', '/.nvmrc', '/.npmrc',
+    '/webpack.config.js', '/tsconfig.json', '/eslint.config.mjs', '/.stylelintrc.json', '/jest.config.js',
+);
+$distignore_rules = preg_split('/\R/', $distignore);
+foreach ($admin_ui_toolchain as $excluded) {
+    release_assert(in_array($excluded, $distignore_rules, true), 'distribution excludes admin UI toolchain path: ' . $excluded);
+}
+foreach (array('"package.json"', '"package-lock.json"', '".nvmrc"', '".npmrc"', '"webpack.config.js"', '"tsconfig.json"', '"eslint.config.mjs"', '".stylelintrc.json"', '"jest.config.js"') as $forbidden) {
+    release_assert(strpos($verify, $forbidden) !== false, 'verifier forbids admin UI toolchain file: ' . $forbidden);
+}
+release_assert(
+    strpos($verify, '"node_modules/", "tools/"') !== false && strpos($verify, 'forbidden_suffixes = (".map",)') !== false,
+    'verifier forbids node_modules/, tools/ and source maps'
+);
+
 release_assert(substr_count($build, 'supcheckout') >= 2, 'builder owns canonical SUPCheckout ZIP/root slug');
 release_assert(strpos($build, 'slug = "simplixpay-upayments"') === false, 'builder contains no retired package-root slug');
 release_assert(substr_count($verify, 'supcheckout') >= 2, 'verifier owns canonical SUPCheckout ZIP/root slug');
@@ -266,6 +286,23 @@ if ($version !== '') {
                     }
                 }
                 release_assert(!$contains_screenshots, 'canonical package excludes WordPress.org screenshot source material');
+
+                foreach (array('app.js', 'app.asset.json', 'app.css', 'app-rtl.css', 'THIRD-PARTY-NOTICES.txt') as $admin_build_file) {
+                    release_assert(in_array($prefix . 'assets/admin/build/' . $admin_build_file, $names, true), 'canonical package ships the committed admin build: ' . $admin_build_file);
+                }
+                release_assert(in_array($prefix . 'assets/admin/src/app/index.tsx', $names, true), 'canonical package ships the human-readable admin source');
+                $admin_dev_entries = array();
+                foreach ($names as $name) {
+                    $rel = substr($name, strlen($prefix));
+                    if (substr($rel, -4) === '.map'
+                        || strpos('/' . $rel, '/__tests__/') !== false
+                        || strpos($rel, 'tools/') === 0
+                        || strpos($rel, 'node_modules/') === 0
+                        || strpos($rel, 'tests/admin-ui/') === 0) {
+                        $admin_dev_entries[] = $rel;
+                    }
+                }
+                release_assert($admin_dev_entries === array(), 'canonical package has no source map, __tests__, tools/, node_modules/ or tests/admin-ui/ entry');
 
                 $plugin = $zip->getFromName($prefix . 'supcheckout.php');
                 release_assert(

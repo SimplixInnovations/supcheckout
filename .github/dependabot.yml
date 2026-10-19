@@ -31,3 +31,25 @@ updates:
         dependency-type: development
         patterns:
           - "*"
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: Asia/Dubai
+    open-pull-requests-limit: 3
+    reviewers:
+      - SimplixInnovationsAdmin
+    cooldown:
+      default-days: 14
+    groups:
+      admin-ui-runtime:
+        dependency-type: production
+        patterns:
+          - "*"
+      admin-ui-tooling:
+        dependency-type: development
+        patterns:
+          - "*"
