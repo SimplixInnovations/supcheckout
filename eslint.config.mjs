@@ -29,6 +29,12 @@ const PRIMITIVES = {
 		'Import UI primitives through assets/admin/src/ui (the only import surface), never directly.',
 };
 
+const UI_INTERNALS = {
+	group: [ '**/assets/admin/src/ui/*/**' ],
+	message:
+		'Import the UI library through its barrel (assets/admin/src/ui), never a module inside it.',
+};
+
 export default [
 	{
 		ignores: [
@@ -84,6 +90,17 @@ export default [
 			'no-restricted-imports': [
 				'error',
 				{ patterns: [ WP_COMPONENTS, PRIMITIVES ] },
+			],
+		},
+	},
+	{
+		// The gallery shows the library as SP2 screens consume it: through the
+		// barrel only (tokens.generated.css stays importable).
+		files: [ 'tests/admin-ui/gallery/**/*.{js,ts,tsx}' ],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{ patterns: [ WP_COMPONENTS, PRIMITIVES, UI_INTERNALS ] },
 			],
 		},
 	},
