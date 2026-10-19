@@ -16,11 +16,14 @@ const WP_COMPONENTS = {
 };
 
 const PRIMITIVES = {
+	// Every Base UI and Floating UI package (and any subpath), plus lucide.
 	group: [
-		'@base-ui/react',
-		'@base-ui/react/*',
+		'@base-ui/*',
+		'@base-ui/*/**',
+		'@floating-ui/*',
+		'@floating-ui/*/**',
 		'lucide-react',
-		'lucide-react/*',
+		'lucide-react/**',
 	],
 	message:
 		'Import UI primitives through assets/admin/src/ui (the only import surface), never directly.',

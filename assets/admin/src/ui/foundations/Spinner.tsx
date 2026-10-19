@@ -3,6 +3,11 @@
  *
  * Without a label it is decorative. With a translated label it is a polite
  * `status` whose text is visually hidden.
+ *
+ * A status region announces reliably only when its text changes after the
+ * region is mounted; a spinner mounted together with its label may be
+ * silent. It suits "this area is busy", not alerts. Toast and Notice (Task 6)
+ * must announce through a live region that is mounted before the message.
  */
 import { VisuallyHidden } from './VisuallyHidden';
 

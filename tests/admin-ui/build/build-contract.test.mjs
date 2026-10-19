@@ -192,6 +192,15 @@ test( 'Base UI is bundled, noticed and licensed', () => {
 	).toContain( '@base-ui/react' );
 } );
 
+test( 'library modules and glyphs the app does not render are tree-shaken', () => {
+	// package.json `sideEffects: ["*.css"]` lets webpack drop barrel modules
+	// that nothing uses. The app renders no SecretInput yet, so neither our
+	// `eye-off` name nor lucide's EyeOff glyph may ship. Update this test (pick
+	// another unrendered glyph) once a screen renders `eye-off`.
+	expect( appJs() ).not.toContain( 'eye-off' );
+	expect( appJs() ).not.toContain( 'EyeOff' );
+} );
+
 test( 'the app mounts SupRoot with its portal layer above the admin bar', () => {
 	expect( appJs() ).toContain( 'sup-portal-layer' );
 	const css = readBuild( 'app.css' ).toString( 'utf8' );

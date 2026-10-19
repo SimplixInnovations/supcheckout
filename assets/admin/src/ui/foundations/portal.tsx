@@ -27,8 +27,8 @@ export interface ScopeAttributes {
 export const PortalContext = createContext< HTMLElement | null >( null );
 
 /**
- * @return The portal layer of the nearest SupRoot, or null outside one (or
- *         before it mounts).
+ * @return The portal layer of the nearest SupRoot, from its first render on;
+ *         null only outside a SupRoot.
  */
 export function usePortalContainer(): HTMLElement | null {
 	return useContext( PortalContext );
@@ -44,29 +44,42 @@ function applyAttributes( element: HTMLElement, attributes: ScopeAttributes ) {
 	}
 }
 
+function createLayer(): HTMLElement | null {
+	if ( typeof document === 'undefined' ) {
+		return null;
+	}
+	const element = document.createElement( 'div' );
+	element.className = PORTAL_LAYER_CLASS;
+	return element;
+}
+
 /**
- * Creates the layer in `document.body`, keeps its attributes equal to
- * `attributes` and removes it on unmount.
+ * Owns the layer: one element per SupRoot, created on the first render (so
+ * `usePortalContainer()` is never null inside a mounted SupRoot), attached to
+ * `document.body` while mounted, with its attributes kept equal to
+ * `attributes`, and detached on unmount.
+ *
+ * Layout effects attach it and set its attributes before the first paint.
+ * Under StrictMode the effects run, clean up and run again on the same
+ * element, so exactly one layer stays attached.
  *
  * @param attributes The app root's scope attributes.
- * @return The layer element once mounted, else null.
+ * @return The layer element; null only where there is no document.
  */
 export function usePortalLayer(
 	attributes: ScopeAttributes
 ): HTMLElement | null {
-	const [ layer, setLayer ] = useState< HTMLElement | null >( null );
+	const [ layer ] = useState( createLayer );
 
-	// Layout effects: the layer and its attributes exist before the first
-	// paint (setLayer in a layout effect re-renders synchronously).
 	useLayoutEffect( () => {
-		const element = document.createElement( 'div' );
-		element.className = PORTAL_LAYER_CLASS;
-		document.body.appendChild( element );
-		setLayer( element );
+		if ( ! layer ) {
+			return undefined;
+		}
+		document.body.appendChild( layer );
 		return () => {
-			element.remove();
+			layer.remove();
 		};
-	}, [] );
+	}, [ layer ] );
 
 	const { dir, lang } = attributes;
 	const theme = attributes[ 'data-sup-theme' ];

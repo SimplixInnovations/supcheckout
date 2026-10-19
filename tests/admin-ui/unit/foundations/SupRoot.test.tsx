@@ -3,7 +3,7 @@
  * Review Focus 2).
  */
 import { render, screen } from '@testing-library/react';
-import { createPortal } from '@wordpress/element';
+import { StrictMode, createPortal } from '@wordpress/element';
 
 import {
 	Heading,
@@ -108,6 +108,64 @@ test( 'usePortalContainer is null outside SupRoot', () => {
 	}
 	render( <Probe /> );
 	expect( seen ).toBeNull();
+} );
+
+test( 'usePortalContainer is the layer on the first render inside SupRoot', () => {
+	const seen: Array< HTMLElement | null > = [];
+	function Probe() {
+		seen.push( usePortalContainer() );
+		return null;
+	}
+	render(
+		<SupRoot preference="dark">
+			<Probe />
+		</SupRoot>
+	);
+	expect( seen[ 0 ] ).not.toBeNull();
+	expect( seen[ 0 ] ).toHaveClass( 'supcheckout-admin', 'sup-portal-layer' );
+	expect( seen[ 0 ] ).toBe( layer() );
+	expect( new Set( seen ).size ).toBe( 1 );
+} );
+
+test( 'StrictMode keeps exactly one synced layer and removes it on unmount', () => {
+	const { rerender, unmount } = render(
+		<StrictMode>
+			<SupRoot preference="dark">x</SupRoot>
+		</StrictMode>
+	);
+	expect( layers() ).toHaveLength( 1 );
+	expect( layer() ).toHaveAttribute( 'data-sup-theme', 'dark' );
+	rerender(
+		<StrictMode>
+			<SupRoot preference="light" density="compact">
+				x
+			</SupRoot>
+		</StrictMode>
+	);
+	expect( layers() ).toHaveLength( 1 );
+	expect( layer() ).toHaveAttribute( 'data-sup-theme', 'light' );
+	expect( layer() ).toHaveAttribute( 'data-sup-density', 'compact' );
+	unmount();
+	expect( layers() ).toHaveLength( 0 );
+} );
+
+test( 'two roots own two layers and unmounting one keeps the other', () => {
+	const first = render( <SupRoot preference="dark">a</SupRoot> );
+	const second = render( <SupRoot preference="light">b</SupRoot> );
+	expect( layers() ).toHaveLength( 2 );
+	first.unmount();
+	expect( layers() ).toHaveLength( 1 );
+	expect( layer() ).toHaveAttribute( 'data-sup-theme', 'light' );
+	second.unmount();
+	expect( layers() ).toHaveLength( 0 );
+} );
+
+test( 'the system color-scheme listener is removed on unmount', () => {
+	const media = mockMatchMedia( false );
+	const { unmount } = render( <SupRoot>x</SupRoot> );
+	expect( media.listenerCount() ).toBeGreaterThan( 0 );
+	unmount();
+	expect( media.listenerCount() ).toBe( 0 );
 } );
 
 function FoundationsSpecimen() {

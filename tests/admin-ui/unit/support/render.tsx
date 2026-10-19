@@ -18,9 +18,13 @@ export const AXE_TAGS = [
 	'wcag22aa',
 ];
 
-// No rule is disabled here. jest-axe itself turns off the color rules,
-// because jsdom has no layout or computed colors; contrast is proven by the
-// token suite and the browser suite.
+// No rule is disabled here. With `runOnly` tags, color-contrast still runs,
+// but jsdom has no layout, computed colors or canvas, so it ends
+// `incomplete`, which toHaveNoViolations ignores. renderInModes therefore
+// asserts that color-contrast is the only incomplete rule; contrast itself is
+// proven by the token suite and the browser suite.
+const ALLOWED_INCOMPLETE = new Set( [ 'color-contrast' ] );
+
 const axe = configureAxe( {
 	runOnly: { type: 'tag', values: AXE_TAGS },
 } );
@@ -51,10 +55,12 @@ export function mockIsRTL( rtl: boolean ): void {
  * query (jsdom has no matchMedia).
  *
  * @param prefersDark Initial system preference.
- * @return `change( next )` dispatches a system change to every listener.
+ * @return `change( next )` dispatches a system change to every listener;
+ *         `listenerCount()` counts the change listeners still attached.
  */
 export function mockMatchMedia( prefersDark: boolean ): {
 	change: ( next: boolean ) => void;
+	listenerCount: () => number;
 } {
 	let matches = prefersDark;
 	const listeners = new Set< ChangeListener >();
@@ -79,6 +85,7 @@ export function mockMatchMedia( prefersDark: boolean ): {
 				listener( { matches: next } );
 			}
 		},
+		listenerCount: () => listeners.size,
 	};
 }
 
@@ -96,6 +103,11 @@ export async function renderInModes( ui: ReactElement ): Promise< void > {
 		render( <SupRoot preference={ theme }>{ ui }</SupRoot> );
 		const results = await axe( document.body );
 		expect( results ).toHaveNoViolations();
+		expect(
+			results.incomplete
+				.map( ( result ) => result.id )
+				.filter( ( id ) => ! ALLOWED_INCOMPLETE.has( id ) )
+		).toEqual( [] );
 		cleanup();
 	}
 }

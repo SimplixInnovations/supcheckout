@@ -31,6 +31,9 @@ export interface SupRootProps {
 }
 
 function documentLanguage(): string | undefined {
+	if ( typeof document === 'undefined' ) {
+		return undefined;
+	}
 	return document.documentElement.lang || undefined;
 }
 
