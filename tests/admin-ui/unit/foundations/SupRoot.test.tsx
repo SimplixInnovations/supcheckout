@@ -3,7 +3,7 @@
  * Review Focus 2).
  */
 import { render, screen } from '@testing-library/react';
-import { StrictMode, createPortal } from '@wordpress/element';
+import { StrictMode, createPortal, useLayoutEffect } from '@wordpress/element';
 
 import {
 	Heading,
@@ -125,6 +125,55 @@ test( 'usePortalContainer is the layer on the first render inside SupRoot', () =
 	expect( seen[ 0 ] ).toHaveClass( 'supcheckout-admin', 'sup-portal-layer' );
 	expect( seen[ 0 ] ).toBe( layer() );
 	expect( new Set( seen ).size ).toBe( 1 );
+} );
+
+type LayerSnapshot = { connected: boolean; theme: string | null };
+
+function LayoutEffectProbe( {
+	seen,
+}: {
+	seen: Array< LayerSnapshot | null >;
+} ) {
+	const container = usePortalContainer();
+	useLayoutEffect( () => {
+		seen.push(
+			container
+				? {
+						connected: container.isConnected,
+						theme: container.getAttribute( 'data-sup-theme' ),
+					}
+				: null
+		);
+	}, [ container, seen ] );
+	return null;
+}
+
+test( 'the layer is attached and synced before a child’s first layout effect', () => {
+	const seen: Array< LayerSnapshot | null > = [];
+	render(
+		<SupRoot preference="dark">
+			<div>
+				<LayoutEffectProbe seen={ seen } />
+			</div>
+		</SupRoot>
+	);
+	expect( seen ).toEqual( [ { connected: true, theme: 'dark' } ] );
+} );
+
+test( 'under StrictMode every child layout effect run sees an attached layer', () => {
+	const seen: Array< LayerSnapshot | null > = [];
+	render(
+		<StrictMode>
+			<SupRoot preference="dark">
+				<LayoutEffectProbe seen={ seen } />
+			</SupRoot>
+		</StrictMode>
+	);
+	expect( seen.length ).toBeGreaterThan( 0 );
+	expect( seen ).toEqual(
+		seen.map( () => ( { connected: true, theme: 'dark' } ) )
+	);
+	expect( layers() ).toHaveLength( 1 );
 } );
 
 test( 'StrictMode keeps exactly one synced layer and removes it on unmount', () => {

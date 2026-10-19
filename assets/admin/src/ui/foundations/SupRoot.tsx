@@ -12,7 +12,7 @@ import { DirectionProvider } from '@base-ui/react/direction-provider';
 import { useCallback, useMemo, useState } from '@wordpress/element';
 
 import { useDirection } from './direction';
-import { PortalContext, usePortalLayer } from './portal';
+import { PortalContext, PortalLayerAttacher, usePortalLayer } from './portal';
 import type { ScopeAttributes } from './portal';
 import { ThemeContext, resolveTheme, useSystemPrefersDark } from './theme';
 import type { ThemeContextValue, ThemePreference } from './theme';
@@ -73,12 +73,17 @@ export function SupRoot( {
 		lang,
 		'data-sup-density': density,
 	};
-	const layer = usePortalLayer( attributes );
+	const layer = usePortalLayer();
 
 	return (
 		<ThemeContext.Provider value={ theme }>
 			<DirectionProvider direction={ direction }>
 				<PortalContext.Provider value={ layer }>
+					{ /* First, so the layer is attached before any child's layout effect. */ }
+					<PortalLayerAttacher
+						layer={ layer }
+						attributes={ attributes }
+					/>
 					<div className="supcheckout-admin" { ...attributes }>
 						{ children }
 					</div>

@@ -54,23 +54,39 @@ function createLayer(): HTMLElement | null {
 }
 
 /**
- * Owns the layer: one element per SupRoot, created on the first render (so
- * `usePortalContainer()` is never null inside a mounted SupRoot), attached to
- * `document.body` while mounted, with its attributes kept equal to
- * `attributes`, and detached on unmount.
+ * Owns the layer element: one per SupRoot, created on the first render, so
+ * `usePortalContainer()` is never null inside a mounted SupRoot. Rendering
+ * `<PortalLayerAttacher>` attaches it.
  *
- * Layout effects attach it and set its attributes before the first paint.
- * Under StrictMode the effects run, clean up and run again on the same
- * element, so exactly one layer stays attached.
- *
- * @param attributes The app root's scope attributes.
  * @return The layer element; null only where there is no document.
  */
-export function usePortalLayer(
-	attributes: ScopeAttributes
-): HTMLElement | null {
+export function usePortalLayer(): HTMLElement | null {
 	const [ layer ] = useState( createLayer );
+	return layer;
+}
 
+export interface PortalLayerAttacherProps {
+	layer: HTMLElement | null;
+	attributes: ScopeAttributes;
+}
+
+/**
+ * Attaches the layer to `document.body` while mounted, keeps its attributes
+ * equal to `attributes` and detaches it on unmount. Renders nothing.
+ *
+ * SupRoot renders it as the first child, before its children: layout effects
+ * run in tree order and a sibling's before the next sibling's subtree, so the
+ * layer is attached and synced before any child's (first) layout effect, also
+ * when StrictMode re-runs the effects on the same element.
+ *
+ * @param props            The layer and the app root's scope attributes.
+ * @param props.layer      The layer from `usePortalLayer()`.
+ * @param props.attributes The scope attributes to mirror.
+ */
+export function PortalLayerAttacher( {
+	layer,
+	attributes,
+}: PortalLayerAttacherProps ) {
 	useLayoutEffect( () => {
 		if ( ! layer ) {
 			return undefined;
@@ -95,5 +111,5 @@ export function usePortalLayer(
 		}
 	}, [ layer, theme, dir, lang, density ] );
 
-	return layer;
+	return null;
 }
