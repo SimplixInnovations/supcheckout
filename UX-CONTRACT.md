@@ -24,10 +24,10 @@
 ## Visual contract
 
 - **Project `DESIGN.md`:** root `DESIGN.md`.
-- **Token ownership model:** existing runtime CSS/platform primitives are canonical; `DESIGN.md` mirrors durable values and rationale.
-- **Runtime design-system/token source:** WooCommerce/theme + WordPress admin; plugin-owned additions in `assets/css/customer.css`, `assets/css/new-design.css`, `assets/css/admin-style.css`.
-- **Mapping/export/adapters:** no generated token layer. Any durable token change updates `DESIGN.md` and its runtime CSS owner together.
-- **Token drift gate:** review changed CSS against `DESIGN.md`; browser screenshots/axe/focus checks remain the runtime proof.
+- **Token ownership model:** checkout, account and legacy admin: existing runtime CSS/platform primitives are canonical. React admin app: the generated token layer (`assets/admin/src/tokens/*.tokens.json` → `tokens.generated.css`, `--sup-*` under `.supcheckout-admin`) is canonical. `DESIGN.md` mirrors durable values and rationale for both.
+- **Runtime design-system/token source:** WooCommerce/theme + WordPress admin. Plugin-owned additions are in `assets/css/customer.css`, `assets/css/new-design.css` and `assets/css/admin-style.css` (`--supcheckout-*`). The React admin app uses `assets/admin/src/tokens/tokens.generated.css` (`--sup-*`), built into `assets/admin/build/app.css` / `app-rtl.css`.
+- **Mapping/export/adapters:** checkout and legacy admin have no generated token layer; a durable token change updates `DESIGN.md` and its runtime CSS owner together. The admin app's generated layer comes from `tools/admin-ui/tokens/build-tokens.mjs`, which is deterministic and committed. `--check` fails on drift, on any WCAG 2.2 AA contrast failure in light or dark across the nine admin schemes, and on an invalid or inaccessible `brand.tokens.json`. Admin CSS must pass `findCssViolations`: tokens only, logical properties, scoped selectors.
+- **Token drift gate:** review changed CSS against `DESIGN.md`. For the admin app, `npm run quality` (token `--check`, the CSS discipline test, stylelint) and `admin-ui-certification.yml` enforce it. Browser screenshots/axe/focus checks remain the runtime proof.
 - **Supported themes:** host-theme rendering is inherited; repository ecosystem certification covers the maintained free-theme matrix. Paid/vendor themes remain external.
 - **Design-context owner/review policy:** changes to customer/admin interaction behavior require this contract, relevant business source, and project tests to move together.
 
