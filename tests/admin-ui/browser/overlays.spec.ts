@@ -72,13 +72,15 @@ function hasCorePalette( page: Page ): Promise< boolean > {
 			.wp;
 		const data = wp?.data as
 			{ select?: ( store: string ) => unknown } | undefined;
-		let store: unknown;
+		let registered = 0;
 		try {
-			store = data?.select?.( 'core/commands' );
+			const store = data?.select?.( 'core/commands' ) as
+				{ getCommands?: () => unknown[] } | undefined;
+			registered = store?.getCommands?.()?.length ?? 0;
 		} catch {
-			store = undefined;
+			registered = 0;
 		}
-		return Boolean( wp?.commands ) || Boolean( store );
+		return Boolean( wp?.coreCommands ) || registered > 0;
 	} );
 }
 
