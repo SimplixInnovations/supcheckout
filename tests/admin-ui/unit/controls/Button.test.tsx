@@ -73,6 +73,18 @@ test( 'Space on a busy button does not call onClick', async () => {
 	expect( onClick ).not.toHaveBeenCalled();
 } );
 
+test( 'Space on a button that is not busy calls onClick exactly once', async () => {
+	const onClick = jest.fn();
+	render(
+		<Button busyLabel="Saving" onClick={ onClick }>
+			Save
+		</Button>
+	);
+	screen.getByRole( 'button', { name: 'Save' } ).focus();
+	await userEvent.keyboard( ' ' );
+	expect( onClick ).toHaveBeenCalledTimes( 1 );
+} );
+
 test( 'implicit submission through a busy default button does not submit the form', async () => {
 	const onSubmit = jest.fn( ( event: { preventDefault: () => void } ) =>
 		event.preventDefault()
