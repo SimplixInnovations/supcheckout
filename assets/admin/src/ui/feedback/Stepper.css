@@ -1,0 +1,124 @@
+/*
+ * Stepper: markers joined by connectors on one row; a stacked column when
+ * the container is narrow. Complete is a filled accent marker with a check,
+ * current an accent ring with a soft halo and a bold label, upcoming a
+ * strong-border ring with muted text: shape and weight differ, not only
+ * color.
+ */
+.supcheckout-admin .sup-stepper {
+	container-type: inline-size;
+}
+
+.supcheckout-admin .sup-stepper__list {
+	display: flex;
+	align-items: center;
+	gap: var(--sup-space-3);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.supcheckout-admin .sup-stepper__step {
+	display: flex;
+	flex: 1 1 0;
+	align-items: center;
+	gap: var(--sup-space-3);
+	margin: 0;
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-sm);
+	line-height: var(--sup-line-height-heading);
+}
+
+/* The last step has no connector: it takes only its own width. */
+.supcheckout-admin .sup-stepper__step:last-child {
+	flex: 0 0 auto;
+}
+
+/* The connector to the next step. */
+.supcheckout-admin .sup-stepper__step:not(:last-child)::after {
+	content: "";
+	flex: 1 1 auto;
+	min-inline-size: var(--sup-space-5);
+	block-size: var(--sup-border-width-focus);
+	border-radius: var(--sup-radius-pill);
+	background-color: var(--sup-color-border-default);
+}
+
+.supcheckout-admin .sup-stepper__step--complete:not(:last-child)::after {
+	background-color: var(--sup-color-accent-bg);
+}
+
+.supcheckout-admin .sup-stepper__marker {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	inline-size: var(--sup-size-control-sm);
+	block-size: var(--sup-size-control-sm);
+	border: var(--sup-border-width-focus) solid var(--sup-color-border-strong);
+	border-radius: var(--sup-radius-pill);
+	color: var(--sup-color-fg-muted);
+	background-color: var(--sup-color-bg-surface);
+	font-size: var(--sup-font-size-sm);
+	font-weight: var(--sup-font-weight-semibold);
+	font-variant-numeric: tabular-nums;
+}
+
+.supcheckout-admin .sup-stepper__step--complete .sup-stepper__marker {
+	border-color: var(--sup-color-accent-bg);
+	color: var(--sup-color-fg-on-accent);
+	background-color: var(--sup-color-accent-bg);
+}
+
+.supcheckout-admin .sup-stepper__step--current .sup-stepper__marker {
+	border-color: var(--sup-color-accent-bg);
+	color: var(--sup-color-accent-fg);
+	box-shadow: 0 0 0 var(--sup-space-2) var(--sup-color-accent-subtle-bg);
+}
+
+.supcheckout-admin .sup-stepper__label {
+	overflow-wrap: break-word;
+}
+
+.supcheckout-admin .sup-stepper__step--current .sup-stepper__label {
+	font-weight: var(--sup-font-weight-semibold);
+}
+
+.supcheckout-admin .sup-stepper__step--upcoming .sup-stepper__label {
+	color: var(--sup-color-fg-muted);
+}
+
+/* Narrow containers: one step per row, no horizontal connectors. */
+@container (max-width: 560px) {
+
+	.supcheckout-admin .sup-stepper__list {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.supcheckout-admin .sup-stepper__step:not(:last-child)::after {
+		content: none;
+	}
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-stepper__marker {
+		border-color: canvastext;
+	}
+
+	.supcheckout-admin .sup-stepper__step--complete .sup-stepper__marker,
+	.supcheckout-admin .sup-stepper__step--current .sup-stepper__marker {
+		border-color: highlight;
+	}
+
+	.supcheckout-admin .sup-stepper__step--complete .sup-stepper__marker {
+		color: highlighttext;
+		background-color: highlight;
+	}
+
+	.supcheckout-admin .sup-stepper__step:not(:last-child)::after {
+		background-color: canvastext;
+	}
+}

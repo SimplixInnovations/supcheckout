@@ -1,0 +1,104 @@
+/*
+ * Notice: icon, content and an optional dismiss button on the tone's tint,
+ * framed by a hairline in the tone's border color. Text is status-*-fg on
+ * status-*-bg; the icon is the tone's solid (both pairs contrast-checked).
+ * No thick inline-start stripe: the icon and the tint carry the tone.
+ */
+.supcheckout-admin .sup-notice {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: start;
+	gap: var(--sup-space-4);
+	box-sizing: border-box;
+	padding-block: var(--sup-space-4);
+	padding-inline: var(--sup-space-5) var(--sup-space-4);
+	border: var(--sup-border-width-hairline) solid var(--sup-notice-border);
+	border-radius: var(--sup-radius-control);
+	color: var(--sup-notice-fg);
+	background-color: var(--sup-notice-bg);
+	font-size: var(--sup-font-size-md);
+	line-height: var(--sup-line-height-body);
+}
+
+.supcheckout-admin .sup-notice--info {
+	--sup-notice-fg: var(--sup-color-status-info-fg);
+	--sup-notice-bg: var(--sup-color-status-info-bg);
+	--sup-notice-border: var(--sup-color-status-info-border);
+	--sup-notice-icon: var(--sup-color-status-info-solid);
+}
+
+.supcheckout-admin .sup-notice--success {
+	--sup-notice-fg: var(--sup-color-status-success-fg);
+	--sup-notice-bg: var(--sup-color-status-success-bg);
+	--sup-notice-border: var(--sup-color-status-success-border);
+	--sup-notice-icon: var(--sup-color-status-success-solid);
+}
+
+.supcheckout-admin .sup-notice--warning {
+	--sup-notice-fg: var(--sup-color-status-warning-fg);
+	--sup-notice-bg: var(--sup-color-status-warning-bg);
+	--sup-notice-border: var(--sup-color-status-warning-border);
+	--sup-notice-icon: var(--sup-color-status-warning-solid);
+}
+
+.supcheckout-admin .sup-notice--error {
+	--sup-notice-fg: var(--sup-color-status-danger-fg);
+	--sup-notice-bg: var(--sup-color-status-danger-bg);
+	--sup-notice-border: var(--sup-color-status-danger-border);
+	--sup-notice-icon: var(--sup-color-status-danger-solid);
+}
+
+/* The icon box matches the first line box, so the glyph centers on it. */
+.supcheckout-admin .sup-notice__icon {
+	display: inline-flex;
+	align-items: center;
+	block-size: calc(var(--sup-font-size-md) * var(--sup-line-height-body));
+	color: var(--sup-notice-icon);
+}
+
+.supcheckout-admin .sup-notice__content {
+	display: grid;
+	gap: var(--sup-space-1);
+	min-inline-size: 0;
+	max-inline-size: calc(var(--sup-size-measure) * 1.5);
+	overflow-wrap: anywhere;
+}
+
+.supcheckout-admin .sup-notice__title {
+	margin: 0;
+	font-weight: var(--sup-font-weight-semibold);
+}
+
+.supcheckout-admin .sup-notice__message > * {
+	margin-block: 0;
+}
+
+.supcheckout-admin .sup-notice__message > * + * {
+	margin-block-start: var(--sup-space-3);
+}
+
+.supcheckout-admin .sup-notice__message a {
+	color: var(--sup-color-fg-link);
+}
+
+/* The dismiss button follows the tone's text and sits on the first line. */
+.supcheckout-admin .sup-notice .sup-button.sup-notice__dismiss {
+	margin-block: calc((var(--sup-font-size-md) * var(--sup-line-height-body) - var(--sup-button-height-sm)) / 2);
+	color: var(--sup-notice-fg);
+}
+
+.supcheckout-admin .sup-notice .sup-button.sup-notice__dismiss:hover,
+.supcheckout-admin .sup-notice .sup-button.sup-notice__dismiss:active {
+	background-color: var(--sup-color-bg-surface);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-notice {
+		border-color: canvastext;
+	}
+
+	.supcheckout-admin .sup-notice__icon {
+		color: canvastext;
+	}
+}

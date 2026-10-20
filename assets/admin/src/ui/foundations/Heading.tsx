@@ -10,6 +10,8 @@ export interface HeadingProps {
 	level: HeadingLevel;
 	/** Visual size; defaults to the size that matches the level. */
 	size?: HeadingSize;
+	/** Element id, e.g. for a region's `aria-labelledby`. */
+	id?: string;
 	children: ReactNode;
 }
 
@@ -20,11 +22,11 @@ const DEFAULT_SIZE: Readonly< Record< HeadingLevel, HeadingSize > > = {
 	4: 'sm',
 };
 
-export function Heading( { level, size, children }: HeadingProps ) {
+export function Heading( { level, size, id, children }: HeadingProps ) {
 	const Element = `h${ level }` as const;
 	const visual = size ?? DEFAULT_SIZE[ level ];
 	return (
-		<Element className={ `sup-heading sup-heading--${ visual }` }>
+		<Element id={ id } className={ `sup-heading sup-heading--${ visual }` }>
 			{ children }
 		</Element>
 	);

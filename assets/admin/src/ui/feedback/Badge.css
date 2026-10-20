@@ -1,0 +1,37 @@
+/* Badge: a compact rounded label; text uses the contrast-checked pairs. */
+.supcheckout-admin .sup-badge {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	min-block-size: var(--sup-size-icon-md);
+	padding-block: 0;
+	padding-inline: var(--sup-space-3);
+	border: var(--sup-border-width-hairline) solid transparent;
+	border-radius: var(--sup-radius-control);
+	font-size: var(--sup-font-size-xs);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-heading);
+	letter-spacing: var(--sup-letter-spacing-wide);
+	white-space: nowrap;
+	vertical-align: middle;
+	unicode-bidi: isolate;
+	font-variant-numeric: tabular-nums;
+}
+
+.supcheckout-admin .sup-badge--neutral {
+	color: var(--sup-color-status-neutral-fg);
+	background-color: var(--sup-color-status-neutral-bg);
+}
+
+.supcheckout-admin .sup-badge--accent {
+	color: var(--sup-color-accent-fg);
+	background-color: var(--sup-color-accent-subtle-bg);
+}
+
+/* Backgrounds disappear in forced colors; the outline keeps the shape. */
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-badge {
+		border-color: canvastext;
+	}
+}

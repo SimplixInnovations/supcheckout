@@ -192,13 +192,48 @@ test( 'Base UI is bundled, noticed and licensed', () => {
 	).toContain( '@base-ui/react' );
 } );
 
+// The icon set ships whole once anything renders an Icon (see the next
+// test), so every new glyph costs every screen. Raise this only on purpose.
+const EXPECTED_ICON_COUNT = 24;
+
+test( 'the shipped glyph map holds exactly the published icon set', () => {
+	const source = readFileSync(
+		join( ROOT, 'assets/admin/src/ui/foundations/icons.ts' ),
+		'utf8'
+	);
+	const map = /export const ICONS[^{]*\{([^}]*)\}/.exec( source );
+	expect( map ).not.toBeNull();
+	const entries = map[ 1 ]
+		.split( '\n' )
+		.filter( ( line ) =>
+			/^\s*'?[a-z][a-z0-9-]*'?:\s*[A-Z]\w*,\s*$/.test( line )
+		);
+	expect( entries ).toHaveLength( EXPECTED_ICON_COUNT );
+	// lucide's minified glyph definitions: `{name:"circle-x",size:24,node:`.
+	const glyphs = appJs().match( /\{name:"[a-z0-9-]+",size:24,node:/g ) ?? [];
+	expect( glyphs ).toHaveLength( EXPECTED_ICON_COUNT );
+} );
+
 test( 'library modules and glyphs the app does not render are tree-shaken', () => {
 	// package.json `sideEffects: ["*.css"]` lets webpack drop barrel modules
-	// that nothing uses. The app renders no SecretInput yet, so neither our
-	// `eye-off` name nor lucide's EyeOff glyph may ship. Update this test (pick
-	// another unrendered glyph) once a screen renders `eye-off`.
-	expect( appJs() ).not.toContain( 'eye-off' );
-	expect( appJs() ).not.toContain( 'EyeOff' );
+	// that nothing uses. Since Task 6 the app renders SupRoot's Toaster, which
+	// draws icons, so Icon's name map (and with it every glyph of our set,
+	// `eye-off` included) ships: a map lookup cannot be tree-shaken. What must
+	// still never ship: library modules the app does not render (SecretInput,
+	// Tooltip, Stepper) and lucide glyphs outside our set.
+	const js = appJs();
+	expect( js ).toContain( 'sup-toast' );
+	expect( js ).toContain( '"circle-x"' );
+	for ( const unrendered of [
+		'sup-secret-input',
+		'sup-tooltip',
+		'sup-stepper',
+	] ) {
+		expect( js ).not.toContain( unrendered );
+	}
+	for ( const glyph of [ '"rocket"', '"circle-dot"', '"trash-2"' ] ) {
+		expect( js ).not.toContain( glyph );
+	}
 } );
 
 test( 'the app mounts SupRoot with its portal layer above the admin bar', () => {

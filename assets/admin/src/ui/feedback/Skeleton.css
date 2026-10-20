@@ -1,0 +1,88 @@
+/*
+ * Skeleton: decorative placeholder shapes. Height presets follow the type
+ * and control scale, so a loaded view lands where its skeleton stood.
+ */
+.supcheckout-admin .sup-skeleton {
+	position: relative;
+	display: block;
+	box-sizing: border-box;
+	inline-size: 100%;
+	max-inline-size: 100%;
+	overflow: hidden;
+	border-radius: var(--sup-radius-control);
+	background-color: var(--sup-color-skeleton-base);
+}
+
+/*
+ * The pulse: the highlight layer fades in and out over the base. Only
+ * opacity animates, so the compositor runs it without repainting.
+ */
+.supcheckout-admin .sup-skeleton::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background-color: var(--sup-color-skeleton-highlight);
+	opacity: 0;
+	animation: sup-skeleton-pulse calc(var(--sup-motion-duration-slow) * 5) var(--sup-motion-ease-standard) infinite alternate;
+}
+
+.supcheckout-admin .sup-skeleton--height-text {
+	block-size: var(--sup-font-size-md);
+}
+
+.supcheckout-admin .sup-skeleton--height-title {
+	block-size: var(--sup-font-size-xl);
+}
+
+.supcheckout-admin .sup-skeleton--height-control {
+	block-size: var(--sup-size-control-md);
+}
+
+.supcheckout-admin .sup-skeleton--block {
+	border-radius: var(--sup-radius-card);
+}
+
+/* A circle takes its diameter from the height; width is ignored. */
+.supcheckout-admin .sup-skeleton--circle {
+	inline-size: auto;
+	aspect-ratio: 1;
+	border-radius: var(--sup-radius-pill);
+}
+
+.supcheckout-admin .sup-skeleton-group__shapes {
+	display: grid;
+	gap: var(--sup-space-3);
+}
+
+@keyframes sup-skeleton-pulse {
+
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+/* Static under reduced motion: the shape alone says "loading". */
+@media (prefers-reduced-motion: reduce) {
+
+	.supcheckout-admin .sup-skeleton,
+	.supcheckout-admin .sup-skeleton::after {
+		animation: none;
+	}
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-skeleton {
+		border: var(--sup-border-width-hairline) solid graytext;
+		background-color: canvas;
+	}
+
+	.supcheckout-admin .sup-skeleton::after {
+		content: none;
+	}
+}

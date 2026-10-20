@@ -3,5 +3,25 @@
 		"name": "@base-ui/react",
 		"version": "1.8.0",
 		"license": "MIT"
+	},
+	{
+		"name": "@base-ui/utils",
+		"version": "0.4.0",
+		"license": "MIT"
+	},
+	{
+		"name": "@floating-ui/utils",
+		"version": "0.2.12",
+		"license": "MIT"
+	},
+	{
+		"name": "lucide-react",
+		"version": "1.52.0",
+		"license": "ISC"
+	},
+	{
+		"name": "use-sync-external-store",
+		"version": "1.7.0",
+		"license": "MIT"
 	}
 ]

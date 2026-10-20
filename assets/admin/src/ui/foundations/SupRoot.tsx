@@ -5,12 +5,14 @@
  * `data-sup-density` and, for an explicit Light or Dark choice only,
  * `data-sup-theme`. It owns the body-level portal layer, which mirrors those
  * attributes, and gives Base UI the same direction through
- * `DirectionProvider`.
+ * `DirectionProvider`. It also provides `useToast()` and renders the toast
+ * viewport inside that portal layer.
  */
 import type { ReactNode } from 'react';
 import { DirectionProvider } from '@base-ui/react/direction-provider';
 import { useCallback, useMemo, useState } from '@wordpress/element';
 
+import { ToastProvider } from '../feedback/Toast';
 import { useDirection } from './direction';
 import { PortalContext, PortalLayerAttacher, usePortalLayer } from './portal';
 import type { ScopeAttributes } from './portal';
@@ -84,9 +86,11 @@ export function SupRoot( {
 						layer={ layer }
 						attributes={ attributes }
 					/>
-					<div className="supcheckout-admin" { ...attributes }>
-						{ children }
-					</div>
+					<ToastProvider>
+						<div className="supcheckout-admin" { ...attributes }>
+							{ children }
+						</div>
+					</ToastProvider>
 				</PortalContext.Provider>
 			</DirectionProvider>
 		</ThemeContext.Provider>

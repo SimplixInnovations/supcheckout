@@ -1,0 +1,48 @@
+/*
+ * Tooltip: an inverted chip (the default text color as the fill, the
+ * surface color as the text: the same contrast-checked pair, reversed),
+ * so it reads as transient help and never as a popover surface.
+ */
+.supcheckout-admin .sup-tooltip-positioner {
+	z-index: var(--sup-tooltip-z);
+}
+
+.supcheckout-admin .sup-tooltip {
+	box-sizing: border-box;
+	max-inline-size: var(--sup-tooltip-max-inline-size);
+	padding-block: var(--sup-space-2);
+	padding-inline: var(--sup-space-3);
+	border-radius: var(--sup-tooltip-radius);
+	box-shadow: var(--sup-shadow-raised);
+	color: var(--sup-color-bg-surface);
+	background-color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-sm);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-heading);
+	overflow-wrap: anywhere;
+
+	/* Direction from the text itself: an untranslated string in an RTL
+	   admin keeps its punctuation in place. */
+	unicode-bidi: plaintext;
+	transition-property: opacity;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-tooltip[data-starting-style],
+.supcheckout-admin .sup-tooltip[data-ending-style] {
+	opacity: 0;
+}
+
+.supcheckout-admin .sup-tooltip[data-instant] {
+	transition-duration: 0s;
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-tooltip {
+		border: var(--sup-border-width-hairline) solid canvastext;
+		color: canvastext;
+		background-color: canvas;
+	}
+}

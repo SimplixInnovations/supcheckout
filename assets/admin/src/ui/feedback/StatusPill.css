@@ -1,0 +1,82 @@
+/*
+ * StatusPill: status-*-fg text on its status-*-bg tint, the icon in the
+ * status solid (3:1 non-text on the tint, checked by the token suite).
+ */
+.supcheckout-admin .sup-status-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sup-space-2);
+	box-sizing: border-box;
+	max-inline-size: 100%;
+	min-block-size: var(--sup-size-target-min);
+	padding-block: var(--sup-space-1);
+	padding-inline: var(--sup-space-3) var(--sup-space-4);
+	border: var(--sup-border-width-hairline) solid transparent;
+	border-radius: var(--sup-radius-pill);
+	font-size: var(--sup-font-size-sm);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-heading);
+	vertical-align: middle;
+}
+
+/* Never truncated: a cut-off state would hide its meaning. */
+.supcheckout-admin .sup-status-pill__text {
+	min-inline-size: 0;
+	overflow-wrap: anywhere;
+}
+
+.supcheckout-admin .sup-status-pill--success {
+	color: var(--sup-color-status-success-fg);
+	background-color: var(--sup-color-status-success-bg);
+}
+
+.supcheckout-admin .sup-status-pill--success .sup-icon {
+	color: var(--sup-color-status-success-solid);
+}
+
+.supcheckout-admin .sup-status-pill--warning {
+	color: var(--sup-color-status-warning-fg);
+	background-color: var(--sup-color-status-warning-bg);
+}
+
+.supcheckout-admin .sup-status-pill--warning .sup-icon {
+	color: var(--sup-color-status-warning-solid);
+}
+
+.supcheckout-admin .sup-status-pill--danger {
+	color: var(--sup-color-status-danger-fg);
+	background-color: var(--sup-color-status-danger-bg);
+}
+
+.supcheckout-admin .sup-status-pill--danger .sup-icon {
+	color: var(--sup-color-status-danger-solid);
+}
+
+.supcheckout-admin .sup-status-pill--info {
+	color: var(--sup-color-status-info-fg);
+	background-color: var(--sup-color-status-info-bg);
+}
+
+.supcheckout-admin .sup-status-pill--info .sup-icon {
+	color: var(--sup-color-status-info-solid);
+}
+
+.supcheckout-admin .sup-status-pill--neutral {
+	color: var(--sup-color-status-neutral-fg);
+	background-color: var(--sup-color-status-neutral-bg);
+}
+
+.supcheckout-admin .sup-status-pill--neutral .sup-icon {
+	color: var(--sup-color-status-neutral-solid);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-status-pill {
+		border-color: canvastext;
+	}
+
+	.supcheckout-admin .sup-status-pill .sup-icon {
+		color: canvastext;
+	}
+}

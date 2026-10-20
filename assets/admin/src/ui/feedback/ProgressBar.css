@@ -1,0 +1,113 @@
+/*
+ * ProgressBar: label and value on one line, the track below. The indicator
+ * is the accent fill; the indeterminate segment slides along the inline
+ * axis (logical insets, so it runs end-ward in RTL too).
+ */
+.supcheckout-admin .sup-progress {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: baseline;
+	gap: var(--sup-space-2) var(--sup-space-4);
+	inline-size: 100%;
+}
+
+.supcheckout-admin .sup-progress__label {
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-sm);
+	font-weight: var(--sup-font-weight-medium);
+}
+
+.supcheckout-admin .sup-progress__value {
+	grid-column: 2;
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-sm);
+	font-variant-numeric: tabular-nums;
+
+	/* Isolated, with its direction from its own text: "2 of 4 steps" and
+	   an Arabic value text both keep their order inside an RTL label row. */
+	unicode-bidi: plaintext;
+	white-space: nowrap;
+}
+
+.supcheckout-admin .sup-progress__track {
+	position: relative;
+	grid-column: 1 / -1;
+	block-size: var(--sup-space-3);
+	overflow: hidden;
+	border-radius: var(--sup-radius-pill);
+	background-color: var(--sup-color-bg-surface-sunken);
+	box-shadow: inset 0 0 0 var(--sup-border-width-hairline) var(--sup-color-border-default);
+}
+
+.supcheckout-admin .sup-progress__indicator {
+	position: absolute;
+	inset-block: 0;
+	border-radius: var(--sup-radius-pill);
+	background-color: var(--sup-color-accent-bg);
+	transition-property: width;
+	transition-duration: var(--sup-motion-duration-base);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+/*
+ * The indeterminate segment is a third of the track and slides from just
+ * before its inline start to just past its inline end. Only `translate`
+ * animates (compositor-friendly); --sup-progress-direction flips the
+ * travel wherever the indicator's own direction is RTL, because translate is
+ * physical.
+ */
+.supcheckout-admin .sup-progress[data-indeterminate] .sup-progress__indicator {
+	--sup-progress-direction: 1;
+	inset-inline-start: 0;
+	inline-size: calc(100% / 3);
+	animation: sup-progress-slide calc(var(--sup-motion-duration-slow) * 5) var(--sup-motion-ease-standard) infinite;
+}
+
+/* :dir() follows the nearest dir, so an LTR island in an RTL page runs LTR. */
+.supcheckout-admin .sup-progress[data-indeterminate] .sup-progress__indicator:dir(rtl) {
+	--sup-progress-direction: -1;
+}
+
+@keyframes sup-progress-slide {
+
+	from {
+		translate: calc(100% * -1 * var(--sup-progress-direction)) 0;
+	}
+
+	to {
+		translate: calc(100% * 3 * var(--sup-progress-direction)) 0;
+	}
+}
+
+/*
+ * Reduced motion: a static striped bar across the track, the conventional
+ * "working, amount unknown" signal, instead of a moving segment.
+ */
+@media (prefers-reduced-motion: reduce) {
+
+	.supcheckout-admin .sup-progress[data-indeterminate] .sup-progress__indicator {
+		inline-size: 100%;
+		translate: none;
+		background-image:
+			repeating-linear-gradient(
+				-45deg,
+				var(--sup-color-accent-bg) 0,
+				var(--sup-color-accent-bg) var(--sup-space-2),
+				var(--sup-color-accent-subtle-bg) var(--sup-space-2),
+				var(--sup-color-accent-subtle-bg) var(--sup-space-3)
+			);
+		animation: none;
+	}
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-progress__track {
+		border: var(--sup-border-width-hairline) solid canvastext;
+	}
+
+	.supcheckout-admin .sup-progress__indicator {
+		background-color: highlight;
+		background-image: none;
+	}
+}

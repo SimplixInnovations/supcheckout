@@ -13,6 +13,7 @@ import '../../../assets/admin/src/tokens/tokens.generated.css';
 import { SupRoot } from '../../../assets/admin/src/ui';
 import type { ThemePreference } from '../../../assets/admin/src/ui';
 import { ControlsSpecimens } from './specimens/controls';
+import { FeedbackSpecimens } from './specimens/feedback';
 import { FoundationsSpecimens } from './specimens/foundations';
 
 const ROOT_ID = 'supcheckout-ui-gallery-root';
@@ -47,6 +48,7 @@ function Gallery( { preference: initial }: GalleryProps ) {
 			>
 				<FoundationsSpecimens />
 				<ControlsSpecimens />
+				<FeedbackSpecimens />
 			</div>
 		</SupRoot>
 	);
