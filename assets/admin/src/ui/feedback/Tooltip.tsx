@@ -27,6 +27,17 @@ import { usePortalContainer } from '../foundations/portal';
 import { describedBy } from '../controls/classNames';
 import './Tooltip.css';
 
+declare global {
+	/**
+	 * `@wordpress/scripts` defines `globalThis.SCRIPT_DEBUG` with webpack's
+	 * DefinePlugin: `false` in production builds, which drops the
+	 * development warning below from the shipped bundle (as in
+	 * `@wordpress/warning`). Undefined outside a build unless a test sets it.
+	 * A `var`, because only a var is readable through `globalThis`.
+	 */
+	var SCRIPT_DEBUG: boolean | undefined;
+}
+
 /** Hover delay before a tooltip opens; keyboard focus opens it at once. */
 export const TOOLTIP_DELAY_MS = 400;
 
