@@ -13,7 +13,7 @@
  *   token stylesheet with that brand file merged (and contrast-checked) into
  *   build/brand/tokens.generated.css, and the gallery imports that file in
  *   place of assets/admin/src/tokens/tokens.generated.css;
- * - vr-fonts.css joins the entry: `@font-face` rules for the four vendored
+ * - vr-fonts.css joins the entry: `@font-face` rules for the five vendored
  *   `@fontsource` files the brand file names, which webpack copies into
  *   build/fonts/.
  * Nothing is written under assets/, and without SUP_BRAND the build is the

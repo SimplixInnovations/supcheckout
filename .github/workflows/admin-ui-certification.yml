@@ -339,7 +339,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find tests/admin-ui/gallery/build/fonts -name '*.woff2' | wc -l)" = 4
+          test "$(find tests/admin-ui/gallery/build/fonts -name '*.woff2' | wc -l)" = 5
           test -f tests/admin-ui/gallery/build/brand/tokens.generated.css
           npm run check:drift
           if git ls-files -- assets | grep -Ei '\.(woff2?|ttf|otf|eot)$'; then
@@ -418,12 +418,14 @@ jobs:
         run: |
           set -euo pipefail
           echo "static=$STATIC_RESULT build-windows=$BUILD_WINDOWS_RESULT browser=$BROWSER_RESULT visual=$VISUAL_RESULT update-baselines=$UPDATE_VISUAL_BASELINES"
-          if [[ "$STATIC_RESULT" != success || "$BUILD_WINDOWS_RESULT" != success || "$BROWSER_RESULT" != success || "$VISUAL_RESULT" != success ]]; then
-            echo "Admin UI certification failed: skipped or cancelled counts as failure."
-            exit 1
-          fi
-          # A baseline update can never be green on its own.
+          failed=0
+          # A baseline update can never be green on its own; say so even when a lane failed too.
           if [[ "$UPDATE_VISUAL_BASELINES" != false ]]; then
             echo "baselines regenerated; commit them and rerun"
-            exit 1
+            failed=1
           fi
+          if [[ "$STATIC_RESULT" != success || "$BUILD_WINDOWS_RESULT" != success || "$BROWSER_RESULT" != success || "$VISUAL_RESULT" != success ]]; then
+            echo "Admin UI certification failed: skipped or cancelled counts as failure."
+            failed=1
+          fi
+          exit "$failed"
