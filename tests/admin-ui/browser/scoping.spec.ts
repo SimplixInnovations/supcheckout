@@ -58,7 +58,9 @@ test( 'the shell mounts exactly one scoped root inside wp-admin', async ( {
 	} );
 
 	await page.goto( SHELL );
-	await expect( page.locator( '.sup-app-placeholder' ) ).toBeVisible();
+	await expect(
+		page.locator( `${ APP_ROOT } .sup-app-shell` )
+	).toBeVisible();
 
 	// The PHP mount point is bare; SupRoot is the only scope root inside it.
 	const mount = page.locator( '#supcheckout-admin-root' );
@@ -97,7 +99,9 @@ test( 'tokens resolve inside the app root in all four modes', async ( {
 }, testInfo ) => {
 	const { mode } = projectMode( testInfo );
 	await page.goto( SHELL );
-	await expect( page.locator( '.sup-app-placeholder' ) ).toBeVisible();
+	await expect(
+		page.locator( `${ APP_ROOT } .sup-app-shell` )
+	).toBeVisible();
 
 	for ( const token of [
 		'color-bg-canvas',

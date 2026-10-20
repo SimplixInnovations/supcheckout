@@ -1,9 +1,9 @@
 {
-	"$description": "Test-only Arabic strings for the browser lane. `app` translates strings in assets/admin/build/app.js; `chunks` is written for every lazy chunk in app.chunks.json, so the browser test can prove chunk translations reach wp.i18n.",
+	"$description": "Test-only Arabic strings for the browser lane. `app` translates strings in assets/admin/build/app.js; `chunks` is written for every lazy chunk in app.chunks.json, so the browser tests can prove a chunk's translations come only from its own JSON: the command palette placeholder exists only in the command-palette chunk.",
 	"app": {
 		"SUPCheckout": "سوب تشيك أوت"
 	},
 	"chunks": {
-		"SUPCheckout chunk translation fixture": "ترجمة الجزء المحمّل لاحقاً"
+		"Type a command or search…": "اكتب أمرًا أو ابحث…"
 	}
 }

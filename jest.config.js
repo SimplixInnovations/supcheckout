@@ -18,11 +18,24 @@
  */
 const REACT_19 = process.env.SUP_REACT === '19';
 
+const WP_BABEL_PRESET = require.resolve( '@wordpress/babel-preset-default' );
+
+// Dynamic `import()` becomes a `require()` promise, as webpack resolves it in
+// the build. Left native, Jest's VM-module loader would hand `React.lazy` a
+// namespace whose `default` is the whole CommonJS exports object. The plugin
+// is the one the WordPress preset already ships (through @babel/preset-env),
+// resolved from the preset so no new dependency is added.
+const DYNAMIC_IMPORT_PLUGIN = require.resolve(
+	'@babel/plugin-transform-dynamic-import',
+	{ paths: [ require( 'node:path' ).dirname( WP_BABEL_PRESET ) ] }
+);
+
 const transform = {
 	'^.+\\.[jt]sx?$': [
 		'babel-jest',
 		{
-			presets: [ require.resolve( '@wordpress/babel-preset-default' ) ],
+			presets: [ WP_BABEL_PRESET ],
+			plugins: [ DYNAMIC_IMPORT_PLUGIN ],
 		},
 	],
 };

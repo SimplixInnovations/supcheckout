@@ -1,7 +1,9 @@
 /**
  * Direction and translations: RTL users get the rtlcss stylesheet and an RTL
  * scoped root; app and lazy-chunk strings come from the supcheckout JSON
- * fixtures (tests/admin-ui/wp/fixtures/ar-strings.json).
+ * fixtures (tests/admin-ui/wp/fixtures/ar-strings.json). The chunk string is
+ * the command palette placeholder, which only the lazy command-palette chunk
+ * contains (overlays.spec.ts checks it on screen after the chunk loads).
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -24,6 +26,7 @@ const FIXTURE: Fixture = JSON.parse(
 );
 const CHUNK_SOURCE = Object.keys( FIXTURE.chunks )[ 0 ];
 const APP_ROOT = '#wpbody .supcheckout-admin';
+const SHELL_TITLE = `${ APP_ROOT } .sup-app-shell h1`;
 
 declare global {
 	interface Window {
@@ -36,7 +39,7 @@ test( 'RTL users get the generated -rtl stylesheet', async ( {
 }, testInfo ) => {
 	const { dir } = projectMode( testInfo );
 	await page.goto( SHELL );
-	await expect( page.locator( '.sup-app-placeholder' ) ).toBeVisible();
+	await expect( page.locator( SHELL_TITLE ) ).toBeVisible();
 
 	const rtl = page.locator( 'link[href*="assets/admin/build/app-rtl.css"]' );
 	const ltr = page.locator( 'link[href*="assets/admin/build/app.css"]' );
@@ -68,7 +71,7 @@ test( 'app strings are translated from the supcheckout JSON', async ( {
 }, testInfo ) => {
 	const { dir } = projectMode( testInfo );
 	await page.goto( SHELL );
-	const title = page.locator( '.sup-app-placeholder' );
+	const title = page.locator( SHELL_TITLE );
 	await expect( title ).toHaveText(
 		dir === 'rtl' ? FIXTURE.app.SUPCheckout : 'SUPCheckout'
 	);
@@ -79,7 +82,7 @@ test( 'lazy chunk translations reach wp.i18n before the app runs', async ( {
 }, testInfo ) => {
 	const { dir } = projectMode( testInfo );
 	await page.goto( SHELL );
-	await expect( page.locator( '.sup-app-placeholder' ) ).toBeVisible();
+	await expect( page.locator( SHELL_TITLE ) ).toBeVisible();
 
 	const before = page.locator( 'script#supcheckout-admin-js-before' );
 	if ( dir === 'rtl' ) {
@@ -90,6 +93,20 @@ test( 'lazy chunk translations reach wp.i18n before the app runs', async ( {
 	} else {
 		// No en_US translation file exists, so nothing is inlined.
 		await expect( before ).toHaveCount( 0 );
+	}
+
+	// The chunk's strings come only from the chunk's JSON: the app's own
+	// translations do not carry them.
+	const appTranslations = page.locator(
+		'script#supcheckout-admin-js-translations'
+	);
+	if ( dir === 'rtl' ) {
+		// The ASCII part of the source string (the rest is JSON-escaped).
+		const key = CHUNK_SOURCE.replace( /[^ -~].*$/, '' );
+		expect( key.length ).toBeGreaterThan( 10 );
+		expect( await before.textContent() ).toContain( key );
+		await expect( appTranslations ).toHaveCount( 1 );
+		expect( await appTranslations.textContent() ).not.toContain( key );
 	}
 
 	const translated = await page.evaluate(

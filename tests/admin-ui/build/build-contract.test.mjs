@@ -148,6 +148,31 @@ test( 'the chunk manifest lists exactly the emitted chunks', () => {
 	);
 } );
 
+test( 'the command palette panel is the lazy chunk and the Task 1 placeholder is gone', () => {
+	const chunks = readJson( 'assets/admin/build/app.chunks.json' );
+	expect(
+		chunks.some( ( c ) =>
+			/^chunks\/command-palette\.[a-f0-9]{8}\.js$/.test( c )
+		)
+	).toBe( true );
+	expect(
+		existsSync( join( ROOT, 'assets/admin/src/app/Placeholder.tsx' ) )
+	).toBe( false );
+	expect( allText() ).not.toContain( 'sup-app-placeholder' );
+	// The panel (Base UI Autocomplete and the search) loads only on open.
+	const palette = chunks.find( ( c ) =>
+		c.startsWith( 'chunks/command-palette.' )
+	);
+	const panel = readBuild( palette ).toString( 'utf8' );
+	expect( panel ).toContain( 'No matching commands' );
+	expect( panel ).toContain( 'sup-palette__list' );
+	expect( appJs() ).not.toContain( 'No matching commands' );
+	expect( appJs() ).not.toContain( 'sup-palette__list' );
+	// The shell, the palette trigger and its dialog ship in app.js.
+	expect( appJs() ).toContain( 'sup-app-shell' );
+	expect( appJs() ).toContain( 'sup-dialog' );
+} );
+
 test( 'bundled packages carry an allowed license and none is WordPress or React', () => {
 	for ( const p of readJson(
 		'assets/admin/build/third-party-notices.json'

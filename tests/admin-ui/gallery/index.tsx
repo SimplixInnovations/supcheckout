@@ -5,6 +5,10 @@
  * renders `#supcheckout-ui-gallery-root` with the validated preference in
  * `data-theme`. Every specimen renders inside one SupRoot, so it carries the
  * same scope, theme, direction and portal layer as the real app.
+ *
+ * `&view=overlays` renders the overlay specimens instead (SP1 Task 7): they
+ * live inside an AppShell, a whole-page frame with a sticky header, so they
+ * get their own view and the other specimens keep their order and layout.
  */
 import domReady from '@wordpress/dom-ready';
 import { createRoot, useState } from '@wordpress/element';
@@ -15,9 +19,12 @@ import type { ThemePreference } from '../../../assets/admin/src/ui';
 import { ControlsSpecimens } from './specimens/controls';
 import { FeedbackSpecimens } from './specimens/feedback';
 import { FoundationsSpecimens } from './specimens/foundations';
+import { OverlaysSpecimens } from './specimens/overlays';
 
 const ROOT_ID = 'supcheckout-ui-gallery-root';
 const PREFERENCES: readonly ThemePreference[] = [ 'light', 'dark', 'system' ];
+
+type View = 'components' | 'overlays';
 
 function preferenceOf( element: HTMLElement ): ThemePreference {
 	const requested = element.dataset.theme;
@@ -27,29 +34,43 @@ function preferenceOf( element: HTMLElement ): ThemePreference {
 	);
 }
 
-interface GalleryProps {
-	preference: ThemePreference;
+function viewOf(): View {
+	return new URLSearchParams( window.location.search ).get( 'view' ) ===
+		'overlays'
+		? 'overlays'
+		: 'components';
 }
 
-function Gallery( { preference: initial }: GalleryProps ) {
+interface GalleryProps {
+	preference: ThemePreference;
+	view: View;
+}
+
+function Gallery( { preference: initial, view }: GalleryProps ) {
 	// The theme query sets the first preference; ThemeToggle then changes it,
 	// as a screen persisting the choice would.
 	const [ preference, setPreference ] = useState( initial );
 	return (
 		<SupRoot preference={ preference } onPreferenceChange={ setPreference }>
-			<div
-				data-gallery-ready="true"
-				style={ {
-					display: 'grid',
-					gap: 'var(--sup-space-6)',
-					padding: 'var(--sup-space-6)',
-					justifyItems: 'start',
-				} }
-			>
-				<FoundationsSpecimens />
-				<ControlsSpecimens />
-				<FeedbackSpecimens />
-			</div>
+			{ view === 'overlays' ? (
+				<div data-gallery-ready="true">
+					<OverlaysSpecimens />
+				</div>
+			) : (
+				<div
+					data-gallery-ready="true"
+					style={ {
+						display: 'grid',
+						gap: 'var(--sup-space-6)',
+						padding: 'var(--sup-space-6)',
+						justifyItems: 'start',
+					} }
+				>
+					<FoundationsSpecimens />
+					<ControlsSpecimens />
+					<FeedbackSpecimens />
+				</div>
+			) }
 		</SupRoot>
 	);
 }
@@ -60,6 +81,6 @@ domReady( () => {
 		return;
 	}
 	createRoot( container ).render(
-		<Gallery preference={ preferenceOf( container ) } />
+		<Gallery preference={ preferenceOf( container ) } view={ viewOf() } />
 	);
 } );
