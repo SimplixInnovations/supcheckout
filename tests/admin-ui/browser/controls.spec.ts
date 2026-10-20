@@ -496,6 +496,32 @@ test( 'a busy button stays focusable, inert and announced', async ( {
 	).toBeDisabled();
 } );
 
+test( 'an indeterminate checkbox stays mixed after the user clicks it', async ( {
+	page,
+} ) => {
+	await openGallery( page );
+	const states = specimen( 'checkbox-states' );
+	const selectAll = page
+		.locator( states )
+		.getByRole( 'checkbox', { name: 'Select all orders' } );
+	const mixed = () =>
+		selectAll.evaluate(
+			( el ) => ( el as HTMLInputElement ).indeterminate
+		);
+	const dash = page.locator(
+		`${ states } .sup-checkbox:nth-child(2) .sup-checkbox__dash`
+	);
+	expect( await mixed() ).toBe( true );
+	await expect( dash ).toBeVisible();
+
+	await selectAll.click();
+	expect( await mixed() ).toBe( true );
+	await expect( dash ).toBeVisible();
+	await selectAll.press( 'Space' );
+	expect( await mixed() ).toBe( true );
+	await expect( dash ).toBeVisible();
+} );
+
 test( 'reduced motion makes control transitions instant', async ( {
 	page,
 } ) => {

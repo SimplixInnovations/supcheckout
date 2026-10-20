@@ -4,10 +4,17 @@
  *
  * The input is transparent and covers a 24 px target; a decorative sibling
  * draws the box, the check and the dash with tokens, so WordPress's
- * `forms.css` checkmark (`:checked::before`) never shows. `indeterminate` is a
- * DOM property, not an attribute, so it is applied in a layout effect.
+ * `forms.css` checkmark (`:checked::before`) never shows.
+ *
+ * `indeterminate` is a DOM property, not an attribute, and the prop is its
+ * single source of truth. The browser clears the property whenever the user
+ * toggles the box, and a click the parent ignores (or an uncontrolled box)
+ * causes no re-render, so the prop is re-applied after every render and
+ * again in the change handler. A select-all box therefore shows mixed until
+ * its parent says otherwise.
  */
 import type {
+	ChangeEvent,
 	InputHTMLAttributes,
 	MutableRefObject,
 	ReactNode,
@@ -69,6 +76,7 @@ export const Checkbox = forwardRef< HTMLInputElement, CheckboxProps >(
 			className,
 			id,
 			'aria-describedby': ariaDescribedBy,
+			onChange,
 			...rest
 		},
 		ref
@@ -79,11 +87,18 @@ export const Checkbox = forwardRef< HTMLInputElement, CheckboxProps >(
 		const input = useRef< HTMLInputElement | null >( null );
 		const setRef = useBothRefs( input, ref );
 
+		// No dependency list: also restores the property after any re-render.
 		useLayoutEffect( () => {
 			if ( input.current ) {
 				input.current.indeterminate = indeterminate;
 			}
-		}, [ indeterminate ] );
+		} );
+
+		const handleChange = ( event: ChangeEvent< HTMLInputElement > ) => {
+			onChange?.( event );
+			// Activation cleared it; keep the prop's state if nothing re-renders.
+			event.currentTarget.indeterminate = indeterminate;
+		};
 
 		return (
 			<div className={ classNames( 'sup-checkbox', className ) }>
@@ -94,6 +109,7 @@ export const Checkbox = forwardRef< HTMLInputElement, CheckboxProps >(
 						id={ inputId }
 						type="checkbox"
 						className="sup-checkbox__input"
+						onChange={ handleChange }
 						aria-describedby={ describedBy(
 							ariaDescribedBy,
 							description && descriptionId

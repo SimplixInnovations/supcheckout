@@ -35,6 +35,57 @@ test( 'Checkbox supports indeterminate', () => {
 	expect( box ).not.toBePartiallyChecked();
 } );
 
+test( 'a controlled indeterminate checkbox stays mixed after a click the parent ignores', async () => {
+	const onChange = jest.fn();
+	render(
+		<Checkbox
+			label="All"
+			indeterminate
+			checked={ false }
+			onChange={ onChange }
+		/>
+	);
+	const box = screen.getByRole( 'checkbox', { name: 'All' } );
+	await userEvent.click( box );
+	expect( onChange ).toHaveBeenCalledTimes( 1 );
+	// The browser clears `indeterminate` on activation; the prop is the truth.
+	expect( box ).toBePartiallyChecked();
+	expect( box ).not.toBeChecked();
+} );
+
+test( 'a select-all checkbox follows its parent from mixed to checked and back', async () => {
+	function SelectAll() {
+		const [ selected, setSelected ] = useState( 1 );
+		const total = 3;
+		return (
+			<Checkbox
+				label="Select all orders"
+				checked={ selected === total }
+				indeterminate={ selected > 0 && selected < total }
+				onChange={ ( event ) =>
+					setSelected( event.target.checked ? total : 0 )
+				}
+			/>
+		);
+	}
+	render( <SelectAll /> );
+	const box = screen.getByRole( 'checkbox', { name: 'Select all orders' } );
+	expect( box ).toBePartiallyChecked();
+	await userEvent.click( box );
+	expect( box ).toBeChecked();
+	expect( box ).not.toBePartiallyChecked();
+	await userEvent.click( box );
+	expect( box ).not.toBeChecked();
+	expect( box ).not.toBePartiallyChecked();
+} );
+
+test( 'an uncontrolled indeterminate checkbox keeps the mixed state its prop sets', async () => {
+	render( <Checkbox label="Select all orders" indeterminate /> );
+	const box = screen.getByRole( 'checkbox', { name: 'Select all orders' } );
+	await userEvent.click( box );
+	expect( box ).toBePartiallyChecked();
+} );
+
 test( 'Checkbox is labelled, described, toggles and forwards its ref', async () => {
 	const ref = createRef< HTMLInputElement >();
 	const onChange = jest.fn();
