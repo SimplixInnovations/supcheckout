@@ -3,6 +3,7 @@
  * commands with diacritic-insensitive search (SP1 Task 7).
  */
 import {
+	cleanup,
 	fireEvent,
 	render,
 	screen,
@@ -113,34 +114,103 @@ interface WpGlobal {
 	wp?: Record< string, unknown >;
 }
 
+type CoreShape = 'core-commands' | 'store' | 'package-only';
+
 /**
- * Pretends WordPress core's command palette is on the page, as `wp-commands`
- * (and its `core/commands` store) would be.
+ * Pretends parts of WordPress core's command palette are on the page.
  *
- * @param shape `commands` for the script global, `store` for the data store.
+ * @param shape `core-commands`: the script that mounts core's palette
+ *              (`wp.coreCommands`); `store`: an initialized `core/commands`
+ *              store with registered commands; `package-only`: only the
+ *              `wp-commands` package loaded (e.g. as a plugin dependency),
+ *              with an empty store and no mounted palette.
  * @return Removes it again.
  */
-function withCorePalette( shape: 'commands' | 'store' ): () => void {
+function withCorePalette( shape: CoreShape ): () => void {
 	const win = window as unknown as WpGlobal;
 	const previous = win.wp;
-	win.wp =
-		shape === 'commands'
-			? { commands: { CommandMenu: () => null } }
-			: {
-					data: {
-						select: ( store: string ) =>
-							store === 'core/commands'
-								? { getCommands: () => [] }
-								: undefined,
-					},
-				};
+	const store = ( registered: unknown[] ) => ( {
+		select: ( name: string ) =>
+			name === 'core/commands'
+				? { getCommands: () => registered }
+				: undefined,
+	} );
+	if ( shape === 'core-commands' ) {
+		win.wp = {
+			commands: { CommandMenu: () => null },
+			coreCommands: { initializeCommandPalette: () => undefined },
+		};
+	} else if ( shape === 'store' ) {
+		win.wp = { data: store( [ { name: 'core/add-new-post' } ] ) };
+	} else {
+		win.wp = { commands: { CommandMenu: () => null }, data: store( [] ) };
+	}
 	return () => {
 		win.wp = previous;
 	};
 }
 
-test.each( [ 'commands', 'store' ] as const )(
-	"Mod+K is left to WordPress core's command palette when it is present (%s)",
+test( 'a loaded wp-commands package alone is not a mounted core palette', async () => {
+	const restore = withCorePalette( 'package-only' );
+	try {
+		renderPalette();
+		expect(
+			screen.getByRole( 'button', { name: /^Search commands/ } )
+		).toHaveAttribute( 'aria-keyshortcuts', 'Control+K' );
+		pressShortcut();
+		expect(
+			await screen.findByRole( 'dialog', { name: 'Command palette' } )
+		).toBeInTheDocument();
+	} finally {
+		restore();
+	}
+} );
+
+test( "while a SUPCheckout modal is open Mod+K is kept from core's palette, and returns to it after", async () => {
+	const restore = withCorePalette( 'core-commands' );
+	const corePalette = jest.fn( ( event: KeyboardEvent ) =>
+		event.defaultPrevented ? 'bailed' : 'opened'
+	);
+	document.addEventListener( 'keydown', corePalette );
+	try {
+		render(
+			<SupRoot>
+				<ConfirmDialog
+					open
+					onOpenChange={ () => undefined }
+					title="Refund 12.500 KWD?"
+					consequence="This cannot be undone."
+					confirmLabel="Refund 12.500 KWD"
+					tone="money"
+					onConfirm={ () => new Promise< ConfirmResult >( () => {} ) }
+				/>
+			</SupRoot>
+		);
+		const cancel = screen.getByRole( 'button', { name: 'Cancel' } );
+		await waitFor( () => expect( cancel ).toHaveFocus() );
+		await userEvent.click(
+			screen.getByRole( 'button', { name: 'Refund 12.500 KWD' } )
+		);
+		fireEvent.keyDown( cancel, { key: 'k', code: 'KeyK', ctrlKey: true } );
+		expect( corePalette ).toHaveLastReturnedWith( 'bailed' );
+		// Other keys are untouched.
+		fireEvent.keyDown( cancel, { key: 'j', code: 'KeyJ', ctrlKey: true } );
+		expect( corePalette ).toHaveLastReturnedWith( 'opened' );
+		cleanup();
+		fireEvent.keyDown( document.body, {
+			key: 'k',
+			code: 'KeyK',
+			ctrlKey: true,
+		} );
+		expect( corePalette ).toHaveLastReturnedWith( 'opened' );
+	} finally {
+		document.removeEventListener( 'keydown', corePalette );
+		restore();
+	}
+} );
+
+test.each( [ 'core-commands', 'store' ] as const )(
+	"Mod+K is left to WordPress core's command palette when it is mounted (%s)",
 	async ( shape ) => {
 		const restore = withCorePalette( shape );
 		// Core's palette listens on document and toggles on Mod+K.

@@ -5,6 +5,9 @@
 import { FeedbackSpecimens } from '../../gallery/specimens/feedback';
 import { mockMatchMedia, renderInModes } from '../support/render';
 
+// axe over every specimen in four modes is slow on a loaded runner.
+jest.setTimeout( 60_000 );
+
 test( 'feedback components have no axe violations in four modes', async () => {
 	mockMatchMedia( false );
 	await renderInModes( <FeedbackSpecimens /> );

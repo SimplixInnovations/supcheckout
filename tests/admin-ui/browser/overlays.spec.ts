@@ -687,6 +687,7 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
 				let bg: number[] | null = null;
 				let translucent = false;
 				let formats = COLOR.test( getComputedStyle( el ).color );
+				const textAlpha = rgb( getComputedStyle( el ).color )[ 3 ] ?? 1;
 				for (
 					let at: Element | null = el;
 					at && ! bg;
@@ -715,7 +716,7 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
 							'[role="dialog"], [role="alertdialog"]'
 						) !== null,
 					opaque: bg !== null,
-					translucent,
+					translucent: translucent || textAlpha < 1,
 					formats,
 					ratio: ( hi + 0.05 ) / ( lo + 0.05 ),
 				};
@@ -859,18 +860,18 @@ test( 'a header that wraps onto more rows still never covers the focused element
 	}
 } );
 
-test( 'an Arabic dialog title that starts with a Latin name keeps the RTL direction', async ( {
+test( 'a dialog title that starts with a Latin name keeps the page direction', async ( {
 	page,
 }, testInfo ) => {
 	const { dir } = projectMode( testInfo );
-	test.skip( dir !== 'rtl', 'the RTL projects own this check' );
 	await openOverlays( page );
 	const dialog = await openDialog( page );
 	const title = dialog.locator( '.sup-dialog__title' );
-	await expect( title ).toHaveCSS( 'direction', 'rtl' );
+	await expect( title ).toHaveCSS( 'direction', dir );
 	await expect( title ).not.toHaveCSS( 'unicode-bidi', 'plaintext' );
-	// "UPayments" first, then Arabic: in an RTL paragraph the Latin name
-	// is the start of the line, so it sits on the right.
+	// "UPayments" first, then Arabic. The paragraph keeps the page
+	// direction: in RTL the Latin name is the start of the line (on the
+	// right), in LTR it is on the left.
 	const order = await title.evaluate( ( el ) => {
 		el.textContent =
 			'UPayments \u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a';
@@ -886,5 +887,53 @@ test( 'an Arabic dialog title that starts with a Latin name keeps the RTL direct
 			arabic: arabic.getBoundingClientRect().left,
 		};
 	} );
-	expect( order.latin ).toBeGreaterThan( order.arabic );
+	if ( dir === 'rtl' ) {
+		expect( order.latin ).toBeGreaterThan( order.arabic );
+	} else {
+		expect( order.latin ).toBeLessThan( order.arabic );
+	}
+} );
+
+test( "while a SUPCheckout modal is open Mod+K never reaches WordPress core's command palette", async ( {
+	page,
+} ) => {
+	await openOverlays( page );
+	const coreMenu = page.locator( '.commands-command-menu' );
+	// Core's palette is mounted and owns Mod+K on this page.
+	await page.locator( `${ APP_ROOT } #supcheckout-content` ).focus();
+	await page.keyboard.press( 'Control+K' );
+	await expect( coreMenu ).toHaveCount( 1 );
+	await page.keyboard.press( 'Escape' );
+	await expect( coreMenu ).toHaveCount( 0 );
+
+	// A refund is pending: Mod+K must not open core's palette over it.
+	await specimen( page, 'confirm-dialog' )
+		.getByRole( 'button', { name: 'Refund order #10234' } )
+		.click();
+	const confirm = page.getByRole( 'alertdialog' );
+	await expect( confirm ).toBeVisible();
+	await confirm.getByRole( 'button', { name: 'Refund 12.500 KWD' } ).click();
+	await expect(
+		confirm.getByRole( 'button', { name: 'Refund 12.500 KWD' } )
+	).toHaveAttribute( 'aria-disabled', 'true' );
+	await page.keyboard.press( 'Control+K' );
+	await page.waitForTimeout( 200 );
+	await expect( coreMenu ).toHaveCount( 0 );
+	expect(
+		await page.evaluate(
+			() =>
+				// eslint-disable-next-line @wordpress/no-global-active-element -- runs inside the page.
+				document.activeElement?.closest( '[role="alertdialog"]' ) !==
+				null
+		)
+	).toBe( true );
+	const close = confirm.getByRole( 'button', { name: 'Close' } );
+	await expect( close ).toBeFocused();
+	await close.click();
+	await expect( page.getByRole( 'alertdialog' ) ).toHaveCount( 0 );
+
+	// With every SUPCheckout modal closed, Mod+K is core's again.
+	await page.keyboard.press( 'Control+K' );
+	await expect( coreMenu ).toHaveCount( 1 );
+	await page.keyboard.press( 'Escape' );
 } );

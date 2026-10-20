@@ -416,3 +416,68 @@ function ClosedHost( {
 		</>
 	);
 }
+
+test( 'with an actionKey, a remount while that request is in flight opens pending and never calls onConfirm again', async () => {
+	const first = deferred< ConfirmResult >();
+	const onConfirm = jest
+		.fn< Promise< ConfirmResult >, [] >()
+		.mockReturnValueOnce( first.promise )
+		.mockReturnValue( new Promise< ConfirmResult >( () => {} ) );
+	const keyedDialog = ( key: string ) => (
+		<SupRoot key={ key }>
+			<ConfirmDialog
+				open
+				onOpenChange={ () => undefined }
+				actionKey="refund:10234"
+				title="Refund 12.500 KWD?"
+				consequence="This cannot be undone."
+				confirmLabel="Refund 12.500 KWD"
+				tone="money"
+				onConfirm={ onConfirm }
+			/>
+		</SupRoot>
+	);
+	const { rerender } = render( keyedDialog( 'a' ) );
+	await userEvent.click( confirmBtn() );
+	// The screen unmounts the dialog mid-request and mounts a new one.
+	rerender( keyedDialog( 'b' ) );
+	await screen.findByRole( 'alertdialog' );
+	expect( confirmBtn() ).toHaveAttribute( 'aria-disabled', 'true' );
+	expect( cancelBtn() ).toHaveAttribute( 'aria-disabled', 'true' );
+	await userEvent.dblClick( confirmBtn() );
+	confirmBtn().focus();
+	await userEvent.keyboard( '{Enter>3}{/Enter}' );
+	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
+
+	// The new instance shows that request's result when it settles.
+	await act( async () =>
+		first.resolve( { status: 'verified', message: 'Refunded once.' } )
+	);
+	expect( screen.getByText( 'Refunded once.' ) ).toBeVisible();
+	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
+} );
+
+test( 'a different actionKey is not blocked by another request in flight', async () => {
+	const onConfirm = jest.fn( () => new Promise< ConfirmResult >( () => {} ) );
+	render(
+		<SupRoot>
+			<ConfirmDialog
+				open
+				onOpenChange={ () => undefined }
+				actionKey="refund:10235"
+				title="Refund 4.000 KWD?"
+				consequence="This cannot be undone."
+				confirmLabel="Refund 4.000 KWD"
+				tone="money"
+				onConfirm={ onConfirm }
+			/>
+		</SupRoot>
+	);
+	expect(
+		within( dialog() ).getByRole( 'button', { name: 'Refund 4.000 KWD' } )
+	).not.toHaveAttribute( 'aria-disabled' );
+	await userEvent.click(
+		within( dialog() ).getByRole( 'button', { name: 'Refund 4.000 KWD' } )
+	);
+	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
+} );
