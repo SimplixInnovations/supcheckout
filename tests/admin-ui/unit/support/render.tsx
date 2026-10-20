@@ -90,10 +90,69 @@ export function mockMatchMedia( prefersDark: boolean ): {
 }
 
 /**
+ * @return Whether Jest's fake timers replace `setTimeout`: legacy timers
+ *         install a jest.fn, modern (@sinonjs/fake-timers) ones a function
+ *         carrying its `clock`.
+ */
+function fakeTimersActive(): boolean {
+	return (
+		jest.isMockFunction( setTimeout ) ||
+		Object.prototype.hasOwnProperty.call( setTimeout, 'clock' )
+	);
+}
+
+/**
+ * Lets polite live-region text, inserted LIVE_REGION_DELAY_MS after its
+ * region, land inside act(): by advancing fake timers when a test uses
+ * them (a real wait would never end), otherwise by waiting.
+ */
+async function settleLiveRegions(): Promise< void > {
+	if ( fakeTimersActive() ) {
+		act( () => {
+			jest.advanceTimersByTime( LIVE_REGION_DELAY_MS );
+		} );
+		return;
+	}
+	await act( async () => {
+		await new Promise( ( resolve ) =>
+			setTimeout( resolve, LIVE_REGION_DELAY_MS )
+		);
+	} );
+}
+
+/** Fake-time step and cap while axe runs under fake timers. */
+const AXE_FAKE_STEP_MS = 10;
+const AXE_FAKE_MAX_STEPS = 500;
+
+/**
+ * Runs axe on the document. axe schedules its own work with timers, so under
+ * fake timers the clock is advanced, inside act(), until axe settles.
+ *
+ * @return axe's results.
+ */
+async function runAxe(): Promise< Awaited< ReturnType< typeof axe > > > {
+	const run = axe( document.body );
+	if ( ! fakeTimersActive() ) {
+		return run;
+	}
+	let settled = false;
+	run.then(
+		() => ( settled = true ),
+		() => ( settled = true )
+	);
+	for ( let step = 0; ! settled && step < AXE_FAKE_MAX_STEPS; step++ ) {
+		await act( async () => {
+			await jest.advanceTimersByTimeAsync( AXE_FAKE_STEP_MS );
+		} );
+	}
+	return run;
+}
+
+/**
  * Renders `ui` inside `SupRoot` in light-ltr, dark-ltr, light-rtl and
  * dark-rtl and asserts that axe finds no WCAG 2.2 AA violation in each,
  * including anything portaled into the body-level layer, after delayed
- * live-region text has landed.
+ * live-region text has landed. Works with real and with fake timers.
  *
  * @param ui Element to check.
  */
@@ -104,12 +163,8 @@ export async function renderInModes( ui: ReactElement ): Promise< void > {
 		render( <SupRoot preference={ theme }>{ ui }</SupRoot> );
 		// Let delayed live-region text land inside act, so axe checks the
 		// regions as users meet them and no update escapes act().
-		await act( async () => {
-			await new Promise( ( resolve ) =>
-				setTimeout( resolve, LIVE_REGION_DELAY_MS )
-			);
-		} );
-		const results = await axe( document.body );
+		await settleLiveRegions();
+		const results = await runAxe();
 		expect( results ).toHaveNoViolations();
 		expect(
 			results.incomplete
