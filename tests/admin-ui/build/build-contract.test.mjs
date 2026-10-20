@@ -192,6 +192,28 @@ test( 'Base UI is bundled, noticed and licensed', () => {
 	).toContain( '@base-ui/react' );
 } );
 
+// The icon set ships whole once anything renders an Icon (see the next
+// test), so every new glyph costs every screen. Raise this only on purpose.
+const EXPECTED_ICON_COUNT = 24;
+
+test( 'the shipped glyph map holds exactly the published icon set', () => {
+	const source = readFileSync(
+		join( ROOT, 'assets/admin/src/ui/foundations/icons.ts' ),
+		'utf8'
+	);
+	const map = /export const ICONS[^{]*\{([^}]*)\}/.exec( source );
+	expect( map ).not.toBeNull();
+	const entries = map[ 1 ]
+		.split( '\n' )
+		.filter( ( line ) =>
+			/^\s*'?[a-z][a-z0-9-]*'?:\s*[A-Z]\w*,\s*$/.test( line )
+		);
+	expect( entries ).toHaveLength( EXPECTED_ICON_COUNT );
+	// lucide's minified glyph definitions: `{name:"circle-x",size:24,node:`.
+	const glyphs = appJs().match( /\{name:"[a-z0-9-]+",size:24,node:/g ) ?? [];
+	expect( glyphs ).toHaveLength( EXPECTED_ICON_COUNT );
+} );
+
 test( 'library modules and glyphs the app does not render are tree-shaken', () => {
 	// package.json `sideEffects: ["*.css"]` lets webpack drop barrel modules
 	// that nothing uses. Since Task 6 the app renders SupRoot's Toaster, which

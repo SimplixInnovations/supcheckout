@@ -52,6 +52,23 @@ test( 'Tooltip opens on focus, closes on Escape and describes its trigger', asyn
 	expect( trigger ).toHaveFocus();
 } );
 
+test( 'Tooltip opens at once on keyboard focus, with no timer advanced', async () => {
+	jest.useFakeTimers();
+	// No advanceTimers option: user-event's own steps must not move the clock.
+	const user = userEvent.setup( { delay: null } );
+	renderInRoot(
+		<Tooltip content="Copies the merchant ID">
+			<Button>Copy</Button>
+		</Tooltip>
+	);
+	await user.tab();
+	expect( screen.getByRole( 'button', { name: 'Copy' } ) ).toHaveFocus();
+	// getByRole, not findByRole: the tooltip is there synchronously.
+	expect( screen.getByRole( 'tooltip' ) ).toHaveTextContent(
+		'Copies the merchant ID'
+	);
+} );
+
 test( 'Tooltip waits TOOLTIP_DELAY_MS before opening on hover', async () => {
 	jest.useFakeTimers();
 	const user = userEvent.setup( { advanceTimers: jest.advanceTimersByTime } );

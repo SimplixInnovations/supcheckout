@@ -2,10 +2,11 @@
  * Loading and progress: Skeleton, SkeletonGroup, ProgressBar and Stepper
  * (SP1 Task 6).
  */
-import { render, screen, within } from '@testing-library/react';
-import { useLayoutEffect } from '@wordpress/element';
+import { act, render, screen, within } from '@testing-library/react';
+import { resetLocaleData, setLocaleData } from '@wordpress/i18n';
 
 import {
+	LIVE_REGION_DELAY_MS,
 	ProgressBar,
 	Skeleton,
 	SkeletonGroup,
@@ -19,18 +20,14 @@ const STEPS = [
 	{ id: 'live', label: 'Go live' },
 ];
 
-function StatusProbe( { seen }: { seen: string[] } ) {
-	useLayoutEffect( () => {
-		const regions = document.querySelectorAll( '[role="status"]' );
-		seen.push(
-			...Array.from(
-				regions,
-				( region ) => `region:${ region.textContent ?? '' }`
-			)
-		);
-	}, [ seen ] );
-	return null;
-}
+const advance = ( ms: number ) =>
+	act( () => {
+		jest.advanceTimersByTime( ms );
+	} );
+
+afterEach( () => {
+	jest.useRealTimers();
+} );
 
 test( 'a Skeleton is hidden from assistive technology in every shape', () => {
 	const { container } = render(
@@ -66,6 +63,7 @@ test( 'a Skeleton is hidden from assistive technology in every shape', () => {
 } );
 
 test( 'SkeletonGroup is busy and announces loading once', () => {
+	jest.useFakeTimers();
 	const { container } = render(
 		<SkeletonGroup label="payments">
 			<Skeleton height="title" width="40%" />
@@ -74,6 +72,7 @@ test( 'SkeletonGroup is busy and announces loading once', () => {
 		</SkeletonGroup>
 	);
 	expect( container.querySelector( '[aria-busy="true"]' ) ).not.toBeNull();
+	advance( LIVE_REGION_DELAY_MS );
 	const statuses = screen.getAllByRole( 'status' );
 	expect( statuses ).toHaveLength( 1 );
 	expect( statuses[ 0 ] ).toHaveTextContent( 'Loading payments…' );
@@ -85,20 +84,32 @@ test( 'SkeletonGroup is busy and announces loading once', () => {
 	}
 } );
 
-test( 'SkeletonGroup mounts its status empty, then inserts the text', () => {
-	const seen: string[] = [];
+test( 'SkeletonGroup holds its loading text for LIVE_REGION_DELAY_MS', () => {
+	jest.useFakeTimers();
 	render(
-		<>
-			<SkeletonGroup label="payments">
-				<Skeleton />
-			</SkeletonGroup>
-			<StatusProbe seen={ seen } />
-		</>
+		<SkeletonGroup label="payments">
+			<Skeleton />
+		</SkeletonGroup>
 	);
-	expect( seen ).toEqual( [ 'region:' ] );
-	expect( screen.getByRole( 'status' ) ).toHaveTextContent(
-		'Loading payments…'
+	const status = screen.getByRole( 'status' );
+	expect( status ).toHaveTextContent( '' );
+	advance( LIVE_REGION_DELAY_MS - 1 );
+	expect( status ).toHaveTextContent( '' );
+	advance( 1 );
+	expect( screen.getByRole( 'status' ) ).toBe( status );
+	expect( status ).toHaveTextContent( 'Loading payments…' );
+} );
+
+test( 'unmounting a SkeletonGroup before the delay leaves no timer', () => {
+	jest.useFakeTimers();
+	const { unmount } = render(
+		<SkeletonGroup label="payments">
+			<Skeleton />
+		</SkeletonGroup>
 	);
+	expect( jest.getTimerCount() ).toBe( 1 );
+	unmount();
+	expect( jest.getTimerCount() ).toBe( 0 );
 } );
 
 test( 'ProgressBar without a value is indeterminate with an accessible name', () => {
@@ -156,14 +167,18 @@ test( 'Stepper marks the current step and announces completed steps', () => {
 	expect( items[ 0 ] ).toHaveTextContent( 'Connect account' );
 	expect( items[ 0 ] ).toHaveTextContent( 'Completed' );
 	expect( items[ 1 ] ).toHaveTextContent( 'Completed' );
+	// aria-current already says "current step"; no hidden text repeats it.
 	expect( items[ 2 ] ).toHaveAttribute( 'aria-current', 'step' );
-	expect( items[ 2 ] ).toHaveTextContent( 'Current step' );
+	expect( items[ 2 ] ).toHaveTextContent( 'Run a test payment' );
+	expect( items[ 2 ] ).not.toHaveTextContent( 'Current step' );
+	expect( items[ 2 ] ).not.toHaveTextContent( 'Completed' );
+	expect( items[ 2 ] ).not.toHaveTextContent( 'Not started' );
 	expect( items[ 3 ] ).toHaveTextContent( 'Not started' );
 	for ( const index of [ 0, 1, 3 ] ) {
 		expect( items[ index ] ).not.toHaveAttribute( 'aria-current' );
 	}
 	// The state words are for assistive technology; the marker shows them.
-	for ( const word of [ 'Completed', 'Current step', 'Not started' ] ) {
+	for ( const word of [ 'Completed', 'Not started' ] ) {
 		for ( const node of screen.getAllByText( word ) ) {
 			expect( node ).toHaveClass( 'sup-visually-hidden' );
 		}
@@ -181,6 +196,34 @@ test( 'a completed current step is announced as current', () => {
 	);
 	const items = screen.getAllByRole( 'listitem' );
 	expect( items[ 1 ] ).toHaveAttribute( 'aria-current', 'step' );
-	expect( items[ 1 ] ).toHaveTextContent( 'Current step' );
+	expect( items[ 1 ] ).not.toHaveTextContent( 'Current step' );
 	expect( items[ 1 ] ).not.toHaveTextContent( 'Completed' );
+} );
+
+test( 'step states are translated with the "setup step state" context', () => {
+	const contextual = {
+		'': { domain: 'supcheckout' },
+		'setup step stateCompleted': [ 'Done (state)' ],
+		'setup step stateNot started': [ 'Waiting (state)' ],
+		// A bare msgid must not be what the Stepper looks up.
+		Completed: [ 'Done (bare)' ],
+		'Not started': [ 'Waiting (bare)' ],
+	};
+	setLocaleData( contextual, 'supcheckout' );
+	try {
+		render(
+			<Stepper
+				label="Setup steps"
+				steps={ STEPS }
+				currentId="test"
+				completedIds={ [ 'connect', 'keys' ] }
+			/>
+		);
+		const items = screen.getAllByRole( 'listitem' );
+		expect( items[ 0 ] ).toHaveTextContent( 'Done (state)' );
+		expect( items[ 3 ] ).toHaveTextContent( 'Waiting (state)' );
+		expect( document.body ).not.toHaveTextContent( '(bare)' );
+	} finally {
+		resetLocaleData( undefined, 'supcheckout' );
+	}
 } );

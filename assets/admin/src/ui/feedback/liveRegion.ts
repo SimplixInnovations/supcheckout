@@ -9,6 +9,9 @@
  */
 import { useEffect, useState } from '@wordpress/element';
 
+/** Time an empty polite region stays empty before its text is inserted. */
+export const LIVE_REGION_DELAY_MS = 100;
+
 /**
  * @return False on the first commit, true from the next render on.
  */

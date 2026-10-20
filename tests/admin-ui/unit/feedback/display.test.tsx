@@ -2,41 +2,28 @@
  * Display components: Card, Badge, StatusPill, Notice and EmptyState
  * (SP1 Task 6).
  */
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useLayoutEffect } from '@wordpress/element';
 
 import {
 	Badge,
 	Button,
 	Card,
 	EmptyState,
+	LIVE_REGION_DELAY_MS,
 	Notice,
 	StatusPill,
 } from '../../../../assets/admin/src/ui';
 import type { StatusPillStatus } from '../../../../assets/admin/src/ui';
 
-/**
- * Records what a live region holds when a later sibling's layout effect
- * runs: after the first commit, before any passive effect.
- *
- * @param props          Probe props.
- * @param props.selector Region to read.
- * @param props.seen     Receives `region:<text>` or `none`.
- */
-function FirstCommitProbe( {
-	selector,
-	seen,
-}: {
-	selector: string;
-	seen: string[];
-} ) {
-	useLayoutEffect( () => {
-		const region = document.querySelector( selector );
-		seen.push( region ? `region:${ region.textContent ?? '' }` : 'none' );
-	}, [ selector, seen ] );
-	return null;
-}
+const advance = ( ms: number ) =>
+	act( () => {
+		jest.advanceTimersByTime( ms );
+	} );
+
+afterEach( () => {
+	jest.useRealTimers();
+} );
 
 test( 'a Card section is a region labelled by its heading', () => {
 	render(
@@ -148,12 +135,14 @@ test( 'a static notice is not a live region; a live error notice is an alert', (
 } );
 
 test( 'a live notice of any other tone is a polite status', () => {
+	jest.useFakeTimers();
 	for ( const tone of [ 'info', 'success', 'warning' ] as const ) {
 		const { unmount } = render(
 			<Notice tone={ tone } live>
 				{ `${ tone } message` }
 			</Notice>
 		);
+		advance( LIVE_REGION_DELAY_MS );
 		expect( screen.getByRole( 'status' ) ).toHaveTextContent(
 			`${ tone } message`
 		);
@@ -162,22 +151,52 @@ test( 'a live notice of any other tone is a polite status', () => {
 	}
 } );
 
-test( 'a live notice mounts its region empty, then inserts the message', () => {
-	const seen: string[] = [];
+test( 'a live status notice holds its message for LIVE_REGION_DELAY_MS', () => {
+	jest.useFakeTimers();
+	expect( LIVE_REGION_DELAY_MS ).toBe( 100 );
 	render(
-		<>
-			<Notice tone="error" title="Payment failed" live>
-				Try again.
-			</Notice>
-			<FirstCommitProbe selector='[role="alert"]' seen={ seen } />
-		</>
+		<Notice tone="success" title="Connection works" live>
+			UPayments accepted the API key.
+		</Notice>
 	);
-	// The region existed, empty, on the first commit…
-	expect( seen ).toEqual( [ 'region:' ] );
-	// …and gained its text afterwards, so it is announced as a change.
+	const status = screen.getByRole( 'status' );
+	// The empty region stays in the page long enough to reach the
+	// accessibility tree before its text arrives…
+	expect( status ).toHaveTextContent( '' );
+	advance( LIVE_REGION_DELAY_MS - 1 );
+	expect( status ).toHaveTextContent( '' );
+	// …then the same region gains the message: an announced change.
+	advance( 1 );
+	expect( screen.getByRole( 'status' ) ).toBe( status );
+	expect( status ).toHaveTextContent(
+		'Connection worksUPayments accepted the API key.'
+	);
+} );
+
+test( 'a live error notice is an alert that carries its message at once', () => {
+	jest.useFakeTimers();
+	render(
+		<Notice tone="error" title="Connection failed" live>
+			Check the API key.
+		</Notice>
+	);
+	// Alerts are announced when inserted, so no delay applies.
 	expect( screen.getByRole( 'alert' ) ).toHaveTextContent(
-		'Payment failedTry again.'
+		'Connection failedCheck the API key.'
 	);
+	expect( jest.getTimerCount() ).toBe( 0 );
+} );
+
+test( 'unmounting a live notice before the delay leaves no timer', () => {
+	jest.useFakeTimers();
+	const { unmount } = render(
+		<Notice tone="info" live>
+			Sync started.
+		</Notice>
+	);
+	expect( jest.getTimerCount() ).toBe( 1 );
+	unmount();
+	expect( jest.getTimerCount() ).toBe( 0 );
 } );
 
 test( 'a notice with onDismiss has a "Dismiss notice" icon button', async () => {

@@ -91,12 +91,12 @@ function LiveNoticeSpecimen() {
 			{ attempts > 0 && (
 				<Notice
 					key={ attempts }
-					tone="error"
+					tone="success"
 					live
-					title={ __( 'Connection failed', 'supcheckout' ) }
+					title={ __( 'Connection works', 'supcheckout' ) }
 				>
 					{ __(
-						'UPayments rejected the API key. Copy the key from your UPayments dashboard, save it, then test again.',
+						'UPayments accepted the API key. Customers can pay with UPayments.',
 						'supcheckout'
 					) }
 				</Notice>

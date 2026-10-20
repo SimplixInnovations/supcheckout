@@ -2,7 +2,7 @@
  * WCAG 2.2 AA contrast for every semantic pair, in light and dark, for every
  * core WordPress admin color scheme (spec section 4.1, SP1 Task 2).
  */
-import { wcagContrast } from 'culori';
+import { oklch, wcagContrast } from 'culori';
 
 import {
 	checkContrast,
@@ -324,4 +324,30 @@ test( 'checkContrast reports a failure with its mode, scheme, pair, ratio and re
 		] )
 	);
 	expect( failures.every( ( f ) => f.mode === 'light' ) ).toBe( true );
+} );
+
+// Dark status tints sit behind notices and pills; at full chroma a deep red
+// or blue block shouts. Each keeps its lightness, so every pair above keeps
+// its contrast, at an OKLCH chroma of about 0.04–0.06 (fix round 1, ruling 10).
+const DARK_TINT_LIGHTNESS = {
+	success: 0.2662,
+	warning: 0.2734,
+	danger: 0.2879,
+	info: 0.2752,
+};
+
+test( 'dark status tints are calm: OKLCH chroma 0.04–0.06 at their former lightness', () => {
+	const set = loadTokens();
+	for ( const [ status, lightness ] of Object.entries(
+		DARK_TINT_LIGHTNESS
+	) ) {
+		const tint = oklch(
+			resolveColor( set, 'dark', `color-status-${ status }-bg` )
+		);
+		expect( {
+			status,
+			chroma: tint.c >= 0.04 && tint.c <= 0.0615,
+			lightness: Math.abs( tint.l - lightness ) <= 0.003,
+		} ).toEqual( { status, chroma: true, lightness: true } );
+	}
 } );

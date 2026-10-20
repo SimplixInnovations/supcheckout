@@ -118,6 +118,49 @@ const overlap = ( a: Box, b: Box ): number =>
 
 const area = ( a: Box ): number => ( a.right - a.left ) * ( a.bottom - a.top );
 
+const SKELETON_SPECIMEN = `${ APP_ROOT } [data-specimen="skeleton-group"]`;
+const PROGRESS_SPECIMEN = `${ APP_ROOT } [data-specimen="progress-bar"]`;
+
+/**
+ * @param page     The page.
+ * @param selector Element whose subtree (pseudo-elements included) is read.
+ * @return Each running CSS animation as `name: property, property`, sorted.
+ */
+function animatedProperties(
+	page: Page,
+	selector: string
+): Promise< string[] > {
+	return page.evaluate( ( target ) => {
+		const host = document.querySelector( target );
+		if ( ! host ) {
+			throw new Error( `no element matches ${ target }` );
+		}
+		const meta = new Set( [
+			'offset',
+			'computedOffset',
+			'easing',
+			'composite',
+		] );
+		return host
+			.getAnimations( { subtree: true } )
+			.map( ( animation ) => {
+				const name =
+					( animation as CSSAnimation ).animationName ?? 'transition';
+				const properties = new Set< string >();
+				const effect = animation.effect as KeyframeEffect | null;
+				for ( const frame of effect?.getKeyframes() ?? [] ) {
+					for ( const key of Object.keys( frame ) ) {
+						if ( ! meta.has( key ) ) {
+							properties.add( key );
+						}
+					}
+				}
+				return `${ name }: ${ [ ...properties ].sort().join( ', ' ) }`;
+			} )
+			.sort();
+	}, selector );
+}
+
 test( 'feedback specimens render in a fixed DOM order after the controls', async ( {
 	page,
 } ) => {
@@ -298,39 +341,60 @@ test( 'tooltips are hoverable, persistent and dismissible (WCAG 1.4.13)', async 
 	await expect( copy ).not.toHaveAttribute( 'aria-describedby' );
 } );
 
-test( 'a live notice region is in the page before its message', async ( {
+test( 'a live status notice stays empty for frames before its message', async ( {
 	page,
 } ) => {
 	await openGallery( page );
+	// Sample the region once per animation frame from the click on, so the
+	// test sees what the accessibility tree had time to see.
 	await page.evaluate( () => {
-		const seen: string[] = [];
-		( window as unknown as { supSeen: string[] } ).supSeen = seen;
-		new MutationObserver( ( records ) => {
-			for ( const record of records ) {
-				for ( const node of record.addedNodes ) {
-					if ( ! ( node instanceof Element ) ) {
-						continue;
-					}
-					const region = node.matches( '[role="alert"]' )
-						? node
-						: node.querySelector( '[role="alert"]' );
-					if ( region ) {
-						seen.push( `inserted:${ region.textContent ?? '' }` );
-					}
-				}
+		const samples: Array< { at: number; state: string } > = [];
+		( window as unknown as { supSamples: typeof samples } ).supSamples =
+			samples;
+		const tick = ( at: number ) => {
+			const region = document.querySelector(
+				'[data-specimen="notice-live"] [role="status"]'
+			);
+			let state = 'none';
+			if ( region ) {
+				state = region.textContent ? 'text' : 'empty';
 			}
-		} ).observe( document.body, { childList: true, subtree: true } );
+			samples.push( { at, state } );
+			if ( state !== 'text' ) {
+				requestAnimationFrame( tick );
+			}
+		};
+		requestAnimationFrame( tick );
 	} );
 	await specimen( page, 'notice-live' )
 		.getByRole( 'button', { name: 'Test connection' } )
 		.click();
-	const alert = specimen( page, 'notice-live' ).getByRole( 'alert' );
-	await expect( alert ).toContainText( 'Connection failed' );
+	const status = specimen( page, 'notice-live' ).getByRole( 'status' );
+	await expect( status ).toContainText( 'Connection works' );
+	const samples = await page.evaluate(
+		() =>
+			(
+				window as unknown as {
+					supSamples: Array< { at: number; state: string } >;
+				}
+			 ).supSamples
+	);
+	const states = samples.map( ( sample ) => sample.state );
+	const firstEmpty = states.indexOf( 'empty' );
+	const firstText = states.indexOf( 'text' );
+	// The region appeared empty, was painted empty for at least one frame,
+	// and only then gained its text: never region and text together.
+	expect( firstEmpty ).toBeGreaterThanOrEqual( 0 );
+	expect( firstText ).toBeGreaterThan( firstEmpty + 1 );
+	expect( states.slice( 0, firstEmpty ) ).not.toContain( 'text' );
+	// …and it stayed empty for about LIVE_REGION_DELAY_MS (100 ms), not a
+	// single React commit.
 	expect(
-		await page.evaluate(
-			() => ( window as unknown as { supSeen: string[] } ).supSeen
-		)
-	).toEqual( [ 'inserted:' ] );
+		samples[ firstText ].at - samples[ firstEmpty ].at
+	).toBeGreaterThanOrEqual( 80 );
+	await expect(
+		specimen( page, 'notice-live' ).getByRole( 'alert' )
+	).toHaveCount( 0 );
 } );
 
 test( 'the skeleton group and the toast viewport are pre-mounted live regions', async ( {
@@ -363,6 +427,9 @@ test( 'reduced motion removes toast and skeleton animation', async ( {
 	expect( await cssVar( page, indeterminate, 'animation-name' ) ).toBe(
 		'none'
 	);
+	// Nothing moves in either specimen, pseudo-elements included.
+	expect( await animatedProperties( page, SKELETON_SPECIMEN ) ).toEqual( [] );
+	expect( await animatedProperties( page, PROGRESS_SPECIMEN ) ).toEqual( [] );
 
 	await specimen( page, 'toast-trigger' )
 		.getByRole( 'button', { name: 'Show success toast' } )
@@ -379,15 +446,25 @@ test( 'reduced motion removes toast and skeleton animation', async ( {
 	).toMatch( /^0s(, 0s)*$/ );
 } );
 
-test( 'without reduced motion the skeleton pulses and toasts transition', async ( {
+test( 'skeleton and progress motion animates only opacity and translate', async ( {
 	page,
 } ) => {
 	await page.emulateMedia( { reducedMotion: 'no-preference' } );
 	await openGallery( page );
-	const skeleton = `${ APP_ROOT } [data-specimen="skeleton-group"] .sup-skeleton`;
-	expect( await cssVar( page, skeleton, 'animation-name' ) ).toBe(
-		'sup-skeleton-pulse'
+	// Compositor-friendly: no background-color, inset or size keyframes.
+	const skeleton = await animatedProperties( page, SKELETON_SPECIMEN );
+	expect( skeleton.length ).toBeGreaterThan( 0 );
+	expect( new Set( skeleton ) ).toEqual(
+		new Set( [ 'sup-skeleton-pulse: opacity' ] )
 	);
+	expect( await animatedProperties( page, PROGRESS_SPECIMEN ) ).toEqual( [
+		'sup-progress-slide: translate',
+	] );
+} );
+
+test( 'without reduced motion toasts transition', async ( { page } ) => {
+	await page.emulateMedia( { reducedMotion: 'no-preference' } );
+	await openGallery( page );
 	await specimen( page, 'toast-trigger' )
 		.getByRole( 'button', { name: 'Show success toast' } )
 		.click();

@@ -6,6 +6,7 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect } from '@wordpress/element';
+import type { ReactNode } from 'react';
 
 import {
 	SupRoot,
@@ -29,15 +30,17 @@ function Harness( {
 /**
  * Renders a SupRoot and hands back its toast controller.
  *
+ * @param children Extra content of the root, e.g. a focus target.
  * @return The controller and an unmount function.
  */
-function renderToaster(): {
+function renderToaster( children?: ReactNode ): {
 	toast: () => ToastController;
 	unmount: () => void;
 } {
 	let controller: ToastController | undefined;
 	const { unmount } = render(
 		<SupRoot>
+			{ children }
 			<Harness
 				onReady={ ( next ) => {
 					controller = next;
@@ -241,4 +244,159 @@ test( 'unmounting with open toasts leaves no timer behind', () => {
 	advance( TOAST_TIMEOUT_MS * 2 );
 	expect( jest.getTimerCount() ).toBe( 0 );
 	expect( document.body.querySelector( '.sup-portal-layer' ) ).toBeNull();
+} );
+
+test( 'a success toast holding keyboard focus does not dismiss', async () => {
+	jest.useFakeTimers();
+	const user = userEvent.setup( { advanceTimers: jest.advanceTimersByTime } );
+	const { toast } = renderToaster();
+	act( () => {
+		toast().show( { tone: 'success', title: 'Settings saved' } );
+	} );
+	// F6 moves focus into the stack (Base UI), Tab onto the toast itself.
+	await user.keyboard( '{F6}' );
+	await user.tab();
+	const toastEl = screen
+		.getByText( 'Settings saved' )
+		.closest( '.sup-toast' ) as HTMLElement;
+	expect( toastEl ).toContainElement(
+		toastEl.ownerDocument.activeElement as HTMLElement
+	);
+	advance( TOAST_TIMEOUT_MS + 1000 );
+	expect( screen.getByText( 'Settings saved' ) ).toBeInTheDocument();
+} );
+
+const box = ( left: number, top: number, right: number, bottom: number ) =>
+	( {
+		left,
+		top,
+		right,
+		bottom,
+		x: left,
+		y: top,
+		width: right - left,
+		height: bottom - top,
+		toJSON: () => ( {} ),
+	} ) as DOMRect;
+
+/**
+ * jsdom has no layout: the viewport's box follows its placement.
+ *
+ * @param viewport The toast viewport.
+ */
+function stubViewportBoxes( viewport: HTMLElement ): void {
+	viewport.getBoundingClientRect = () =>
+		viewport.dataset.supPlacement === 'start'
+			? box( 24, 600, 384, 760 )
+			: box( 896, 600, 1256, 760 );
+}
+
+test( 'the stack listens for focus only while toasts exist', () => {
+	jest.useFakeTimers();
+	const added = jest.spyOn( document, 'addEventListener' );
+	const removed = jest.spyOn( document, 'removeEventListener' );
+	try {
+		const { toast } = renderToaster();
+		const focusin = ( spy: jest.SpyInstance ) =>
+			spy.mock.calls.filter( ( [ type ] ) => type === 'focusin' ).length;
+		expect( focusin( added ) ).toBe( 0 );
+
+		let id = '';
+		act( () => {
+			id = toast().show( { tone: 'error', title: 'Sync failed' } );
+		} );
+		expect( focusin( added ) ).toBe( 1 );
+
+		act( () => {
+			toast().dismiss( id );
+		} );
+		advance( 1000 );
+		expect( screen.queryByText( 'Sync failed' ) ).toBeNull();
+		expect( focusin( removed ) ).toBe( 1 );
+		// An empty stack covers nothing, so nothing is re-attached.
+		expect( focusin( added ) ).toBe( 1 );
+	} finally {
+		added.mockRestore();
+		removed.mockRestore();
+	}
+} );
+
+test( 'the stack moves again when the window resizes', () => {
+	const { toast } = renderToaster( <button>Target</button> );
+	const target = screen.getByRole( 'button', { name: 'Target' } );
+	let targetBox = box( 1100, 680, 1240, 720 );
+	target.getBoundingClientRect = () => targetBox;
+	target.focus();
+	const viewport = layer().querySelector(
+		'.sup-toast-viewport'
+	) as HTMLElement;
+	stubViewportBoxes( viewport );
+
+	act( () => {
+		toast().show( { tone: 'error', title: 'Sync failed' } );
+	} );
+	// The default corner would cover the focused button.
+	expect( viewport ).toHaveAttribute( 'data-sup-placement', 'start' );
+
+	// A narrower window moves the button out of the default corner.
+	targetBox = box( 400, 100, 540, 140 );
+	act( () => {
+		window.dispatchEvent( new Event( 'resize' ) );
+	} );
+	expect( viewport ).toHaveAttribute( 'data-sup-placement', 'end' );
+} );
+
+test( 'the stack moves again when its own size changes', () => {
+	const observers: Array< {
+		callback: ResizeObserverCallback;
+		targets: Element[];
+		disconnected: boolean;
+	} > = [];
+	const original = window.ResizeObserver;
+	window.ResizeObserver = class {
+		private readonly record: ( typeof observers )[ number ];
+		constructor( callback: ResizeObserverCallback ) {
+			this.record = { callback, targets: [], disconnected: false };
+			observers.push( this.record );
+		}
+		observe( target: Element ) {
+			this.record.targets.push( target );
+		}
+		unobserve() {}
+		disconnect() {
+			this.record.disconnected = true;
+		}
+	} as unknown as typeof ResizeObserver;
+	try {
+		const { toast, unmount } = renderToaster( <button>Target</button> );
+		const target = screen.getByRole( 'button', { name: 'Target' } );
+		let targetBox = box( 400, 100, 540, 140 );
+		target.getBoundingClientRect = () => targetBox;
+		target.focus();
+		const viewport = layer().querySelector(
+			'.sup-toast-viewport'
+		) as HTMLElement;
+		stubViewportBoxes( viewport );
+
+		act( () => {
+			toast().show( { tone: 'error', title: 'Sync failed' } );
+		} );
+		expect( viewport ).toHaveAttribute( 'data-sup-placement', 'end' );
+		const watching = observers.filter( ( observer ) =>
+			observer.targets.includes( viewport )
+		);
+		expect( watching ).toHaveLength( 1 );
+
+		// A taller stack (another toast, a wrapped line) now reaches it.
+		targetBox = box( 1100, 680, 1240, 720 );
+		act( () => {
+			watching[ 0 ].callback( [], {} as ResizeObserver );
+		} );
+		expect( viewport ).toHaveAttribute( 'data-sup-placement', 'start' );
+
+		unmount();
+		expect( watching[ 0 ].disconnected ).toBe( true );
+	} finally {
+		window.ResizeObserver = original;
+	}
 } );

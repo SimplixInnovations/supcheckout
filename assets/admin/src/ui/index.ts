@@ -72,6 +72,7 @@ export type {
 	EmptyStateHeadingLevel,
 	EmptyStateProps,
 } from './feedback/EmptyState';
+export { LIVE_REGION_DELAY_MS } from './feedback/liveRegion';
 export { Skeleton, SkeletonGroup } from './feedback/Skeleton';
 export type {
 	SkeletonGroupProps,

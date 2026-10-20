@@ -2,11 +2,11 @@
  * Render helpers for the admin UI component tests.
  */
 import type { ReactElement } from 'react';
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { configureAxe } from 'jest-axe';
 import { isRTL } from '@wordpress/i18n';
 
-import { SupRoot } from '../../../../assets/admin/src/ui';
+import { LIVE_REGION_DELAY_MS, SupRoot } from '../../../../assets/admin/src/ui';
 import type { ThemePreference } from '../../../../assets/admin/src/ui';
 
 /** WCAG 2.2 AA, as in the browser suite (spec section 4.1). */
@@ -92,7 +92,8 @@ export function mockMatchMedia( prefersDark: boolean ): {
 /**
  * Renders `ui` inside `SupRoot` in light-ltr, dark-ltr, light-rtl and
  * dark-rtl and asserts that axe finds no WCAG 2.2 AA violation in each,
- * including anything portaled into the body-level layer.
+ * including anything portaled into the body-level layer, after delayed
+ * live-region text has landed.
  *
  * @param ui Element to check.
  */
@@ -101,6 +102,13 @@ export async function renderInModes( ui: ReactElement ): Promise< void > {
 		mockIsRTL( rtl );
 		document.documentElement.lang = rtl ? 'ar' : 'en';
 		render( <SupRoot preference={ theme }>{ ui }</SupRoot> );
+		// Let delayed live-region text land inside act, so axe checks the
+		// regions as users meet them and no update escapes act().
+		await act( async () => {
+			await new Promise( ( resolve ) =>
+				setTimeout( resolve, LIVE_REGION_DELAY_MS )
+			);
+		} );
 		const results = await axe( document.body );
 		expect( results ).toHaveNoViolations();
 		expect(
