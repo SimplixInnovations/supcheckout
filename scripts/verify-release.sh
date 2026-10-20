@@ -86,7 +86,7 @@ with zipfile.ZipFile(zip_path, "r") as archive:
         "CHANGELOG.md", "SECURITY.md", "DESIGN.md", "UX-CONTRACT.md",
         "premium-ui.json",
         "package.json", "package-lock.json", ".nvmrc", ".npmrc",
-        "webpack.config.js", "tsconfig.json", "eslint.config.mjs",
+        "webpack.config.js", "tsconfig.json", "tsconfig.tests.json", "eslint.config.mjs",
         ".stylelintrc.json", "jest.config.js",
     }
     forbidden_prefixes = (

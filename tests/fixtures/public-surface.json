@@ -754,6 +754,14 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "admin_enqueue_scripts",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "admin_footer",
         "priority": 10,
         "accepted_args": 1,
@@ -1099,6 +1107,14 @@
         "kind": "hook_reference",
         "type": "filter",
         "hook": "<dynamic:'woocommerce_settings_api_sanitized_fields_'.$this->id>",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "admin_body_class",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"

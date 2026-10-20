@@ -143,13 +143,13 @@ foreach (array('"DESIGN.md"', '"UX-CONTRACT.md"', '"premium-ui.json"') as $forbi
 // else from the toolchain may enter the package.
 $admin_ui_toolchain = array(
     '/node_modules/', '/tools/', '/package.json', '/package-lock.json', '/.nvmrc', '/.npmrc',
-    '/webpack.config.js', '/tsconfig.json', '/eslint.config.mjs', '/.stylelintrc.json', '/jest.config.js',
+    '/webpack.config.js', '/tsconfig.json', '/tsconfig.tests.json', '/eslint.config.mjs', '/.stylelintrc.json', '/jest.config.js',
 );
 $distignore_rules = preg_split('/\R/', $distignore);
 foreach ($admin_ui_toolchain as $excluded) {
     release_assert(in_array($excluded, $distignore_rules, true), 'distribution excludes admin UI toolchain path: ' . $excluded);
 }
-foreach (array('"package.json"', '"package-lock.json"', '".nvmrc"', '".npmrc"', '"webpack.config.js"', '"tsconfig.json"', '"eslint.config.mjs"', '".stylelintrc.json"', '"jest.config.js"') as $forbidden) {
+foreach (array('"package.json"', '"package-lock.json"', '".nvmrc"', '".npmrc"', '"webpack.config.js"', '"tsconfig.json"', '"tsconfig.tests.json"', '"eslint.config.mjs"', '".stylelintrc.json"', '"jest.config.js"') as $forbidden) {
     release_assert(strpos($verify, $forbidden) !== false, 'verifier forbids admin UI toolchain file: ' . $forbidden);
 }
 release_assert(

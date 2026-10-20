@@ -51,7 +51,7 @@ function selected($selected, $current = true, $display = true) {
     return $result;
 }
 
-function wp_enqueue_style($handle, $source, $dependencies = array(), $version = false, $media = 'all') {
+function wp_enqueue_style($handle, $source = '', $dependencies = array(), $version = false, $media = 'all') {
     $GLOBALS['supcheckout_test_gateway_settings']['styles'][] = array(
         'handle'       => $handle,
         'source'       => $source,

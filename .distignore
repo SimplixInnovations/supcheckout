@@ -36,6 +36,7 @@
 /.npmrc
 /webpack.config.js
 /tsconfig.json
+/tsconfig.tests.json
 /eslint.config.mjs
 /.stylelintrc.json
 /jest.config.js

@@ -104,11 +104,149 @@ jobs:
             exit 1
           fi
 
+  browser:
+    name: Browser — WordPress ${{ matrix.wordpress }} / WooCommerce ${{ matrix.woocommerce }} (real wp-admin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wordpress: '6.9.10'
+            woocommerce: '10.8.1'
+          - wordpress: '7.1.3'
+            woocommerce: '11.1.2'
+    env:
+      WP_CLI_BIN: /tmp/wp-cli.phar
+      # Test-only credentials for a throwaway site on 127.0.0.1. cert-admin comes
+      # from scripts/install-wp-test-environment.sh; sup-ar is created below.
+      SUP_UI_BASE_URL: http://127.0.0.1:8080
+      SUP_UI_ADMIN_USER: cert-admin
+      SUP_UI_ADMIN_PASSWORD: cert-password-not-production
+      SUP_UI_AR_USER: sup-ar
+      SUP_UI_AR_PASSWORD: sup-ar-password-not-production
+      SUP_UI_WP_VERSION: ${{ matrix.wordpress }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.ADMIN_UI_SOURCE_SHA }}
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip, intl
+          coverage: none
+          tools: none
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Require exact-head checkout and pinned toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ADMIN_UI_SOURCE_SHA"
+          test "$(node --version)" = "v$(cat .nvmrc)"
+          test "$(npm --version)" = "$(node -p 'require("./package.json").engines.npm')"
+          echo "ADMIN UI SOURCE: $(git rev-parse HEAD) node $(node --version) npm $(npm --version) php $(php -r 'echo PHP_VERSION;')"
+
+      - name: Install locked dependencies without install scripts
+        run: npm ci --ignore-scripts
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar \
+            -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+          /tmp/wp-cli.phar --version
+
+      - name: Install real WordPress ${{ matrix.wordpress }} and WooCommerce ${{ matrix.woocommerce }}
+        shell: bash
+        env:
+          SUPCHECKOUT_DB_NAME: wordpress
+          SUPCHECKOUT_DB_USER: root
+          SUPCHECKOUT_DB_PASSWORD: root
+          SUPCHECKOUT_DB_HOST: 127.0.0.1:3306
+        run: |
+          set -euo pipefail
+          sudo systemctl start mysql.service
+          mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+          bash scripts/install-wp-test-environment.sh "${{ matrix.wordpress }}" "${{ matrix.woocommerce }}" "$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
+          /tmp/wp-cli.phar option update woocommerce_coming_soon no --path="$RUNNER_TEMP/wordpress"
+
+      - name: Install the test-only gallery mu-plugin, Arabic user and fixture translations
+        shell: bash
+        run: |
+          set -euo pipefail
+          WP="$RUNNER_TEMP/wordpress"
+          mkdir -p "$WP/wp-content/mu-plugins"
+          cp tests/admin-ui/wp/supcheckout-ui-gallery.php "$WP/wp-content/mu-plugins/"
+          /tmp/wp-cli.phar config set SUPCHECKOUT_UI_GALLERY true --raw --type=constant --path="$WP"
+          /tmp/wp-cli.phar user create "$SUP_UI_AR_USER" sup-ar@example.test --role=administrator \
+            --user_pass="$SUP_UI_AR_PASSWORD" --porcelain --path="$WP"
+          /tmp/wp-cli.phar user meta update "$SUP_UI_AR_USER" locale ar --path="$WP"
+          php tests/admin-ui/wp/make-fixture-translations.php "$WP"
+
+      - name: Built strings are extractable for the supcheckout domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar i18n make-pot . "$RUNNER_TEMP/sup.pot" --include=assets/admin/build --domain=supcheckout
+          grep -q 'msgid "SUPCheckout"' "$RUNNER_TEMP/sup.pot"
+
+      - name: Build the test-only gallery
+        run: npm run build:gallery
+
+      - name: Install the Playwright-pinned Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the browser suite in four modes
+        shell: bash
+        env:
+          PHP_CLI_SERVER_WORKERS: '4'
+        run: |
+          set -euo pipefail
+          php -S 127.0.0.1:8080 -t "$RUNNER_TEMP/wordpress" >"$RUNNER_TEMP/php-server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null' EXIT
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /dev/null "$SUP_UI_BASE_URL/wp-login.php"; then ready=1; break; fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            echo "PHP server did not become ready"
+            cat "$RUNNER_TEMP/php-server.log"
+            exit 70
+          fi
+          npm run test:browser
+
+      - name: Upload screenshots, traces and server log on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: admin-ui-browser-wp-${{ matrix.wordpress }}
+          path: |
+            tests/admin-ui/artifacts/test-results
+            tests/admin-ui/artifacts/report
+            ${{ runner.temp }}/php-server.log
+          if-no-files-found: ignore
+          retention-days: 14
+
   gate:
     name: Admin UI Gate
     needs:
       - static
       - build-windows
+      - browser
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -118,10 +256,11 @@ jobs:
         env:
           STATIC_RESULT: ${{ needs.static.result }}
           BUILD_WINDOWS_RESULT: ${{ needs.build-windows.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
         run: |
           set -euo pipefail
-          echo "static=$STATIC_RESULT build-windows=$BUILD_WINDOWS_RESULT"
-          if [[ "$STATIC_RESULT" != success || "$BUILD_WINDOWS_RESULT" != success ]]; then
+          echo "static=$STATIC_RESULT build-windows=$BUILD_WINDOWS_RESULT browser=$BROWSER_RESULT"
+          if [[ "$STATIC_RESULT" != success || "$BUILD_WINDOWS_RESULT" != success || "$BROWSER_RESULT" != success ]]; then
             echo "Admin UI certification failed: skipped or cancelled counts as failure."
             exit 1
           fi

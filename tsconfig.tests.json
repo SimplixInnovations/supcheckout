@@ -1,0 +1,17 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"types": [ "node", "jest", "@playwright/test" ]
+	},
+	"include": [
+		"assets/admin/src/**/*.ts",
+		"assets/admin/src/**/*.tsx",
+		"tests/admin-ui/**/*.ts",
+		"tests/admin-ui/**/*.tsx"
+	],
+	"exclude": [
+		"node_modules",
+		"tests/admin-ui/gallery/build",
+		"tests/admin-ui/artifacts"
+	]
+}
