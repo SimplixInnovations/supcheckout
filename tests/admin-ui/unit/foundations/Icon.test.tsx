@@ -41,6 +41,8 @@ test( 'the icon set is exactly the published names', () => {
 			'refresh',
 			'lock',
 			'eye-off',
+			'idle',
+			'inbox',
 		].sort()
 	);
 	expect( [ ...DIRECTIONAL_ICONS ].sort() ).toEqual(

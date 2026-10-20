@@ -1,0 +1,124 @@
+/*
+ * Toasts: a stack at the block end and inline end of the window, newest
+ * nearest the edge. Each toast is a raised surface with a hairline edge;
+ * the tone lives in its icon (status solid, 3:1 on the raised surface).
+ * Entrance is the one orchestrated motion: a short rise and fade.
+ */
+.supcheckout-admin .sup-toast-viewport {
+	position: fixed;
+	z-index: var(--sup-toast-z);
+	inset-block-end: var(--sup-space-7);
+	inset-inline-end: var(--sup-space-7);
+	display: flex;
+	flex-direction: column-reverse;
+	gap: var(--sup-space-3);
+	box-sizing: border-box;
+	inline-size: var(--sup-toast-inline-size);
+	max-inline-size: calc(100% - var(--sup-space-7) * 2);
+	margin: 0;
+	padding: 0;
+	outline: none;
+}
+
+.supcheckout-admin .sup-toast-viewport:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-toast {
+	box-sizing: border-box;
+	inline-size: 100%;
+	padding-block: var(--sup-space-4);
+	padding-inline: var(--sup-space-5) var(--sup-space-3);
+	border: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	border-radius: var(--sup-toast-radius);
+	box-shadow: var(--sup-toast-shadow);
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface-raised);
+	transition-property: opacity, translate;
+	transition-duration: var(--sup-motion-duration-base);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-toast:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-toast[data-starting-style] {
+	opacity: 0;
+	translate: 0 var(--sup-motion-distance-sm);
+}
+
+.supcheckout-admin .sup-toast[data-ending-style] {
+	opacity: 0;
+	transition-timing-function: var(--sup-motion-ease-exit);
+}
+
+/* Over the limit: kept mounted (and inert) by Base UI, never shown. */
+.supcheckout-admin .sup-toast[data-limited] {
+	display: none;
+}
+
+.supcheckout-admin .sup-toast__content {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	align-items: start;
+	gap: var(--sup-space-3) var(--sup-space-4);
+}
+
+.supcheckout-admin .sup-toast__icon {
+	display: inline-flex;
+	align-items: center;
+	block-size: calc(var(--sup-font-size-md) * var(--sup-line-height-body));
+}
+
+.supcheckout-admin .sup-toast--success .sup-toast__icon {
+	color: var(--sup-color-status-success-solid);
+}
+
+.supcheckout-admin .sup-toast--info .sup-toast__icon {
+	color: var(--sup-color-status-info-solid);
+}
+
+.supcheckout-admin .sup-toast--error .sup-toast__icon {
+	color: var(--sup-color-status-danger-solid);
+}
+
+.supcheckout-admin .sup-toast__text {
+	display: grid;
+	gap: var(--sup-space-1);
+	min-inline-size: 0;
+	overflow-wrap: anywhere;
+}
+
+.supcheckout-admin .sup-toast__title {
+	margin: 0;
+	font-size: var(--sup-font-size-md);
+	font-weight: var(--sup-font-weight-semibold);
+	line-height: var(--sup-line-height-body);
+}
+
+.supcheckout-admin .sup-toast__description {
+	margin: 0;
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-sm);
+	line-height: var(--sup-line-height-body);
+}
+
+/* Both buttons center on the title's first line. */
+.supcheckout-admin .sup-toast .sup-button.sup-toast__action,
+.supcheckout-admin .sup-toast .sup-button.sup-toast__close {
+	margin-block: calc((var(--sup-font-size-md) * var(--sup-line-height-body) - var(--sup-button-height-sm)) / 2);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-toast {
+		border-color: canvastext;
+	}
+
+	.supcheckout-admin .sup-toast__icon {
+		color: canvastext;
+	}
+}

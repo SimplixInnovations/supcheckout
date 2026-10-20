@@ -1,0 +1,52 @@
+/*
+ * EmptyState: a centered column. The icon sits in a soft accent tile; the
+ * description keeps a short measure so it reads as one thought.
+ */
+.supcheckout-admin .sup-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--sup-space-3);
+	box-sizing: border-box;
+	padding-block: var(--sup-space-10);
+	padding-inline: var(--sup-space-7);
+	text-align: center;
+}
+
+.supcheckout-admin .sup-empty-state__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: var(--sup-space-10);
+	block-size: var(--sup-space-10);
+	margin-block-end: var(--sup-space-3);
+	border-radius: var(--sup-radius-card);
+	color: var(--sup-color-accent-fg);
+	background-color: var(--sup-color-accent-subtle-bg);
+}
+
+.supcheckout-admin .sup-empty-state__description {
+	max-inline-size: var(--sup-size-measure);
+	margin: 0;
+	color: var(--sup-color-fg-muted);
+	text-wrap: pretty;
+}
+
+.supcheckout-admin .sup-empty-state > .sup-heading {
+	text-wrap: balance;
+}
+
+.supcheckout-admin .sup-empty-state__action {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--sup-space-3);
+	margin-block-start: var(--sup-space-4);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-empty-state__icon {
+		border: var(--sup-border-width-hairline) solid canvastext;
+	}
+}

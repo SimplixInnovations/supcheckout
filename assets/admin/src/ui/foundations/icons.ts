@@ -14,12 +14,14 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	CircleCheck,
+	CircleDashed,
 	CircleX,
 	Command,
 	Copy,
 	Ellipsis,
 	ExternalLink,
 	EyeOff,
+	Inbox,
 	Info,
 	Lock,
 	Monitor,
@@ -54,7 +56,9 @@ export type IconName =
 	| 'command'
 	| 'refresh'
 	| 'lock'
-	| 'eye-off';
+	| 'eye-off'
+	| 'idle'
+	| 'inbox';
 
 export const ICONS: Readonly< Record< IconName, LucideIcon > > = {
 	check: Check,
@@ -79,6 +83,8 @@ export const ICONS: Readonly< Record< IconName, LucideIcon > > = {
 	refresh: RefreshCw,
 	lock: Lock,
 	'eye-off': EyeOff,
+	idle: CircleDashed,
+	inbox: Inbox,
 };
 
 export const ICON_NAMES = Object.freeze(

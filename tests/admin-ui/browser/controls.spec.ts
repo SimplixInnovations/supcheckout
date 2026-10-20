@@ -160,13 +160,16 @@ test( 'control specimens render in a fixed DOM order after the foundations', asy
 			nodes.map( ( node ) => node.getAttribute( 'data-specimen' ) ?? '' )
 		);
 	const isFoundation = ( name: string ) => name.startsWith( 'foundations-' );
-	expect( names.filter( ( name ) => ! isFoundation( name ) ) ).toEqual(
-		CONTROL_SPECIMENS
-	);
-	// Every foundations specimen comes first.
-	expect( names.slice( 0, names.length - CONTROL_SPECIMENS.length ) ).toEqual(
-		names.filter( isFoundation )
-	);
+	const foundations = names.filter( isFoundation );
+	// Every foundations specimen comes first, then exactly the controls;
+	// later groups (feedback.spec.ts) assert their own order after these.
+	expect( names.slice( 0, foundations.length ) ).toEqual( foundations );
+	expect(
+		names.slice(
+			foundations.length,
+			foundations.length + CONTROL_SPECIMENS.length
+		)
+	).toEqual( CONTROL_SPECIMENS );
 } );
 
 test( 'form controls ignore WordPress admin form styles', async ( {
