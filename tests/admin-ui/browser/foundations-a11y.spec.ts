@@ -65,9 +65,10 @@ test( 'foundations gallery has no axe violations', async ( {
 
 test( 'specimens render in a fixed DOM order', async ( { page } ) => {
 	await openGallery( page, 'system' );
+	// Later groups (controls.spec.ts) assert their own order after these.
 	expect(
 		await page
-			.locator( `${ APP_ROOT } [data-specimen]` )
+			.locator( `${ APP_ROOT } [data-specimen^="foundations-"]` )
 			.evaluateAll( ( nodes ) =>
 				nodes.map( ( node ) => node.getAttribute( 'data-specimen' ) )
 			)
