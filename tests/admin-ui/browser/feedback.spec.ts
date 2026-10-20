@@ -221,6 +221,7 @@ test( 'toasts and tooltips render in the scoped portal layer above the admin bar
 
 	const trigger = specimen( page, 'tooltip' ).getByRole( 'button', {
 		name: 'Webhook URL',
+		exact: true,
 	} );
 	await keyboardFocus( page, trigger );
 	const tooltip = page.getByRole( 'tooltip' );
@@ -250,6 +251,7 @@ test( 'tooltips are hoverable, persistent and dismissible (WCAG 1.4.13)', async 
 	await openGallery( page );
 	const trigger = specimen( page, 'tooltip' ).getByRole( 'button', {
 		name: 'Webhook URL',
+		exact: true,
 	} );
 	await expect( trigger ).toHaveAccessibleDescription(
 		'UPayments sends payment updates to this address.'
@@ -455,6 +457,7 @@ test( 'feedback gallery with a toast and a tooltip open has no axe violations', 
 				page,
 				specimen( page, 'tooltip' ).getByRole( 'button', {
 					name: 'Webhook URL',
+					exact: true,
 				} )
 			);
 			await expect( page.getByRole( 'tooltip' ) ).toBeVisible();
