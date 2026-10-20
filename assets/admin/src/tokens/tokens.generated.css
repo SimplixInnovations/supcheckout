@@ -8,6 +8,8 @@
 /* stylelint-disable selector-class-pattern, no-descending-specificity -- WordPress core owns the admin-color-* body classes; scheme rules set only palette-accent-* tokens. */
 
 .supcheckout-admin {
+	--sup-app-shell-header-height: var(--sup-size-app-header);
+	--sup-app-shell-offset-block-start: var(--sup-size-admin-bar);
 	--sup-border-width-focus: 2px;
 	--sup-border-width-hairline: 1px;
 	--sup-button-font-weight: var(--sup-font-weight-medium);
@@ -61,6 +63,9 @@
 	--sup-color-status-warning-border: var(--sup-palette-amber-500);
 	--sup-color-status-warning-fg: var(--sup-palette-amber-800);
 	--sup-color-status-warning-solid: var(--sup-palette-amber-600);
+	--sup-dialog-inline-size-lg: var(--sup-size-dialog-lg);
+	--sup-dialog-inline-size-md: var(--sup-size-dialog-md);
+	--sup-dialog-inline-size-sm: var(--sup-size-dialog-sm);
 	--sup-dialog-radius: var(--sup-radius-overlay);
 	--sup-dialog-shadow: var(--sup-shadow-overlay);
 	--sup-dialog-z: var(--sup-z-overlay);
@@ -144,6 +149,7 @@
 	--sup-palette-green-800: #00521d;
 	--sup-palette-green-900: #003e14;
 	--sup-palette-green-950: #102d15;
+	--sup-palette-list-max-block-size: var(--sup-size-palette-list);
 	--sup-palette-neutral-0: #fff;
 	--sup-palette-neutral-25: #f5f6f8;
 	--sup-palette-neutral-50: #eef0f3;
@@ -180,14 +186,20 @@
 	--sup-radius-pill: 999px;
 	--sup-shadow-overlay: 0 4px 12px var(--sup-palette-alpha-shadow-2), 0 16px 40px var(--sup-palette-alpha-shadow-3);
 	--sup-shadow-raised: 0 1px 2px var(--sup-palette-alpha-shadow-1), 0 2px 8px var(--sup-palette-alpha-shadow-2);
+	--sup-size-admin-bar: var(--wp-admin--admin-bar--height, 32px);
+	--sup-size-app-header: 64px;
 	--sup-size-control-lg: 44px;
 	--sup-size-control-md: 36px;
 	--sup-size-control-sm: 28px;
+	--sup-size-dialog-lg: 720px;
+	--sup-size-dialog-md: 560px;
+	--sup-size-dialog-sm: 440px;
 	--sup-size-focus-offset: 2px;
 	--sup-size-icon-lg: 24px;
 	--sup-size-icon-md: 20px;
 	--sup-size-icon-sm: 16px;
 	--sup-size-measure: 480px;
+	--sup-size-palette-list: 360px;
 	--sup-size-table-row: 48px;
 	--sup-size-target-min: 24px;
 	--sup-size-toast-inline: 360px;

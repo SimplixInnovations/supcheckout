@@ -1,0 +1,195 @@
+/*
+ * AppShell. The header is a sticky toolbar on the surface tone with a
+ * hairline below it, held just under the WordPress admin bar; the nav is a
+ * quiet row of section links with the accent underline on the current one.
+ * Focus scrolling clears the admin bar plus the header (WCAG 2.4.11)
+ * through scroll-margin on everything in the shell body.
+ */
+.supcheckout-admin .sup-app-shell {
+	position: relative;
+	min-inline-size: 0;
+}
+
+.supcheckout-admin .sup-skip-link {
+	position: absolute;
+	inset-block-start: var(--sup-space-2);
+	inset-inline-start: var(--sup-space-2);
+	z-index: calc(var(--sup-z-sticky) + 1);
+	padding-block: var(--sup-space-2);
+	padding-inline: var(--sup-space-4);
+	border-radius: var(--sup-radius-control);
+	color: var(--sup-color-fg-on-accent);
+	background-color: var(--sup-color-accent-bg);
+	font-weight: var(--sup-font-weight-semibold);
+	text-decoration: none;
+	white-space: nowrap;
+
+	/* Hidden until focused (an empty clip box), then shown in place. */
+	clip-path: inset(100%);
+}
+
+.supcheckout-admin .sup-skip-link:focus {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+	box-shadow: none;
+	clip-path: none;
+}
+
+.supcheckout-admin .sup-app-shell__header {
+	position: sticky;
+	inset-block-start: var(--sup-app-shell-offset-block-start);
+	z-index: var(--sup-z-sticky);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sup-space-3) var(--sup-space-6);
+	box-sizing: border-box;
+	min-block-size: var(--sup-app-shell-header-height);
+	padding-block: var(--sup-space-3);
+	padding-inline: var(--sup-space-7);
+	border-block-end: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	background-color: var(--sup-color-bg-surface);
+}
+
+.supcheckout-admin .sup-app-shell__title {
+	min-inline-size: 0;
+}
+
+.supcheckout-admin .sup-app-shell__title .sup-heading {
+	overflow-wrap: anywhere;
+}
+
+.supcheckout-admin .sup-app-shell__tools {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sup-space-3);
+}
+
+.supcheckout-admin .sup-app-shell__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sup-space-3);
+}
+
+/* In the header the Appearance legend is read, not shown: the icons and
+   labels of the segments already say what the control is. */
+.supcheckout-admin .sup-app-shell__theme .sup-radio-group__legend {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(100%);
+	white-space: nowrap;
+}
+
+.supcheckout-admin .sup-app-shell__body {
+	display: grid;
+	gap: var(--sup-space-6);
+	padding-block: var(--sup-space-6) var(--sup-space-10);
+	padding-inline: var(--sup-space-7);
+}
+
+.supcheckout-admin .sup-app-shell__nav-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sup-space-2);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border-block-end: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+}
+
+.supcheckout-admin .sup-app-shell__nav-list > li {
+	margin: 0;
+}
+
+.supcheckout-admin .sup-app-shell__nav-link {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sup-space-2);
+	box-sizing: border-box;
+	min-block-size: var(--sup-size-control-lg);
+	padding-inline: var(--sup-space-4);
+	border-start-start-radius: var(--sup-radius-control);
+	border-start-end-radius: var(--sup-radius-control);
+	color: var(--sup-color-fg-muted);
+	font-weight: var(--sup-font-weight-medium);
+	text-decoration: none;
+	transition-property: color, background-color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-app-shell__nav-link::after {
+	content: "";
+	position: absolute;
+	inset-inline: var(--sup-space-2);
+	inset-block-end: calc(var(--sup-border-width-hairline) * -1);
+	block-size: var(--sup-border-width-focus);
+	border-radius: var(--sup-radius-pill);
+	background-color: transparent;
+}
+
+.supcheckout-admin .sup-app-shell__nav-link:hover {
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface-sunken);
+}
+
+.supcheckout-admin .sup-app-shell__nav-link:focus {
+	outline: none;
+	box-shadow: none;
+}
+
+.supcheckout-admin .sup-app-shell__nav-link:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-app-shell__nav-link--current {
+	color: var(--sup-color-fg-default);
+}
+
+.supcheckout-admin .sup-app-shell__nav-link--current::after {
+	background-color: var(--sup-color-accent-bg);
+}
+
+.supcheckout-admin .sup-app-shell__content {
+	min-inline-size: 0;
+	outline: none;
+}
+
+/*
+ * Below 783px the admin bar grows to 46px, and below 601px WordPress lets it
+ * scroll away with the page, while the header wraps its tools onto more
+ * rows: the header scrolls with the page there, and focus scrolling clears
+ * only the admin bar.
+ */
+@media (max-width: 782px) {
+
+	.supcheckout-admin .sup-app-shell__header {
+		position: static;
+		padding-inline: var(--sup-space-4);
+	}
+
+	.supcheckout-admin .sup-app-shell__body {
+		padding-inline: var(--sup-space-4);
+	}
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-app-shell__header,
+	.supcheckout-admin .sup-app-shell__nav-list {
+		border-color: canvastext;
+	}
+
+	.supcheckout-admin .sup-app-shell__nav-link--current::after {
+		background-color: highlight;
+	}
+}
