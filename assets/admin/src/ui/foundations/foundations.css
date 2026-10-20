@@ -29,9 +29,26 @@
 	z-index: var(--sup-z-portal);
 }
 
+/*
+ * A nested Arabic, Persian or Urdu run (an Arabic note on an English screen)
+ * re-applies the family, line height and spacing its tokens switch to; the
+ * root does the same for an Arabic locale.
+ */
+.supcheckout-admin [lang]:is(:lang(ar), :lang(fa), :lang(ur)) {
+	font-family: var(--sup-font-family-sans);
+	line-height: var(--sup-line-height-body);
+	letter-spacing: var(--sup-letter-spacing-normal);
+}
+
+/*
+ * Headings set the family themselves: wp-admin's heading rules (rtl.css sets
+ * `.rtl h1…h6` to Tahoma and Arial) would otherwise win over the inherited
+ * scope font, including the Arabic stack.
+ */
 .supcheckout-admin .sup-heading {
 	margin-block: 0;
 	color: var(--sup-color-fg-default);
+	font-family: var(--sup-font-family-sans);
 	font-weight: var(--sup-font-weight-semibold);
 	line-height: var(--sup-line-height-heading);
 	letter-spacing: var(--sup-letter-spacing-tight);

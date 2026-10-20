@@ -81,10 +81,12 @@
 	min-inline-size: 0;
 }
 
+/* The family is explicit: wp-admin's heading rules would replace the scope font. */
 .supcheckout-admin .sup-dialog__title {
 	margin: 0;
 	padding: 0;
 	color: var(--sup-color-fg-default);
+	font-family: var(--sup-font-family-sans);
 	font-size: var(--sup-font-size-lg);
 	font-weight: var(--sup-font-weight-semibold);
 	line-height: var(--sup-line-height-heading);

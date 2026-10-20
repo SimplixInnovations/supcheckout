@@ -669,7 +669,10 @@ body.admin-color-sunrise .supcheckout-admin[data-sup-theme="dark"] {
 
 .supcheckout-admin:lang(ar),
 .supcheckout-admin:lang(fa),
-.supcheckout-admin:lang(ur) {
+.supcheckout-admin:lang(ur),
+.supcheckout-admin [lang]:lang(ar),
+.supcheckout-admin [lang]:lang(fa),
+.supcheckout-admin [lang]:lang(ur) {
 	--sup-font-family-sans: var(--sup-font-family-arabic);
 	--sup-letter-spacing-normal: 0;
 	--sup-letter-spacing-tight: 0;
