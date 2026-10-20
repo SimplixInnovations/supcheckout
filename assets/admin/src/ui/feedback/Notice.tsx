@@ -5,8 +5,9 @@
  * like a WordPress admin notice printed with the screen. Set `live` only for
  * a notice that appears in response to something the user did; then an
  * `error` is an assertive `alert` and every other tone a polite `status`.
- * The live region is rendered empty on the first commit and the message is
- * inserted one frame later, so it is announced as a change (see
+ * A status region is rendered empty and its message is inserted
+ * LIVE_REGION_DELAY_MS later, so it is announced as a change; an alert is
+ * announced on insertion and renders its message at once (see
  * liveRegion.ts). The dismiss control sits outside the region, so its name
  * is not part of the announcement.
  *
@@ -19,7 +20,7 @@ import { __ } from '@wordpress/i18n';
 import { Icon } from '../foundations/Icon';
 import type { IconName } from '../foundations/icons';
 import { IconButton } from '../controls/IconButton';
-import { useAfterFirstCommit } from './liveRegion';
+import { useLiveRegionReady } from './liveRegion';
 import './Notice.css';
 
 export type NoticeTone = 'info' | 'success' | 'warning' | 'error';
@@ -50,12 +51,13 @@ export function Notice( {
 	onDismiss,
 	children,
 }: NoticeProps ) {
-	const committed = useAfterFirstCommit();
-	const showContent = ! live || committed;
 	let role: 'alert' | 'status' | undefined;
 	if ( live ) {
 		role = tone === 'error' ? 'alert' : 'status';
 	}
+	// Only a polite status waits; an alert is announced on insertion.
+	const ready = useLiveRegionReady( role === 'status' );
+	const showContent = role !== 'status' || ready;
 	return (
 		<div className={ `sup-notice sup-notice--${ tone }` }>
 			<span className="sup-notice__icon">

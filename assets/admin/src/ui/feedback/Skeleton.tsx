@@ -5,8 +5,9 @@
  * A Skeleton is always `aria-hidden`: its shape means nothing to assistive
  * technology. Wrap skeletons in one SkeletonGroup per loading area. The
  * group marks its placeholders `aria-busy` and announces "Loading {label}…"
- * once through a polite status that sits outside the busy subtree and is
- * mounted empty before its text (see liveRegion.ts). Replace the whole group
+ * once through a polite status that sits outside the busy subtree; the
+ * status is mounted empty and gains its text LIVE_REGION_DELAY_MS later
+ * (see liveRegion.ts). Replace the whole group
  * with the content when it loads.
  *
  * The shimmer is a slow pulse between two decorative tokens; it stops under
@@ -16,7 +17,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { __, sprintf } from '@wordpress/i18n';
 
 import { classNames } from '../controls/classNames';
-import { useAfterFirstCommit } from './liveRegion';
+import { useLiveRegionReady } from './liveRegion';
 import './Skeleton.css';
 
 export type SkeletonShape = 'line' | 'block' | 'circle';
@@ -73,14 +74,14 @@ export interface SkeletonGroupProps {
 }
 
 export function SkeletonGroup( { label, children }: SkeletonGroupProps ) {
-	const committed = useAfterFirstCommit();
+	const ready = useLiveRegionReady( true );
 	return (
 		<div className="sup-skeleton-group">
 			<div className="sup-skeleton-group__shapes" aria-busy="true">
 				{ children }
 			</div>
 			<span role="status" className="sup-visually-hidden">
-				{ committed &&
+				{ ready &&
 					sprintf(
 						/* translators: %s: what is loading, e.g. "payments". */
 						__( 'Loading %s…', 'supcheckout' ),
