@@ -1,7 +1,8 @@
 /**
  * Pure policy for the full-tree npm audit gate (`npm run audit:full`).
  *
- * The gate blocks every high or critical advisory. An advisory passes only
+ * The gate blocks every advisory rated low or above (only `info` is ignored).
+ * Development tooling is held to the same bar as shipped code. An advisory passes only
  * through a valid allow-list entry: a GHSA id and package, the severity as
  * recorded (a raised live severity fails), a non-empty reason, and an expiry
  * date that is real, not past and at most 90 days away. A matching entry must
@@ -9,7 +10,7 @@
  * and its package must not be bundled into the admin build.
  */
 
-const BLOCKING = new Set( [ 'high', 'critical' ] );
+const BLOCKING = new Set( [ 'low', 'moderate', 'high', 'critical' ] );
 const SEVERITY_RANK = { info: 0, low: 1, moderate: 2, high: 3, critical: 4 };
 const GHSA_ID = /^GHSA(-[23456789cfghjmpqrvwx]{4}){3}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
