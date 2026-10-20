@@ -8,8 +8,11 @@
  *   Sub-project 2 registers SUPCheckout commands into core's palette
  *   (`wp.data.dispatch( 'core/commands' ).registerCommand()`). Only where
  *   core's palette is absent does Mod+K toggle this one. Core is detected
- *   at runtime (`wp.commands` or the `core/commands` store); nothing of it
- *   is bundled or declared as a dependency.
+ *   at runtime (`wp.coreCommands`, or commands registered in the
+ *   `core/commands` store: see hasCoreCommandPalette); nothing of it is
+ *   bundled or declared as a dependency. While any SUPCheckout modal is
+ *   open, the modal frame marks Mod+K handled so core's palette (which
+ *   bails on a handled key) never opens over it.
  * - The binding listens on `document.body`, after every element and React
  *   handler, so an editor that binds Mod+K keeps it (`defaultPrevented`);
  *   it never stops propagation. It ignores IME composition, matches the
@@ -41,6 +44,12 @@ import { __, _x } from '@wordpress/i18n';
 
 import { Button } from '../controls/Button';
 import { DialogFrame } from './Dialog';
+import {
+	hasCoreCommandPalette,
+	isPaletteShortcut,
+	matchesPaletteKeys,
+	PALETTE_SHORTCUT,
+} from './shortcut';
 import './CommandPalette.css';
 
 export interface Command {
@@ -55,111 +64,14 @@ export interface Command {
 	perform: () => void;
 }
 
-export type ShortcutModifier = 'meta' | 'ctrl';
-
-export interface PaletteShortcut {
-	modifier: ShortcutModifier;
-	/** The key, compared case-insensitively. */
-	key: 'k';
-	/** The physical key, for layouts where K types another letter. */
-	code: 'KeyK';
-	/** The value for `aria-keyshortcuts`. */
-	ariaKeyShortcuts: 'Meta+K' | 'Control+K';
-}
-
-const APPLE_PLATFORM = /mac|iphone|ipad|ipod/i;
-
-/**
- * @param platform `navigator.platform` (or the UA-CH platform).
- * @return Meta+K on Apple platforms, Ctrl+K elsewhere.
- */
-export function paletteShortcut( platform: string ): PaletteShortcut {
-	return APPLE_PLATFORM.test( platform )
-		? {
-				modifier: 'meta',
-				key: 'k',
-				code: 'KeyK',
-				ariaKeyShortcuts: 'Meta+K',
-			}
-		: {
-				modifier: 'ctrl',
-				key: 'k',
-				code: 'KeyK',
-				ariaKeyShortcuts: 'Control+K',
-			};
-}
-
-interface UserAgentDataNavigator {
-	userAgentData?: { platform?: string };
-}
-
-function currentPlatform(): string {
-	if ( typeof navigator === 'undefined' ) {
-		return '';
-	}
-	const uaData = ( navigator as Navigator & UserAgentDataNavigator )
-		.userAgentData;
-	return uaData?.platform || navigator.platform || '';
-}
-
-/** The palette shortcut of this browser's platform. */
-export const PALETTE_SHORTCUT: PaletteShortcut =
-	paletteShortcut( currentPlatform() );
-
-/** keyCode of keydown events sent while an IME composes. */
-const IME_KEY_CODE = 229;
-
-/**
- * @param event    A keydown event.
- * @param shortcut The shortcut to match.
- * @return Whether the event is exactly the shortcut, outside composition and
- *         not already handled.
- */
-export function isPaletteShortcut(
-	event: KeyboardEvent,
-	shortcut: PaletteShortcut = PALETTE_SHORTCUT
-): boolean {
-	const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
-	if (
-		event.defaultPrevented ||
-		event.isComposing ||
-		event.keyCode === IME_KEY_CODE ||
-		event.altKey ||
-		event.shiftKey ||
-		( key !== shortcut.key && event.code !== shortcut.code )
-	) {
-		return false;
-	}
-	return shortcut.modifier === 'meta'
-		? event.metaKey && ! event.ctrlKey
-		: event.ctrlKey && ! event.metaKey;
-}
-
-interface WordPressGlobal {
-	wp?: {
-		commands?: unknown;
-		data?: { select?: ( store: string ) => unknown };
-	};
-}
-
-/**
- * @return Whether WordPress core's command palette is on this page.
- */
-export function hasCoreCommandPalette(): boolean {
-	if ( typeof window === 'undefined' ) {
-		return false;
-	}
-	const { wp } = window as unknown as WordPressGlobal;
-	if ( wp?.commands ) {
-		return true;
-	}
-	try {
-		return Boolean( wp?.data?.select?.( 'core/commands' ) );
-	} catch {
-		// An unregistered store may throw: core's palette is not here.
-		return false;
-	}
-}
+export {
+	hasCoreCommandPalette,
+	isPaletteShortcut,
+	matchesPaletteKeys,
+	PALETTE_SHORTCUT,
+	paletteShortcut,
+} from './shortcut';
+export type { PaletteShortcut, ShortcutModifier } from './shortcut';
 
 /** Somewhere a modal has made the page behind it unreachable. */
 const BEHIND_MODAL = '[inert], [aria-hidden="true"]';
@@ -199,6 +111,13 @@ export function CommandPalette( { commands }: CommandPaletteProps ) {
 			return undefined;
 		}
 		const onKeyDown = ( event: KeyboardEvent ) => {
+			// The open palette closes on its own keys, even when the modal
+			// frame's trap has already marked them handled.
+			if ( isOpen.current && matchesPaletteKeys( event ) ) {
+				event.preventDefault();
+				show( false );
+				return;
+			}
 			if ( ! isPaletteShortcut( event ) ) {
 				return;
 			}

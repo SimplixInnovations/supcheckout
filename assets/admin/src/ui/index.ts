@@ -119,6 +119,7 @@ export {
 	CommandPalette,
 	hasCoreCommandPalette,
 	isPaletteShortcut,
+	matchesPaletteKeys,
 	PALETTE_SHORTCUT,
 	paletteShortcut,
 } from './overlays/CommandPalette';

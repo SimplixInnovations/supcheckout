@@ -13,7 +13,9 @@
  *   settles (`finally`): if the screen closes and reopens the dialog in the
  *   meantime, the new opening shows that request as pending (busy, not
  *   dismissible) and then its result, and cannot start another one. Only an
- *   opening that starts with nothing in flight gets a new guard.
+ *   opening that starts with nothing in flight gets a new guard. With an
+ *   `actionKey`, this holds across instances too: a dialog remounted while
+ *   that key's request is in flight opens pending and shows its result.
  * - While the call is pending, Escape and backdrop presses are refused,
  *   Cancel is `aria-disabled` and inert, and the confirm button is `busy`
  *   (focusable, announced through its `busyLabel`, inert to activation).
@@ -81,7 +83,25 @@ export interface ConfirmDialogProps {
 	onConfirm: () => Promise< ConfirmResult >;
 	/** Replaces the default result body (pill and message). */
 	renderResult?: ( result: ConfirmResult ) => ReactNode;
+	/**
+	 * Names the action, e.g. `refund:10234`. While a request for this key is
+	 * in flight, every ConfirmDialog with the same key (also one mounted
+	 * after the original was unmounted) opens as pending, cannot call
+	 * `onConfirm` and shows that request's result when it settles.
+	 *
+	 * Rule for screens (SP2): keep a ConfirmDialog mounted while its request
+	 * may be in flight; pass `actionKey` whenever the screen may remount it
+	 * (a route change, a list re-render). The server-side idempotency of
+	 * refunds and charges stays the real guarantee.
+	 */
+	actionKey?: string;
 }
+
+/**
+ * Requests in flight per `actionKey`, across every ConfirmDialog instance:
+ * the settled, well-formed result of each.
+ */
+const inFlightByKey = new Map< string, Promise< ConfirmResult > >();
 
 const STATUSES: readonly ConfirmStatus[] = [ 'verified', 'failed', 'pending' ];
 
@@ -159,6 +179,7 @@ export function ConfirmDialog( {
 	tone,
 	onConfirm,
 	renderResult,
+	actionKey,
 }: ConfirmDialogProps ) {
 	const [ phase, setPhase ] = useState< Phase >( 'idle' );
 	const [ result, setResult ] = useState< ConfirmResult | null >( null );
@@ -175,13 +196,33 @@ export function ConfirmDialog( {
 
 	useLayoutEffect( () => {
 		isOpen.current = open;
-		if ( open ) {
-			// A request still in flight keeps this opening armed and pending.
-			fired.current = inFlight.current;
-			setPhase( inFlight.current ? 'pending' : 'idle' );
-			setResult( null );
+		if ( ! open ) {
+			return undefined;
 		}
-	}, [ open ] );
+		// A request still in flight, from this instance or another one with
+		// the same actionKey, keeps this opening armed and pending.
+		const shared =
+			actionKey === undefined
+				? undefined
+				: inFlightByKey.get( actionKey );
+		const busy = inFlight.current || shared !== undefined;
+		fired.current = busy;
+		setPhase( busy ? 'pending' : 'idle' );
+		setResult( null );
+		if ( ! shared || inFlight.current ) {
+			return undefined;
+		}
+		let current = true;
+		shared.then( ( settled ) => {
+			if ( current && isOpen.current ) {
+				setResult( settled );
+				setPhase( 'settled' );
+			}
+		} );
+		return () => {
+			current = false;
+		};
+	}, [ open, actionKey ] );
 
 	useEffect( () => {
 		if ( phase === 'settled' ) {
@@ -192,19 +233,39 @@ export function ConfirmDialog( {
 	const pending = phase === 'pending';
 
 	const confirm = async () => {
-		if ( fired.current || inFlight.current ) {
+		if (
+			fired.current ||
+			inFlight.current ||
+			( actionKey !== undefined && inFlightByKey.has( actionKey ) )
+		) {
 			return;
 		}
 		fired.current = true;
 		inFlight.current = true;
 		setPhase( 'pending' );
+		// onConfirm runs synchronously up to its first await, so the key is
+		// registered before any other activation can be handled.
+		const request = ( async (): Promise< ConfirmResult > => {
+			try {
+				return toResult( await onConfirm() );
+			} catch {
+				return failedResult();
+			}
+		} )();
+		if ( actionKey !== undefined ) {
+			inFlightByKey.set( actionKey, request );
+		}
 		let settled: ConfirmResult;
 		try {
-			settled = toResult( await onConfirm() );
-		} catch {
-			settled = failedResult();
+			settled = await request;
 		} finally {
 			inFlight.current = false;
+			if (
+				actionKey !== undefined &&
+				inFlightByKey.get( actionKey ) === request
+			) {
+				inFlightByKey.delete( actionKey );
+			}
 		}
 		// Closed (or closing) ends the opening for display: no panel swap,
 		// no focus move. An opening made while it was in flight shows it.

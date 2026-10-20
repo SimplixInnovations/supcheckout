@@ -29,6 +29,7 @@ import { classNames } from '../controls/classNames';
 import { buttonClassName } from '../controls/Button';
 import { Icon } from '../foundations/Icon';
 import { PortalContext, usePortalContainer } from '../foundations/portal';
+import { matchesPaletteKeys } from './shortcut';
 import '../controls/IconButton.css';
 import './Dialog.css';
 
@@ -221,6 +222,49 @@ function useInertBackground( open: boolean, layer: HTMLElement | null ) {
 	}, [ open, layer ] );
 }
 
+/** How many SUPCheckout modals are open, across every DialogFrame. */
+let openModals = 0;
+let trapTarget: HTMLElement | null = null;
+
+function keepShortcutFromCore( event: KeyboardEvent ): void {
+	if ( matchesPaletteKeys( event ) ) {
+		event.preventDefault();
+	}
+}
+
+/**
+ * While any SUPCheckout modal is open, marks Mod+K handled on its way to
+ * `document`, where WordPress core's command palette listens and bails on a
+ * handled key: core's palette can never open over a modal (e.g. take focus
+ * and navigate away mid-refund). No stopPropagation; other keys and
+ * listeners are untouched. Counted across dialogs, so Mod+K returns to core
+ * only when the last SUPCheckout modal closes.
+ *
+ * @param open Whether this dialog is open.
+ */
+function useModalShortcutTrap( open: boolean ) {
+	useLayoutEffect( () => {
+		if ( ! open || typeof document === 'undefined' ) {
+			return undefined;
+		}
+		if ( openModals === 0 ) {
+			trapTarget = document.body;
+			trapTarget.addEventListener( 'keydown', keepShortcutFromCore );
+		}
+		openModals += 1;
+		return () => {
+			openModals -= 1;
+			if ( openModals === 0 && trapTarget ) {
+				trapTarget.removeEventListener(
+					'keydown',
+					keepShortcutFromCore
+				);
+				trapTarget = null;
+			}
+		};
+	}, [ open ] );
+}
+
 export interface DialogFrameProps {
 	/** `alertdialog` semantics (Base UI AlertDialog): no backdrop dismissal. */
 	alert?: boolean;
@@ -268,6 +312,7 @@ export function DialogFrame( {
 	// this layer, inside the popup and the scope (see NestedLayer).
 	const [ nestedLayer ] = useState( createNestedLayer );
 	useInertBackground( open, container );
+	useModalShortcutTrap( open );
 	const handleOpenChange = ( next: boolean, details: ChangeDetails ) => {
 		const tooltipFirst =
 			! next &&
