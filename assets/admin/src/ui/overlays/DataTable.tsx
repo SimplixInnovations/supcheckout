@@ -201,7 +201,10 @@ export function DataTable< Row >( {
 												}
 											>
 												<span>{ column.header }</span>
-												<span className="sup-table__sort-icon">
+												<span
+													className="sup-table__sort-icon"
+													aria-hidden="true"
+												>
 													<Icon
 														name="chevron-down"
 														size={ 16 }
