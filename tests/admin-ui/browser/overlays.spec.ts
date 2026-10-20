@@ -597,45 +597,70 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
 			.filter( ( rule ) => rule.id === 'color-contrast' )
 			.flatMap( ( rule ) =>
 				rule.nodes.map( ( node ) => ( {
+					target: String( node.target[ 0 ] ),
 					html: node.html.slice( 0, 160 ),
 					why: node.any.map( ( check ) => check.data?.messageKey ),
 				} ) )
 			);
-		// axe leaves the wrapping money consequence undecided
-		// (elmPartiallyObscuring: its lines sit over different page areas
-		// behind the modal), as Task 6 found for the wrapping tooltip. Its
-		// colors are asserted as the contrast-checked token pair instead.
-		const consequence = undecided.filter(
-			( node ) =>
-				node.html.startsWith( '<div id="base-ui-' ) &&
-				node.html.includes( 'class="sup-confirm__consequence"' )
-		);
-		expect(
-			undecided.filter( ( node ) => ! consequence.includes( node ) )
-		).toEqual( [] );
-		for ( const node of consequence ) {
-			expect( node.why ).toEqual( [ 'elmPartiallyObscuring' ] );
-			const text = page.locator(
-				`${ PORTAL_LAYER } .sup-confirm__consequence`
-			);
-			await expect( text ).toHaveCSS(
-				'color',
-				await computedColor(
-					page,
-					PORTAL_LAYER,
-					'var(--sup-color-fg-default)'
-				)
-			);
-			await expect(
-				page.locator( `${ PORTAL_LAYER } .sup-confirm__panel` )
-			).toHaveCSS(
-				'background-color',
-				await computedColor(
-					page,
-					PORTAL_LAYER,
-					'var(--sup-color-bg-surface-sunken)'
-				)
-			);
+		// axe compares the element stack under every line of a text, page
+		// included. Under a modal, a wrapping line sits over different page
+		// areas behind the backdrop, so axe leaves it undecided
+		// (elmPartiallyObscuring), as Task 6 found for the wrapping
+		// tooltip. Only such nodes inside the open modal may stay
+		// undecided, and each is measured here instead: its text color
+		// against the nearest opaque background must reach 4.5:1.
+		for ( const node of undecided ) {
+			expect( node.why, node.html ).toEqual( [
+				'elmPartiallyObscuring',
+			] );
+			const measured = await page.evaluate( ( selector ) => {
+				const el = document.querySelector( selector );
+				if ( ! el ) {
+					throw new Error( `no element matches ${ selector }` );
+				}
+				const rgb = ( value: string ) =>
+					( value.match( /[\d.]+/g ) ?? [] ).map( Number );
+				const luminance = ( [ r, g, b ]: number[] ) => {
+					const channel = ( c: number ) => {
+						const v = c / 255;
+						return v <= 0.04045
+							? v / 12.92
+							: ( ( v + 0.055 ) / 1.055 ) ** 2.4;
+					};
+					return (
+						0.2126 * channel( r ) +
+						0.7152 * channel( g ) +
+						0.0722 * channel( b )
+					);
+				};
+				let bg: number[] | null = null;
+				for (
+					let at: Element | null = el;
+					at && ! bg;
+					at = at.parentElement
+				) {
+					const value = rgb( getComputedStyle( at ).backgroundColor );
+					if ( value.length === 3 || value[ 3 ] === 1 ) {
+						bg = value.slice( 0, 3 );
+					}
+				}
+				const fg = rgb( getComputedStyle( el ).color ).slice( 0, 3 );
+				const [ hi, lo ] = [
+					luminance( fg ),
+					luminance( bg ?? [ 0, 0, 0 ] ),
+				].sort( ( a, b ) => b - a );
+				return {
+					inModal:
+						el.closest(
+							'[role="dialog"], [role="alertdialog"]'
+						) !== null,
+					opaque: bg !== null,
+					ratio: ( hi + 0.05 ) / ( lo + 0.05 ),
+				};
+			}, node.target );
+			expect( measured.inModal, node.html ).toBe( true );
+			expect( measured.opaque, node.html ).toBe( true );
+			expect( measured.ratio, node.html ).toBeGreaterThanOrEqual( 4.5 );
 		}
 	};
 	for ( const theme of [ 'system', mode === 'dark' ? 'light' : 'dark' ] ) {
