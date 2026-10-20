@@ -68,8 +68,8 @@ const openDialog = async () => {
 	return screen.findByRole( 'dialog' );
 };
 
-test( 'Dialog traps Tab, closes on Escape and returns focus to the trigger', async () => {
-	render(
+test( 'Dialog moves focus inside, makes the page behind inert, closes on Escape and returns focus to the trigger', async () => {
+	const { container } = render(
 		<SupRoot>
 			<Host />
 		</SupRoot>
@@ -87,33 +87,17 @@ test( 'Dialog traps Tab, closes on Escape and returns focus to the trigger', asy
 		name: 'Close dialog',
 	} );
 	await waitFor( () => expect( close ).toHaveFocus() );
-	// Tab cycles through the dialog and never reaches the page behind it.
-	// (In jsdom focus may rest on Base UI's focus guards, which sit next to
-	// the popup in the portal; the browser suite checks the real cycle.)
-	const appRoot = trigger.closest( '.supcheckout-admin' ) as HTMLElement;
-	const reached = new Set< string >();
-	for ( let i = 0; i < 8; i++ ) {
-		await userEvent.tab();
-		const active = trigger.ownerDocument.activeElement as HTMLElement;
-		expect( appRoot.contains( active ) ).toBe( false );
-		// Between a guard and its hand-back, jsdom may rest on body.
-		const settled =
-			active === active.ownerDocument.body ||
-			active.closest( '.sup-portal-layer' ) !== null;
-		expect( settled ).toBe( true );
-		if ( dialog.contains( active ) ) {
-			reached.add(
-				active.getAttribute( 'aria-label' ) ?? active.textContent ?? ''
-			);
-		}
-	}
-	// Close had the initial focus; Tab then reaches every other control.
-	expect( [ ...reached ] ).toEqual(
-		expect.arrayContaining( [ 'Cancel', 'Save webhook' ] )
+	// Nothing behind the modal can take focus: it is inert, not only
+	// aria-hidden (jsdom's Tab cannot model Base UI's focus guards, so the
+	// Tab cycle itself is proven in the real-browser suite).
+	await waitFor( () =>
+		expect( container.closest( '[inert]' ) ).not.toBeNull()
 	);
+	expect( dialog.closest( '[inert]' ) ).toBeNull();
 
 	await userEvent.keyboard( '{Escape}' );
 	await waitFor( () => expect( screen.queryByRole( 'dialog' ) ).toBeNull() );
+	expect( container.closest( '[inert]' ) ).toBeNull();
 	await waitFor( () => expect( trigger ).toHaveFocus() );
 } );
 

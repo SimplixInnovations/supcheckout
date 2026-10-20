@@ -597,12 +597,46 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
 			.filter( ( rule ) => rule.id === 'color-contrast' )
 			.flatMap( ( rule ) =>
 				rule.nodes.map( ( node ) => ( {
-					target: node.target,
 					html: node.html.slice( 0, 160 ),
-					why: node.any.map( ( check ) => check.message ),
+					why: node.any.map( ( check ) => check.data?.messageKey ),
 				} ) )
 			);
-		expect( undecided ).toEqual( [] );
+		// axe leaves the wrapping money consequence undecided
+		// (elmPartiallyObscuring: its lines sit over different page areas
+		// behind the modal), as Task 6 found for the wrapping tooltip. Its
+		// colors are asserted as the contrast-checked token pair instead.
+		const consequence = undecided.filter(
+			( node ) =>
+				node.html.startsWith( '<div id="base-ui-' ) &&
+				node.html.includes( 'class="sup-confirm__consequence"' )
+		);
+		expect(
+			undecided.filter( ( node ) => ! consequence.includes( node ) )
+		).toEqual( [] );
+		for ( const node of consequence ) {
+			expect( node.why ).toEqual( [ 'elmPartiallyObscuring' ] );
+			const text = page.locator(
+				`${ PORTAL_LAYER } .sup-confirm__consequence`
+			);
+			await expect( text ).toHaveCSS(
+				'color',
+				await computedColor(
+					page,
+					PORTAL_LAYER,
+					'var(--sup-color-fg-default)'
+				)
+			);
+			await expect(
+				page.locator( `${ PORTAL_LAYER } .sup-confirm__panel` )
+			).toHaveCSS(
+				'background-color',
+				await computedColor(
+					page,
+					PORTAL_LAYER,
+					'var(--sup-color-bg-surface-sunken)'
+				)
+			);
+		}
 	};
 	for ( const theme of [ 'system', mode === 'dark' ? 'light' : 'dark' ] ) {
 		await test.step( `theme=${ theme }`, async () => {
