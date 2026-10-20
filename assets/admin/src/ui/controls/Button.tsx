@@ -8,6 +8,17 @@
  * hidden polite status next to the button announces it; that region is
  * mounted before the button turns busy so the change is announced, and it
  * sits outside the button so the accessible name stays the visible label.
+ *
+ * Contract for callers:
+ * - Pass `busyLabel` whenever the button may become busy, not only while it
+ *   is busy: the status region must exist before its text changes, or the
+ *   announcement may be silent.
+ * - With `busyLabel`, Button renders that visually hidden `<span>` as its
+ *   next sibling, so `:last-child` and `+` selectors around buttons see it.
+ * - Busy suppresses activation of this button only (click, Enter, Space and
+ *   implicit submission through it as the default button). A form can still
+ *   be submitted another way (another submit button, `requestSubmit()`), so
+ *   the caller's `onSubmit` must also ignore submissions while pending.
  */
 import type { ButtonHTMLAttributes, MouseEvent } from 'react';
 import { forwardRef } from '@wordpress/element';

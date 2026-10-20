@@ -61,6 +61,56 @@ test( 'a busy submit button does not submit its form', async () => {
 	expect( onSubmit ).not.toHaveBeenCalled();
 } );
 
+test( 'Space on a busy button does not call onClick', async () => {
+	const onClick = jest.fn();
+	render(
+		<Button busy busyLabel="Saving" onClick={ onClick }>
+			Save
+		</Button>
+	);
+	screen.getByRole( 'button', { name: 'Save' } ).focus();
+	await userEvent.keyboard( ' ' );
+	expect( onClick ).not.toHaveBeenCalled();
+} );
+
+test( 'implicit submission through a busy default button does not submit the form', async () => {
+	const onSubmit = jest.fn( ( event: { preventDefault: () => void } ) =>
+		event.preventDefault()
+	);
+	render(
+		<form onSubmit={ onSubmit }>
+			<label htmlFor="store">Store name</label>
+			<input id="store" type="text" name="store" />
+			<Button type="submit" busy busyLabel="Saving">
+				Save
+			</Button>
+		</form>
+	);
+	await userEvent.type(
+		screen.getByRole( 'textbox', { name: 'Store name' } ),
+		'Shop{Enter}'
+	);
+	expect( onSubmit ).not.toHaveBeenCalled();
+} );
+
+test( 'implicit submission through a default button that is not busy submits', async () => {
+	const onSubmit = jest.fn( ( event: { preventDefault: () => void } ) =>
+		event.preventDefault()
+	);
+	render(
+		<form onSubmit={ onSubmit }>
+			<label htmlFor="store">Store name</label>
+			<input id="store" type="text" name="store" />
+			<Button type="submit">Save</Button>
+		</form>
+	);
+	await userEvent.type(
+		screen.getByRole( 'textbox', { name: 'Store name' } ),
+		'Shop{Enter}'
+	);
+	expect( onSubmit ).toHaveBeenCalledTimes( 1 );
+} );
+
 test( 'a busy button shows a decorative spinner in place of its start icon', () => {
 	const { rerender } = render( <Button iconStart="refresh">Sync</Button> );
 	const button = screen.getByRole( 'button', { name: 'Sync' } );

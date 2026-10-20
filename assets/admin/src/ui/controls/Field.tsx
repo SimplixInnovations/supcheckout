@@ -6,6 +6,12 @@
  * (description first, then error), `aria-invalid` when there is an error and
  * `required`. "(required)" is visible text inside the label, never an
  * asterisk alone. The error carries an icon and text, never color alone.
+ *
+ * The error is not a live region: an error that appears after submit is not
+ * announced by itself. Screens (SP2) move focus to the first invalid field,
+ * or to an error summary that links to the fields, after a failed submit.
+ * `required` is passed to the native control, so the browser and assistive
+ * technology expose it too.
  */
 import type { ReactNode } from 'react';
 import { useId } from '@wordpress/element';

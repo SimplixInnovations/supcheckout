@@ -4,7 +4,8 @@
  * The WordPress chevron background is removed; a decorative, token-colored
  * chevron icon sits at the inline end instead, so it follows dark mode,
  * forced colors and RTL. `className` goes on the wrapper, which sizes the
- * control.
+ * control. It is a single-choice dropdown: `multiple` and `size` (a list box)
+ * are not accepted, since the chevron and height assume a closed select.
  */
 import type { SelectHTMLAttributes } from 'react';
 import { forwardRef } from '@wordpress/element';
@@ -22,7 +23,7 @@ export interface SelectOption {
 
 export interface SelectProps extends Omit<
 	SelectHTMLAttributes< HTMLSelectElement >,
-	'children'
+	'children' | 'multiple' | 'size'
 > {
 	options: readonly SelectOption[];
 	invalid?: boolean;

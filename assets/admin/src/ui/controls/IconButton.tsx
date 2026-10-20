@@ -2,7 +2,8 @@
  * IconButton: a square native button that shows only an icon.
  *
  * `label` is required: it becomes the `aria-label`, so the button always has
- * an accessible name, and the icon stays decorative. It takes no children.
+ * an accessible name, and the icon stays decorative. It takes no children,
+ * and no `aria-labelledby`, which would silently replace that name.
  */
 import type { ButtonHTMLAttributes } from 'react';
 import { forwardRef } from '@wordpress/element';
@@ -15,7 +16,7 @@ import './IconButton.css';
 
 export interface IconButtonProps extends Omit<
 	ButtonHTMLAttributes< HTMLButtonElement >,
-	'children' | 'aria-label'
+	'children' | 'aria-label' | 'aria-labelledby'
 > {
 	icon: IconName;
 	/** Translated accessible name. */
@@ -25,6 +26,8 @@ export interface IconButtonProps extends Omit<
 	/** Square size; defaults to `md`. */
 	size?: ButtonSize;
 	children?: never;
+	/** Never accepted: it would replace `label` as the accessible name. */
+	'aria-labelledby'?: never;
 }
 
 export const IconButton = forwardRef< HTMLButtonElement, IconButtonProps >(

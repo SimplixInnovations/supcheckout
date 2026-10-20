@@ -33,6 +33,13 @@ export const allowed = [
 		{ ( control ) => <TextInput { ...control } /> }
 	</Field>,
 	<SecretInput key="e" label="API key" hasSavedValue onChange={ noop } />,
+	<SecretInput
+		key="e2"
+		label="API key"
+		hasSavedValue
+		savedRevision={ 2 }
+		onChange={ noop }
+	/>,
 	<Select key="f" options={ [ { value: 'kwd', label: 'KWD' } ] } invalid />,
 	<Checkbox key="g" label="Select all" indeterminate />,
 	<RadioGroup
@@ -97,4 +104,10 @@ export const rejected = [
 	<Toggle key="j" label="Test mode" checked />,
 	// @ts-expect-error Select needs its options
 	<Select key="k" />,
+	// @ts-expect-error Select is single-choice: no multiple
+	<Select key="l" multiple options={ [] } />,
+	// @ts-expect-error Select is a dropdown: no list-box size
+	<Select key="m" size={ 4 } options={ [] } />,
+	// @ts-expect-error IconButton is named by label only, never aria-labelledby
+	<IconButton key="n" icon="close" label="Close" aria-labelledby="x" />,
 ];
