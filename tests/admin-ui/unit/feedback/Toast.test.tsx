@@ -631,3 +631,70 @@ test( "a toast shown from a screen's mount effect is not lost", () => {
 	);
 	expect( screen.getByText( 'Shown on mount' ) ).toBeInTheDocument();
 } );
+
+test( 'an error that arrives in the background does not unhold the next success', () => {
+	jest.useFakeTimers();
+	const { toast } = renderToaster();
+	hasFocus.mockReturnValue( false );
+	act( () => {
+		toast().show( { tone: 'error', title: 'Sync failed' } );
+		toast().show( { tone: 'success', title: 'Settings saved' } );
+	} );
+	advance( 60000 );
+	expect( screen.getByText( 'Settings saved' ) ).toBeInTheDocument();
+	focusWindow();
+	advance( TOAST_TIMEOUT_MS + 500 );
+	expect( screen.queryByText( 'Settings saved' ) ).toBeNull();
+	expect( screen.getByText( 'Sync failed' ) ).toBeInTheDocument();
+} );
+
+test( 'success, error, success in the background all wait for focus', () => {
+	jest.useFakeTimers();
+	const { toast } = renderToaster();
+	hasFocus.mockReturnValue( false );
+	act( () => {
+		toast().show( { tone: 'success', title: 'Settings saved' } );
+		toast().show( { tone: 'error', title: 'Sync failed' } );
+		toast().show( { tone: 'success', title: 'Imported 12 orders' } );
+	} );
+	advance( 60000 );
+	expect( screen.getByText( 'Settings saved' ) ).toBeInTheDocument();
+	expect( screen.getByText( 'Imported 12 orders' ) ).toBeInTheDocument();
+	focusWindow();
+	advance( TOAST_TIMEOUT_MS + 500 );
+	expect( screen.queryByText( 'Settings saved' ) ).toBeNull();
+	expect( screen.queryByText( 'Imported 12 orders' ) ).toBeNull();
+	expect( screen.getByText( 'Sync failed' ) ).toBeInTheDocument();
+} );
+
+function ShowAndDismissOnMount() {
+	const toast = useToast();
+	useEffect( () => {
+		// Before Base UI subscribes: queued, then dropped from the queue.
+		toast.dismiss( toast.show( { tone: 'info', title: 'Never shown' } ) );
+	}, [ toast ] );
+	return null;
+}
+
+test( 'a toast dismissed while still queued leaves no trace in the hold', () => {
+	jest.useFakeTimers();
+	let controller: ToastController | undefined;
+	render(
+		<SupRoot>
+			<ShowAndDismissOnMount />
+			<Harness
+				onReady={ ( next ) => {
+					controller = next;
+				} }
+			/>
+		</SupRoot>
+	);
+	expect( screen.queryByText( 'Never shown' ) ).toBeNull();
+	hasFocus.mockReturnValue( false );
+	act( () => {
+		controller?.show( { tone: 'success', title: 'Settings saved' } );
+	} );
+	// The dropped toast does not count as one Base UI could time.
+	advance( 60000 );
+	expect( screen.getByText( 'Settings saved' ) ).toBeInTheDocument();
+} );
