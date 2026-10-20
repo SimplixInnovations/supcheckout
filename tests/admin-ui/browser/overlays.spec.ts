@@ -825,15 +825,24 @@ test( 'a header that wraps onto more rows still never covers the focused element
 	await expect
 		.poll( async () => ( await header.boundingBox() )?.height ?? 0 )
 		.toBeGreaterThan( before + 20 );
-	const measured = await header.evaluate( ( el ) => ( {
-		height: el.getBoundingClientRect().height,
-		token: getComputedStyle( el ).getPropertyValue(
-			'--sup-app-shell-header-height'
-		),
-	} ) );
-	expect(
-		Math.abs( parseFloat( measured.token ) - measured.height )
-	).toBeLessThan( 1.5 );
+	// The ResizeObserver reports after layout, and the wrapped title may
+	// settle over more than one frame (font fallback in Arabic): wait for the
+	// token to catch up with the rendered height.
+	await expect
+		.poll(
+			() =>
+				header.evaluate( ( el ) =>
+					Math.abs(
+						parseFloat(
+							getComputedStyle( el ).getPropertyValue(
+								'--sup-app-shell-header-height'
+							)
+						) - el.getBoundingClientRect().height
+					)
+				),
+			{ message: 'measured header height token' }
+		)
+		.toBeLessThan( 1.5 );
 
 	const buttons = specimen( page, 'focus-scroll' ).getByRole( 'button' );
 	const count = await buttons.count();
