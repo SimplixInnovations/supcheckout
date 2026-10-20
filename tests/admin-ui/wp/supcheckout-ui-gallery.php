@@ -85,6 +85,29 @@ if (!defined('SUPCHECKOUT_UI_GALLERY') || true !== SUPCHECKOUT_UI_GALLERY) {
         return null === $scheme ? $color : $scheme;
     });
 
+    // On the gallery page only, `sup_core_commands=off` drops WordPress core's
+    // command palette, so the browser lane can exercise the SUPCheckout
+    // palette's own Mod+K binding, which yields whenever core's palette exists.
+    add_action('admin_enqueue_scripts', static function () use ($gallery_slug) {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only test page view state.
+        if (!isset($_GET['page'], $_GET['sup_core_commands'])
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only test page view state.
+            || $gallery_slug !== sanitize_key(wp_unslash($_GET['page']))
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only test page view state.
+            || 'off' !== sanitize_key(wp_unslash($_GET['sup_core_commands']))
+        ) {
+            return;
+        }
+        // Deregistered, not only dequeued: WooCommerce's admin scripts depend
+        // on wp-commands, and WordPress skips any script whose dependency is
+        // missing, so nothing on this test page loads the commands package.
+        foreach (array('wp-core-commands', 'wp-commands') as $core_handle) {
+            wp_dequeue_script($core_handle);
+            wp_deregister_script($core_handle);
+            wp_dequeue_style($core_handle);
+        }
+    }, PHP_INT_MAX);
+
     add_action('admin_menu', static function () use ($plugin_file, $shell_slug, $gallery_slug, $handle, $theme) {
         if (!class_exists('Simplixi\\SUPCheckout\\Admin\\AdminAssets')) {
             return;

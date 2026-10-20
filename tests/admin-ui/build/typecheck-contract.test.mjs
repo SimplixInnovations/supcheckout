@@ -72,3 +72,11 @@ test( 'the compile-time API contracts are type-checked and never run by Jest', (
 		);
 	}
 } );
+
+test( 'the jsdom project keeps the default test timeout; only heavy axe files raise their own', () => {
+	const require = createRequire( import.meta.url );
+	const { projects } = require( join( ROOT, 'jest.config.js' ) );
+	for ( const project of projects ) {
+		expect( project.testTimeout ).toBeUndefined();
+	}
+} );

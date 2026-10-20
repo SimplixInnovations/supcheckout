@@ -1,0 +1,99 @@
+/*
+ * Tabs: a row of text tabs on a hairline. The selected tab carries the
+ * accent underline and the default text color; the others stay muted until
+ * hovered. The underline is drawn per tab (no sliding indicator), so it
+ * needs no physical offsets and RTL needs nothing extra.
+ */
+.supcheckout-admin .sup-tabs {
+	display: grid;
+	gap: var(--sup-space-6);
+	min-inline-size: 0;
+}
+
+.supcheckout-admin .sup-tabs__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sup-space-2);
+	border-block-end: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+}
+
+.supcheckout-admin .sup-tabs__tab {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sup-space-2);
+	box-sizing: border-box;
+	min-block-size: var(--sup-size-control-lg);
+	min-inline-size: var(--sup-size-target-min);
+	margin: 0;
+	padding-block: 0;
+	padding-inline: var(--sup-space-4);
+	border: 0;
+	border-start-start-radius: var(--sup-radius-control);
+	border-start-end-radius: var(--sup-radius-control);
+	box-shadow: none;
+	color: var(--sup-color-fg-muted);
+	background-color: transparent;
+	font-family: inherit;
+	font-size: var(--sup-font-size-md);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-heading);
+	white-space: nowrap;
+	cursor: pointer;
+	transition-property: color, background-color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-tabs__tab::after {
+	content: "";
+	position: absolute;
+	inset-inline: var(--sup-space-2);
+	inset-block-end: calc(var(--sup-border-width-hairline) * -1);
+	block-size: var(--sup-border-width-focus);
+	border-radius: var(--sup-radius-pill);
+	background-color: transparent;
+}
+
+.supcheckout-admin .sup-tabs__tab:hover {
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface-sunken);
+}
+
+.supcheckout-admin .sup-tabs__tab[aria-selected="true"] {
+	color: var(--sup-color-fg-default);
+}
+
+.supcheckout-admin .sup-tabs__tab[aria-selected="true"]::after {
+	background-color: var(--sup-color-accent-bg);
+}
+
+.supcheckout-admin .sup-tabs__tab:focus {
+	outline: none;
+}
+
+.supcheckout-admin .sup-tabs__tab:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-tabs__panel {
+	min-inline-size: 0;
+	border-radius: var(--sup-radius-control);
+}
+
+.supcheckout-admin .sup-tabs__panel:focus {
+	outline: none;
+}
+
+.supcheckout-admin .sup-tabs__panel:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-tabs__tab[aria-selected="true"]::after {
+		background-color: highlight;
+	}
+}

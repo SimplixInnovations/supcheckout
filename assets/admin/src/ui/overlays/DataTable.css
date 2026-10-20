@@ -1,0 +1,165 @@
+/*
+ * DataTable: a quiet surface with hairline row rules, a muted header row
+ * and rows at --sup-table-row-height (comfortable 48px, compact 36px).
+ * Numeric columns are end-aligned in tabular figures. The scroll region
+ * scrolls a wide table inline and shows a focus ring when focused.
+ */
+.supcheckout-admin .sup-table-wrap {
+	min-inline-size: 0;
+}
+
+.supcheckout-admin .sup-table-region {
+	box-sizing: border-box;
+	max-inline-size: 100%;
+	overflow-x: auto;
+	border: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	border-radius: var(--sup-card-radius);
+	background-color: var(--sup-color-bg-surface);
+}
+
+.supcheckout-admin .sup-table-region:focus {
+	outline: none;
+}
+
+.supcheckout-admin .sup-table-region:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-table {
+	inline-size: 100%;
+	margin: 0;
+	border-collapse: collapse;
+	border-spacing: 0;
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-md);
+	line-height: var(--sup-line-height-heading);
+}
+
+.supcheckout-admin .sup-table__caption {
+	padding-block: var(--sup-space-5) var(--sup-space-3);
+	padding-inline: var(--sup-space-5);
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-lg);
+	font-weight: var(--sup-font-weight-semibold);
+	text-align: start;
+}
+
+.supcheckout-admin .sup-table__row {
+	block-size: var(--sup-table-row-height);
+}
+
+.supcheckout-admin .sup-table tbody .sup-table__row + .sup-table__row {
+	border-block-start: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+}
+
+.supcheckout-admin .sup-table__cell {
+	padding-block: var(--sup-space-2);
+	padding-inline: var(--sup-space-5);
+	text-align: start;
+	vertical-align: middle;
+}
+
+.supcheckout-admin .sup-table__cell--end {
+	text-align: end;
+}
+
+.supcheckout-admin .sup-table__header {
+	border-block-end: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	color: var(--sup-color-fg-muted);
+	background-color: var(--sup-color-bg-surface-sunken);
+	font-size: var(--sup-font-size-sm);
+	font-weight: var(--sup-font-weight-medium);
+	white-space: nowrap;
+}
+
+.supcheckout-admin .sup-table__sort {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sup-space-1);
+	box-sizing: border-box;
+	min-block-size: var(--sup-size-target-min);
+	margin: 0;
+	margin-inline: calc(var(--sup-space-2) * -1);
+	padding-block: 0;
+	padding-inline: var(--sup-space-2);
+	border: 0;
+	border-radius: var(--sup-radius-control);
+	box-shadow: none;
+	color: inherit;
+	background-color: transparent;
+	font: inherit;
+	cursor: pointer;
+	transition-property: color, background-color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-table__cell--end .sup-table__sort {
+	flex-direction: row-reverse;
+}
+
+.supcheckout-admin .sup-table__sort:hover {
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface);
+}
+
+.supcheckout-admin .sup-table__sort:focus {
+	outline: none;
+}
+
+.supcheckout-admin .sup-table__sort:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+/*
+ * The chevron is full strength on the sorted column (down for descending)
+ * and a quiet resting hint on the other sortable columns; aria-sort and
+ * the button name carry the meaning, the icon is decorative.
+ */
+.supcheckout-admin .sup-table__sort-icon {
+	display: inline-flex;
+	opacity: 0.4;
+	transition-property: opacity, rotate;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-table__sort--ascending,
+.supcheckout-admin .sup-table__sort--descending {
+	color: var(--sup-color-fg-default);
+}
+
+.supcheckout-admin .sup-table__sort--ascending .sup-table__sort-icon,
+.supcheckout-admin .sup-table__sort--descending .sup-table__sort-icon {
+	opacity: 1;
+}
+
+.supcheckout-admin .sup-table__sort--ascending .sup-table__sort-icon {
+	rotate: 180deg;
+}
+
+/* An unsorted sortable header strengthens the hint on hover. */
+.supcheckout-admin .sup-table__sort:not(.sup-table__sort--ascending, .sup-table__sort--descending):hover .sup-table__sort-icon {
+	opacity: 0.7;
+}
+
+.supcheckout-admin .sup-table__empty {
+	padding: 0;
+	text-align: center;
+}
+
+.supcheckout-admin .sup-table__empty:not(:has(.sup-empty-state)) {
+	padding-block: var(--sup-space-7);
+	color: var(--sup-color-fg-muted);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-table-region,
+	.supcheckout-admin .sup-table__header,
+	.supcheckout-admin .sup-table tbody .sup-table__row + .sup-table__row {
+		border-color: canvastext;
+	}
+}

@@ -1,0 +1,225 @@
+/*
+ * Command palette: the trigger with its key hint, and the palette itself,
+ * a search field on top of a grouped list in the dialog frame. The
+ * highlighted command takes the accent tint; group labels are small and
+ * muted. Bundled with the app CSS (not the lazy chunk), so it is in place
+ * before the panel arrives and has its RTL twin.
+ */
+.supcheckout-admin .sup-kbd {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sup-space-1);
+	box-sizing: border-box;
+	min-inline-size: var(--sup-size-target-min);
+	padding-block: 0;
+	padding-inline: var(--sup-space-2);
+	border: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	border-radius: var(--sup-radius-control);
+	color: var(--sup-color-fg-muted);
+	background-color: var(--sup-color-bg-surface-sunken);
+	font-family: inherit;
+	font-size: var(--sup-font-size-xs);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-body);
+	letter-spacing: var(--sup-letter-spacing-normal);
+	white-space: nowrap;
+
+	/* An isolated run: the element carries dir="ltr", so key names keep
+	   their order in RTL (rtlcss would flip a CSS direction). */
+	unicode-bidi: isolate;
+}
+
+.supcheckout-admin .sup-palette-trigger .sup-kbd {
+	margin-inline-start: var(--sup-space-2);
+}
+
+.supcheckout-admin .sup-palette-trigger .sup-button__label {
+	display: inline-flex;
+	align-items: center;
+}
+
+.supcheckout-admin .sup-palette {
+	align-self: start;
+	margin-block-start: var(--sup-space-12);
+}
+
+.supcheckout-admin .sup-palette__fallback {
+	block-size: var(--sup-size-control-lg);
+	margin: var(--sup-space-4);
+	border-radius: var(--sup-radius-control);
+	background-color: var(--sup-color-skeleton-base);
+}
+
+.supcheckout-admin .sup-palette__search {
+	display: flex;
+	align-items: center;
+	gap: var(--sup-space-3);
+	padding-inline: var(--sup-space-5);
+	border-block-end: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	border-start-start-radius: var(--sup-dialog-radius);
+	border-start-end-radius: var(--sup-dialog-radius);
+	color: var(--sup-color-fg-muted);
+}
+
+.supcheckout-admin .sup-palette__input,
+.supcheckout-admin .sup-palette__input:focus {
+	flex: 1;
+	box-sizing: border-box;
+	min-inline-size: 0;
+	block-size: var(--sup-size-control-lg);
+	min-block-size: var(--sup-size-control-lg);
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	outline: none;
+	box-shadow: none;
+	color: var(--sup-color-fg-default);
+	background: transparent;
+	font-family: inherit;
+	font-size: var(--sup-font-size-lg);
+	line-height: var(--sup-line-height-heading);
+}
+
+.supcheckout-admin .sup-palette__input::placeholder {
+	color: var(--sup-color-fg-muted);
+	opacity: 1;
+}
+
+/*
+ * The search row is the field: its ring is drawn inside the row (2px, with
+ * the 2px gap inward) so the dialog edge never clips it.
+ */
+.supcheckout-admin .sup-palette__search:has(.sup-palette__input:focus-visible) {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: calc((var(--sup-size-focus-offset) + var(--sup-border-width-focus)) * -1);
+}
+
+.supcheckout-admin .sup-palette__results {
+	max-block-size: var(--sup-palette-list-max-block-size);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+.supcheckout-admin .sup-palette__list {
+	margin: 0;
+	padding: var(--sup-space-2);
+	list-style: none;
+}
+
+.supcheckout-admin .sup-palette__list:empty {
+	padding: 0;
+}
+
+.supcheckout-admin .sup-palette__group + .sup-palette__group {
+	margin-block-start: var(--sup-space-2);
+}
+
+.supcheckout-admin .sup-palette__group-label {
+	padding-block: var(--sup-space-3) var(--sup-space-2);
+	padding-inline: var(--sup-space-3);
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-xs);
+	font-weight: var(--sup-font-weight-semibold);
+	line-height: var(--sup-line-height-heading);
+	letter-spacing: var(--sup-letter-spacing-wide);
+}
+
+.supcheckout-admin .sup-palette__item {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	min-block-size: var(--sup-size-control-md);
+	padding-block: var(--sup-space-2);
+	padding-inline: var(--sup-space-3);
+	border-radius: var(--sup-radius-control);
+	color: var(--sup-color-fg-default);
+	line-height: var(--sup-line-height-heading);
+	cursor: pointer;
+	user-select: none;
+}
+
+.supcheckout-admin .sup-palette__item[data-highlighted] {
+	color: var(--sup-color-accent-fg);
+	background-color: var(--sup-color-accent-subtle-bg);
+}
+
+.supcheckout-admin .sup-palette__empty {
+	padding-block: var(--sup-space-8);
+	padding-inline: var(--sup-space-5);
+	color: var(--sup-color-fg-muted);
+	text-align: center;
+}
+
+/* The status stays mounted (it is announced); empty, it takes no space. */
+.supcheckout-admin .sup-palette__empty:empty {
+	padding: 0;
+}
+
+.supcheckout-admin .sup-palette__hint {
+	margin: 0;
+	padding-block: var(--sup-space-3);
+	padding-inline: var(--sup-space-5);
+	border-block-start: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-sm);
+	line-height: var(--sup-line-height-body);
+}
+
+.supcheckout-admin .sup-palette__bar {
+	display: flex;
+	justify-content: flex-end;
+	padding-block: var(--sup-space-2);
+	padding-inline: var(--sup-space-4);
+	border-block-start: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	border-end-start-radius: calc(var(--sup-dialog-radius) - var(--sup-border-width-hairline));
+	border-end-end-radius: calc(var(--sup-dialog-radius) - var(--sup-border-width-hairline));
+	background-color: var(--sup-color-bg-surface-sunken);
+}
+
+.supcheckout-admin .sup-palette__close {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sup-space-2);
+	box-sizing: border-box;
+	min-block-size: var(--sup-size-control-sm);
+	margin: 0;
+	padding-block: 0;
+	padding-inline: var(--sup-space-3);
+	border: 0;
+	border-radius: var(--sup-radius-control);
+	box-shadow: none;
+	color: var(--sup-color-fg-muted);
+	background-color: transparent;
+	font-family: inherit;
+	font-size: var(--sup-font-size-sm);
+	font-weight: var(--sup-font-weight-medium);
+	cursor: pointer;
+}
+
+.supcheckout-admin .sup-palette__close:hover {
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface);
+}
+
+.supcheckout-admin .sup-palette__close:focus {
+	outline: none;
+}
+
+.supcheckout-admin .sup-palette__close:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-palette__item[data-highlighted] {
+		forced-color-adjust: none;
+		color: highlighttext;
+		background-color: highlight;
+	}
+
+	.supcheckout-admin .sup-kbd {
+		border-color: canvastext;
+	}
+}

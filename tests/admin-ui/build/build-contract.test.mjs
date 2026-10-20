@@ -148,6 +148,31 @@ test( 'the chunk manifest lists exactly the emitted chunks', () => {
 	);
 } );
 
+test( 'the command palette panel is the lazy chunk and the Task 1 placeholder is gone', () => {
+	const chunks = readJson( 'assets/admin/build/app.chunks.json' );
+	expect(
+		chunks.some( ( c ) =>
+			/^chunks\/command-palette\.[a-f0-9]{8}\.js$/.test( c )
+		)
+	).toBe( true );
+	expect(
+		existsSync( join( ROOT, 'assets/admin/src/app/Placeholder.tsx' ) )
+	).toBe( false );
+	expect( allText() ).not.toContain( 'sup-app-placeholder' );
+	// The panel (Base UI Autocomplete and the search) loads only on open.
+	const palette = chunks.find( ( c ) =>
+		c.startsWith( 'chunks/command-palette.' )
+	);
+	const panel = readBuild( palette ).toString( 'utf8' );
+	expect( panel ).toContain( 'No matching commands' );
+	expect( panel ).toContain( 'sup-palette__list' );
+	expect( appJs() ).not.toContain( 'No matching commands' );
+	expect( appJs() ).not.toContain( 'sup-palette__list' );
+	// The shell, the palette trigger and its dialog ship in app.js.
+	expect( appJs() ).toContain( 'sup-app-shell' );
+	expect( appJs() ).toContain( 'sup-dialog' );
+} );
+
 test( 'bundled packages carry an allowed license and none is WordPress or React', () => {
 	for ( const p of readJson(
 		'assets/admin/build/third-party-notices.json'
@@ -162,6 +187,32 @@ test( 'gzip sizes stay within budget', () => {
 	expect( gz( 'app.css' ) ).toBeLessThanOrEqual( BUDGET.appCss );
 	for ( const c of listBuild( 'chunks' ) ) {
 		expect( gz( c ) ).toBeLessThanOrEqual( BUDGET.chunk );
+	}
+} );
+
+test( 'the whole command palette payload stays within the chunk budget', () => {
+	// Every lazy chunk today belongs to the palette (its panel plus webpack's
+	// async vendor split of Base UI Autocomplete), so they load together.
+	const chunks = readJson( 'assets/admin/build/app.chunks.json' );
+	expect( chunks.length ).toBeGreaterThan( 0 );
+	const payload = Buffer.concat( chunks.map( ( c ) => readBuild( c ) ) );
+	expect( gzipSync( payload, { level: 9 } ).length ).toBeLessThanOrEqual(
+		BUDGET.chunk
+	);
+} );
+
+test( 'the search normalizer spells its ignored characters as escapes', () => {
+	const source = readFileSync(
+		join( ROOT, 'assets/admin/src/ui/overlays/search.ts' ),
+		'utf8'
+	);
+	// No literal combining mark, tashkeel, superscript alef or tatweel: they
+	// are invisible or attach to the previous character in an editor.
+	expect( source ).not.toMatch(
+		/[\u0300-\u036f\u0610-\u061a\u064b-\u065f\u0670\u0640\u06d6-\u06ed]/u
+	);
+	for ( const escape of [ '\\u064B', '\\u065F', '\\u0670', '\\u0640' ] ) {
+		expect( source ).toContain( escape );
 	}
 } );
 

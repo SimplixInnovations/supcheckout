@@ -1,0 +1,97 @@
+/*
+ * ConfirmDialog. The consequence sits on a quiet sunken panel for money,
+ * so what will happen reads before the buttons. The result panel is the
+ * one signature moment of the library: calm and generous, the status pill
+ * above the caller's message at the large size, on a sunken panel edged in
+ * the status hue (the pill keeps its own tint, so it never merges into the
+ * panel), with no motion beyond the shared overlay transition.
+ */
+.supcheckout-admin .sup-confirm__header {
+	align-items: center;
+	gap: var(--sup-space-4);
+	padding-inline-end: var(--sup-space-7);
+}
+
+.supcheckout-admin .sup-confirm__mark {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	inline-size: var(--sup-space-9);
+	block-size: var(--sup-space-9);
+	border-radius: var(--sup-radius-pill);
+	color: var(--sup-color-accent-fg);
+	background-color: var(--sup-color-accent-subtle-bg);
+}
+
+.supcheckout-admin .sup-confirm--danger .sup-confirm__mark {
+	color: var(--sup-color-status-danger-fg);
+	background-color: var(--sup-color-status-danger-bg);
+}
+
+.supcheckout-admin .sup-confirm__consequence {
+	color: var(--sup-color-fg-muted);
+	text-wrap: pretty;
+}
+
+.supcheckout-admin .sup-confirm--money .sup-confirm__body {
+	padding-block-start: var(--sup-space-2);
+	padding-block-end: var(--sup-space-6);
+}
+
+.supcheckout-admin .sup-confirm--money .sup-confirm__panel {
+	padding: var(--sup-space-5);
+	border: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	border-radius: var(--sup-radius-card);
+	background-color: var(--sup-color-bg-surface-sunken);
+	font-variant-numeric: tabular-nums;
+}
+
+.supcheckout-admin .sup-confirm--money .sup-confirm__consequence {
+	color: var(--sup-color-fg-default);
+}
+
+.supcheckout-admin .sup-confirm__result {
+	display: grid;
+	justify-items: start;
+	gap: var(--sup-space-4);
+	margin-block: var(--sup-space-2) var(--sup-space-6);
+	margin-inline: var(--sup-space-7);
+	padding-block: var(--sup-space-7);
+	padding-inline: var(--sup-space-6);
+	border: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
+	border-radius: var(--sup-radius-card);
+	background-color: var(--sup-color-bg-surface-sunken);
+}
+
+.supcheckout-admin .sup-confirm__result--verified {
+	border-color: var(--sup-color-status-success-border);
+}
+
+.supcheckout-admin .sup-confirm__result--failed {
+	border-color: var(--sup-color-status-danger-border);
+}
+
+.supcheckout-admin .sup-confirm__result--pending {
+	border-color: var(--sup-color-status-warning-border);
+}
+
+.supcheckout-admin .sup-confirm__message {
+	margin: 0;
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-lg);
+	line-height: var(--sup-line-height-body);
+	text-wrap: pretty;
+
+	/* The caller's message is isolated from the pill next to it and keeps
+	   the page direction (an Arabic message may start with "UPayments"). */
+	unicode-bidi: isolate;
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-confirm__result,
+	.supcheckout-admin .sup-confirm--money .sup-confirm__panel {
+		border-color: canvastext;
+	}
+}

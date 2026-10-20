@@ -93,3 +93,40 @@ export type {
 } from './feedback/Toast';
 export { TOOLTIP_DELAY_MS, Tooltip } from './feedback/Tooltip';
 export type { TooltipProps, TooltipSide } from './feedback/Tooltip';
+export { Dialog } from './overlays/Dialog';
+export type { DialogProps, DialogSize } from './overlays/Dialog';
+export { ConfirmDialog } from './overlays/ConfirmDialog';
+export type {
+	ConfirmDialogProps,
+	ConfirmResult,
+	ConfirmStatus,
+	ConfirmTone,
+} from './overlays/ConfirmDialog';
+export { Tabs } from './overlays/Tabs';
+export type { TabItem, TabsActivation, TabsProps } from './overlays/Tabs';
+export { DataTable } from './overlays/DataTable';
+export type {
+	Column,
+	ColumnAlign,
+	DataTableProps,
+	SortDirection,
+	TableDensity,
+	TableSort,
+} from './overlays/DataTable';
+export { AppShell } from './overlays/AppShell';
+export type { AppShellProps, NavItem } from './overlays/AppShell';
+export {
+	CommandPalette,
+	hasCoreCommandPalette,
+	isPaletteShortcut,
+	matchesPaletteKeys,
+	PALETTE_SHORTCUT,
+	paletteShortcut,
+} from './overlays/CommandPalette';
+export type {
+	Command,
+	CommandPaletteProps,
+	PaletteShortcut,
+	ShortcutModifier,
+} from './overlays/CommandPalette';
+export { normalizeForSearch } from './overlays/search';

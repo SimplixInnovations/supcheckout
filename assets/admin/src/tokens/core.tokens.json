@@ -575,6 +575,33 @@
 					"$value": "480px",
 					"$type": "dimension",
 					"$description": "Comfortable measure for short explanatory copy (empty states, notices)."
+				},
+				"admin-bar": {
+					"$value": "var(--wp-admin--admin-bar--height, 32px)",
+					"$type": "dimension",
+					"$description": "Height of the WordPress admin bar, read from the property WordPress sets on html (32px, 46px below 783px); 32px where it is not set."
+				},
+				"app-header": {
+					"$value": "64px",
+					"$type": "dimension",
+					"$description": "Block size of the sticky AppShell header; focus scrolling clears it (WCAG 2.4.11)."
+				},
+				"dialog-sm": {
+					"$value": "440px",
+					"$type": "dimension"
+				},
+				"dialog-md": {
+					"$value": "560px",
+					"$type": "dimension"
+				},
+				"dialog-lg": {
+					"$value": "720px",
+					"$type": "dimension"
+				},
+				"palette-list": {
+					"$value": "360px",
+					"$type": "dimension",
+					"$description": "Maximum block size of the command palette result list before it scrolls."
 				}
 			},
 			"border-width": {
@@ -1063,7 +1090,29 @@
 				"$type": "color"
 			}
 		},
+		"app-shell": {
+			"header-height": {
+				"$value": "{size.app-header}",
+				"$type": "dimension"
+			},
+			"offset-block-start": {
+				"$value": "{size.admin-bar}",
+				"$type": "dimension"
+			}
+		},
 		"dialog": {
+			"inline-size-sm": {
+				"$value": "{size.dialog-sm}",
+				"$type": "dimension"
+			},
+			"inline-size-md": {
+				"$value": "{size.dialog-md}",
+				"$type": "dimension"
+			},
+			"inline-size-lg": {
+				"$value": "{size.dialog-lg}",
+				"$type": "dimension"
+			},
 			"radius": {
 				"$value": "{radius.overlay}",
 				"$type": "dimension"
@@ -1075,6 +1124,12 @@
 			"z": {
 				"$value": "{z.overlay}",
 				"$type": "number"
+			}
+		},
+		"palette": {
+			"list-max-block-size": {
+				"$value": "{size.palette-list}",
+				"$type": "dimension"
 			}
 		},
 		"table": {
