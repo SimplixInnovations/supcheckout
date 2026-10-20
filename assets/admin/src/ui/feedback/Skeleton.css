@@ -3,12 +3,27 @@
  * and control scale, so a loaded view lands where its skeleton stood.
  */
 .supcheckout-admin .sup-skeleton {
+	position: relative;
 	display: block;
 	box-sizing: border-box;
 	inline-size: 100%;
 	max-inline-size: 100%;
+	overflow: hidden;
 	border-radius: var(--sup-radius-control);
 	background-color: var(--sup-color-skeleton-base);
+}
+
+/*
+ * The pulse: the highlight layer fades in and out over the base. Only
+ * opacity animates, so the compositor runs it without repainting.
+ */
+.supcheckout-admin .sup-skeleton::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background-color: var(--sup-color-skeleton-highlight);
+	opacity: 0;
 	animation: sup-skeleton-pulse calc(var(--sup-motion-duration-slow) * 5) var(--sup-motion-ease-standard) infinite alternate;
 }
 
@@ -43,18 +58,19 @@
 @keyframes sup-skeleton-pulse {
 
 	from {
-		background-color: var(--sup-color-skeleton-base);
+		opacity: 0;
 	}
 
 	to {
-		background-color: var(--sup-color-skeleton-highlight);
+		opacity: 1;
 	}
 }
 
 /* Static under reduced motion: the shape alone says "loading". */
 @media (prefers-reduced-motion: reduce) {
 
-	.supcheckout-admin .sup-skeleton {
+	.supcheckout-admin .sup-skeleton,
+	.supcheckout-admin .sup-skeleton::after {
 		animation: none;
 	}
 }
@@ -64,6 +80,9 @@
 	.supcheckout-admin .sup-skeleton {
 		border: var(--sup-border-width-hairline) solid graytext;
 		background-color: canvas;
-		animation: none;
+	}
+
+	.supcheckout-admin .sup-skeleton::after {
+		content: none;
 	}
 }

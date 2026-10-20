@@ -49,19 +49,31 @@
 	transition-timing-function: var(--sup-motion-ease-standard);
 }
 
+/*
+ * The indeterminate segment is a third of the track and slides from just
+ * before its inline start to just past its inline end. Only `translate`
+ * animates (compositor-friendly); --sup-progress-direction flips the
+ * travel in RTL, because translate is physical.
+ */
 .supcheckout-admin .sup-progress[data-indeterminate] .sup-progress__indicator {
+	--sup-progress-direction: 1;
+	inset-inline-start: 0;
 	inline-size: calc(100% / 3);
 	animation: sup-progress-slide calc(var(--sup-motion-duration-slow) * 5) var(--sup-motion-ease-standard) infinite;
+}
+
+.supcheckout-admin[dir="rtl"] .sup-progress[data-indeterminate] .sup-progress__indicator {
+	--sup-progress-direction: -1;
 }
 
 @keyframes sup-progress-slide {
 
 	from {
-		inset-inline-start: calc(100% / -3);
+		translate: calc(100% * -1 * var(--sup-progress-direction)) 0;
 	}
 
 	to {
-		inset-inline-start: 100%;
+		translate: calc(100% * 3 * var(--sup-progress-direction)) 0;
 	}
 }
 
@@ -72,8 +84,8 @@
 @media (prefers-reduced-motion: reduce) {
 
 	.supcheckout-admin .sup-progress[data-indeterminate] .sup-progress__indicator {
-		inset-inline-start: 0;
 		inline-size: 100%;
+		translate: none;
 		background-image:
 			repeating-linear-gradient(
 				-45deg,
