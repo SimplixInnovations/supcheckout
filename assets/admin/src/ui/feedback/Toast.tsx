@@ -22,8 +22,9 @@
  * - The stack sits at the block end and inline end of the window. When it
  *   would cover the focused element, it moves to the inline start (or the
  *   block start on narrow windows), so focus is never obscured (WCAG 2.4.11).
- *   It re-checks on focus changes, window resizes and its own size changes,
- *   and listens only while toasts exist.
+ *   It re-checks on focus changes, scrolling (nested scrollers included),
+ *   window resizes and its own size changes, and listens only while toasts
+ *   exist.
  * - F6 moves focus into the stack (Base UI); Escape closes the focused toast.
  * - A toast never states that a payment is paid or captured: financial
  *   state comes only from the caller's verified result, shown on the page.
@@ -124,7 +125,8 @@ function overlapArea( a: DOMRect, b: DOMRect ): number {
  * Moves the viewport off the focused element: tries each placement in
  * order and keeps the first that does not overlap it (or the least
  * overlapping one). While toasts exist it re-runs when focus moves, when the
- * window resizes and when the stack's own size changes (ResizeObserver);
+ * page or any nested scroller scrolls (once per frame), when the window
+ * resizes and when the stack's own size changes (ResizeObserver);
  * with no toast it resets to the default corner and listens to nothing.
  *
  * @param viewportRef The toast viewport.
@@ -175,8 +177,22 @@ function useFocusAvoidingPlacement(
 			}
 			viewport.dataset.supPlacement = best;
 		};
+		// Scroll fires often and does not bubble: listen in the capture phase
+		// (so nested scrollers count), passively, at most once per frame.
+		let frame: number | null = null;
+		const onScroll = () => {
+			if ( frame !== null || ! win ) {
+				return;
+			}
+			frame = win.requestAnimationFrame( () => {
+				frame = null;
+				place();
+			} );
+		};
+		const scrollOptions = { capture: true, passive: true };
 		place();
 		doc.addEventListener( 'focusin', place );
+		doc.addEventListener( 'scroll', onScroll, scrollOptions );
 		win?.addEventListener( 'resize', place );
 		const observer =
 			typeof ResizeObserver === 'undefined'
@@ -185,7 +201,11 @@ function useFocusAvoidingPlacement(
 		observer?.observe( viewport );
 		return () => {
 			doc.removeEventListener( 'focusin', place );
+			doc.removeEventListener( 'scroll', onScroll, scrollOptions );
 			win?.removeEventListener( 'resize', place );
+			if ( frame !== null ) {
+				win?.cancelAnimationFrame( frame );
+			}
 			observer?.disconnect();
 		};
 	}, [ viewportRef, stackKey ] );

@@ -462,3 +462,67 @@ test( 'unmounting while a background toast is held removes the focus listener', 
 		removed.mockRestore();
 	}
 } );
+
+test( 'the stack moves again when a nested scroller brings the focus under it', () => {
+	jest.useFakeTimers();
+	const { toast } = renderToaster(
+		<div data-testid="scroller" style={ { overflow: 'auto' } }>
+			<button>Target</button>
+		</div>
+	);
+	const target = screen.getByRole( 'button', { name: 'Target' } );
+	let targetBox = box( 400, 100, 540, 140 );
+	target.getBoundingClientRect = () => targetBox;
+	target.focus();
+	const viewport = layer().querySelector(
+		'.sup-toast-viewport'
+	) as HTMLElement;
+	stubViewportBoxes( viewport );
+
+	act( () => {
+		toast().show( { tone: 'error', title: 'Sync failed' } );
+	} );
+	expect( viewport ).toHaveAttribute( 'data-sup-placement', 'end' );
+
+	// Scrolling an inner panel (scroll does not bubble) slides the focused
+	// button under the default corner.
+	targetBox = box( 1100, 680, 1240, 720 );
+	act( () => {
+		screen.getByTestId( 'scroller' ).dispatchEvent( new Event( 'scroll' ) );
+	} );
+	// Re-placement is throttled to one animation frame.
+	advance( 32 );
+	expect( viewport ).toHaveAttribute( 'data-sup-placement', 'start' );
+} );
+
+test( 'the scroll listener goes away with the last toast', () => {
+	jest.useFakeTimers();
+	const added = jest.spyOn( document, 'addEventListener' );
+	const removed = jest.spyOn( document, 'removeEventListener' );
+	try {
+		const { toast } = renderToaster();
+		const scrolls = ( spy: jest.SpyInstance ) =>
+			spy.mock.calls.filter( ( [ type ] ) => type === 'scroll' ).length;
+		let id = '';
+		act( () => {
+			id = toast().show( { tone: 'error', title: 'Sync failed' } );
+		} );
+		expect( scrolls( added ) ).toBe( 1 );
+		// Capture phase (nested scrollers) and passive.
+		const [ , , options ] = added.mock.calls.find(
+			( [ type ] ) => type === 'scroll'
+		) as [ string, unknown, AddEventListenerOptions ];
+		expect( options ).toEqual(
+			expect.objectContaining( { capture: true, passive: true } )
+		);
+		act( () => {
+			toast().dismiss( id );
+		} );
+		advance( 1000 );
+		expect( scrolls( removed ) ).toBe( 1 );
+		expect( jest.getTimerCount() ).toBe( 0 );
+	} finally {
+		added.mockRestore();
+		removed.mockRestore();
+	}
+} );
