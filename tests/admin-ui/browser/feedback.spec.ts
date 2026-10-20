@@ -232,6 +232,15 @@ test( 'toasts and tooltips render in the scoped portal layer above the admin bar
 			( el ) => el.closest( '.sup-portal-layer' ) !== null
 		)
 	).toBe( true );
+	// The inverted chip is the contrast-checked text pair, reversed.
+	await expect( tooltip ).toHaveCSS(
+		'color',
+		await computedColor( page, PORTAL_LAYER, 'var(--sup-color-bg-surface)' )
+	);
+	await expect( tooltip ).toHaveCSS(
+		'background-color',
+		await computedColor( page, PORTAL_LAYER, 'var(--sup-color-fg-default)' )
+	);
 	// The admin bar never covers a tooltip near the top of the window.
 	expect(
 		await tooltip.evaluate( ( el ) => {
@@ -453,14 +462,19 @@ test( 'feedback gallery with a toast and a tooltip open has no axe violations', 
 			await specimen( page, 'notice-live' )
 				.getByRole( 'button', { name: 'Test connection' } )
 				.click();
+			// A one-line tooltip: axe cannot decide the contrast of floating
+			// text whose lines sit over different page backgrounds (it reports
+			// elmPartiallyObscuring), so the wrapping Webhook URL tooltip's
+			// colors are asserted as tokens in the portal-layer test instead.
 			await keyboardFocus(
 				page,
 				specimen( page, 'tooltip' ).getByRole( 'button', {
-					name: 'Webhook URL',
-					exact: true,
+					name: 'Copy webhook URL',
 				} )
 			);
-			await expect( page.getByRole( 'tooltip' ) ).toBeVisible();
+			await expect(
+				page.getByRole( 'tooltip', { name: 'Copy webhook URL' } )
+			).toBeVisible();
 			await expect(
 				page.locator( `${ PORTAL_LAYER } .sup-toast` )
 			).toHaveCount( 2 );
