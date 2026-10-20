@@ -1,0 +1,13 @@
+{
+	"$description": "Test-only brand file for the visual-regression lane (SP1 Task 8). Sets only the sans and Arabic families, to the vendored faces in vr-fonts.css, so baselines never depend on a runner's system fonts. Never shipped; the shipped brand.tokens.json stays empty.",
+	"font": {
+		"family": {
+			"sans": {
+				"$value": "\"SUP VR Noto Sans\", \"SUP VR Noto Sans Arabic\", sans-serif"
+			},
+			"arabic": {
+				"$value": "\"SUP VR Noto Sans Arabic\", \"SUP VR Noto Sans\", sans-serif"
+			}
+		}
+	}
+}

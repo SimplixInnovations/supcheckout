@@ -28,6 +28,7 @@ import {
 	useToast,
 } from '../../../../assets/admin/src/ui';
 import { Specimen } from './foundations';
+import { SpecimenFrame } from './frame';
 
 /** Specimen names in DOM order (asserted by the browser suite). */
 export const FEEDBACK_SPECIMENS = [
@@ -222,222 +223,262 @@ function FocusTarget() {
 export function FeedbackSpecimens() {
 	return (
 		<>
-			<Specimen name="card-default" title={ __( 'Card', 'supcheckout' ) }>
-				<Card
-					title={ __( 'Connection', 'supcheckout' ) }
-					actions={
-						<Button size="sm">
-							{ __( 'Test connection', 'supcheckout' ) }
-						</Button>
-					}
+			<SpecimenFrame name="cards-and-status">
+				<Specimen
+					name="card-default"
+					title={ __( 'Card', 'supcheckout' ) }
+				>
+					<Card
+						title={ __( 'Connection', 'supcheckout' ) }
+						actions={
+							<Button size="sm">
+								{ __( 'Test connection', 'supcheckout' ) }
+							</Button>
+						}
+					>
+						<div style={ stack }>
+							<div>
+								<StatusPill status="success">
+									{ __( 'Connected', 'supcheckout' ) }
+								</StatusPill>
+							</div>
+							<Text variant="muted">
+								{ __(
+									'Payments go to the UPayments sandbox until you switch to live mode.',
+									'supcheckout'
+								) }
+							</Text>
+						</div>
+					</Card>
+				</Specimen>
+
+				<Specimen
+					name="badge-tones"
+					title={ __( 'Badges', 'supcheckout' ) }
+				>
+					<div style={ row }>
+						<Badge>{ __( 'Sandbox', 'supcheckout' ) }</Badge>
+						<Badge>12</Badge>
+						<Badge tone="accent">
+							{ __( 'New', 'supcheckout' ) }
+						</Badge>
+					</div>
+				</Specimen>
+
+				<Specimen
+					name="status-pill-statuses"
+					title={ __( 'Status pills', 'supcheckout' ) }
+				>
+					<div style={ row }>
+						<StatusPill status="success">
+							{ __( 'Connected', 'supcheckout' ) }
+						</StatusPill>
+						<StatusPill status="warning">
+							{ __( 'Webhook delayed', 'supcheckout' ) }
+						</StatusPill>
+						<StatusPill status="danger">
+							{ __( 'Callback unreachable', 'supcheckout' ) }
+						</StatusPill>
+						<StatusPill status="info">
+							{ __( 'Syncing', 'supcheckout' ) }
+						</StatusPill>
+						<StatusPill status="neutral">
+							{ __( 'Not configured', 'supcheckout' ) }
+						</StatusPill>
+					</div>
+				</Specimen>
+			</SpecimenFrame>
+
+			<SpecimenFrame name="notices">
+				<Specimen
+					name="notice-tones"
+					title={ __( 'Notices', 'supcheckout' ) }
 				>
 					<div style={ stack }>
-						<div>
-							<StatusPill status="success">
-								{ __( 'Connected', 'supcheckout' ) }
-							</StatusPill>
-						</div>
-						<Text variant="muted">
+						<Notice tone="info">
 							{ __(
-								'Payments go to the UPayments sandbox until you switch to live mode.',
+								'UPayments sends payouts to your bank account every working day.',
 								'supcheckout'
 							) }
-						</Text>
+						</Notice>
+						<Notice
+							tone="success"
+							title={ __( 'API key saved', 'supcheckout' ) }
+						>
+							{ __(
+								'New payments use the new key.',
+								'supcheckout'
+							) }
+						</Notice>
+						<DismissibleNotice />
+						<Notice
+							tone="error"
+							title={ __(
+								'Callback unreachable',
+								'supcheckout'
+							) }
+						>
+							{ __(
+								'UPayments cannot reach your store, so orders stay pending. Check that your site is public, then test the connection.',
+								'supcheckout'
+							) }
+						</Notice>
 					</div>
-				</Card>
-			</Specimen>
+				</Specimen>
+			</SpecimenFrame>
 
-			<Specimen
-				name="badge-tones"
-				title={ __( 'Badges', 'supcheckout' ) }
-			>
-				<div style={ row }>
-					<Badge>{ __( 'Sandbox', 'supcheckout' ) }</Badge>
-					<Badge>12</Badge>
-					<Badge tone="accent">{ __( 'New', 'supcheckout' ) }</Badge>
-				</div>
-			</Specimen>
+			<SpecimenFrame name="live-notices">
+				<Specimen
+					name="notice-live"
+					title={ __( 'Live notice', 'supcheckout' ) }
+				>
+					<LiveNoticeSpecimen />
+				</Specimen>
 
-			<Specimen
-				name="status-pill-statuses"
-				title={ __( 'Status pills', 'supcheckout' ) }
-			>
-				<div style={ row }>
-					<StatusPill status="success">
-						{ __( 'Connected', 'supcheckout' ) }
-					</StatusPill>
-					<StatusPill status="warning">
-						{ __( 'Webhook delayed', 'supcheckout' ) }
-					</StatusPill>
-					<StatusPill status="danger">
-						{ __( 'Callback unreachable', 'supcheckout' ) }
-					</StatusPill>
-					<StatusPill status="info">
-						{ __( 'Syncing', 'supcheckout' ) }
-					</StatusPill>
-					<StatusPill status="neutral">
-						{ __( 'Not configured', 'supcheckout' ) }
-					</StatusPill>
-				</div>
-			</Specimen>
+				<Specimen
+					name="notice-live-error"
+					title={ __( 'Live error notice', 'supcheckout' ) }
+				>
+					<LiveErrorNoticeSpecimen />
+				</Specimen>
+			</SpecimenFrame>
 
-			<Specimen
-				name="notice-tones"
-				title={ __( 'Notices', 'supcheckout' ) }
-			>
-				<div style={ stack }>
-					<Notice tone="info">
-						{ __(
-							'UPayments sends payouts to your bank account every working day.',
+			<SpecimenFrame name="empty-and-loading">
+				<Specimen
+					name="empty-state"
+					title={ __( 'Empty state', 'supcheckout' ) }
+				>
+					<EmptyState
+						icon="inbox"
+						title={ __( 'No payments yet', 'supcheckout' ) }
+						description={ __(
+							'Payments appear here after a customer pays with UPayments.',
 							'supcheckout'
 						) }
-					</Notice>
-					<Notice
-						tone="success"
-						title={ __( 'API key saved', 'supcheckout' ) }
-					>
-						{ __( 'New payments use the new key.', 'supcheckout' ) }
-					</Notice>
-					<DismissibleNotice />
-					<Notice
-						tone="error"
-						title={ __( 'Callback unreachable', 'supcheckout' ) }
-					>
-						{ __(
-							'UPayments cannot reach your store, so orders stay pending. Check that your site is public, then test the connection.',
-							'supcheckout'
-						) }
-					</Notice>
-				</div>
-			</Specimen>
+						action={
+							<Button variant="primary">
+								{ __(
+									'Open checkout settings',
+									'supcheckout'
+								) }
+							</Button>
+						}
+					/>
+				</Specimen>
 
-			<Specimen
-				name="notice-live"
-				title={ __( 'Live notice', 'supcheckout' ) }
-			>
-				<LiveNoticeSpecimen />
-			</Specimen>
+				<Specimen
+					name="skeleton-group"
+					title={ __( 'Loading skeleton', 'supcheckout' ) }
+				>
+					<SkeletonGroup label={ __( 'payments', 'supcheckout' ) }>
+						<Skeleton height="title" width="40%" />
+						<div style={ row }>
+							<Skeleton shape="circle" height="control" />
+							<div style={ { ...stack, flex: 1 } }>
+								<Skeleton width="70%" />
+								<Skeleton width="45%" />
+							</div>
+						</div>
+						<Skeleton shape="block" height="4rem" />
+					</SkeletonGroup>
+				</Specimen>
+			</SpecimenFrame>
 
-			<Specimen
-				name="notice-live-error"
-				title={ __( 'Live error notice', 'supcheckout' ) }
-			>
-				<LiveErrorNoticeSpecimen />
-			</Specimen>
+			<SpecimenFrame name="progress">
+				<Specimen
+					name="progress-bar"
+					title={ __( 'Progress bars', 'supcheckout' ) }
+				>
+					<div style={ stack }>
+						<ProgressBar
+							label={ __( 'Setup progress', 'supcheckout' ) }
+							value={ 2 }
+							max={ 4 }
+							valueText={ __( '2 of 4 steps', 'supcheckout' ) }
+						/>
+						<ProgressBar
+							label={ __( 'Checking connection', 'supcheckout' ) }
+						/>
+					</div>
+				</Specimen>
 
-			<Specimen
-				name="empty-state"
-				title={ __( 'Empty state', 'supcheckout' ) }
-			>
-				<EmptyState
-					icon="inbox"
-					title={ __( 'No payments yet', 'supcheckout' ) }
-					description={ __(
-						'Payments appear here after a customer pays with UPayments.',
+				<Specimen
+					name="stepper"
+					title={ __( 'Stepper', 'supcheckout' ) }
+				>
+					<Stepper
+						label={ __( 'Setup steps', 'supcheckout' ) }
+						steps={ [
+							{
+								id: 'connect',
+								label: __( 'Connect account', 'supcheckout' ),
+							},
+							{
+								id: 'keys',
+								label: __( 'Add API keys', 'supcheckout' ),
+							},
+							{
+								id: 'test',
+								label: __( 'Test payment', 'supcheckout' ),
+							},
+							{
+								id: 'live',
+								label: __( 'Go live', 'supcheckout' ),
+							},
+						] }
+						currentId="test"
+						completedIds={ [ 'connect', 'keys' ] }
+					/>
+				</Specimen>
+			</SpecimenFrame>
+
+			<SpecimenFrame name="feedback-triggers">
+				<Specimen
+					name="toast-trigger"
+					title={ __( 'Toasts', 'supcheckout' ) }
+				>
+					<ToastTriggers />
+				</Specimen>
+
+				<Specimen
+					name="tooltip"
+					title={ __( 'Tooltips', 'supcheckout' ) }
+				>
+					<div style={ row }>
+						<Tooltip
+							content={ __(
+								'UPayments sends payment updates to this address.',
+								'supcheckout'
+							) }
+						>
+							<Button>
+								{ __( 'Webhook URL', 'supcheckout' ) }
+							</Button>
+						</Tooltip>
+						<IconButton
+							icon="copy"
+							variant="secondary"
+							label={ __( 'Copy webhook URL', 'supcheckout' ) }
+							showTooltip
+						/>
+						<IconButton
+							icon="refresh"
+							label={ __( 'Refresh status', 'supcheckout' ) }
+							showTooltip
+						/>
+					</div>
+				</Specimen>
+
+				<Specimen
+					name="focus-target-block-end"
+					title={ __(
+						'Focus target at the block end',
 						'supcheckout'
 					) }
-					action={
-						<Button variant="primary">
-							{ __( 'Open checkout settings', 'supcheckout' ) }
-						</Button>
-					}
-				/>
-			</Specimen>
-
-			<Specimen
-				name="skeleton-group"
-				title={ __( 'Loading skeleton', 'supcheckout' ) }
-			>
-				<SkeletonGroup label={ __( 'payments', 'supcheckout' ) }>
-					<Skeleton height="title" width="40%" />
-					<div style={ row }>
-						<Skeleton shape="circle" height="control" />
-						<div style={ { ...stack, flex: 1 } }>
-							<Skeleton width="70%" />
-							<Skeleton width="45%" />
-						</div>
-					</div>
-					<Skeleton shape="block" height="4rem" />
-				</SkeletonGroup>
-			</Specimen>
-
-			<Specimen
-				name="progress-bar"
-				title={ __( 'Progress bars', 'supcheckout' ) }
-			>
-				<div style={ stack }>
-					<ProgressBar
-						label={ __( 'Setup progress', 'supcheckout' ) }
-						value={ 2 }
-						max={ 4 }
-						valueText={ __( '2 of 4 steps', 'supcheckout' ) }
-					/>
-					<ProgressBar
-						label={ __( 'Checking connection', 'supcheckout' ) }
-					/>
-				</div>
-			</Specimen>
-
-			<Specimen name="stepper" title={ __( 'Stepper', 'supcheckout' ) }>
-				<Stepper
-					label={ __( 'Setup steps', 'supcheckout' ) }
-					steps={ [
-						{
-							id: 'connect',
-							label: __( 'Connect account', 'supcheckout' ),
-						},
-						{
-							id: 'keys',
-							label: __( 'Add API keys', 'supcheckout' ),
-						},
-						{
-							id: 'test',
-							label: __( 'Test payment', 'supcheckout' ),
-						},
-						{ id: 'live', label: __( 'Go live', 'supcheckout' ) },
-					] }
-					currentId="test"
-					completedIds={ [ 'connect', 'keys' ] }
-				/>
-			</Specimen>
-
-			<Specimen
-				name="toast-trigger"
-				title={ __( 'Toasts', 'supcheckout' ) }
-			>
-				<ToastTriggers />
-			</Specimen>
-
-			<Specimen name="tooltip" title={ __( 'Tooltips', 'supcheckout' ) }>
-				<div style={ row }>
-					<Tooltip
-						content={ __(
-							'UPayments sends payment updates to this address.',
-							'supcheckout'
-						) }
-					>
-						<Button>{ __( 'Webhook URL', 'supcheckout' ) }</Button>
-					</Tooltip>
-					<IconButton
-						icon="copy"
-						variant="secondary"
-						label={ __( 'Copy webhook URL', 'supcheckout' ) }
-						showTooltip
-					/>
-					<IconButton
-						icon="refresh"
-						label={ __( 'Refresh status', 'supcheckout' ) }
-						showTooltip
-					/>
-				</div>
-			</Specimen>
-
-			<Specimen
-				name="focus-target-block-end"
-				title={ __( 'Focus target at the block end', 'supcheckout' ) }
-			>
-				<FocusTarget />
-			</Specimen>
+				>
+					<FocusTarget />
+				</Specimen>
+			</SpecimenFrame>
 		</>
 	);
 }

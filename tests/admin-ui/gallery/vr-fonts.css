@@ -1,0 +1,43 @@
+/*
+ * Test-only font faces for the visual-regression lane (SP1 Task 8). Never
+ * shipped: the gallery build adds this file only when SUP_BRAND is set, and
+ * webpack copies just these four files into tests/admin-ui/gallery/build/fonts/.
+ *
+ * Source: the exact-pinned devDependencies @fontsource/noto-sans and
+ * @fontsource/noto-sans-arabic (Noto Sans and Noto Sans Arabic, SIL Open
+ * Font License 1.1; the license ships in each package as LICENSE). Weights
+ * 400 and 600; the Latin subset of Noto Sans and the Arabic subset of Noto
+ * Sans Arabic. The family names are unique, so an installed Noto Sans on the
+ * runner can never stand in for them, and vr-brand.tokens.json names them.
+ */
+@font-face {
+	font-family: "SUP VR Noto Sans";
+	font-style: normal;
+	font-weight: 400;
+	font-display: block;
+	src: url("../../../node_modules/@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "SUP VR Noto Sans";
+	font-style: normal;
+	font-weight: 600;
+	font-display: block;
+	src: url("../../../node_modules/@fontsource/noto-sans/files/noto-sans-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "SUP VR Noto Sans Arabic";
+	font-style: normal;
+	font-weight: 400;
+	font-display: block;
+	src: url("../../../node_modules/@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "SUP VR Noto Sans Arabic";
+	font-style: normal;
+	font-weight: 600;
+	font-display: block;
+	src: url("../../../node_modules/@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-600-normal.woff2") format("woff2");
+}

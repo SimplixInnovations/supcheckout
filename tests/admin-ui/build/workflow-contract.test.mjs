@@ -127,3 +127,74 @@ test( 'test:browser runs exactly the four browser projects', () => {
 		'playwright test --config tests/admin-ui/playwright.config.ts --project=light-ltr --project=dark-ltr --project=light-rtl --project=dark-rtl'
 	);
 } );
+
+test( 'the visual lane runs real WordPress 7.1.3/WC 11.1.2 on PHP 8.3 at the exact head', () => {
+	const visual = job( 'visual' );
+	expect( visual ).toContain( 'runs-on: ubuntu-latest' );
+	expect( visual ).toMatch( /timeout-minutes: \d+/ );
+	expect( visual ).toContain( 'persist-credentials: false' );
+	expect( visual ).toContain(
+		'test "$(git rev-parse HEAD)" = "$ADMIN_UI_SOURCE_SHA"'
+	);
+	expect( visual ).toContain( "SUP_UI_WP_VERSION: '7.1.3'" );
+	expect( visual ).toContain( "SUP_UI_WC_VERSION: '11.1.2'" );
+	expect( visual ).toContain( "php-version: '8.3'" );
+	expect( visual ).toContain(
+		'bash scripts/install-wp-test-environment.sh "$SUP_UI_WP_VERSION" "$SUP_UI_WC_VERSION"'
+	);
+	expect( visual ).toContain( 'run: npm ci --ignore-scripts' );
+	expect( visual ).toContain(
+		'run: npx playwright install --with-deps chromium'
+	);
+} );
+
+test( 'the visual lane builds the gallery with the test brand file and runs the visual projects', () => {
+	const visual = job( 'visual' );
+	expect( visual ).toMatch(
+		/SUP_BRAND: tests\/admin-ui\/gallery\/vr-brand\.tokens\.json\n\s+run: npm run build:gallery/
+	);
+	expect( visual ).toContain(
+		`test "$(find tests/admin-ui/gallery/build/fonts -name '*.woff2' | wc -l)" = 4`
+	);
+	expect( visual ).toContain( 'npm run check:drift' );
+	expect( visual ).toContain( 'npm run test:visual' );
+	expect( visual ).toContain( 'name: admin-ui-visual-diffs' );
+	expect( visual ).toContain( 'if: ${{ failure() }}' );
+} );
+
+test( 'a baseline update is dispatch-only, uploads the baselines and fails the gate', () => {
+	expect( WORKFLOW ).toMatch(
+		/workflow_dispatch:\n\s+inputs:\n\s+update_visual_baselines:\n[\s\S]*?type: boolean\n\s+default: false\n/
+	);
+	const update =
+		"UPDATE_VISUAL_BASELINES: ${{ github.event_name == 'workflow_dispatch' && inputs.update_visual_baselines && 'true' || 'false' }}";
+	const visual = job( 'visual' );
+	expect( visual ).toContain( update );
+	expect( visual ).toMatch(
+		/if \[\[ "\$UPDATE_VISUAL_BASELINES" == true \]\]; then\n\s+export SUP_UPDATE_BASELINES=1/
+	);
+	expect( visual ).toMatch(
+		/if: \$\{\{ env\.UPDATE_VISUAL_BASELINES == 'true' \}\}\n\s+uses: actions\/upload-artifact@[0-9a-f]{40} # v[\d.]+\n\s+with:\n\s+name: admin-ui-visual-baselines\n\s+path: tests\/admin-ui\/visual\/baselines\n\s+if-no-files-found: error/
+	);
+	const gate = job( 'gate' );
+	expect( gate ).toContain( update );
+	expect( gate ).toMatch(
+		/if \[\[ "\$UPDATE_VISUAL_BASELINES" != false \]\]; then\n\s+echo "baselines regenerated; commit them and rerun"\n\s+exit 1/
+	);
+} );
+
+test( 'the gate also needs the visual lane and fails on its skip or cancel', () => {
+	const gate = job( 'gate' );
+	expect( gate ).toMatch( /- browser\n\s+- visual\n/ );
+	expect( gate ).toContain( 'VISUAL_RESULT: ${{ needs.visual.result }}' );
+	expect( gate ).toContain( '"$VISUAL_RESULT" != success' );
+} );
+
+test( 'test:visual runs exactly the four visual projects', () => {
+	const pkg = JSON.parse(
+		readFileSync( join( ROOT, 'package.json' ), 'utf8' )
+	);
+	expect( pkg.scripts[ 'test:visual' ] ).toBe(
+		'playwright test --config tests/admin-ui/playwright.config.ts --project=visual-light-ltr --project=visual-dark-ltr --project=visual-light-rtl --project=visual-dark-rtl'
+	);
+} );
