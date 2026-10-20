@@ -51,11 +51,12 @@ final class AdminAssetsTest extends TestCase {
 
         self::assertTrue($assets->enqueue_for(self::SCREEN));
 
-        // The committed app.asset.json, in its sorted order (Base UI imports react).
+        // The committed app.asset.json, in its sorted order (Base UI imports
+        // react, and react-dom since SupRoot portals the toast viewport).
         $script = \supcheckout_test_script(AdminAssets::HANDLE);
         self::assertNotNull($script);
         self::assertSame(
-            array('react', 'react-jsx-runtime', 'wp-dom-ready', 'wp-element', 'wp-i18n'),
+            array('react', 'react-dom', 'react-jsx-runtime', 'wp-dom-ready', 'wp-element', 'wp-i18n'),
             $script['deps']
         );
         $manifest = AdminAssets::manifest(dirname(__DIR__, 3) . '/assets/admin/build/app.asset.json');
