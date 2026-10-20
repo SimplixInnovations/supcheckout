@@ -199,6 +199,7 @@ export function DialogFrame( {
 	// Tooltips (and any other portal) opened inside the dialog render in
 	// this layer, inside the popup and the scope (see NestedLayer).
 	const [ nestedLayer ] = useState( createNestedLayer );
+	useInertBackground( open, container );
 	const handleOpenChange = ( next: boolean, details: ChangeDetails ) => {
 		const tooltipFirst =
 			! next &&

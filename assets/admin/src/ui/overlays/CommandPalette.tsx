@@ -6,6 +6,11 @@
  *   opens it. The shortcut is ignored during an IME composition and when an
  *   earlier handler already used the key (`defaultPrevented`), so an editor
  *   that binds Mod+K keeps it. The trigger announces it (`aria-keyshortcuts`).
+ * - wp-admin has its own command palette (wp-commands) on the same keys,
+ *   listening on `document`. The listener here sits on `document.body`: it
+ *   runs after every element and React handler (so inputs keep first
+ *   refusal) and before `document`, and it stops a handled Mod+K there, so
+ *   on SUPCheckout screens the key opens one palette, this one.
  * - The palette is a modal Dialog in the portal layer. Its panel (Base UI
  *   Autocomplete and the search) is the lazy `command-palette` chunk: it
  *   loads on first open, so screens that never open it never pay for it.
@@ -144,6 +149,8 @@ export function CommandPalette( { commands }: CommandPaletteProps ) {
 				return;
 			}
 			event.preventDefault();
+			// One palette per key press: WordPress's listens on document.
+			event.stopPropagation();
 			setOpen( ( current ) => {
 				if ( ! current ) {
 					ran.current = false;
@@ -151,8 +158,9 @@ export function CommandPalette( { commands }: CommandPaletteProps ) {
 				return ! current;
 			} );
 		};
-		document.addEventListener( 'keydown', onKeyDown );
-		return () => document.removeEventListener( 'keydown', onKeyDown );
+		const { body } = document;
+		body.addEventListener( 'keydown', onKeyDown );
+		return () => body.removeEventListener( 'keydown', onKeyDown );
 	}, [] );
 
 	const run = useCallback( ( command: Command ) => {

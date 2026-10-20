@@ -94,6 +94,13 @@
 	padding-inline: var(--sup-space-7);
 }
 
+/* Whatever receives focus (or the skip link's target) scrolls into view
+   below the admin bar and the sticky header, never under them. */
+.supcheckout-admin .sup-app-shell__body,
+.supcheckout-admin .sup-app-shell__body * {
+	scroll-margin-block-start: calc(var(--sup-app-shell-offset-block-start) + var(--sup-app-shell-header-height) + var(--sup-space-4));
+}
+
 .supcheckout-admin .sup-app-shell__nav-list {
 	display: flex;
 	flex-wrap: wrap;
@@ -179,6 +186,11 @@
 
 	.supcheckout-admin .sup-app-shell__body {
 		padding-inline: var(--sup-space-4);
+	}
+
+	.supcheckout-admin .sup-app-shell__body,
+	.supcheckout-admin .sup-app-shell__body * {
+		scroll-margin-block-start: calc(var(--sup-app-shell-offset-block-start) + var(--sup-space-4));
 	}
 }
 
