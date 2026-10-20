@@ -97,6 +97,17 @@ jobs:
           test -s "${RUNNER_TEMP}/plugin-check/supcheckout/UPayments.php"
           test -s "${RUNNER_TEMP}/plugin-check/supcheckout/readme.txt"
 
+      - name: Hold the Plugin Check toolchain to the 14-day dependency cooldown
+        shell: bash
+        run: |
+          set -euo pipefail
+          # plugin-check-action installs the latest @wordpress/env unpinned
+          # (`npm -g i @wordpress/env`). Resolve only releases published at least
+          # 14 days ago, the same cooldown as .npmrc `min-release-age=14`, so a
+          # broken same-day upstream release (e.g. one depending on an unpublished
+          # package) cannot fail this gate. The cutoff moves forward every day.
+          echo "npm_config_before=$(date -u -d '14 days ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       - name: Run official WordPress Plugin Check against packaged artifact
         uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
         with:

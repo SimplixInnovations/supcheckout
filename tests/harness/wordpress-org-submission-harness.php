@@ -78,6 +78,15 @@ wporg_assert(
         && strpos($submission_workflow, 'strict: true') !== false,
     'official Plugin Check runs on unpacked canonical package with immutable action pin'
 );
+$plugin_check_at = strpos($submission_workflow, 'WordPress/plugin-check-action@');
+$cooldown_at = strpos($submission_workflow, 'npm_config_before=');
+wporg_assert(
+    false !== $cooldown_at
+        && false !== $plugin_check_at
+        && $cooldown_at < $plugin_check_at
+        && strpos($submission_workflow, "date -u -d '14 days ago'") !== false,
+    'Plugin Check installs its unpinned wp-env toolchain under the 14-day npm dependency cooldown'
+);
 wporg_assert(
     strpos($submission_workflow, 'bash scripts/build-release.sh submission-output') !== false
         && strpos($submission_workflow, 'bash scripts/verify-release.sh "$ZIP"') !== false,
