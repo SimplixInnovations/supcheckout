@@ -496,6 +496,20 @@ test( 'the command palette chunk loads and its strings are translated', async ( 
 
 	const trigger = page.getByRole( 'button', { name: /^Search commands/ } );
 	await expect( trigger ).toHaveAttribute( 'aria-keyshortcuts', 'Control+K' );
+	// The key hint reads "Ctrl K" in both directions (rtlcss must not flip it).
+	const hint = trigger.locator( 'kbd' );
+	await expect( hint ).toHaveCSS( 'direction', 'ltr' );
+	expect(
+		await hint.evaluate( ( el ) => {
+			const key = el.querySelector( '.sup-kbd__key' ) as HTMLElement;
+			const range = document.createRange();
+			range.selectNodeContents( el.firstChild as Node );
+			return (
+				range.getBoundingClientRect().left <
+				key.getBoundingClientRect().left
+			);
+		} )
+	).toBe( true );
 	await trigger.focus();
 	await page.keyboard.press( 'Control+K' );
 	const palette = page.getByRole( 'dialog', { name: 'Command palette' } );
