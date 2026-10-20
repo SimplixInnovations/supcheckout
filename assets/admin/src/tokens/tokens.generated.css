@@ -44,6 +44,7 @@
 	--sup-color-status-danger-border: var(--sup-palette-red-500);
 	--sup-color-status-danger-fg: var(--sup-palette-red-800);
 	--sup-color-status-danger-solid: var(--sup-palette-red-600);
+	--sup-color-status-danger-solid-hover: var(--sup-palette-red-700);
 	--sup-color-status-info-bg: var(--sup-palette-blue-50);
 	--sup-color-status-info-border: var(--sup-palette-blue-500);
 	--sup-color-status-info-fg: var(--sup-palette-blue-800);

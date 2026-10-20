@@ -1,0 +1,218 @@
+/*
+ * RadioGroup: a fieldset with a legend, in the list or segmented variant.
+ * Each radio is transparent over a target of at least 24px; its next sibling
+ * (the dot or the segment) draws the state and the focus ring.
+ *
+ * WordPress forms.css draws its own dot in input[type=radio]:checked::before
+ * (0,2,2); the input rules here are (0,3,0) and the resets (0,4,1).
+ */
+.supcheckout-admin .sup-radio-group {
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.supcheckout-admin .sup-radio-group__legend {
+	margin-block-end: var(--sup-space-3);
+	padding: 0;
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-md);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-heading);
+}
+
+.supcheckout-admin .sup-radio-group__option > .sup-radio-group__input,
+.supcheckout-admin .sup-radio-group__control > .sup-radio-group__input {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	box-sizing: border-box;
+	inline-size: 100%;
+	min-inline-size: 0;
+	block-size: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	background: none;
+	opacity: 0;
+	appearance: none;
+	cursor: pointer;
+}
+
+.supcheckout-admin .sup-radio-group .sup-radio-group__input::before,
+.supcheckout-admin .sup-radio-group .sup-radio-group__input::after,
+.supcheckout-admin .sup-radio-group .sup-radio-group__input:checked::before,
+.supcheckout-admin .sup-radio-group .sup-radio-group__input:checked::after {
+	content: none;
+}
+
+/* List: one radio per row. */
+.supcheckout-admin .sup-radio-group--list .sup-radio-group__options {
+	display: grid;
+	gap: var(--sup-space-3);
+}
+
+.supcheckout-admin .sup-radio-group--list .sup-radio-group__option {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sup-space-3);
+}
+
+.supcheckout-admin .sup-radio-group__control {
+	position: relative;
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	inline-size: var(--sup-size-target-min);
+	block-size: var(--sup-size-target-min);
+}
+
+.supcheckout-admin .sup-radio-group__indicator {
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: var(--sup-size-icon-md);
+	block-size: var(--sup-size-icon-md);
+	border: 1px solid var(--sup-input-border-color);
+	border-radius: var(--sup-radius-pill);
+	background-color: var(--sup-color-bg-surface);
+	pointer-events: none;
+	transition-property: border-color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-radio-group__indicator::after {
+	content: "";
+	inline-size: var(--sup-space-3);
+	block-size: var(--sup-space-3);
+	border-radius: var(--sup-radius-pill);
+	background-color: var(--sup-color-accent-bg);
+	opacity: 0;
+}
+
+.supcheckout-admin .sup-radio-group__input:hover + .sup-radio-group__indicator {
+	border-color: var(--sup-color-fg-muted);
+}
+
+.supcheckout-admin .sup-radio-group__input:checked + .sup-radio-group__indicator {
+	border-color: var(--sup-color-accent-bg);
+}
+
+.supcheckout-admin .sup-radio-group__input:checked + .sup-radio-group__indicator::after {
+	opacity: 1;
+}
+
+.supcheckout-admin .sup-radio-group__input:focus-visible + .sup-radio-group__indicator {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-radio-group__text {
+	display: grid;
+	gap: var(--sup-space-1);
+	padding-block-start: var(--sup-space-1);
+	min-inline-size: 0;
+}
+
+.supcheckout-admin .sup-radio-group__label {
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-md);
+	line-height: var(--sup-line-height-body);
+	vertical-align: baseline;
+	cursor: pointer;
+}
+
+.supcheckout-admin .sup-radio-group__description {
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-sm);
+	line-height: var(--sup-line-height-body);
+}
+
+/* Segmented: a compact row of segments inside one bordered track. */
+.supcheckout-admin .sup-radio-group--segmented .sup-radio-group__options {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: var(--sup-space-1);
+	padding: var(--sup-space-1);
+	border: 1px solid var(--sup-color-border-strong);
+	border-radius: var(--sup-radius-control);
+	background-color: var(--sup-color-bg-surface);
+}
+
+.supcheckout-admin .sup-radio-group--segmented .sup-radio-group__option {
+	position: relative;
+	display: inline-flex;
+	min-inline-size: var(--sup-size-target-min);
+	cursor: pointer;
+}
+
+.supcheckout-admin .sup-radio-group__segment {
+	display: inline-flex;
+	flex: 1;
+	align-items: center;
+	justify-content: center;
+	gap: var(--sup-space-2);
+	box-sizing: border-box;
+	min-block-size: calc(var(--sup-size-control-md) - (var(--sup-space-1) + 1px) * 2);
+	padding-inline: var(--sup-space-4);
+	border-radius: calc(var(--sup-radius-control) - var(--sup-space-1));
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-sm);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-heading);
+	white-space: nowrap;
+	pointer-events: none;
+	transition-property: background-color, color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-radio-group__input:hover + .sup-radio-group__segment {
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface-sunken);
+}
+
+.supcheckout-admin .sup-radio-group__input:checked + .sup-radio-group__segment {
+	color: var(--sup-color-fg-on-accent);
+	background-color: var(--sup-color-accent-bg);
+}
+
+.supcheckout-admin .sup-radio-group__input:focus-visible + .sup-radio-group__segment {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-radio-group__indicator,
+	.supcheckout-admin .sup-radio-group__segment {
+		forced-color-adjust: none;
+		border-color: canvastext;
+		color: canvastext;
+		background-color: canvas;
+	}
+
+	.supcheckout-admin .sup-radio-group__indicator::after {
+		background-color: highlight;
+	}
+
+	.supcheckout-admin .sup-radio-group__input:checked + .sup-radio-group__indicator {
+		border-color: highlight;
+	}
+
+	.supcheckout-admin .sup-radio-group__input:checked + .sup-radio-group__segment {
+		color: highlighttext;
+		background-color: highlight;
+	}
+
+	.supcheckout-admin .sup-radio-group__input:focus-visible + .sup-radio-group__indicator,
+	.supcheckout-admin .sup-radio-group__input:focus-visible + .sup-radio-group__segment {
+		outline-color: highlight;
+	}
+}

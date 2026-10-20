@@ -1,0 +1,43 @@
+/* Field: label, description, control and error in a tight vertical stack. */
+.supcheckout-admin .sup-field {
+	display: grid;
+	gap: var(--sup-space-2);
+	justify-items: start;
+	min-inline-size: 0;
+}
+
+.supcheckout-admin .sup-field__label {
+	display: block;
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-md);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-heading);
+	vertical-align: baseline;
+}
+
+.supcheckout-admin .sup-field__required {
+	color: var(--sup-color-fg-muted);
+	font-weight: var(--sup-font-weight-regular);
+}
+
+.supcheckout-admin .sup-field__description {
+	margin: 0;
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-sm);
+	line-height: var(--sup-line-height-body);
+}
+
+.supcheckout-admin .sup-field__error {
+	display: inline-flex;
+	align-items: flex-start;
+	gap: var(--sup-space-2);
+	color: var(--sup-color-status-danger-fg);
+	font-size: var(--sup-font-size-sm);
+	font-weight: var(--sup-font-weight-medium);
+	line-height: var(--sup-line-height-body);
+}
+
+/* Optically centre the 16px icon on the first line of text. */
+.supcheckout-admin .sup-field__error .sup-icon {
+	margin-block-start: var(--sup-space-1);
+}

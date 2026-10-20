@@ -1,0 +1,76 @@
+/*
+ * Text controls (TextInput, Textarea, SecretInput's input).
+ *
+ * WordPress forms.css styles input[type=…], textarea and their :focus at
+ * specificity (0,1,1) and (0,2,1); these rules are (0,2,0) and (0,3,0), so
+ * our height, border, padding, colors and focus ring win on WP 6.9 and 7.1.
+ */
+.supcheckout-admin .sup-input {
+	box-sizing: border-box;
+	inline-size: 100%;
+	max-inline-size: 100%;
+	block-size: var(--sup-input-height);
+	min-block-size: var(--sup-input-height);
+	margin: 0;
+	padding-block: 0;
+	padding-inline: var(--sup-input-padding-inline);
+	border: 1px solid var(--sup-input-border-color);
+	border-radius: var(--sup-input-radius);
+	box-shadow: none;
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface);
+	font-family: inherit;
+	font-size: var(--sup-font-size-md);
+	line-height: var(--sup-line-height-body);
+	letter-spacing: var(--sup-letter-spacing-normal);
+	transition-property: border-color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-input::placeholder {
+	color: var(--sup-color-fg-subtle);
+	opacity: 1;
+}
+
+.supcheckout-admin .sup-input:hover {
+	border-color: var(--sup-color-fg-muted);
+}
+
+.supcheckout-admin .sup-input:focus {
+	border-color: var(--sup-color-accent-bg);
+	outline: none;
+	box-shadow: none;
+}
+
+.supcheckout-admin .sup-input:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-input[aria-invalid="true"] {
+	border-color: var(--sup-color-status-danger-solid);
+}
+
+.supcheckout-admin .sup-input:disabled,
+.supcheckout-admin .sup-input[readonly] {
+	border-color: var(--sup-color-border-default);
+	color: var(--sup-color-fg-subtle);
+	background-color: var(--sup-color-bg-surface-sunken);
+	box-shadow: none;
+}
+
+.supcheckout-admin .sup-input:disabled {
+	cursor: not-allowed;
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-input {
+		border-color: canvastext;
+	}
+
+	.supcheckout-admin .sup-input:disabled {
+		border-color: graytext;
+	}
+}

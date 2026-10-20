@@ -1,0 +1,89 @@
+/*
+ * Select: a native <select> with WordPress's chevron background and padding
+ * replaced (.wp-core-ui select is (0,1,1), its :hover/:focus (0,2,1); these
+ * rules are (0,2,0) and (0,3,0)). The chevron is a token-colored icon.
+ */
+.supcheckout-admin .sup-select {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	inline-size: 100%;
+	max-inline-size: 100%;
+	vertical-align: middle;
+}
+
+.supcheckout-admin .sup-select__input {
+	box-sizing: border-box;
+	inline-size: 100%;
+	max-inline-size: 100%;
+	block-size: var(--sup-input-height);
+	min-block-size: var(--sup-input-height);
+	margin: 0;
+	padding-block: 0;
+	padding-inline-start: var(--sup-input-padding-inline);
+	padding-inline-end: calc(var(--sup-input-padding-inline) + var(--sup-size-icon-sm) + var(--sup-space-3));
+	border: 1px solid var(--sup-input-border-color);
+	border-radius: var(--sup-input-radius);
+	box-shadow: none;
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface);
+	background-image: none;
+	font-family: inherit;
+	font-size: var(--sup-font-size-md);
+	line-height: var(--sup-line-height-body);
+	appearance: none;
+	cursor: pointer;
+	transition-property: border-color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-select__input:hover {
+	border-color: var(--sup-color-fg-muted);
+	color: var(--sup-color-fg-default);
+}
+
+.supcheckout-admin .sup-select__input:focus {
+	border-color: var(--sup-color-accent-bg);
+	outline: none;
+	box-shadow: none;
+	color: var(--sup-color-fg-default);
+}
+
+.supcheckout-admin .sup-select__input:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-select__input[aria-invalid="true"] {
+	border-color: var(--sup-color-status-danger-solid);
+}
+
+.supcheckout-admin .sup-select__input:disabled {
+	border-color: var(--sup-color-border-default);
+	color: var(--sup-color-fg-subtle);
+	background-color: var(--sup-color-bg-surface-sunken);
+	cursor: not-allowed;
+}
+
+.supcheckout-admin .sup-select > .sup-icon {
+	position: absolute;
+	inset-inline-end: var(--sup-input-padding-inline);
+	color: var(--sup-color-fg-muted);
+	pointer-events: none;
+}
+
+.supcheckout-admin .sup-select__input:disabled + .sup-icon {
+	color: var(--sup-color-fg-subtle);
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-select__input {
+		border-color: canvastext;
+	}
+
+	.supcheckout-admin .sup-select > .sup-icon {
+		color: canvastext;
+	}
+}

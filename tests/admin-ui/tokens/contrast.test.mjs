@@ -211,6 +211,21 @@ test( 'R3: on-accent text reaches 4.5:1 on every status solid', () => {
 	}
 } );
 
+test( 'the danger button hover fill keeps on-accent text at 4.5:1 in both modes', () => {
+	expect( backgroundsFor( 'color-fg-on-accent', 'text' ) ).toContain(
+		'color-status-danger-solid-hover'
+	);
+	const set = loadTokens();
+	for ( const mode of [ 'light', 'dark' ] ) {
+		expect(
+			wcagContrast(
+				resolveColor( set, mode, 'color-fg-on-accent' ),
+				resolveColor( set, mode, 'color-status-danger-solid-hover' )
+			)
+		).toBeGreaterThanOrEqual( REQUIRED_RATIO.text );
+	}
+} );
+
 test( 'the focus ring reaches 3:1 on the accent tint and every status background', () => {
 	expect( backgroundsFor( 'color-focus-ring', 'non-text' ) ).toEqual(
 		expect.arrayContaining( controlBackgrounds() )

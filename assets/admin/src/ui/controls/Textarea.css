@@ -1,0 +1,8 @@
+/* Textarea: the text-input look (TextInput.css) on several lines. */
+.supcheckout-admin .sup-input.sup-textarea {
+	block-size: auto;
+	min-block-size: calc(var(--sup-input-height) * 2);
+	padding-block: var(--sup-space-3);
+	resize: vertical;
+	overflow: auto;
+}
