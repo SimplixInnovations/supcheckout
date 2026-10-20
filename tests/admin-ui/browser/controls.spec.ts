@@ -476,7 +476,11 @@ test( 'a busy button stays focusable, inert and announced', async ( {
 	const states = page.locator( specimen( 'button-states' ) );
 	const busy = states.getByRole( 'button', { name: 'Save settings' } );
 	await expect( busy ).toHaveAttribute( 'aria-disabled', 'true' );
-	await expect( busy ).toBeEnabled();
+	// Not natively disabled, so it keeps focus (Playwright's toBeEnabled
+	// treats aria-disabled as disabled, hence the property check).
+	expect(
+		await busy.evaluate( ( el ) => ( el as HTMLButtonElement ).disabled )
+	).toBe( false );
 	await expect( busy.locator( '.sup-spinner' ) ).toHaveAttribute(
 		'aria-hidden',
 		'true'
