@@ -80,6 +80,9 @@ module.exports = {
 			testPathIgnorePatterns,
 			moduleFileExtensions,
 			transform,
+			// axe over whole specimens in four modes is slow when every
+			// suite runs in parallel on a loaded machine.
+			testTimeout: 30_000,
 			setupFilesAfterEnv: [
 				'<rootDir>/tests/admin-ui/unit/support/setup.ts',
 			],

@@ -62,8 +62,17 @@ async function renderOpenInModes( ui: ReactElement ): Promise< void > {
 		expect(
 			document.querySelector( '[role=dialog], [role=alertdialog]' )
 		).not.toBeNull();
-		// The page behind the modal is inert, not only aria-hidden.
-		expect( container.closest( '[inert]' ) ).not.toBeNull();
+		// The page behind the modal is inert, not only aria-hidden: every
+		// control there (live regions and their ancestors stay usable).
+		const behind = Array.from(
+			container.querySelectorAll(
+				'button, input, a[href], [tabindex]:not([tabindex="-1"])'
+			)
+		);
+		expect( behind.length ).toBeGreaterThan( 0 );
+		expect(
+			behind.filter( ( el ) => el.closest( '[inert]' ) === null )
+		).toEqual( [] );
 
 		let results: Awaited< ReturnType< typeof axe > > | undefined;
 		await act( async () => {

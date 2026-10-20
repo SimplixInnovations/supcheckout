@@ -208,7 +208,19 @@ test( 'modal dialog layer covers the WordPress admin bar and menu', async ( {
 			.evaluate( ( el ) => getComputedStyle( el ).zIndex )
 	).toBe( '100000' );
 	// The page behind the modal is inert while the dialog is open…
-	await expect( page.locator( '#wpwrap' ) ).toHaveAttribute( 'inert', '' );
+	const inertBehind = () =>
+		page.evaluate( () =>
+			[
+				'#wpadminbar a',
+				'#adminmenu a',
+				'[data-specimen="dialog"] button',
+			].map(
+				( selector ) =>
+					document.querySelector( selector )?.closest( '[inert]' ) !==
+						null && document.querySelector( selector ) !== null
+			)
+		);
+	await expect.poll( inertBehind ).toEqual( [ true, true, true ] );
 	// …but wp.a11y.speak()'s live regions keep speaking.
 	for ( const id of [ 'a11y-speak-polite', 'a11y-speak-assertive' ] ) {
 		const region = page.locator( `#${ id }` );
@@ -220,7 +232,7 @@ test( 'modal dialog layer covers the WordPress admin bar and menu', async ( {
 	}
 	await page.keyboard.press( 'Escape' );
 	await expect( page.getByRole( 'dialog' ) ).toHaveCount( 0 );
-	await expect( page.locator( '#wpwrap' ) ).not.toHaveAttribute( 'inert' );
+	await expect.poll( inertBehind ).toEqual( [ false, false, false ] );
 	await expect(
 		specimen( page, 'dialog' ).getByRole( 'button', {
 			name: 'Edit webhook',

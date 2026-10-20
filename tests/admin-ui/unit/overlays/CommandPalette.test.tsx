@@ -371,10 +371,14 @@ test( 'an empty registry still opens and says it has no commands yet', async () 
 } );
 
 test( 'Enter performs the active command once, after the palette has closed', async () => {
+	// The palette has finished closing when it runs: no longer open (Base UI
+	// may still be removing the popup element itself).
 	const openWhenPerformed: boolean[] = [];
 	const perform = jest.fn( () => {
 		openWhenPerformed.push(
-			screen.queryByRole( 'dialog', { name: 'Command palette' } ) !== null
+			screen
+				.queryByRole( 'dialog', { name: 'Command palette' } )
+				?.hasAttribute( 'data-open' ) ?? false
 		);
 	} );
 	renderPalette( commands( perform ) );
