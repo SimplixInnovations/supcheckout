@@ -5,7 +5,7 @@
  */
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useEffect } from '@wordpress/element';
+import { StrictMode, useEffect, useRef } from '@wordpress/element';
 import type { ReactNode } from 'react';
 
 import {
@@ -525,4 +525,109 @@ test( 'the scroll listener goes away with the last toast', () => {
 		added.mockRestore();
 		removed.mockRestore();
 	}
+} );
+
+const blurWindow = () =>
+	act( () => {
+		hasFocus.mockReturnValue( false );
+		window.dispatchEvent( new Event( 'blur' ) );
+	} );
+
+const focusWindow = () =>
+	act( () => {
+		hasFocus.mockReturnValue( true );
+		window.dispatchEvent( new Event( 'focus' ) );
+	} );
+
+test( 'a background toast next to an existing one does not freeze the stack on focus', () => {
+	jest.useFakeTimers();
+	const { toast } = renderToaster();
+	act( () => {
+		toast().show( { tone: 'error', title: 'Sync failed' } );
+	} );
+	// Base UI sees this blur itself: the stack is not empty.
+	blurWindow();
+	act( () => {
+		toast().show( { tone: 'success', title: 'Settings saved' } );
+	} );
+	focusWindow();
+	advance( TOAST_TIMEOUT_MS + 500 );
+	expect( screen.queryByText( 'Settings saved' ) ).toBeNull();
+	expect( screen.getByText( 'Sync failed' ) ).toBeInTheDocument();
+} );
+
+test( 'a timed toast from before the blur resumes and dismisses after focus', () => {
+	jest.useFakeTimers();
+	const { toast } = renderToaster();
+	act( () => {
+		toast().show( { tone: 'success', title: 'Settings saved' } );
+	} );
+	advance( 2000 );
+	blurWindow();
+	act( () => {
+		toast().show( { tone: 'info', title: 'Sync started' } );
+	} );
+	// Paused while in the background.
+	advance( 60000 );
+	expect( screen.getByText( 'Settings saved' ) ).toBeInTheDocument();
+	focusWindow();
+	advance( TOAST_TIMEOUT_MS + 500 );
+	expect( screen.queryByText( 'Settings saved' ) ).toBeNull();
+	expect( screen.queryByText( 'Sync started' ) ).toBeNull();
+} );
+
+function ShowOnceInBackground( {
+	onShown,
+}: {
+	onShown: ( id: string ) => void;
+} ) {
+	const toast = useToast();
+	const shown = useRef( false );
+	useEffect( () => {
+		// Guarded, as screens do, so StrictMode's second run shows nothing.
+		if ( shown.current ) {
+			return;
+		}
+		shown.current = true;
+		onShown(
+			toast.show( { tone: 'success', title: 'Imported 12 orders' } )
+		);
+	}, [ toast, onShown ] );
+	return null;
+}
+
+test( 'under StrictMode a toast held during mount still starts timing on focus', () => {
+	jest.useFakeTimers();
+	hasFocus.mockReturnValue( false );
+	render(
+		<StrictMode>
+			<SupRoot>
+				<ShowOnceInBackground onShown={ () => undefined } />
+			</SupRoot>
+		</StrictMode>
+	);
+	advance( 60000 );
+	expect( screen.getByText( 'Imported 12 orders' ) ).toBeInTheDocument();
+	focusWindow();
+	advance( TOAST_TIMEOUT_MS + 500 );
+	expect( screen.queryByText( 'Imported 12 orders' ) ).toBeNull();
+} );
+
+function ShowOnMount() {
+	const toast = useToast();
+	useEffect( () => {
+		toast.show( { tone: 'error', title: 'Shown on mount' } );
+	}, [ toast ] );
+	return null;
+}
+
+test( "a toast shown from a screen's mount effect is not lost", () => {
+	// Children's effects run before Base UI's provider subscribes to the
+	// manager, so an add() then would vanish unless it is queued.
+	render(
+		<SupRoot>
+			<ShowOnMount />
+		</SupRoot>
+	);
+	expect( screen.getByText( 'Shown on mount' ) ).toBeInTheDocument();
 } );
