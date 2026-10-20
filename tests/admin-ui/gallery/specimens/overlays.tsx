@@ -332,7 +332,7 @@ function ConfirmScenarios( { initial }: { initial?: Scenario } ) {
 
 function OpenPaletteOnMount() {
 	useEffect( () => {
-		document.dispatchEvent(
+		document.body.dispatchEvent(
 			new KeyboardEvent( 'keydown', {
 				key: 'k',
 				ctrlKey: true,

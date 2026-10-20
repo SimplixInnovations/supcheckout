@@ -98,6 +98,10 @@ async function renderOpenInModes( ui: ReactElement ): Promise< void > {
 	}
 }
 
+// axe over the whole AppShell in four modes is slow on a loaded CI runner.
+const AXE_TIMEOUT_MS = 60_000;
+jest.setTimeout( AXE_TIMEOUT_MS );
+
 beforeEach( () => {
 	mockMatchMedia( false );
 } );

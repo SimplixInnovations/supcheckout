@@ -107,6 +107,30 @@ test( 'the trigger button opens the palette', async () => {
 	).toBeInTheDocument();
 } );
 
+test( 'Mod+K reaches the SUPCheckout palette before the WordPress command palette', async () => {
+	// WordPress's own command palette (wp-commands) listens on document and
+	// toggles on Mod+K unless an earlier handler took the key.
+	const wordpressPalette = jest.fn( ( event: KeyboardEvent ) => {
+		if ( ! event.defaultPrevented ) {
+			event.preventDefault();
+		}
+	} );
+	document.addEventListener( 'keydown', wordpressPalette );
+	try {
+		renderPalette();
+		pressShortcut();
+		expect(
+			await screen.findByRole( 'dialog', { name: 'Command palette' } )
+		).toBeInTheDocument();
+		expect( wordpressPalette ).not.toHaveBeenCalled();
+		// Other keys still reach document listeners.
+		fireEvent.keyDown( document.body, { key: 'j', ctrlKey: true } );
+		expect( wordpressPalette ).toHaveBeenCalledTimes( 1 );
+	} finally {
+		document.removeEventListener( 'keydown', wordpressPalette );
+	}
+} );
+
 test( 'the shortcut is ignored during IME composition and when an input already handled it', () => {
 	render(
 		<SupRoot>

@@ -255,9 +255,8 @@ test( 'Tab stays inside an open dialog', async ( { page } ) => {
 	await openOverlays( page );
 	const dialog = await openDialog( page );
 	const reached = new Set< string >();
-	for ( let i = 0; i < 10; i++ ) {
-		await page.keyboard.press( 'Tab' );
-		const where = await page.evaluate( () => {
+	const focusIn = () =>
+		page.evaluate( () => {
 			// eslint-disable-next-line @wordpress/no-global-active-element -- runs inside the page.
 			const active = document.activeElement as HTMLElement;
 			return {
@@ -266,10 +265,21 @@ test( 'Tab stays inside an open dialog', async ( { page } ) => {
 					active.getAttribute( 'aria-label' ) ??
 					active.textContent?.trim() ??
 					'',
+				where: active.outerHTML.slice( 0, 120 ),
 			};
 		} );
-		expect( where.inDialog ).toBe( true );
-		reached.add( where.name );
+	for ( let i = 0; i < 10; i++ ) {
+		await page.keyboard.press( 'Tab' );
+		// Base UI's focus guards hand focus back into the popup on focus.
+		await expect
+			.poll( async () => ( await focusIn() ).inDialog, {
+				message: `Tab ${ i + 1 } left the dialog: ${
+					( await focusIn() ).where
+				}`,
+				timeout: 2000,
+			} )
+			.toBe( true );
+		reached.add( ( await focusIn() ).name );
 	}
 	expect( [ ...reached ] ).toEqual(
 		expect.arrayContaining( [
@@ -534,7 +544,9 @@ test( 'every interactive overlay control is at least 24 by 24 CSS pixels', async
 	const shell = `${ APP_ROOT } .sup-app-shell`;
 	const sizes = await page
 		.locator(
-			`${ shell } :is(${ INTERACTIVE }):not(.sup-skip-link):not(#supcheckout-content):not(.sup-radio-group__input)`
+			// A tab panel is focusable so keyboard users reach its content,
+			// but it is not a pointer target (2.5.8 covers targets).
+			`${ shell } :is(${ INTERACTIVE }):not(.sup-skip-link, #supcheckout-content, .sup-radio-group__input, [role="tabpanel"])`
 		)
 		.evaluateAll( ( nodes ) =>
 			nodes.map( ( node ) => {
@@ -569,7 +581,13 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
 		expect( results.violations ).toEqual( [] );
 		const undecided = results.incomplete
 			.filter( ( rule ) => rule.id === 'color-contrast' )
-			.flatMap( ( rule ) => rule.nodes.map( ( node ) => node.target ) );
+			.flatMap( ( rule ) =>
+				rule.nodes.map( ( node ) => ( {
+					target: node.target,
+					html: node.html.slice( 0, 160 ),
+					why: node.any.map( ( check ) => check.message ),
+				} ) )
+			);
 		expect( undecided ).toEqual( [] );
 	};
 	for ( const theme of [ 'system', mode === 'dark' ? 'light' : 'dark' ] ) {
