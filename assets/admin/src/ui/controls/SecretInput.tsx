@@ -14,10 +14,13 @@
  *   saved password, and spell checking (which could send the text to a
  *   service) is off.
  *
- * Replace key moves focus into the input; Cancel clears the draft (onChange
- * with an empty string), returns to the saved state and puts focus back on
- * Replace key. After a successful save of a replacement, re-mount the
- * component (for example with a new `key`) to return to the saved state.
+ * Replace key moves focus into the input and says the saved key stays in use
+ * until the new one is saved. Cancel clears the draft (onChange with an
+ * empty string), returns to the saved state and puts focus back on Replace
+ * key. After the screen saves a replacement it bumps `savedRevision`: the
+ * component then returns to the saved state the same way, unmounting the
+ * input (so the typed text leaves the page), and moves focus to Replace key
+ * only if focus was inside the field, never away from another control.
  */
 import { useId, useLayoutEffect, useRef, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
@@ -41,6 +44,11 @@ export interface SecretInputProps {
 	/** Translated error message; marks the input invalid. */
 	error?: string;
 	required?: boolean;
+	/**
+	 * Bump after each successful save of a replacement (any changed number):
+	 * the field returns to the saved state and the draft is cleared.
+	 */
+	savedRevision?: number;
 	/** Never accepted: a saved secret is never passed back in. */
 	value?: never;
 	/** Never accepted: a saved secret is never passed back in. */
@@ -56,8 +64,13 @@ export function SecretInput( {
 	description,
 	error,
 	required = false,
+	savedRevision = 0,
 }: SecretInputProps ) {
-	const [ replacing, setReplacing ] = useState( false );
+	// The revision a replacement started at; a new revision ends it.
+	const [ replacingAt, setReplacingAt ] = useState< number | null >( null );
+	const replacing = replacingAt === savedRevision;
+	const root = useRef< HTMLDivElement >( null );
+	const seen = useRef( { revision: savedRevision, replacing } );
 	const input = useRef< HTMLInputElement >( null );
 	const replace = useRef< HTMLButtonElement >( null );
 	const pendingFocus = useRef< FocusTarget >( null );
@@ -65,6 +78,7 @@ export function SecretInput( {
 	const labelId = `${ id }-label`;
 	const savedId = `${ id }-saved`;
 	const descriptionId = `${ id }-description`;
+	const keepId = `${ id }-keep`;
 
 	useLayoutEffect( () => {
 		const target = pendingFocus.current;
@@ -76,9 +90,32 @@ export function SecretInput( {
 		}
 	}, [ replacing ] );
 
+	// A save (new revision) ended a replacement: clear the draft and, if focus
+	// was inside the field (now on the body, as the input unmounted), move it
+	// to Replace key.
+	useLayoutEffect( () => {
+		const previous = seen.current;
+		seen.current = { revision: savedRevision, replacing };
+		if ( previous.revision === savedRevision || ! previous.replacing ) {
+			return;
+		}
+		setReplacingAt( null );
+		onChange( '' );
+		const doc = root.current?.ownerDocument;
+		const active = doc?.activeElement;
+		if (
+			! active ||
+			active === doc?.body ||
+			root.current?.contains( active )
+		) {
+			replace.current?.focus();
+		}
+	}, [ savedRevision, replacing, onChange ] );
+
 	if ( hasSavedValue && ! replacing ) {
 		return (
 			<div
+				ref={ root }
 				role="group"
 				aria-labelledby={ labelId }
 				className="sup-secret-input sup-secret-input--saved"
@@ -110,7 +147,7 @@ export function SecretInput( {
 						) }
 						onClick={ () => {
 							pendingFocus.current = 'input';
-							setReplacing( true );
+							setReplacingAt( savedRevision );
 						} }
 					>
 						{ __( 'Replace key', 'supcheckout' ) }
@@ -121,7 +158,7 @@ export function SecretInput( {
 	}
 
 	return (
-		<div className="sup-secret-input">
+		<div ref={ root } className="sup-secret-input">
 			<Field
 				label={ label }
 				description={ description }
@@ -129,36 +166,50 @@ export function SecretInput( {
 				required={ required }
 			>
 				{ ( control ) => (
-					<div className="sup-secret-input__row">
-						<input
-							{ ...control }
-							ref={ input }
-							type="password"
-							className="sup-input sup-secret-input__input"
-							autoComplete="new-password"
-							autoCapitalize="off"
-							autoCorrect="off"
-							spellCheck={ false }
-							data-1p-ignore=""
-							data-lpignore="true"
-							onChange={ ( event ) =>
-								onChange( event.target.value )
-							}
-						/>
+					<>
+						<div className="sup-secret-input__row">
+							<input
+								{ ...control }
+								aria-describedby={ describedBy(
+									control[ 'aria-describedby' ],
+									hasSavedValue && keepId
+								) }
+								ref={ input }
+								type="password"
+								className="sup-input sup-secret-input__input"
+								autoComplete="new-password"
+								autoCapitalize="off"
+								autoCorrect="off"
+								spellCheck={ false }
+								data-1p-ignore=""
+								data-lpignore="true"
+								onChange={ ( event ) =>
+									onChange( event.target.value )
+								}
+							/>
+							{ hasSavedValue && (
+								<Button
+									size="md"
+									variant="tertiary"
+									onClick={ () => {
+										onChange( '' );
+										pendingFocus.current = 'replace';
+										setReplacingAt( null );
+									} }
+								>
+									{ __( 'Cancel', 'supcheckout' ) }
+								</Button>
+							) }
+						</div>
 						{ hasSavedValue && (
-							<Button
-								size="md"
-								variant="tertiary"
-								onClick={ () => {
-									onChange( '' );
-									pendingFocus.current = 'replace';
-									setReplacing( false );
-								} }
-							>
-								{ __( 'Cancel', 'supcheckout' ) }
-							</Button>
+							<p id={ keepId } className="sup-field__description">
+								{ __(
+									'The saved key stays in use until you save the new one.',
+									'supcheckout'
+								) }
+							</p>
 						) }
-					</div>
+					</>
 				) }
 			</Field>
 		</div>

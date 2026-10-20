@@ -113,6 +113,136 @@ test( 'cancelling a replacement restores the saved state, clears the draft and r
 	expect( container.innerHTML ).not.toContain( SENTINEL );
 } );
 
+const STAYS_COPY = 'The saved key stays in use until you save the new one.';
+
+test( 'while replacing, the input says the saved key stays in use', async () => {
+	render(
+		<SecretInput
+			label="API key"
+			hasSavedValue
+			description="From your UPayments dashboard"
+			onChange={ jest.fn() }
+		/>
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Replace key' } )
+	);
+	expect( screen.getByText( STAYS_COPY ) ).toBeVisible();
+	expect( screen.getByLabelText( 'API key' ) ).toHaveAccessibleDescription(
+		`From your UPayments dashboard ${ STAYS_COPY }`
+	);
+} );
+
+test( 'with nothing saved there is no saved key to keep in use', () => {
+	render(
+		<SecretInput
+			label="API key"
+			hasSavedValue={ false }
+			onChange={ jest.fn() }
+		/>
+	);
+	expect( screen.queryByText( STAYS_COPY ) ).toBeNull();
+} );
+
+test( 'a new savedRevision returns to the saved state, clears the draft and moves focus to Replace key', async () => {
+	const onChange = jest.fn();
+	const { container, rerender } = render(
+		<SecretInput
+			label="API key"
+			hasSavedValue
+			savedRevision={ 1 }
+			onChange={ onChange }
+		/>
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Replace key' } )
+	);
+	await userEvent.type( screen.getByLabelText( 'API key' ), SENTINEL );
+	expect( screen.getByLabelText( 'API key' ) ).toHaveFocus();
+
+	// The screen saved the replacement and bumps the revision.
+	rerender(
+		<SecretInput
+			label="API key"
+			hasSavedValue
+			savedRevision={ 2 }
+			onChange={ onChange }
+		/>
+	);
+	expect( container.querySelector( 'input' ) ).toBeNull();
+	expect( screen.getByText( SAVED_COPY ) ).toBeVisible();
+	expect( onChange ).toHaveBeenLastCalledWith( '' );
+	expect(
+		screen.getByRole( 'button', { name: 'Replace key' } )
+	).toHaveFocus();
+	expect( container.innerHTML ).not.toContain( SENTINEL );
+
+	// Replacing again starts from an empty input.
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Replace key' } )
+	);
+	expect(
+		( screen.getByLabelText( 'API key' ) as HTMLInputElement ).value
+	).toBe( '' );
+} );
+
+test( 'a new savedRevision does not steal focus from elsewhere on the screen', async () => {
+	const { rerender } = render(
+		<>
+			<SecretInput
+				label="API key"
+				hasSavedValue
+				savedRevision={ 1 }
+				onChange={ jest.fn() }
+			/>
+			<button type="button">Save settings</button>
+		</>
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Replace key' } )
+	);
+	await userEvent.type( screen.getByLabelText( 'API key' ), SENTINEL );
+	const save = screen.getByRole( 'button', { name: 'Save settings' } );
+	save.focus();
+	rerender(
+		<>
+			<SecretInput
+				label="API key"
+				hasSavedValue
+				savedRevision={ 2 }
+				onChange={ jest.fn() }
+			/>
+			<button type="button">Save settings</button>
+		</>
+	);
+	expect( document.querySelector( 'input[type="password"]' ) ).toBeNull();
+	expect( save ).toHaveFocus();
+} );
+
+test( 'a new savedRevision while not replacing changes nothing', () => {
+	const onChange = jest.fn();
+	const { rerender } = render(
+		<SecretInput
+			label="API key"
+			hasSavedValue
+			savedRevision={ 1 }
+			onChange={ onChange }
+		/>
+	);
+	rerender(
+		<SecretInput
+			label="API key"
+			hasSavedValue
+			savedRevision={ 2 }
+			onChange={ onChange }
+		/>
+	);
+	expect( onChange ).not.toHaveBeenCalled();
+	expect(
+		screen.getByRole( 'button', { name: 'Replace key' } )
+	).not.toHaveFocus();
+} );
+
 test( 'without a saved value the empty password input shows at once with its description', () => {
 	render(
 		<SecretInput
