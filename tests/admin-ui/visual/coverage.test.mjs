@@ -87,6 +87,20 @@ test( 'the visual modes are the four color mode and direction pairs', () => {
 	expect( VISUAL_MODES ).toContain( EXTRA_GROUP_MODE );
 } );
 
+test( 'screenshots compare every pixel exactly and allow only a tiny share to differ', () => {
+	// Playwright's default per-pixel threshold (0.2) let a 1px control-radius
+	// change pass the whole suite (gate proof, run 39503943298): antialiased
+	// corner pixels moved less than 0.2 each. Baselines are pixel-exact on the
+	// pinned Chromium, so any changed pixel counts and the ratio is the only
+	// tolerance.
+	const config = read( 'tests/admin-ui/playwright.config.ts' );
+	expect( config ).toContain( 'const PIXEL_THRESHOLD = 0;' );
+	expect( config ).toContain( 'const MAX_DIFF_PIXEL_RATIO = 0.0005;' );
+	expect( config ).toMatch(
+		/toHaveScreenshot: \{\n\s+threshold: PIXEL_THRESHOLD,\n\s+maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,/
+	);
+} );
+
 test( 'the gallery mu-plugin returns early unless SUPCHECKOUT_UI_GALLERY is true', () => {
 	expect( read( 'tests/admin-ui/wp/supcheckout-ui-gallery.php' ) ).toContain(
 		"if (!defined('SUPCHECKOUT_UI_GALLERY') || true !== SUPCHECKOUT_UI_GALLERY) {\n    return;\n}"

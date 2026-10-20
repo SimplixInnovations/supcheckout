@@ -46,6 +46,13 @@ const MODES: readonly Mode[] = [
 
 const VIEWPORT = { width: 1280, height: 900 };
 
+/**
+ * Per-pixel color tolerance: none. Baselines are pixel-exact on the pinned
+ * Chromium, and Playwright's default (0.2) let a 1px control-radius change
+ * pass, because each antialiased corner pixel moved by less than that.
+ */
+const PIXEL_THRESHOLD = 0;
+
 /** Share of differing pixels a screenshot may have (antialiasing noise only). */
 const MAX_DIFF_PIXEL_RATIO = 0.0005;
 
@@ -101,6 +108,7 @@ export default defineConfig( {
 				snapshotPathTemplate: '{testDir}/visual/baselines/{arg}{ext}',
 				expect: {
 					toHaveScreenshot: {
+						threshold: PIXEL_THRESHOLD,
 						maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,
 						animations: 'disabled' as const,
 						caret: 'hide' as const,
