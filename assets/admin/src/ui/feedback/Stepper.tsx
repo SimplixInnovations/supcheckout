@@ -2,15 +2,16 @@
  * Stepper: where the user is in a fixed sequence, such as the setup wizard.
  *
  * An ordered list named by `label`; the list gives "step 2 of 4". The current
- * step carries `aria-current="step"`, and every step ends with a visually
- * hidden state ("Completed", "Current step" or "Not started"), so the state
- * is spoken and not only drawn. The marker (a check or the step number) is
- * decorative. The current step wins over completed: a finished step the user
- * returned to is announced as the current one.
+ * step carries `aria-current="step"`, which screen readers announce as
+ * "current step"; every other step ends with a visually hidden state
+ * ("Completed" or "Not started", translated in the "setup step state"
+ * context), so the state is spoken and not only drawn. The marker (a check
+ * or the step number) is decorative. The current step wins over completed:
+ * a finished step the user returned to is announced as the current one.
  *
  * Steps are not links: navigation between steps belongs to the screen.
  */
-import { __ } from '@wordpress/i18n';
+import { _x } from '@wordpress/i18n';
 
 import { Icon } from '../foundations/Icon';
 import { VisuallyHidden } from '../foundations/VisuallyHidden';
@@ -32,14 +33,19 @@ export interface StepperProps {
 
 type StepState = 'complete' | 'current' | 'upcoming';
 
-function stateText( state: StepState ): string {
+/**
+ * @param state The step's state.
+ * @return The hidden state words, or null for the current step, which
+ *         `aria-current="step"` already announces.
+ */
+function stateText( state: StepState ): string | null {
 	if ( state === 'complete' ) {
-		return __( 'Completed', 'supcheckout' );
+		return _x( 'Completed', 'setup step state', 'supcheckout' );
 	}
-	if ( state === 'current' ) {
-		return __( 'Current step', 'supcheckout' );
+	if ( state === 'upcoming' ) {
+		return _x( 'Not started', 'setup step state', 'supcheckout' );
 	}
-	return __( 'Not started', 'supcheckout' );
+	return null;
 }
 
 export function Stepper( {
@@ -59,6 +65,7 @@ export function Stepper( {
 					} else if ( completed.has( step.id ) ) {
 						state = 'complete';
 					}
+					const text = stateText( state );
 					return (
 						<li
 							key={ step.id }
@@ -81,10 +88,9 @@ export function Stepper( {
 							</span>
 							<span className="sup-stepper__label">
 								{ step.label }
-								<VisuallyHidden>
-									{ ' ' }
-									{ stateText( state ) }
-								</VisuallyHidden>
+								{ text !== null && (
+									<VisuallyHidden> { text }</VisuallyHidden>
+								) }
 							</span>
 						</li>
 					);
