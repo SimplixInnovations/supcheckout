@@ -53,7 +53,8 @@
  * The indeterminate segment is a third of the track and slides from just
  * before its inline start to just past its inline end. Only `translate`
  * animates (compositor-friendly); --sup-progress-direction flips the
- * travel in RTL, because translate is physical.
+ * travel wherever the indicator's own direction is RTL, because translate is
+ * physical.
  */
 .supcheckout-admin .sup-progress[data-indeterminate] .sup-progress__indicator {
 	--sup-progress-direction: 1;
@@ -62,7 +63,8 @@
 	animation: sup-progress-slide calc(var(--sup-motion-duration-slow) * 5) var(--sup-motion-ease-standard) infinite;
 }
 
-.supcheckout-admin[dir="rtl"] .sup-progress[data-indeterminate] .sup-progress__indicator {
+/* :dir() follows the nearest dir, so an LTR island in an RTL page runs LTR. */
+.supcheckout-admin .sup-progress[data-indeterminate] .sup-progress__indicator:dir(rtl) {
 	--sup-progress-direction: -1;
 }
 
