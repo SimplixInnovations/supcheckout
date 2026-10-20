@@ -12,9 +12,15 @@
  *   while the pointer is over the stack, while keyboard focus is in it and
  *   while the window is in the background. Errors never close on their own.
  * - At most TOAST_LIMIT toasts show; older ones are hidden and inert.
+ *   Known limitation: when a visible toast closes and a hidden one becomes
+ *   visible again, whether a screen reader re-announces it depends on the
+ *   screen reader; it is not verifiable in CI and is on the owner's manual
+ *   NVDA / VoiceOver check list.
  * - The stack sits at the block end and inline end of the window. When it
  *   would cover the focused element, it moves to the inline start (or the
  *   block start on narrow windows), so focus is never obscured (WCAG 2.4.11).
+ *   It re-checks on focus changes, window resizes and its own size changes,
+ *   and listens only while toasts exist.
  * - F6 moves focus into the stack (Base UI); Escape closes the focused toast.
  * - A toast never states that a payment is paid or captured: financial
  *   state comes only from the caller's verified result, shown on the page.
@@ -56,6 +62,12 @@ export interface ToastAction {
 }
 
 export interface ToastOptions {
+	/**
+	 * `success` and `info` close after TOAST_TIMEOUT_MS. `error` stays until
+	 * dismissed and, like every toast, is announced politely: an error the
+	 * user must act on now belongs in a `live` Notice next to its cause,
+	 * which is an alert.
+	 */
 	tone: ToastTone;
 	/** Translated one-line summary. */
 	title: string;
@@ -108,10 +120,13 @@ function overlapArea( a: DOMRect, b: DOMRect ): number {
 /**
  * Moves the viewport off the focused element: tries each placement in
  * order and keeps the first that does not overlap it (or the least
- * overlapping one). Runs when focus moves and when the stack changes.
+ * overlapping one). While toasts exist it re-runs when focus moves, when the
+ * window resizes and when the stack's own size changes (ResizeObserver);
+ * with no toast it resets to the default corner and listens to nothing.
  *
  * @param viewportRef The toast viewport.
- * @param stackKey    Changes whenever toasts are added or removed.
+ * @param stackKey    The ids of the toasts that are not leaving; empty
+ *                    when there is none.
  */
 function useFocusAvoidingPlacement(
 	viewportRef: RefObject< HTMLDivElement | null >,
@@ -122,18 +137,20 @@ function useFocusAvoidingPlacement(
 		if ( ! viewport ) {
 			return undefined;
 		}
+		if ( stackKey === '' ) {
+			viewport.dataset.supPlacement = 'end';
+			return undefined;
+		}
 		const doc = viewport.ownerDocument;
+		const win = doc.defaultView;
 		const place = () => {
 			const active = doc.activeElement;
-			const current = viewport.dataset.supPlacement ?? 'end';
 			if (
-				stackKey === '' ||
 				! active ||
 				active === doc.body ||
 				viewport.contains( active )
 			) {
-				viewport.dataset.supPlacement =
-					stackKey === '' ? 'end' : current;
+				viewport.dataset.supPlacement ??= 'end';
 				return;
 			}
 			const target = active.getBoundingClientRect();
@@ -157,7 +174,17 @@ function useFocusAvoidingPlacement(
 		};
 		place();
 		doc.addEventListener( 'focusin', place );
-		return () => doc.removeEventListener( 'focusin', place );
+		win?.addEventListener( 'resize', place );
+		const observer =
+			typeof ResizeObserver === 'undefined'
+				? null
+				: new ResizeObserver( place );
+		observer?.observe( viewport );
+		return () => {
+			doc.removeEventListener( 'focusin', place );
+			win?.removeEventListener( 'resize', place );
+			observer?.disconnect();
+		};
 	}, [ viewportRef, stackKey ] );
 }
 
