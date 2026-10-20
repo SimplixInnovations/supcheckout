@@ -69,8 +69,9 @@ export function SecretInput( {
 	// The revision a replacement started at; a new revision ends it.
 	const [ replacingAt, setReplacingAt ] = useState< number | null >( null );
 	const replacing = replacingAt === savedRevision;
+	const showingInput = ! hasSavedValue || replacing;
 	const root = useRef< HTMLDivElement >( null );
-	const seen = useRef( { revision: savedRevision, replacing } );
+	const seen = useRef( { revision: savedRevision, showingInput } );
 	const input = useRef< HTMLInputElement >( null );
 	const replace = useRef< HTMLButtonElement >( null );
 	const pendingFocus = useRef< FocusTarget >( null );
@@ -90,13 +91,15 @@ export function SecretInput( {
 		}
 	}, [ replacing ] );
 
-	// A save (new revision) ended a replacement: clear the draft and, if focus
-	// was inside the field (now on the body, as the input unmounted), move it
-	// to Replace key.
+	// A save (new revision) while the input was showing (a replacement, or
+	// the first key ever) clears the draft. The input either unmounts or,
+	// keyed by the revision, remounts empty, so the typed text leaves the
+	// page. If focus was inside the field (now on the body), it moves to
+	// Replace key, or to the new empty input when nothing is saved yet.
 	useLayoutEffect( () => {
 		const previous = seen.current;
-		seen.current = { revision: savedRevision, replacing };
-		if ( previous.revision === savedRevision || ! previous.replacing ) {
+		seen.current = { revision: savedRevision, showingInput };
+		if ( previous.revision === savedRevision || ! previous.showingInput ) {
 			return;
 		}
 		setReplacingAt( null );
@@ -108,11 +111,11 @@ export function SecretInput( {
 			active === doc?.body ||
 			root.current?.contains( active )
 		) {
-			replace.current?.focus();
+			( replace.current ?? input.current )?.focus();
 		}
-	}, [ savedRevision, replacing, onChange ] );
+	}, [ savedRevision, showingInput, onChange ] );
 
-	if ( hasSavedValue && ! replacing ) {
+	if ( ! showingInput ) {
 		return (
 			<div
 				ref={ root }
@@ -170,6 +173,8 @@ export function SecretInput( {
 						<div className="sup-secret-input__row">
 							<input
 								{ ...control }
+								// A new revision always remounts the input empty.
+								key={ savedRevision }
 								aria-describedby={ describedBy(
 									control[ 'aria-describedby' ],
 									hasSavedValue && keepId

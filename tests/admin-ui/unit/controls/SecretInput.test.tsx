@@ -186,6 +186,68 @@ test( 'a new savedRevision returns to the saved state, clears the draft and move
 	).toBe( '' );
 } );
 
+test( 'the first save (nothing saved before) clears the draft and moves focus to Replace key', async () => {
+	const onChange = jest.fn();
+	const { container, rerender } = render(
+		<SecretInput
+			label="API key"
+			hasSavedValue={ false }
+			savedRevision={ 1 }
+			onChange={ onChange }
+		/>
+	);
+	const input = screen.getByLabelText( 'API key' );
+	await userEvent.type( input, SENTINEL );
+	expect( input ).toHaveFocus();
+
+	rerender(
+		<SecretInput
+			label="API key"
+			hasSavedValue
+			savedRevision={ 2 }
+			onChange={ onChange }
+		/>
+	);
+	expect(
+		onChange.mock.calls.filter( ( [ value ] ) => value === '' )
+	).toHaveLength( 1 );
+	expect( onChange ).toHaveBeenLastCalledWith( '' );
+	expect(
+		screen.getByRole( 'button', { name: 'Replace key' } )
+	).toHaveFocus();
+	expect( container.querySelector( 'input' ) ).toBeNull();
+	expect( container.innerHTML ).not.toContain( SENTINEL );
+} );
+
+test( 'a new savedRevision with nothing saved remounts the input empty', async () => {
+	const onChange = jest.fn();
+	const { rerender } = render(
+		<SecretInput
+			label="API key"
+			hasSavedValue={ false }
+			savedRevision={ 1 }
+			onChange={ onChange }
+		/>
+	);
+	const before = screen.getByLabelText( 'API key' ) as HTMLInputElement;
+	await userEvent.type( before, SENTINEL );
+
+	rerender(
+		<SecretInput
+			label="API key"
+			hasSavedValue={ false }
+			savedRevision={ 2 }
+			onChange={ onChange }
+		/>
+	);
+	const after = screen.getByLabelText( 'API key' ) as HTMLInputElement;
+	expect( after ).not.toBe( before );
+	expect( after.value ).toBe( '' );
+	expect( onChange ).toHaveBeenLastCalledWith( '' );
+	// Focus was in the old input; it moves to the new one, not the body.
+	expect( after ).toHaveFocus();
+} );
+
 test( 'a new savedRevision does not steal focus from elsewhere on the screen', async () => {
 	const { rerender } = render(
 		<>
