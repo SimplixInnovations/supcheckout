@@ -105,6 +105,11 @@ const TONE_ICONS: Readonly< Record< ToastTone, IconName > > = {
 const ToastContext = createContext< ToastController | null >( null );
 
 /**
+ * A toast shown from a screen's own mount effect is queued until Base UI
+ * listens, so it is not lost. Under React's StrictMode (development only)
+ * that effect runs twice and shows the toast twice: guard one-shot mount
+ * toasts, for example with a ref.
+ *
  * @return The toast controller of the nearest SupRoot. Stable for the life
  *         of that SupRoot, so it is safe in effect dependencies.
  */
@@ -319,17 +324,15 @@ type ToastAddOptions = Parameters<
 
 interface BackgroundHold {
 	/**
-	 * Whether a new timed toast must be held: the window is in the
-	 * background and Base UI cannot have seen it go there, because no toast
-	 * it times is on the stack (every toast is held, or there is none).
+	 * Records a new toast on the stack and decides whether it is held.
+	 *
+	 * @param id    The toast's id.
+	 * @param timed Whether the toast would auto-dismiss (success, info).
+	 * @return Whether to create it untimed until the window regains focus.
 	 */
-	shouldHold: () => boolean;
-	/** Records a toast that is on the stack, until `removed`. */
-	track: ( id: string ) => void;
-	/** Base UI removed this toast (after its exit animation). */
+	admit: ( id: string, timed: boolean ) => boolean;
+	/** The toast left the stack (removed by Base UI, or dismissed queued). */
 	removed: ( id: string ) => void;
-	/** Keeps this toast untimed until the window regains focus. */
-	hold: ( id: string ) => void;
 	/** Drops a held toast that was dismissed. */
 	forget: ( id: string ) => void;
 	/** Re-attaches after a (StrictMode) remount; releases if focused. */
@@ -341,16 +344,30 @@ interface BackgroundHold {
 /**
  * Works around mui/base-ui#5955 (Base UI 1.8.0): a toast created while the
  * window is unfocused and no toast exists starts its auto-dismiss timer at
- * once, so it can vanish before anyone sees it.
+ * once, so it can vanish before anyone sees it. Base UI attaches its window
+ * blur and focus listeners only while toasts exist, so it misses a blur
+ * that happened while the stack was empty.
  *
- * - Only then is a toast held (created untimed). When other toasts are on
- *   the stack, Base UI saw the blur itself and pauses every timer, so a new
- *   toast is created timed and paused with them.
- * - On the window `focus` event the held toasts get TOAST_TIMEOUT_MS in a
- *   0 ms timeout: Base UI resumes its timers on focus but marks the window
+ * - A toast created while the window is in the background and every toast
+ *   on the stack is "unseen" (Base UI cannot have seen the blur: the stack
+ *   was empty, or holds only toasts that also arrived unseen) joins the
+ *   unseen set, whatever its tone. Such a success or info toast is held
+ *   (created untimed); an error never times out anyway.
+ * - When other toasts were already on the stack, Base UI saw the blur and
+ *   pauses every timer itself, so a new toast is created timed and paused
+ *   with them.
+ * - On the window `focus` event the unseen set is cleared (Base UI now
+ *   tracks the window) and the held toasts get TOAST_TIMEOUT_MS in a 0 ms
+ *   timeout: Base UI resumes its timers on focus but marks the window
  *   focused only after its own 0 ms timeout, and an update before that
  *   would pause every timer again.
- * - The `focus` listener exists only while a toast is held.
+ * - The `focus` listener exists only while an unseen toast is on the stack.
+ *
+ * Known upstream limitation in the other direction: when Base UI saw a blur
+ * and the stack empties while the window is still in the background, it
+ * keeps the window marked unfocused, so the next toast shown in the
+ * foreground stays paused until the pointer passes over the stack or the
+ * window blurs and refocuses. That errs on the safe side (the toast stays).
  *
  * @param manager The provider's toast manager.
  * @return The hold for that manager.
@@ -359,12 +376,15 @@ function createBackgroundHold(
 	manager: ReturnType< typeof BaseToast.createToastManager< ToastData > >
 ): BackgroundHold {
 	let active: readonly string[] = [];
+	let unseen: readonly string[] = [];
 	let held: readonly string[] = [];
 	let target: Window | null = null;
 	let pending: ReturnType< typeof setTimeout > | null = null;
 
 	const windowInBackground = () =>
 		typeof document !== 'undefined' && ! document.hasFocus();
+	const without = ( ids: readonly string[], id: string ) =>
+		ids.filter( ( other ) => other !== id );
 
 	const flush = () => {
 		pending = null;
@@ -384,47 +404,58 @@ function createBackgroundHold(
 		}
 	};
 	const release = () => {
+		// From here on Base UI's own listeners are attached and see blurs.
+		unseen = [];
 		detach();
 		scheduleFlush();
 	};
 	const attach = () => {
-		if ( target || held.length === 0 || typeof window === 'undefined' ) {
+		if ( target || unseen.length === 0 || typeof window === 'undefined' ) {
 			return;
 		}
 		target = window;
 		target.addEventListener( 'focus', release );
 	};
-	const forget = ( id: string ) => {
-		held = held.filter( ( heldId ) => heldId !== id );
-		if ( held.length === 0 ) {
+	const settle = () => {
+		if ( unseen.length === 0 && held.length === 0 ) {
 			detach();
 		}
 	};
 
 	return {
-		shouldHold: () =>
-			windowInBackground() &&
-			active.every( ( id ) => held.includes( id ) ),
-		track( id ) {
+		admit( id, timed ) {
+			const blurUnseen =
+				windowInBackground() &&
+				active.every( ( other ) => unseen.includes( other ) );
 			active = [ ...active, id ];
+			if ( ! blurUnseen ) {
+				return false;
+			}
+			unseen = [ ...unseen, id ];
+			if ( timed ) {
+				held = [ ...held, id ];
+			}
+			attach();
+			return timed;
 		},
 		removed( id ) {
-			active = active.filter( ( activeId ) => activeId !== id );
-			forget( id );
+			active = without( active, id );
+			unseen = without( unseen, id );
+			held = without( held, id );
+			settle();
 		},
-		hold( id ) {
-			held = [ ...held, id ];
-			attach();
+		forget( id ) {
+			held = without( held, id );
+			settle();
 		},
-		forget,
 		resume() {
-			if ( held.length === 0 ) {
+			if ( unseen.length === 0 && held.length === 0 ) {
 				return;
 			}
 			if ( windowInBackground() ) {
 				attach();
 			} else {
-				scheduleFlush();
+				release();
 			}
 		},
 		dispose() {
@@ -484,10 +515,9 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 		() => ( {
 			show( { tone, title, description, action } ) {
 				const timed = tone !== 'error';
-				const hold = timed && backgroundHold.shouldHold();
 				nextId.current += 1;
 				const id = `sup-toast-${ nextId.current }`;
-				backgroundHold.track( id );
+				const hold = backgroundHold.admit( id, timed );
 				const options: ToastAddOptions = {
 					id,
 					type: tone,
@@ -503,19 +533,25 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 				} else {
 					queued.current = [ ...queued.current, options ];
 				}
-				if ( hold ) {
-					backgroundHold.hold( id );
-				}
 				return id;
 			},
 			dismiss( id ) {
-				if ( id !== '' ) {
+				if ( id === '' ) {
+					return;
+				}
+				const wasQueued = queued.current.some(
+					( options ) => options.id === id
+				);
+				if ( wasQueued ) {
+					// Never reached Base UI, so onRemove will never run.
 					queued.current = queued.current.filter(
 						( options ) => options.id !== id
 					);
-					backgroundHold.forget( id );
-					manager.close( id );
+					backgroundHold.removed( id );
+					return;
 				}
+				backgroundHold.forget( id );
+				manager.close( id );
 			},
 		} ),
 		[ manager, backgroundHold ]
