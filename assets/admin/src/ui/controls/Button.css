@@ -1,0 +1,140 @@
+/*
+ * Button: four variants, two sizes, a busy state and a 2px focus ring with a
+ * 2px offset. Tokens only; every rule is scoped under .supcheckout-admin.
+ * Our class never carries WordPress's .button, so .wp-core-ui .button styles
+ * do not apply; the element-level properties WordPress sets are reset.
+ */
+.supcheckout-admin .sup-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--sup-space-3);
+	box-sizing: border-box;
+	min-inline-size: var(--sup-size-target-min);
+	block-size: var(--sup-button-height-md);
+	margin: 0;
+	padding-block: 0;
+	padding-inline: var(--sup-button-padding-inline);
+	border: 1px solid transparent;
+	border-radius: var(--sup-button-radius);
+	box-shadow: none;
+	color: var(--sup-color-fg-default);
+	background-color: transparent;
+	font-family: inherit;
+	font-size: var(--sup-font-size-md);
+	font-weight: var(--sup-button-font-weight);
+	line-height: var(--sup-line-height-heading);
+	letter-spacing: var(--sup-letter-spacing-normal);
+	text-decoration: none;
+	white-space: nowrap;
+	vertical-align: middle;
+	cursor: pointer;
+	transition-property: background-color, border-color, color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-button--sm {
+	gap: var(--sup-space-2);
+	block-size: var(--sup-button-height-sm);
+	padding-inline: var(--sup-space-4);
+	font-size: var(--sup-font-size-sm);
+}
+
+.supcheckout-admin .sup-button__label {
+	display: inline-block;
+}
+
+/* Primary: the one filled accent action of a view. */
+.supcheckout-admin .sup-button--primary {
+	border-color: var(--sup-color-accent-bg);
+	color: var(--sup-color-fg-on-accent);
+	background-color: var(--sup-color-accent-bg);
+}
+
+.supcheckout-admin .sup-button--primary:hover {
+	border-color: var(--sup-color-accent-bg-hover);
+	background-color: var(--sup-color-accent-bg-hover);
+}
+
+.supcheckout-admin .sup-button--primary:active {
+	border-color: var(--sup-color-accent-bg-active);
+	background-color: var(--sup-color-accent-bg-active);
+}
+
+/* Secondary: a bordered surface button, the default. */
+.supcheckout-admin .sup-button--secondary {
+	border-color: var(--sup-color-border-strong);
+	color: var(--sup-color-fg-default);
+	background-color: var(--sup-color-bg-surface);
+}
+
+.supcheckout-admin .sup-button--secondary:hover,
+.supcheckout-admin .sup-button--secondary:active {
+	background-color: var(--sup-color-bg-surface-sunken);
+}
+
+/* Tertiary: a quiet accent-colored action without a fill. */
+.supcheckout-admin .sup-button--tertiary {
+	color: var(--sup-color-accent-fg);
+	background-color: transparent;
+}
+
+.supcheckout-admin .sup-button--tertiary:hover,
+.supcheckout-admin .sup-button--tertiary:active {
+	background-color: var(--sup-color-accent-subtle-bg);
+}
+
+/* Danger: a destructive action; white on the status solid (4.5:1 checked). */
+.supcheckout-admin .sup-button--danger {
+	border-color: var(--sup-color-status-danger-solid);
+	color: var(--sup-color-fg-on-accent);
+	background-color: var(--sup-color-status-danger-solid);
+}
+
+.supcheckout-admin .sup-button--danger:hover,
+.supcheckout-admin .sup-button--danger:active {
+	border-color: var(--sup-color-status-danger-solid-hover);
+	background-color: var(--sup-color-status-danger-solid-hover);
+}
+
+.supcheckout-admin .sup-button:focus {
+	outline: none;
+	box-shadow: none;
+}
+
+.supcheckout-admin .sup-button:focus-visible {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+/* Busy keeps its colors and focus; it only stops reacting. */
+.supcheckout-admin .sup-button.sup-button--busy {
+	cursor: progress;
+}
+
+.supcheckout-admin .sup-button:disabled,
+.supcheckout-admin .sup-button:disabled:hover {
+	border-color: var(--sup-color-border-default);
+	color: var(--sup-color-fg-subtle);
+	background-color: var(--sup-color-bg-surface-sunken);
+	cursor: not-allowed;
+}
+
+.supcheckout-admin .sup-button--tertiary:disabled,
+.supcheckout-admin .sup-button--tertiary:disabled:hover {
+	border-color: transparent;
+	background-color: transparent;
+}
+
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-button {
+		border-color: buttontext;
+	}
+
+	.supcheckout-admin .sup-button:disabled {
+		border-color: graytext;
+		color: graytext;
+	}
+}

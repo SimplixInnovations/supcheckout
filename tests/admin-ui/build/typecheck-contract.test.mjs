@@ -2,7 +2,8 @@
  * `npm run typecheck` covers the shipped source and every TypeScript test,
  * gallery and Playwright file, and the tests config never ships.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -54,4 +55,20 @@ test( 'tsconfig.tests.json never ships', () => {
 	expect(
 		readFileSync( join( ROOT, 'scripts', 'verify-release.sh' ), 'utf8' )
 	).toContain( '"tsconfig.tests.json"' );
+} );
+
+test( 'the compile-time API contracts are type-checked and never run by Jest', () => {
+	const typeTest = 'tests/admin-ui/types/controls.test-d.tsx';
+	expect( existsSync( join( ROOT, typeTest ) ) ).toBe( true );
+	// The tests project's `tests/admin-ui/**/*.tsx` covers *.test-d.tsx.
+	expect( readJson( 'tsconfig.tests.json' ).include ).toContain(
+		'tests/admin-ui/**/*.tsx'
+	);
+	const require = createRequire( import.meta.url );
+	const { projects } = require( join( ROOT, 'jest.config.js' ) );
+	for ( const project of projects ) {
+		expect( new RegExp( project.testRegex ).test( `/${ typeTest }` ) ).toBe(
+			false
+		);
+	}
 } );

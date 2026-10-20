@@ -46,6 +46,8 @@ const SEMANTIC_COLOR_NAMES = [
 				( part ) => `color-status-${ status }-${ part }`
 			)
 	),
+	// Danger button hover and pressed fill (SP1 Task 5).
+	'color-status-danger-solid-hover',
 	'color-focus-ring',
 	'color-skeleton-base',
 	'color-skeleton-highlight',

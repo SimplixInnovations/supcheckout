@@ -1,0 +1,19 @@
+/* IconButton: a square Button (see Button.css) holding one decorative icon. */
+.supcheckout-admin .sup-button.sup-button--icon-only {
+	inline-size: var(--sup-button-height-md);
+	padding-inline: 0;
+}
+
+.supcheckout-admin .sup-button.sup-button--icon-only.sup-button--sm {
+	inline-size: var(--sup-button-height-sm);
+}
+
+/* A quiet icon reads as an icon, not a link: default foreground. */
+.supcheckout-admin .sup-button--icon-only.sup-button--tertiary {
+	color: var(--sup-color-fg-default);
+}
+
+.supcheckout-admin .sup-button--icon-only.sup-button--tertiary:hover,
+.supcheckout-admin .sup-button--icon-only.sup-button--tertiary:active {
+	background-color: var(--sup-color-bg-surface-sunken);
+}

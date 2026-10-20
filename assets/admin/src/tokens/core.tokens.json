@@ -708,6 +708,11 @@
 						"solid": {
 							"$value": "{palette.red.600}",
 							"$type": "color"
+						},
+						"solid-hover": {
+							"$value": "{palette.red.700}",
+							"$type": "color",
+							"$description": "Hover and pressed fill of a danger button; carries on-accent text."
 						}
 					},
 					"info": {
@@ -907,6 +912,11 @@
 						"solid": {
 							"$value": "{palette.red.550}",
 							"$type": "color"
+						},
+						"solid-hover": {
+							"$value": "{palette.red.700}",
+							"$type": "color",
+							"$description": "Hover and pressed fill of a danger button; carries on-accent text."
 						}
 					},
 					"info": {

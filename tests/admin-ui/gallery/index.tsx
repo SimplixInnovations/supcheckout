@@ -7,11 +7,12 @@
  * same scope, theme, direction and portal layer as the real app.
  */
 import domReady from '@wordpress/dom-ready';
-import { createRoot } from '@wordpress/element';
+import { createRoot, useState } from '@wordpress/element';
 
 import '../../../assets/admin/src/tokens/tokens.generated.css';
 import { SupRoot } from '../../../assets/admin/src/ui';
 import type { ThemePreference } from '../../../assets/admin/src/ui';
+import { ControlsSpecimens } from './specimens/controls';
 import { FoundationsSpecimens } from './specimens/foundations';
 
 const ROOT_ID = 'supcheckout-ui-gallery-root';
@@ -29,9 +30,12 @@ interface GalleryProps {
 	preference: ThemePreference;
 }
 
-function Gallery( { preference }: GalleryProps ) {
+function Gallery( { preference: initial }: GalleryProps ) {
+	// The theme query sets the first preference; ThemeToggle then changes it,
+	// as a screen persisting the choice would.
+	const [ preference, setPreference ] = useState( initial );
 	return (
-		<SupRoot preference={ preference }>
+		<SupRoot preference={ preference } onPreferenceChange={ setPreference }>
 			<div
 				data-gallery-ready="true"
 				style={ {
@@ -42,6 +46,7 @@ function Gallery( { preference }: GalleryProps ) {
 				} }
 			>
 				<FoundationsSpecimens />
+				<ControlsSpecimens />
 			</div>
 		</SupRoot>
 	);

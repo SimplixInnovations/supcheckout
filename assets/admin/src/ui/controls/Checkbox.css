@@ -1,0 +1,167 @@
+/*
+ * Checkbox: a transparent native input over a 24px target; the next sibling
+ * (.sup-checkbox__indicator) draws the box, check, dash and focus ring.
+ *
+ * WordPress forms.css styles input[type=checkbox] (0,1,1), its :focus and
+ * :disabled (0,2,1) and draws a checkmark in :checked::before (0,2,2). The
+ * input rules here are (0,3,0) and the pseudo-element resets (0,4,1).
+ */
+.supcheckout-admin .sup-checkbox {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sup-space-3);
+}
+
+.supcheckout-admin .sup-checkbox__control {
+	position: relative;
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	inline-size: var(--sup-size-target-min);
+	block-size: var(--sup-size-target-min);
+}
+
+.supcheckout-admin .sup-checkbox__control > .sup-checkbox__input {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	box-sizing: border-box;
+	inline-size: 100%;
+	min-inline-size: 0;
+	block-size: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	outline: none;
+	box-shadow: none;
+	background: none;
+	opacity: 0;
+	appearance: none;
+	cursor: pointer;
+}
+
+.supcheckout-admin .sup-checkbox .sup-checkbox__input::before,
+.supcheckout-admin .sup-checkbox .sup-checkbox__input::after,
+.supcheckout-admin .sup-checkbox .sup-checkbox__input:checked::before,
+.supcheckout-admin .sup-checkbox .sup-checkbox__input:checked::after,
+.supcheckout-admin .sup-checkbox .sup-checkbox__input:indeterminate::before {
+	content: none;
+}
+
+.supcheckout-admin .sup-checkbox__indicator {
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: var(--sup-size-icon-md);
+	block-size: var(--sup-size-icon-md);
+	border: 1px solid var(--sup-input-border-color);
+	border-radius: calc(var(--sup-radius-control) - var(--sup-space-1));
+	color: var(--sup-color-fg-on-accent);
+	background-color: var(--sup-color-bg-surface);
+	pointer-events: none;
+	transition-property: background-color, border-color;
+	transition-duration: var(--sup-motion-duration-fast);
+	transition-timing-function: var(--sup-motion-ease-standard);
+}
+
+.supcheckout-admin .sup-checkbox__indicator > .sup-icon,
+.supcheckout-admin .sup-checkbox__dash {
+	display: none;
+}
+
+.supcheckout-admin .sup-checkbox__dash {
+	inline-size: var(--sup-space-4);
+	block-size: var(--sup-border-width-focus);
+	border-radius: var(--sup-radius-pill);
+	background-color: currentcolor;
+}
+
+.supcheckout-admin .sup-checkbox__input:hover + .sup-checkbox__indicator {
+	border-color: var(--sup-color-fg-muted);
+}
+
+.supcheckout-admin .sup-checkbox__input:checked + .sup-checkbox__indicator,
+.supcheckout-admin .sup-checkbox__input:indeterminate + .sup-checkbox__indicator {
+	border-color: var(--sup-color-accent-bg);
+	background-color: var(--sup-color-accent-bg);
+}
+
+.supcheckout-admin .sup-checkbox__input:checked:not(:indeterminate) + .sup-checkbox__indicator > .sup-icon,
+.supcheckout-admin .sup-checkbox__input:indeterminate + .sup-checkbox__indicator > .sup-checkbox__dash {
+	display: block;
+}
+
+.supcheckout-admin .sup-checkbox__input:focus-visible + .sup-checkbox__indicator {
+	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
+	outline-offset: var(--sup-size-focus-offset);
+}
+
+.supcheckout-admin .sup-checkbox__input:disabled {
+	cursor: not-allowed;
+}
+
+.supcheckout-admin .sup-checkbox__input:disabled + .sup-checkbox__indicator {
+	border-color: var(--sup-color-border-default);
+	color: var(--sup-color-fg-subtle);
+	background-color: var(--sup-color-bg-surface-sunken);
+}
+
+.supcheckout-admin .sup-checkbox__text {
+	display: grid;
+	gap: var(--sup-space-1);
+	padding-block-start: var(--sup-space-1);
+	min-inline-size: 0;
+}
+
+.supcheckout-admin .sup-checkbox__label {
+	color: var(--sup-color-fg-default);
+	font-size: var(--sup-font-size-md);
+	line-height: var(--sup-line-height-body);
+	vertical-align: baseline;
+	cursor: pointer;
+}
+
+.supcheckout-admin .sup-checkbox:has(.sup-checkbox__input:disabled) .sup-checkbox__label {
+	color: var(--sup-color-fg-subtle);
+	cursor: not-allowed;
+}
+
+.supcheckout-admin .sup-checkbox__description {
+	color: var(--sup-color-fg-muted);
+	font-size: var(--sup-font-size-sm);
+	line-height: var(--sup-line-height-body);
+}
+
+/* System colors: the checked fill must survive forced colors. */
+@media (forced-colors: active) {
+
+	.supcheckout-admin .sup-checkbox__indicator {
+		forced-color-adjust: none;
+		border-color: canvastext;
+		color: highlighttext;
+		background-color: canvas;
+	}
+
+	.supcheckout-admin .sup-checkbox__input:checked + .sup-checkbox__indicator,
+	.supcheckout-admin .sup-checkbox__input:indeterminate + .sup-checkbox__indicator {
+		border-color: highlight;
+		background-color: highlight;
+	}
+
+	.supcheckout-admin .sup-checkbox__input:focus-visible + .sup-checkbox__indicator {
+		outline-color: highlight;
+	}
+
+	.supcheckout-admin .sup-checkbox__input:disabled + .sup-checkbox__indicator {
+		border-color: graytext;
+		color: canvas;
+		background-color: canvas;
+	}
+
+	.supcheckout-admin .sup-checkbox__input:disabled:checked + .sup-checkbox__indicator {
+		background-color: graytext;
+	}
+}

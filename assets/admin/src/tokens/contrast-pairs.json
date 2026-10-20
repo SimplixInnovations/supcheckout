@@ -173,6 +173,13 @@
 			"kind": "text"
 		},
 		{
+			"fg": "color-fg-on-accent",
+			"bg": [
+				"color-status-danger-solid-hover"
+			],
+			"kind": "text"
+		},
+		{
 			"fg": "color-accent-fg",
 			"bg": [
 				"color-bg-canvas",
