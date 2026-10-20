@@ -67,7 +67,16 @@ const advance = ( ms: number ) =>
 		jest.advanceTimersByTime( ms );
 	} );
 
+// jsdom's document.hasFocus() is false; a test window is in the foreground
+// unless a test says otherwise.
+let hasFocus: jest.SpyInstance;
+
+beforeEach( () => {
+	hasFocus = jest.spyOn( document, 'hasFocus' ).mockReturnValue( true );
+} );
+
 afterEach( () => {
+	hasFocus.mockRestore();
 	jest.useRealTimers();
 } );
 
@@ -398,5 +407,58 @@ test( 'the stack moves again when its own size changes', () => {
 		expect( watching[ 0 ].disconnected ).toBe( true );
 	} finally {
 		window.ResizeObserver = original;
+	}
+} );
+
+test( 'a success toast that arrives while the window is in the background waits for focus', () => {
+	jest.useFakeTimers();
+	hasFocus.mockReturnValue( false );
+	const added = jest.spyOn( window, 'addEventListener' );
+	const removed = jest.spyOn( window, 'removeEventListener' );
+	try {
+		const { toast, unmount } = renderToaster();
+		act( () => {
+			toast().show( { tone: 'success', title: 'Settings saved' } );
+		} );
+		// Nobody is looking: the timer must not run (mui/base-ui#5955).
+		advance( 60000 );
+		expect( screen.getByText( 'Settings saved' ) ).toBeInTheDocument();
+
+		hasFocus.mockReturnValue( true );
+		act( () => {
+			window.dispatchEvent( new Event( 'focus' ) );
+		} );
+		advance( TOAST_TIMEOUT_MS + 500 );
+		expect( screen.queryByText( 'Settings saved' ) ).toBeNull();
+
+		// The focus listener was only there while a toast was held.
+		const focusCalls = ( spy: jest.SpyInstance ) =>
+			spy.mock.calls.filter( ( [ type ] ) => type === 'focus' ).length;
+		expect( focusCalls( removed ) ).toBe( focusCalls( added ) );
+		unmount();
+	} finally {
+		added.mockRestore();
+		removed.mockRestore();
+	}
+} );
+
+test( 'unmounting while a background toast is held removes the focus listener', () => {
+	jest.useFakeTimers();
+	hasFocus.mockReturnValue( false );
+	const added = jest.spyOn( window, 'addEventListener' );
+	const removed = jest.spyOn( window, 'removeEventListener' );
+	try {
+		const { toast, unmount } = renderToaster();
+		act( () => {
+			toast().show( { tone: 'info', title: 'Sync started' } );
+		} );
+		unmount();
+		const focusCalls = ( spy: jest.SpyInstance ) =>
+			spy.mock.calls.filter( ( [ type ] ) => type === 'focus' ).length;
+		expect( focusCalls( removed ) ).toBe( focusCalls( added ) );
+		expect( jest.getTimerCount() ).toBe( 0 );
+	} finally {
+		added.mockRestore();
+		removed.mockRestore();
 	}
 } );

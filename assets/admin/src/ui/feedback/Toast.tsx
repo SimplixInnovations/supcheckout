@@ -10,7 +10,10 @@
  *   on belongs in a `live` Notice next to the cause, which is an alert.
  * - Success and info toasts close after TOAST_TIMEOUT_MS; the timer pauses
  *   while the pointer is over the stack, while keyboard focus is in it and
- *   while the window is in the background. Errors never close on their own.
+ *   while the window is in the background. A toast that arrives while the
+ *   window is already in the background waits for the window to regain
+ *   focus before its timer starts (works around mui/base-ui#5955, where
+ *   such a toast starts timing at once). Errors never close on their own.
  * - At most TOAST_LIMIT toasts show; older ones are hidden and inert.
  *   Known limitation: when a visible toast closes and a hidden one becomes
  *   visible again, whether a screen reader re-announces it depends on the
@@ -289,6 +292,66 @@ function Toaster( { onAction }: ToasterProps ) {
 	);
 }
 
+interface BackgroundHold {
+	/** Whether the window is in the background right now. */
+	windowInBackground: () => boolean;
+	/** Keeps this toast untimed until the window regains focus. */
+	hold: ( id: string ) => void;
+	/** Drops a held toast that was dismissed. */
+	forget: ( id: string ) => void;
+	/** Removes the focus listener (provider unmount). */
+	dispose: () => void;
+}
+
+/**
+ * Works around mui/base-ui#5955 (Base UI 1.8.0): a toast created while the
+ * window is unfocused and no toast exists starts its auto-dismiss timer at
+ * once, so it can vanish before anyone sees it. Such toasts are created
+ * untimed; when the window regains focus they get TOAST_TIMEOUT_MS. The
+ * window `focus` listener exists only while a toast is held.
+ *
+ * @param manager The provider's toast manager.
+ * @return The hold for that manager.
+ */
+function createBackgroundHold(
+	manager: ReturnType< typeof BaseToast.createToastManager< ToastData > >
+): BackgroundHold {
+	let held: readonly string[] = [];
+	let target: Window | null = null;
+
+	const detach = () => {
+		target?.removeEventListener( 'focus', release );
+		target = null;
+	};
+	const release = () => {
+		const ids = held;
+		held = [];
+		detach();
+		for ( const id of ids ) {
+			manager.update( id, { timeout: TOAST_TIMEOUT_MS } );
+		}
+	};
+
+	return {
+		windowInBackground: () =>
+			typeof document !== 'undefined' && ! document.hasFocus(),
+		hold( id ) {
+			held = [ ...held, id ];
+			if ( ! target && typeof window !== 'undefined' ) {
+				target = window;
+				target.addEventListener( 'focus', release );
+			}
+		},
+		forget( id ) {
+			held = held.filter( ( heldId ) => heldId !== id );
+			if ( held.length === 0 ) {
+				detach();
+			}
+		},
+		dispose: detach,
+	};
+}
+
 export interface ToastProviderProps {
 	children: ReactNode;
 }
@@ -304,28 +367,39 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 	const [ manager ] = useState( () =>
 		BaseToast.createToastManager< ToastData >()
 	);
+	const [ backgroundHold ] = useState( () =>
+		createBackgroundHold( manager )
+	);
+	useEffect( () => backgroundHold.dispose, [ backgroundHold ] );
 	// Ids whose action already ran: a double click runs the action once.
 	const actedOn = useRef< ReadonlySet< string > >( new Set() );
 
 	const controller = useMemo< ToastController >(
 		() => ( {
 			show( { tone, title, description, action } ) {
-				return manager.add( {
+				const timed = tone !== 'error';
+				const hold = timed && backgroundHold.windowInBackground();
+				const id = manager.add( {
 					type: tone,
 					title,
 					description,
-					timeout: tone === 'error' ? 0 : TOAST_TIMEOUT_MS,
+					timeout: timed && ! hold ? TOAST_TIMEOUT_MS : 0,
 					priority: 'low',
 					data: action ? { action } : undefined,
 				} );
+				if ( hold ) {
+					backgroundHold.hold( id );
+				}
+				return id;
 			},
 			dismiss( id ) {
 				if ( id !== '' ) {
+					backgroundHold.forget( id );
 					manager.close( id );
 				}
 			},
 		} ),
-		[ manager ]
+		[ manager, backgroundHold ]
 	);
 
 	const onAction = useCallback(
