@@ -93,7 +93,7 @@ test( 'the gallery mu-plugin returns early unless SUPCHECKOUT_UI_GALLERY is true
 	);
 } );
 
-test( 'the visual brand file only sets the sans and Arabic families to the vendored faces', () => {
+test( 'the visual brand file only sets the sans, Arabic and mono families to the vendored faces', () => {
 	const brand = JSON.parse( readFileSync( VR_BRAND, 'utf8' ) );
 	const keys = Object.keys( brand ).filter(
 		( key ) => ! key.startsWith( '$' )
@@ -102,15 +102,19 @@ test( 'the visual brand file only sets the sans and Arabic families to the vendo
 	expect( Object.keys( brand.font ) ).toEqual( [ 'family' ] );
 	expect( Object.keys( brand.font.family ).sort() ).toEqual( [
 		'arabic',
+		'mono',
 		'sans',
 	] );
 	expect( brand.font.family.sans.$value ).toMatch( /^"SUP VR Noto Sans",/ );
 	expect( brand.font.family.arabic.$value ).toMatch(
 		/^"SUP VR Noto Sans Arabic",/
 	);
+	expect( brand.font.family.mono.$value ).toMatch(
+		/^"SUP VR Noto Sans Mono",/
+	);
 } );
 
-test( 'the vendored faces are the four 400 and 600 latin and arabic files from @fontsource', () => {
+test( 'the vendored faces are the 400 and 600 latin and arabic files and the 400 latin mono file from @fontsource', () => {
 	const css = readFileSync( VR_FONTS, 'utf8' );
 	const urls = [ ...css.matchAll( /url\(\s*"([^"]+)"\s*\)/g ) ].map(
 		( match ) => match[ 1 ]
@@ -121,6 +125,7 @@ test( 'the vendored faces are the four 400 and 600 latin and arabic files from @
 			'../../../node_modules/@fontsource/noto-sans/files/noto-sans-latin-600-normal.woff2',
 			'../../../node_modules/@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-400-normal.woff2',
 			'../../../node_modules/@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-600-normal.woff2',
+			'../../../node_modules/@fontsource/noto-sans-mono/files/noto-sans-mono-latin-400-normal.woff2',
 		].sort()
 	);
 	for ( const url of urls ) {
@@ -130,6 +135,7 @@ test( 'the vendored faces are the four 400 and 600 latin and arabic files from @
 	for ( const name of [
 		'@fontsource/noto-sans',
 		'@fontsource/noto-sans-arabic',
+		'@fontsource/noto-sans-mono',
 	] ) {
 		expect( pkg.devDependencies[ name ] ).toMatch( /^\d+\.\d+\.\d+$/ );
 		expect( pkg.dependencies?.[ name ] ).toBeUndefined();

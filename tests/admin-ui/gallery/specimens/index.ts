@@ -52,6 +52,12 @@ export const SPECIMEN_GROUPS = [
 		],
 	},
 	{
+		name: 'foundations-arabic',
+		view: 'components',
+		capture: 'frame',
+		specimens: [ 'foundations-arabic' ],
+	},
+	{
 		name: 'buttons',
 		view: 'components',
 		capture: 'frame',

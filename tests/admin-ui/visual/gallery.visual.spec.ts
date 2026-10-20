@@ -31,6 +31,7 @@ const VENDORED_FACES = [
 	'600 16px "SUP VR Noto Sans"',
 	'400 16px "SUP VR Noto Sans Arabic"',
 	'600 16px "SUP VR Noto Sans Arabic"',
+	'400 16px "SUP VR Noto Sans Mono"',
 ] as const;
 
 /** Sample text that makes the Arabic faces load (they hold Arabic glyphs only). */

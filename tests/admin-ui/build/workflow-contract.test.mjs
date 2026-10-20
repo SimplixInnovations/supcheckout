@@ -154,7 +154,7 @@ test( 'the visual lane builds the gallery with the test brand file and runs the 
 		/SUP_BRAND: tests\/admin-ui\/gallery\/vr-brand\.tokens\.json\n\s+run: npm run build:gallery/
 	);
 	expect( visual ).toContain(
-		`test "$(find tests/admin-ui/gallery/build/fonts -name '*.woff2' | wc -l)" = 4`
+		`test "$(find tests/admin-ui/gallery/build/fonts -name '*.woff2' | wc -l)" = 5`
 	);
 	expect( visual ).toContain( 'npm run check:drift' );
 	expect( visual ).toContain( 'npm run test:visual' );
@@ -179,8 +179,17 @@ test( 'a baseline update is dispatch-only, uploads the baselines and fails the g
 	const gate = job( 'gate' );
 	expect( gate ).toContain( update );
 	expect( gate ).toMatch(
-		/if \[\[ "\$UPDATE_VISUAL_BASELINES" != false \]\]; then\n\s+echo "baselines regenerated; commit them and rerun"\n\s+exit 1/
+		/if \[\[ "\$UPDATE_VISUAL_BASELINES" != false \]\]; then\n\s+echo "baselines regenerated; commit them and rerun"\n\s+failed=1\n/
 	);
+	// The message prints whenever update mode ran, even when a lane failed
+	// too: the update check runs before the lane check, and only the last
+	// line exits.
+	expect( gate.indexOf( 'baselines regenerated' ) ).toBeLessThan(
+		gate.indexOf( '"$STATIC_RESULT" != success' )
+	);
+	expect( gate ).toMatch( /failed=0\n/ );
+	expect( gate ).toMatch( /exit "\$failed"\n?$/ );
+	expect( gate.match( /\bexit 1\b/g ) ).toBeNull();
 } );
 
 test( 'the gate also needs the visual lane and fails on its skip or cancel', () => {

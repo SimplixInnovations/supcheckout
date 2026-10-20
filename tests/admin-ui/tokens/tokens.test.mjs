@@ -56,8 +56,10 @@ const SEMANTIC_COLOR_NAMES = [
 const DARK_MEDIA = '@media (prefers-color-scheme: dark)';
 const DARK_SYSTEM = '.supcheckout-admin:not([data-sup-theme="light"])';
 const DARK_EXPLICIT = '.supcheckout-admin[data-sup-theme="dark"]';
+// The scope root in an Arabic, Persian or Urdu locale, and any nested run in
+// those languages (an Arabic note on an English screen).
 const ARABIC =
-	'.supcheckout-admin:lang(ar),\n.supcheckout-admin:lang(fa),\n.supcheckout-admin:lang(ur)';
+	'.supcheckout-admin:lang(ar),\n.supcheckout-admin:lang(fa),\n.supcheckout-admin:lang(ur),\n.supcheckout-admin [lang]:lang(ar),\n.supcheckout-admin [lang]:lang(fa),\n.supcheckout-admin [lang]:lang(ur)';
 const COMPACT =
 	'.supcheckout-admin[data-sup-density="compact"],\n.supcheckout-admin [data-sup-density="compact"]';
 const REDUCED_MOTION = '@media (prefers-reduced-motion: reduce)';

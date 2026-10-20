@@ -26,6 +26,44 @@ interface SpecimenProps {
 	children: ReactNode;
 }
 
+/**
+ * Fixed Arabic copy, standing in for what an Arabic translation renders (SP1
+ * Task 8). It is sample content, not UI copy, so it is deliberately not a
+ * translatable string. Inside a `lang="ar" dir="rtl"` run it must get the
+ * Arabic stack, line height 1.7 and no letter spacing in every mode, also on
+ * an English screen.
+ */
+const ARABIC_SAMPLE = {
+	heading: 'نظرة عامة على المدفوعات',
+	body: 'تُحوَّل المدفوعات إلى حسابك البنكي كل يوم عمل.',
+	muted: 'يدفع العملاء في صفحة UPayments الآمنة.',
+	amount: 'المبلغ:',
+	order: 'الطلب:',
+	strong: 'راجع إعدادات الدفع قبل التشغيل الفعلي.',
+} as const;
+
+function ArabicSample() {
+	return (
+		<div
+			lang="ar"
+			dir="rtl"
+			style={ { display: 'grid', gap: 'var(--sup-space-4)' } }
+		>
+			<Heading level={ 3 }>{ ARABIC_SAMPLE.heading }</Heading>
+			<Text>{ ARABIC_SAMPLE.body }</Text>
+			<Text variant="muted">{ ARABIC_SAMPLE.muted }</Text>
+			<Text>
+				{ ARABIC_SAMPLE.amount }{ ' ' }
+				<Numeric kind="amount">12.500 KWD</Numeric>
+			</Text>
+			<Text>
+				{ ARABIC_SAMPLE.order } <Numeric kind="id">#10234</Numeric>
+			</Text>
+			<Text variant="strong">{ ARABIC_SAMPLE.strong }</Text>
+		</div>
+	);
+}
+
 /** The specimen card: fixed width on the surface tone. */
 export const SPECIMEN_STYLE = {
 	inlineSize: SPECIMEN_WIDTH,
@@ -166,6 +204,15 @@ export function FoundationsSpecimens() {
 							{ __( 'for order 10234', 'supcheckout' ) }
 						</VisuallyHidden>
 					</Text>
+				</Specimen>
+			</SpecimenFrame>
+
+			<SpecimenFrame name="foundations-arabic">
+				<Specimen
+					name="foundations-arabic"
+					title={ __( 'Arabic typography', 'supcheckout' ) }
+				>
+					<ArabicSample />
 				</Specimen>
 			</SpecimenFrame>
 		</>

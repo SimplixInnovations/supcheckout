@@ -20,6 +20,7 @@ const SPECIMENS = [
 	'foundations-icons',
 	'foundations-spinner',
 	'foundations-visually-hidden',
+	'foundations-arabic',
 ];
 
 async function openGallery(
