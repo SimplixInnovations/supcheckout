@@ -90,6 +90,9 @@
 	line-height: var(--sup-line-height-heading);
 	letter-spacing: var(--sup-letter-spacing-tight);
 	text-wrap: balance;
+
+	/* Untranslated text keeps its own direction inside RTL. */
+	unicode-bidi: plaintext;
 }
 
 .supcheckout-admin .sup-dialog__description {
@@ -98,6 +101,7 @@
 	font-size: var(--sup-font-size-md);
 	line-height: var(--sup-line-height-body);
 	text-wrap: pretty;
+	unicode-bidi: plaintext;
 }
 
 .supcheckout-admin .sup-dialog__close {

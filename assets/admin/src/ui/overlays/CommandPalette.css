@@ -24,8 +24,8 @@
 	letter-spacing: var(--sup-letter-spacing-normal);
 	white-space: nowrap;
 
-	/* Key names keep their order in RTL. */
-	direction: ltr;
+	/* An isolated run: the element carries dir="ltr", so key names keep
+	   their order in RTL (rtlcss would flip a CSS direction). */
 	unicode-bidi: isolate;
 }
 
@@ -127,6 +127,7 @@
 
 .supcheckout-admin .sup-palette__item {
 	display: flex;
+	unicode-bidi: plaintext;
 	align-items: center;
 	box-sizing: border-box;
 	min-block-size: var(--sup-size-control-md);

@@ -187,7 +187,7 @@ export function CommandPalette( { commands }: CommandPaletteProps ) {
 				onClick={ () => show( true ) }
 			>
 				{ __( 'Search commands', 'supcheckout' ) }
-				<kbd className="sup-kbd" aria-hidden="true">
+				<kbd className="sup-kbd" dir="ltr" aria-hidden="true">
 					{ keyName }
 					<span className="sup-kbd__key">K</span>
 				</kbd>
@@ -214,7 +214,7 @@ export function CommandPalette( { commands }: CommandPaletteProps ) {
 				<div className="sup-palette__bar">
 					<BaseDialog.Close className="sup-palette__close">
 						{ __( 'Close', 'supcheckout' ) }
-						<kbd className="sup-kbd" aria-hidden="true">
+						<kbd className="sup-kbd" dir="ltr" aria-hidden="true">
 							{ _x( 'Esc', 'keyboard key', 'supcheckout' ) }
 						</kbd>
 					</BaseDialog.Close>

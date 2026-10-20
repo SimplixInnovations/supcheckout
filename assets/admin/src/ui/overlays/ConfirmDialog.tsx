@@ -240,12 +240,18 @@ export function ConfirmDialog( {
 
 			{ phase !== 'settled' && (
 				<>
-					<BaseDialog.Description
-						render={ <div /> }
-						className="sup-dialog__body sup-confirm__consequence"
-					>
-						{ consequence }
-					</BaseDialog.Description>
+					<div className="sup-dialog__body sup-confirm__body">
+						{ /* The tinted panel wraps the text rather than being it, so
+						   axe can resolve the text's background. */ }
+						<div className="sup-confirm__panel">
+							<BaseDialog.Description
+								render={ <div /> }
+								className="sup-confirm__consequence"
+							>
+								{ consequence }
+							</BaseDialog.Description>
+						</div>
+					</div>
 					<div className="sup-dialog__footer">
 						<Button
 							ref={ cancelRef }

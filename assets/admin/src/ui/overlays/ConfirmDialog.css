@@ -32,17 +32,24 @@
 .supcheckout-admin .sup-confirm__consequence {
 	color: var(--sup-color-fg-muted);
 	text-wrap: pretty;
+	unicode-bidi: plaintext;
 }
 
-.supcheckout-admin .sup-confirm--money .sup-confirm__consequence {
-	margin-block: var(--sup-space-2) var(--sup-space-6);
-	margin-inline: var(--sup-space-7);
+.supcheckout-admin .sup-confirm--money .sup-confirm__body {
+	padding-block-start: var(--sup-space-2);
+	padding-block-end: var(--sup-space-6);
+}
+
+.supcheckout-admin .sup-confirm--money .sup-confirm__panel {
 	padding: var(--sup-space-5);
 	border: var(--sup-border-width-hairline) solid var(--sup-color-border-default);
 	border-radius: var(--sup-radius-card);
-	color: var(--sup-color-fg-default);
 	background-color: var(--sup-color-bg-surface-sunken);
 	font-variant-numeric: tabular-nums;
+}
+
+.supcheckout-admin .sup-confirm--money .sup-confirm__consequence {
+	color: var(--sup-color-fg-default);
 }
 
 .supcheckout-admin .sup-confirm__result {
@@ -84,7 +91,7 @@
 @media (forced-colors: active) {
 
 	.supcheckout-admin .sup-confirm__result,
-	.supcheckout-admin .sup-confirm--money .sup-confirm__consequence {
+	.supcheckout-admin .sup-confirm--money .sup-confirm__panel {
 		border-color: canvastext;
 	}
 }
