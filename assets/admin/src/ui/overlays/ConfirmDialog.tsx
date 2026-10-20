@@ -79,7 +79,15 @@ export interface ConfirmDialogProps {
 	/** Translated text announced while pending; defaults to a generic wait. */
 	busyLabel?: string;
 	tone: ConfirmTone;
-	/** The action. Its result is the only source of the outcome. */
+	/**
+	 * The action. Its result is the only source of the outcome.
+	 *
+	 * It must always settle. Bound the network call (for example with
+	 * `AbortSignal.timeout(…)`) and map a timeout to
+	 * `{ status: 'pending', message }`, never to `failed`: the server may
+	 * still complete the request. A promise that never settles keeps the
+	 * dialog, and its `actionKey`, pending until the page reloads.
+	 */
 	onConfirm: () => Promise< ConfirmResult >;
 	/** Replaces the default result body (pill and message). */
 	renderResult?: ( result: ConfirmResult ) => ReactNode;
@@ -91,8 +99,9 @@ export interface ConfirmDialogProps {
 	 *
 	 * Rule for screens (SP2): keep a ConfirmDialog mounted while its request
 	 * may be in flight; pass `actionKey` whenever the screen may remount it
-	 * (a route change, a list re-render). The server-side idempotency of
-	 * refunds and charges stays the real guarantee.
+	 * (a route change, a list re-render). Keep the key stable for an opening:
+	 * changing it while a result is shown resets the panel. The server-side
+	 * idempotency of refunds and charges stays the real guarantee.
 	 */
 	actionKey?: string;
 }

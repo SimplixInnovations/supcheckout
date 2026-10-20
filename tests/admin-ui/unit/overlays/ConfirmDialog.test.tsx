@@ -458,7 +458,15 @@ test( 'with an actionKey, a remount while that request is in flight opens pendin
 } );
 
 test( 'a different actionKey is not blocked by another request in flight', async () => {
-	const onConfirm = jest.fn( () => new Promise< ConfirmResult >( () => {} ) );
+	// Settled at the end so the module-level in-flight map is empty for the
+	// next test in this file and in the React 19 lane.
+	let settle: ( result: ConfirmResult ) => void = () => undefined;
+	const onConfirm = jest.fn(
+		() =>
+			new Promise< ConfirmResult >( ( resolve ) => {
+				settle = resolve;
+			} )
+	);
 	render(
 		<SupRoot>
 			<ConfirmDialog
@@ -480,4 +488,7 @@ test( 'a different actionKey is not blocked by another request in flight', async
 		within( dialog() ).getByRole( 'button', { name: 'Refund 4.000 KWD' } )
 	);
 	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
+	await act( async () => {
+		settle( { status: 'verified', message: 'Refunded.' } );
+	} );
 } );
