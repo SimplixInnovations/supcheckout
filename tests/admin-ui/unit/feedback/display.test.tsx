@@ -187,6 +187,27 @@ test( 'a live error notice is an alert that carries its message at once', () => 
 	expect( jest.getTimerCount() ).toBe( 0 );
 } );
 
+test( 'a mounted notice that becomes live holds its text for LIVE_REGION_DELAY_MS', () => {
+	jest.useFakeTimers();
+	const { rerender } = render( <Notice tone="info">Sync started.</Notice> );
+	expect( screen.queryByRole( 'status' ) ).toBeNull();
+	advance( LIVE_REGION_DELAY_MS * 3 );
+
+	// Turning live starts a new cycle: the region shows empty first…
+	rerender(
+		<Notice tone="info" live>
+			Sync finished.
+		</Notice>
+	);
+	const status = screen.getByRole( 'status' );
+	expect( status ).toHaveTextContent( '' );
+	advance( LIVE_REGION_DELAY_MS - 1 );
+	expect( status ).toHaveTextContent( '' );
+	// …and gains the message only after the delay.
+	advance( 1 );
+	expect( status ).toHaveTextContent( 'Sync finished.' );
+} );
+
 test( 'unmounting a live notice before the delay leaves no timer', () => {
 	jest.useFakeTimers();
 	const { unmount } = render(
