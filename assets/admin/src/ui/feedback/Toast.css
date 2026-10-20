@@ -20,6 +20,19 @@
 	outline: none;
 }
 
+/* Moved off a focused element (see Toast.tsx). */
+.supcheckout-admin .sup-toast-viewport[data-sup-placement="start"] {
+	inset-inline-start: var(--sup-space-7);
+	inset-inline-end: auto;
+}
+
+/* Clears the WordPress admin bar (32 px, 46 px on narrow screens). */
+.supcheckout-admin .sup-toast-viewport[data-sup-placement="top"] {
+	inset-block-start: var(--sup-space-12);
+	inset-block-end: auto;
+	flex-direction: column;
+}
+
 .supcheckout-admin .sup-toast-viewport:focus-visible {
 	outline: var(--sup-border-width-focus) solid var(--sup-color-focus-ring);
 	outline-offset: var(--sup-size-focus-offset);

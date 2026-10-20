@@ -12,18 +12,21 @@
  *   while the pointer is over the stack, while keyboard focus is in it and
  *   while the window is in the background. Errors never close on their own.
  * - At most TOAST_LIMIT toasts show; older ones are hidden and inert.
- * - The stack sits at the block end and inline end of the window.
+ * - The stack sits at the block end and inline end of the window. When it
+ *   would cover the focused element, it moves to the inline start (or the
+ *   block start on narrow windows), so focus is never obscured (WCAG 2.4.11).
  * - F6 moves focus into the stack (Base UI); Escape closes the focused toast.
  * - A toast never states that a payment is paid or captured: financial
  *   state comes only from the caller's verified result, shown on the page.
  */
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Toast as BaseToast } from '@base-ui/react/toast';
 import type { ToastObject } from '@base-ui/react/toast';
 import {
 	createContext,
 	useCallback,
 	useContext,
+	useEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -72,6 +75,10 @@ interface ToastData {
 	action?: ToastAction;
 }
 
+type Placement = 'end' | 'start' | 'top';
+
+const PLACEMENTS: readonly Placement[] = [ 'end', 'start', 'top' ];
+
 const TONE_ICONS: Readonly< Record< ToastTone, IconName > > = {
 	success: 'success',
 	info: 'info',
@@ -90,6 +97,68 @@ export function useToast(): ToastController {
 		throw new Error( 'useToast() must be called inside SupRoot.' );
 	}
 	return controller;
+}
+
+function overlapArea( a: DOMRect, b: DOMRect ): number {
+	const inline = Math.min( a.right, b.right ) - Math.max( a.left, b.left );
+	const block = Math.min( a.bottom, b.bottom ) - Math.max( a.top, b.top );
+	return inline > 0 && block > 0 ? inline * block : 0;
+}
+
+/**
+ * Moves the viewport off the focused element: tries each placement in
+ * order and keeps the first that does not overlap it (or the least
+ * overlapping one). Runs when focus moves and when the stack changes.
+ *
+ * @param viewportRef The toast viewport.
+ * @param stackKey    Changes whenever toasts are added or removed.
+ */
+function useFocusAvoidingPlacement(
+	viewportRef: RefObject< HTMLDivElement | null >,
+	stackKey: string
+): void {
+	useEffect( () => {
+		const viewport = viewportRef.current;
+		if ( ! viewport ) {
+			return undefined;
+		}
+		const doc = viewport.ownerDocument;
+		const place = () => {
+			const active = doc.activeElement;
+			const current = viewport.dataset.supPlacement ?? 'end';
+			if (
+				stackKey === '' ||
+				! active ||
+				active === doc.body ||
+				viewport.contains( active )
+			) {
+				viewport.dataset.supPlacement =
+					stackKey === '' ? 'end' : current;
+				return;
+			}
+			const target = active.getBoundingClientRect();
+			let best: Placement = 'end';
+			let bestArea = Infinity;
+			for ( const placement of PLACEMENTS ) {
+				viewport.dataset.supPlacement = placement;
+				const area = overlapArea(
+					viewport.getBoundingClientRect(),
+					target
+				);
+				if ( area < bestArea ) {
+					best = placement;
+					bestArea = area;
+				}
+				if ( area === 0 ) {
+					break;
+				}
+			}
+			viewport.dataset.supPlacement = best;
+		};
+		place();
+		doc.addEventListener( 'focusin', place );
+		return () => doc.removeEventListener( 'focusin', place );
+	}, [ viewportRef, stackKey ] );
 }
 
 interface ToastItemProps {
@@ -169,6 +238,11 @@ function Toaster( { onAction }: ToasterProps ) {
 	const container = usePortalContainer();
 	const { toasts } = BaseToast.useToastManager< ToastData >();
 	const viewportRef = useRef< HTMLDivElement >( null );
+	const stackKey = toasts
+		.filter( ( toast ) => toast.transitionStatus !== 'ending' )
+		.map( ( toast ) => toast.id )
+		.join( ' ' );
+	useFocusAvoidingPlacement( viewportRef, stackKey );
 	return (
 		<BaseToast.Portal container={ container }>
 			<BaseToast.Viewport
