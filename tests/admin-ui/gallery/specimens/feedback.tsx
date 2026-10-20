@@ -36,6 +36,7 @@ export const FEEDBACK_SPECIMENS = [
 	'status-pill-statuses',
 	'notice-tones',
 	'notice-live',
+	'notice-live-error',
 	'empty-state',
 	'skeleton-group',
 	'progress-bar',
@@ -97,6 +98,32 @@ function LiveNoticeSpecimen() {
 				>
 					{ __(
 						'UPayments accepted the API key. Customers can pay with UPayments.',
+						'supcheckout'
+					) }
+				</Notice>
+			) }
+		</div>
+	);
+}
+
+function LiveErrorNoticeSpecimen() {
+	const [ attempts, setAttempts ] = useState( 0 );
+	return (
+		<div style={ stack }>
+			<div>
+				<Button onClick={ () => setAttempts( attempts + 1 ) }>
+					{ __( 'Test failing connection', 'supcheckout' ) }
+				</Button>
+			</div>
+			{ attempts > 0 && (
+				<Notice
+					key={ attempts }
+					tone="error"
+					live
+					title={ __( 'Connection failed', 'supcheckout' ) }
+				>
+					{ __(
+						'UPayments rejected the API key. Copy the key from your UPayments dashboard, save it, then test again.',
 						'supcheckout'
 					) }
 				</Notice>
@@ -289,6 +316,13 @@ export function FeedbackSpecimens() {
 				title={ __( 'Live notice', 'supcheckout' ) }
 			>
 				<LiveNoticeSpecimen />
+			</Specimen>
+
+			<Specimen
+				name="notice-live-error"
+				title={ __( 'Live error notice', 'supcheckout' ) }
+			>
+				<LiveErrorNoticeSpecimen />
 			</Specimen>
 
 			<Specimen

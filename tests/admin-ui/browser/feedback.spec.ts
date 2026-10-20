@@ -25,6 +25,7 @@ const FEEDBACK_SPECIMENS = [
 	'status-pill-statuses',
 	'notice-tones',
 	'notice-live',
+	'notice-live-error',
 	'empty-state',
 	'skeleton-group',
 	'progress-bar',
@@ -397,6 +398,71 @@ test( 'a live status notice stays empty for frames before its message', async ( 
 	).toHaveCount( 0 );
 } );
 
+test( 'a live error notice is exactly one alert carrying its message', async ( {
+	page,
+} ) => {
+	await openGallery( page );
+	const errorSpecimen = specimen( page, 'notice-live-error' );
+	await expect( errorSpecimen.getByRole( 'alert' ) ).toHaveCount( 0 );
+	await errorSpecimen
+		.getByRole( 'button', { name: 'Test failing connection' } )
+		.click();
+	const alert = errorSpecimen.getByRole( 'alert' );
+	await expect( alert ).toHaveCount( 1 );
+	await expect( alert ).toContainText( 'Connection failed' );
+	await expect( alert ).toContainText( 'UPayments rejected the API key.' );
+	// The page holds no other alert, and the error is not also a status.
+	await expect( page.getByRole( 'alert' ) ).toHaveCount( 1 );
+	await expect( errorSpecimen.getByRole( 'status' ) ).toHaveCount( 0 );
+} );
+
+/**
+ * Pauses the indeterminate progress animation halfway and reads the
+ * segment's horizontal translate.
+ *
+ * @param page The page.
+ * @return The computed x translate in px (negative moves it leftward).
+ */
+function progressTravelAtHalf( page: Page ): Promise< number > {
+	return page
+		.locator(
+			`${ PROGRESS_SPECIMEN } [data-indeterminate] .sup-progress__indicator`
+		)
+		.evaluate( ( indicator ) => {
+			const [ animation ] = indicator.getAnimations();
+			if ( ! animation ) {
+				throw new Error( 'the indeterminate segment is not animated' );
+			}
+			const duration = Number(
+				animation.effect?.getComputedTiming().duration ?? 0
+			);
+			animation.pause();
+			animation.currentTime = duration / 2;
+			const [ x ] = getComputedStyle( indicator ).translate.split( ' ' );
+			return parseFloat( x );
+		} );
+}
+
+test( 'the indeterminate segment travels toward the inline end, also in RTL', async ( {
+	page,
+}, testInfo ) => {
+	const { dir } = projectMode( testInfo );
+	await page.emulateMedia( { reducedMotion: 'no-preference' } );
+	await openGallery( page );
+	const travel = await progressTravelAtHalf( page );
+	expect( travel ).not.toBe( 0 );
+	// Halfway, the segment has moved toward the inline end: right in LTR,
+	// left in RTL.
+	expect( Math.sign( travel ) ).toBe( dir === 'rtl' ? -1 : 1 );
+
+	// A nested LTR island inside an RTL page (an LTR amount, a code sample)
+	// travels LTR: the direction follows the nearest dir, not the root.
+	await page
+		.locator( PROGRESS_SPECIMEN )
+		.evaluate( ( el ) => el.setAttribute( 'dir', 'ltr' ) );
+	expect( Math.sign( await progressTravelAtHalf( page ) ) ).toBe( 1 );
+} );
+
 test( 'the skeleton group and the toast viewport are pre-mounted live regions', async ( {
 	page,
 } ) => {
@@ -539,6 +605,12 @@ test( 'feedback gallery with a toast and a tooltip open has no axe violations', 
 			await specimen( page, 'notice-live' )
 				.getByRole( 'button', { name: 'Test connection' } )
 				.click();
+			await specimen( page, 'notice-live-error' )
+				.getByRole( 'button', { name: 'Test failing connection' } )
+				.click();
+			await expect(
+				specimen( page, 'notice-live-error' ).getByRole( 'alert' )
+			).toContainText( 'Connection failed' );
 			// A one-line tooltip: axe cannot decide the contrast of floating
 			// text whose lines sit over different page backgrounds (it reports
 			// elmPartiallyObscuring), so the wrapping Webhook URL tooltip's
