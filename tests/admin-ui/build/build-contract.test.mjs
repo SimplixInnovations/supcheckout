@@ -190,6 +190,32 @@ test( 'gzip sizes stay within budget', () => {
 	}
 } );
 
+test( 'the whole command palette payload stays within the chunk budget', () => {
+	// Every lazy chunk today belongs to the palette (its panel plus webpack's
+	// async vendor split of Base UI Autocomplete), so they load together.
+	const chunks = readJson( 'assets/admin/build/app.chunks.json' );
+	expect( chunks.length ).toBeGreaterThan( 0 );
+	const payload = Buffer.concat( chunks.map( ( c ) => readBuild( c ) ) );
+	expect( gzipSync( payload, { level: 9 } ).length ).toBeLessThanOrEqual(
+		BUDGET.chunk
+	);
+} );
+
+test( 'the search normalizer spells its ignored characters as escapes', () => {
+	const source = readFileSync(
+		join( ROOT, 'assets/admin/src/ui/overlays/search.ts' ),
+		'utf8'
+	);
+	// No literal combining mark, tashkeel, superscript alef or tatweel: they
+	// are invisible or attach to the previous character in an editor.
+	expect( source ).not.toMatch(
+		/[\u0300-\u036f\u0610-\u061a\u064b-\u065f\u0670\u0640\u06d6-\u06ed]/u
+	);
+	for ( const escape of [ '\\u064B', '\\u065F', '\\u0670', '\\u0640' ] ) {
+		expect( source ).toContain( escape );
+	}
+} );
+
 test( 'the notices JSON is sorted by package name', () => {
 	const names = readJson( 'assets/admin/build/third-party-notices.json' ).map(
 		( p ) => p.name

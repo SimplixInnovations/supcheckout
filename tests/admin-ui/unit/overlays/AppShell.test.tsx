@@ -3,7 +3,7 @@
  * Task 7, Review Focus 5). WordPress owns `role=main`, so the shell adds no
  * main landmark; it adds a skip link, a sticky header and a labelled nav.
  */
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 
 import { AppShell, Button, SupRoot } from '../../../../assets/admin/src/ui';
 import type { NavItem } from '../../../../assets/admin/src/ui';
@@ -80,4 +80,54 @@ test( 'the skip link comes first and the nav is left out when there are no secti
 	const shell = document.querySelector( '.sup-app-shell' ) as HTMLElement;
 	expect( shell.querySelector( 'a' ) ).toHaveTextContent( 'Skip to content' );
 	expect( shell.firstElementChild ).toHaveClass( 'sup-skip-link' );
+} );
+
+test( 'the measured header height feeds the focus clearance, also when the header wraps', () => {
+	const observers: Array< {
+		callback: ResizeObserverCallback;
+		targets: Element[];
+		disconnected: boolean;
+	} > = [];
+	const original = globalThis.ResizeObserver;
+	globalThis.ResizeObserver = class {
+		private entry;
+		constructor( callback: ResizeObserverCallback ) {
+			this.entry = {
+				callback,
+				targets: [] as Element[],
+				disconnected: false,
+			};
+			observers.push( this.entry );
+		}
+		observe( target: Element ) {
+			this.entry.targets.push( target );
+		}
+		unobserve() {}
+		disconnect() {
+			this.entry.disconnected = true;
+		}
+	} as unknown as typeof ResizeObserver;
+	try {
+		const { unmount } = renderShell();
+		const header = document.querySelector(
+			'header.sup-app-shell__header'
+		) as HTMLElement;
+		const shell = document.querySelector( '.sup-app-shell' ) as HTMLElement;
+		const observer = observers.find( ( o ) =>
+			o.targets.includes( header )
+		);
+		expect( observer ).toBeDefined();
+		// The tools wrap onto a second row: the header grows to 121.5px.
+		header.getBoundingClientRect = () => ( { height: 121.5 } ) as DOMRect;
+		act( () => {
+			observer?.callback( [], {} as ResizeObserver );
+		} );
+		expect(
+			shell.style.getPropertyValue( '--sup-app-shell-header-height' )
+		).toBe( '122px' );
+		unmount();
+		expect( observer?.disconnected ).toBe( true );
+	} finally {
+		globalThis.ResizeObserver = original;
+	}
 } );

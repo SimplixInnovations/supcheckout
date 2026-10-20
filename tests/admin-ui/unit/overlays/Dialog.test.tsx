@@ -3,7 +3,7 @@
  * traps focus, closes on Escape and returns focus to its trigger (SP1
  * Task 7). An open Tooltip inside it closes on Escape first.
  */
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useRef, useState } from '@wordpress/element';
 
@@ -197,4 +197,98 @@ test( 'Escape closes an open tooltip inside a dialog first and the dialog stays 
 
 	await userEvent.keyboard( '{Escape}' );
 	expect( onOpenChange ).toHaveBeenLastCalledWith( false );
+} );
+
+test( 'the inert background never silences live regions and keeps their siblings inert', async () => {
+	// Outside the app, as wp.a11y.speak() and admin notices place them.
+	const wrapper = document.createElement( 'div' );
+	const speak = document.createElement( 'div' );
+	speak.setAttribute( 'aria-live', 'polite' );
+	speak.id = 'a11y-speak-polite';
+	const status = document.createElement( 'p' );
+	status.setAttribute( 'role', 'status' );
+	const sibling = document.createElement( 'button' );
+	sibling.textContent = 'Outside';
+	wrapper.append( speak, sibling );
+	document.body.append( wrapper, status );
+	try {
+		const { container } = render(
+			<SupRoot>
+				<Host />
+			</SupRoot>
+		);
+		await openDialog();
+		await waitFor( () =>
+			expect( container.closest( '[inert]' ) ).not.toBeNull()
+		);
+		for ( const region of [ speak, status ] ) {
+			expect( region.closest( '[inert]' ) ).toBeNull();
+		}
+		// The live region's ancestor is not inert, but its other children are.
+		expect( wrapper ).not.toHaveAttribute( 'inert' );
+		expect( sibling.closest( '[inert]' ) ).not.toBeNull();
+	} finally {
+		wrapper.remove();
+		status.remove();
+	}
+} );
+
+test( 'nested dialogs closing out of order never un-inert the page under one still open', async () => {
+	function TwoDialogs() {
+		const [ first, setFirst ] = useState( true );
+		const [ second, setSecond ] = useState( false );
+		return (
+			<>
+				<Dialog open={ first } onOpenChange={ setFirst } title="First">
+					<Button onClick={ () => setSecond( true ) }>
+						Open second
+					</Button>
+					<Button onClick={ () => setFirst( false ) }>
+						Close first
+					</Button>
+				</Dialog>
+				<Dialog
+					open={ second }
+					onOpenChange={ setSecond }
+					title="Second"
+				>
+					<Button onClick={ () => setFirst( false ) }>
+						Close the first dialog
+					</Button>
+					<Button onClick={ () => setSecond( false ) }>Done</Button>
+				</Dialog>
+			</>
+		);
+	}
+	const { container } = render(
+		<SupRoot>
+			<Button>Page</Button>
+			<TwoDialogs />
+		</SupRoot>
+	);
+	await screen.findByRole( 'dialog', { name: 'First' } );
+	await waitFor( () =>
+		expect( container.closest( '[inert]' ) ).not.toBeNull()
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Open second' } )
+	);
+	await screen.findByRole( 'dialog', { name: 'Second' } );
+	// Wait for the second dialog's own inert frame to have run.
+	await act( async () => {
+		await new Promise( ( resolve ) => setTimeout( resolve, 50 ) );
+	} );
+	// The first dialog closes first, out of LIFO order.
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Close the first dialog' } )
+	);
+	await waitFor( () =>
+		expect( screen.queryByRole( 'dialog', { name: 'First' } ) ).toBeNull()
+	);
+	expect( screen.getByRole( 'dialog', { name: 'Second' } ) ).toBeVisible();
+	expect( container.closest( '[inert]' ) ).not.toBeNull();
+
+	await userEvent.click( screen.getByRole( 'button', { name: 'Done' } ) );
+	await waitFor( () => expect( screen.queryByRole( 'dialog' ) ).toBeNull() );
+	expect( container.closest( '[inert]' ) ).toBeNull();
 } );

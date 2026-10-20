@@ -14,12 +14,14 @@ import userEvent from '@testing-library/user-event';
 import {
 	Button,
 	CommandPalette,
+	ConfirmDialog,
+	isPaletteShortcut,
 	normalizeForSearch,
 	paletteShortcut,
 	PALETTE_SHORTCUT,
 	SupRoot,
 } from '../../../../assets/admin/src/ui';
-import type { Command } from '../../../../assets/admin/src/ui';
+import type { Command, ConfirmResult } from '../../../../assets/admin/src/ui';
 
 function commands( perform = jest.fn() ): Command[] {
 	return [
@@ -107,28 +109,158 @@ test( 'the trigger button opens the palette', async () => {
 	).toBeInTheDocument();
 } );
 
-test( 'Mod+K reaches the SUPCheckout palette before the WordPress command palette', async () => {
-	// WordPress's own command palette (wp-commands) listens on document and
-	// toggles on Mod+K unless an earlier handler took the key.
-	const wordpressPalette = jest.fn( ( event: KeyboardEvent ) => {
-		if ( ! event.defaultPrevented ) {
-			event.preventDefault();
+interface WpGlobal {
+	wp?: Record< string, unknown >;
+}
+
+/**
+ * Pretends WordPress core's command palette is on the page, as `wp-commands`
+ * (and its `core/commands` store) would be.
+ *
+ * @param shape `commands` for the script global, `store` for the data store.
+ * @return Removes it again.
+ */
+function withCorePalette( shape: 'commands' | 'store' ): () => void {
+	const win = window as unknown as WpGlobal;
+	const previous = win.wp;
+	win.wp =
+		shape === 'commands'
+			? { commands: { CommandMenu: () => null } }
+			: {
+					data: {
+						select: ( store: string ) =>
+							store === 'core/commands'
+								? { getCommands: () => [] }
+								: undefined,
+					},
+				};
+	return () => {
+		win.wp = previous;
+	};
+}
+
+test.each( [ 'commands', 'store' ] as const )(
+	"Mod+K is left to WordPress core's command palette when it is present (%s)",
+	async ( shape ) => {
+		const restore = withCorePalette( shape );
+		// Core's palette listens on document and toggles on Mod+K.
+		const corePalette = jest.fn();
+		document.addEventListener( 'keydown', corePalette );
+		try {
+			renderPalette();
+			const trigger = screen.getByRole( 'button', {
+				name: /^Search commands/,
+			} );
+			expect( trigger ).not.toHaveAttribute( 'aria-keyshortcuts' );
+			expect( trigger.querySelector( 'kbd' ) ).toBeNull();
+			pressShortcut();
+			expect( corePalette ).toHaveBeenCalledTimes( 1 );
+			expect( corePalette.mock.calls[ 0 ][ 0 ].defaultPrevented ).toBe(
+				false
+			);
+			expect( screen.queryByRole( 'dialog' ) ).toBeNull();
+			// The trigger still opens the SUPCheckout palette.
+			await userEvent.click( trigger );
+			expect(
+				await screen.findByRole( 'dialog', { name: 'Command palette' } )
+			).toBeInTheDocument();
+		} finally {
+			document.removeEventListener( 'keydown', corePalette );
+			restore();
 		}
-	} );
-	document.addEventListener( 'keydown', wordpressPalette );
+	}
+);
+
+test( "without core's palette Mod+K opens ours and still reaches document listeners", async () => {
+	const documentListener = jest.fn();
+	document.addEventListener( 'keydown', documentListener );
 	try {
 		renderPalette();
+		expect(
+			screen.getByRole( 'button', { name: /^Search commands/ } )
+		).toHaveAttribute( 'aria-keyshortcuts', 'Control+K' );
 		pressShortcut();
 		expect(
 			await screen.findByRole( 'dialog', { name: 'Command palette' } )
 		).toBeInTheDocument();
-		expect( wordpressPalette ).not.toHaveBeenCalled();
-		// Other keys still reach document listeners.
-		fireEvent.keyDown( document.body, { key: 'j', ctrlKey: true } );
-		expect( wordpressPalette ).toHaveBeenCalledTimes( 1 );
+		// No stopPropagation: the key is handled, not swallowed.
+		expect( documentListener ).toHaveBeenCalledTimes( 1 );
+		expect( documentListener.mock.calls[ 0 ][ 0 ].defaultPrevented ).toBe(
+			true
+		);
 	} finally {
-		document.removeEventListener( 'keydown', wordpressPalette );
+		document.removeEventListener( 'keydown', documentListener );
 	}
+} );
+
+test( 'Mod+K never opens the palette over another modal, such as a pending confirmation', async () => {
+	const perform = jest.fn();
+	const onConfirm = jest.fn( () => new Promise< ConfirmResult >( () => {} ) );
+	render(
+		<SupRoot>
+			<CommandPalette commands={ commands( perform ) } />
+			<ConfirmDialog
+				open
+				onOpenChange={ () => undefined }
+				title="Refund 12.500 KWD?"
+				consequence="This cannot be undone."
+				confirmLabel="Refund 12.500 KWD"
+				tone="money"
+				onConfirm={ onConfirm }
+			/>
+		</SupRoot>
+	);
+	await waitFor( () =>
+		expect( screen.getByRole( 'button', { name: 'Cancel' } ) ).toHaveFocus()
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Refund 12.500 KWD' } )
+	);
+	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
+	pressShortcut();
+	await userEvent.keyboard( '{Enter}' );
+	expect(
+		screen.queryByRole( 'dialog', { name: 'Command palette' } )
+	).toBeNull();
+	expect( perform ).not.toHaveBeenCalled();
+	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
+} );
+
+test( 'the shortcut matches the physical K key on other layouts and never throws without a key', () => {
+	const shortcut = paletteShortcut( 'Win32' );
+	const event = ( init: Partial< KeyboardEvent > ) =>
+		( { ctrlKey: true, ...init } ) as KeyboardEvent;
+	// Arabic layout: the K key types "ن".
+	expect(
+		isPaletteShortcut( event( { key: 'ن', code: 'KeyK' } ), shortcut )
+	).toBe( true );
+	expect(
+		isPaletteShortcut(
+			event( { key: undefined as unknown as string, code: 'KeyK' } ),
+			shortcut
+		)
+	).toBe( true );
+	expect(
+		isPaletteShortcut(
+			event( { key: undefined as unknown as string, code: 'KeyJ' } ),
+			shortcut
+		)
+	).toBe( false );
+	expect(
+		isPaletteShortcut( event( { key: 'j', code: 'KeyJ' } ), shortcut )
+	).toBe( false );
+} );
+
+test( 'an Arabic keyboard layout opens the palette with Ctrl and the K key', async () => {
+	renderPalette();
+	fireEvent.keyDown( document.body, {
+		key: 'ن',
+		code: 'KeyK',
+		ctrlKey: true,
+	} );
+	expect(
+		await screen.findByRole( 'dialog', { name: 'Command palette' } )
+	).toBeInTheDocument();
 } );
 
 test( 'the shortcut is ignored during IME composition and when an input already handled it', () => {
@@ -225,26 +357,33 @@ test( 'empty results show "No matching commands"', async () => {
 	).toBeVisible();
 } );
 
-test( 'an empty registry still opens and says so', async () => {
+test( 'an empty registry still opens and says it has no commands yet', async () => {
 	renderPalette( [] );
 	const { dialog } = await openWithShortcut();
 	// Base UI fills its polite status after mount, so it is announced.
 	expect(
-		await within( dialog ).findByText( 'No matching commands' )
+		await within( dialog ).findByText( 'No commands yet' )
 	).toBeVisible();
 	expect( within( dialog ).getByRole( 'status' ) ).toHaveTextContent(
-		'No matching commands'
+		'No commands yet'
 	);
+	expect( within( dialog ).queryByText( 'No matching commands' ) ).toBeNull();
 } );
 
-test( 'Enter performs the active command once and closes', async () => {
-	const perform = jest.fn();
+test( 'Enter performs the active command once, after the palette has closed', async () => {
+	const openWhenPerformed: boolean[] = [];
+	const perform = jest.fn( () => {
+		openWhenPerformed.push(
+			screen.queryByRole( 'dialog', { name: 'Command palette' } ) !== null
+		);
+	} );
 	renderPalette( commands( perform ) );
 	const { input } = await openWithShortcut();
 	await userEvent.type( input, 'pay' );
 	await userEvent.keyboard( '{Enter>3}{/Enter}' );
-	expect( perform ).toHaveBeenCalledTimes( 1 );
-	await waitFor( () => expect( screen.queryByRole( 'dialog' ) ).toBeNull() );
+	await waitFor( () => expect( perform ).toHaveBeenCalledTimes( 1 ) );
+	expect( screen.queryByRole( 'dialog' ) ).toBeNull();
+	expect( openWhenPerformed ).toEqual( [ false ] );
 } );
 
 test( 'clicking a command performs it once and closes', async () => {
@@ -254,7 +393,7 @@ test( 'clicking a command performs it once and closes', async () => {
 	await userEvent.click(
 		within( dialog ).getByRole( 'option', { name: 'Open payments' } )
 	);
-	expect( perform ).toHaveBeenCalledTimes( 1 );
+	await waitFor( () => expect( perform ).toHaveBeenCalledTimes( 1 ) );
 	await waitFor( () => expect( screen.queryByRole( 'dialog' ) ).toBeNull() );
 } );
 

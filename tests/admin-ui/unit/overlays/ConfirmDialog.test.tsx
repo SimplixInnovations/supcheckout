@@ -235,11 +235,15 @@ test( 'Close ends the opening and a new opening may confirm again', async () => 
 	expect( onConfirm ).toHaveBeenCalledTimes( 2 );
 } );
 
-test( 'a result from an earlier opening is ignored', async () => {
-	const first = deferred< ConfirmResult >();
+interface ControlledHandle {
+	onConfirm: jest.Mock< Promise< ConfirmResult >, [] >;
+	onOpenChange: jest.Mock;
+}
+
+function renderControlled( first: Promise< ConfirmResult > ): ControlledHandle {
 	const onConfirm = jest
 		.fn< Promise< ConfirmResult >, [] >()
-		.mockReturnValueOnce( first.promise )
+		.mockReturnValueOnce( first )
 		.mockReturnValue( new Promise< ConfirmResult >( () => {} ) );
 	const onOpenChange = jest.fn();
 	function Controlled() {
@@ -265,8 +269,11 @@ test( 'a result from an earlier opening is ignored', async () => {
 			<Controlled />
 		</SupRoot>
 	);
-	await userEvent.click( confirmBtn( 'Capture' ) );
-	// The screen closes the dialog itself while the first request is pending.
+	return { onConfirm, onOpenChange };
+}
+
+async function forceCloseAndReopen() {
+	// The screen closes the dialog itself while the request is in flight…
 	act( () => {
 		screen
 			.getByRole( 'button', { name: 'Force close', hidden: true } )
@@ -275,12 +282,72 @@ test( 'a result from an earlier opening is ignored', async () => {
 	await waitFor( () =>
 		expect( screen.queryByRole( 'alertdialog' ) ).toBeNull()
 	);
+	// …and opens it again.
 	await userEvent.click( screen.getByRole( 'button', { name: 'Reopen' } ) );
+	await screen.findByRole( 'alertdialog' );
+}
+
+test( 'closing and reopening while a request is in flight never re-arms onConfirm', async () => {
+	const first = deferred< ConfirmResult >();
+	const { onConfirm, onOpenChange } = renderControlled( first.promise );
+	await userEvent.click( confirmBtn( 'Capture' ) );
+	await forceCloseAndReopen();
+
+	// The new opening shows the request that is still in flight.
+	const confirm = confirmBtn( 'Capture' );
+	expect( confirm ).toHaveAttribute( 'aria-disabled', 'true' );
+	expect( cancelBtn() ).toHaveAttribute( 'aria-disabled', 'true' );
+	await userEvent.dblClick( confirm );
+	confirm.focus();
+	await userEvent.keyboard( '{Enter>3}{/Enter}' );
+	await userEvent.keyboard( '{Escape}' );
+	await userEvent.click( cancelBtn() );
+	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
+	expect( onOpenChange ).not.toHaveBeenCalledWith( false );
+
+	// That request's result appears when it settles.
 	await act( async () =>
-		first.resolve( { status: 'verified', message: 'Old result.' } )
+		first.resolve( {
+			status: 'verified',
+			message: 'UPayments confirmed the capture.',
+		} )
 	);
-	expect( screen.queryByText( 'Old result.' ) ).toBeNull();
+	expect(
+		screen.getByText( 'UPayments confirmed the capture.' )
+	).toBeVisible();
+	await waitFor( () =>
+		expect( screen.getByRole( 'button', { name: 'Close' } ) ).toHaveFocus()
+	);
+	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
+} );
+
+test( 'a result that settles while the dialog is closed never swaps the panel or moves focus', async () => {
+	const first = deferred< ConfirmResult >();
+	const { onConfirm } = renderControlled( first.promise );
+	await userEvent.click( confirmBtn( 'Capture' ) );
+	act( () => {
+		screen
+			.getByRole( 'button', { name: 'Force close', hidden: true } )
+			.click();
+	} );
+	await waitFor( () =>
+		expect( screen.queryByRole( 'alertdialog' ) ).toBeNull()
+	);
+	const reopen = screen.getByRole( 'button', { name: 'Reopen' } );
+	reopen.focus();
+	await act( async () =>
+		first.resolve( { status: 'verified', message: 'Late result.' } )
+	);
+	expect( screen.queryByText( 'Late result.' ) ).toBeNull();
+	expect( reopen ).toHaveFocus();
+
+	// Once nothing is in flight, a new opening starts fresh.
+	await userEvent.click( reopen );
+	await screen.findByRole( 'alertdialog' );
+	expect( screen.queryByText( 'Late result.' ) ).toBeNull();
 	expect( confirmBtn( 'Capture' ) ).not.toHaveAttribute( 'aria-disabled' );
+	await userEvent.click( confirmBtn( 'Capture' ) );
+	expect( onConfirm ).toHaveBeenCalledTimes( 2 );
 } );
 
 test( 'renderResult replaces the default result body', async () => {

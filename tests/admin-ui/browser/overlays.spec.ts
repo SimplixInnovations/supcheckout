@@ -51,11 +51,42 @@ const PALETTE_PLACEHOLDER = 'Type a command or search…';
 
 async function openOverlays(
 	page: Page,
-	theme: 'light' | 'dark' | 'system' = 'system'
+	theme: 'light' | 'dark' | 'system' = 'system',
+	extra: Record< string, string > = {}
 ): Promise< void > {
-	await page.goto( galleryUrl( theme, { view: 'overlays' } ) );
+	await page.goto( galleryUrl( theme, { view: 'overlays', ...extra } ) );
 	await expect( page.locator( '[data-overlays-ready]' ) ).toBeVisible();
 	await page.evaluate( () => document.fonts.ready );
+}
+
+/** The test mu-plugin drops core's command palette from the gallery page. */
+const WITHOUT_CORE_PALETTE = { sup_core_commands: 'off' };
+
+/**
+ * @param page The page.
+ * @return Whether WordPress core's command palette is on the page.
+ */
+function hasCorePalette( page: Page ): Promise< boolean > {
+	return page.evaluate( () => {
+		const wp = ( window as unknown as { wp?: Record< string, unknown > } )
+			.wp;
+		const data = wp?.data as
+			{ select?: ( store: string ) => unknown } | undefined;
+		let store: unknown;
+		try {
+			store = data?.select?.( 'core/commands' );
+		} catch {
+			store = undefined;
+		}
+		return Boolean( wp?.commands ) || Boolean( store );
+	} );
+}
+
+async function openPaletteWithTrigger( page: Page ): Promise< Locator > {
+	await page.getByRole( 'button', { name: /^Search commands/ } ).click();
+	const palette = page.getByRole( 'dialog', { name: 'Command palette' } );
+	await expect( palette ).toBeVisible();
+	return palette;
 }
 
 const specimen = ( page: Page, name: string ): Locator =>
@@ -176,8 +207,17 @@ test( 'modal dialog layer covers the WordPress admin bar and menu', async ( {
 			.locator( PORTAL_LAYER )
 			.evaluate( ( el ) => getComputedStyle( el ).zIndex )
 	).toBe( '100000' );
-	// The page behind the modal is inert while the dialog is open.
+	// The page behind the modal is inert while the dialog is open…
 	await expect( page.locator( '#wpwrap' ) ).toHaveAttribute( 'inert', '' );
+	// …but wp.a11y.speak()'s live regions keep speaking.
+	for ( const id of [ 'a11y-speak-polite', 'a11y-speak-assertive' ] ) {
+		const region = page.locator( `#${ id }` );
+		await expect( region ).toHaveCount( 1 );
+		expect(
+			await region.evaluate( ( el ) => el.closest( '[inert]' ) === null ),
+			id
+		).toBe( true );
+	}
 	await page.keyboard.press( 'Escape' );
 	await expect( page.getByRole( 'dialog' ) ).toHaveCount( 0 );
 	await expect( page.locator( '#wpwrap' ) ).not.toHaveAttribute( 'inert' );
@@ -400,6 +440,16 @@ test( 'numeric table cells are end-aligned and bidi-isolated', async ( {
 		name: 'Recent payments',
 	} );
 	await expect( region ).toHaveAttribute( 'tabindex', '0' );
+	// An unsorted sortable header shows a quiet, decorative sort hint.
+	const amountHint = table
+		.getByRole( 'columnheader', { name: 'Amount' } )
+		.locator( '.sup-table__sort-icon' );
+	await expect( amountHint ).toHaveAttribute( 'aria-hidden', 'true' );
+	const resting = Number(
+		await amountHint.evaluate( ( el ) => getComputedStyle( el ).opacity )
+	);
+	expect( resting ).toBeGreaterThan( 0 );
+	expect( resting ).toBeLessThan( 1 );
 	const order = table.getByRole( 'columnheader', { name: 'Order' } );
 	await expect( order ).toHaveAttribute( 'aria-sort', 'descending' );
 	await order.getByRole( 'button' ).click();
@@ -494,24 +544,14 @@ test( 'the command palette chunk loads and its strings are translated', async ( 
 		[]
 	);
 
+	// WordPress core's command palette owns Mod+K on both versions: ours
+	// announces no shortcut and shows no key hint, and opens from the trigger.
+	expect( await hasCorePalette( page ) ).toBe( true );
 	const trigger = page.getByRole( 'button', { name: /^Search commands/ } );
-	await expect( trigger ).toHaveAttribute( 'aria-keyshortcuts', 'Control+K' );
-	// The key hint reads "Ctrl K" in both directions (rtlcss must not flip it).
-	const hint = trigger.locator( 'kbd' );
-	await expect( hint ).toHaveCSS( 'direction', 'ltr' );
-	expect(
-		await hint.evaluate( ( el ) => {
-			const key = el.querySelector( '.sup-kbd__key' ) as HTMLElement;
-			const range = document.createRange();
-			range.selectNodeContents( el.firstChild as Node );
-			return (
-				range.getBoundingClientRect().left <
-				key.getBoundingClientRect().left
-			);
-		} )
-	).toBe( true );
+	await expect( trigger ).not.toHaveAttribute( 'aria-keyshortcuts' );
+	await expect( trigger.locator( 'kbd' ) ).toHaveCount( 0 );
 	await trigger.focus();
-	await page.keyboard.press( 'Control+K' );
+	await trigger.press( 'Enter' );
 	const palette = page.getByRole( 'dialog', { name: 'Command palette' } );
 	await expect( palette ).toBeVisible();
 	const input = palette.getByRole( 'combobox' );
@@ -524,7 +564,7 @@ test( 'the command palette chunk loads and its strings are translated', async ( 
 	);
 	expect( chunkResponses ).toEqual( [ 200 ] );
 	// The shell's registry is empty, and the palette says so.
-	await expect( palette.getByText( 'No matching commands' ) ).toBeVisible();
+	await expect( palette.getByText( 'No commands yet' ) ).toBeVisible();
 
 	await page.keyboard.press( 'Escape' );
 	await expect( page.getByRole( 'dialog' ) ).toHaveCount( 0 );
@@ -535,9 +575,7 @@ test( 'the palette filters, runs a command once and returns focus', async ( {
 	page,
 } ) => {
 	await openOverlays( page );
-	await page.locator( `${ APP_ROOT } #supcheckout-content` ).focus();
-	await page.keyboard.press( 'Control+K' );
-	const palette = page.getByRole( 'dialog', { name: 'Command palette' } );
+	const palette = await openPaletteWithTrigger( page );
 	const input = palette.getByRole( 'combobox', { name: 'Search commands' } );
 	await expect( input ).toBeFocused();
 	await input.fill( 'webhook' );
@@ -633,15 +671,25 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
 						0.0722 * channel( b )
 					);
 				};
+				const COLOR = /^rgba?\(/;
 				let bg: number[] | null = null;
+				let translucent = false;
+				let formats = COLOR.test( getComputedStyle( el ).color );
 				for (
 					let at: Element | null = el;
 					at && ! bg;
 					at = at.parentElement
 				) {
-					const value = rgb( getComputedStyle( at ).backgroundColor );
-					if ( value.length === 3 || value[ 3 ] === 1 ) {
+					const css = getComputedStyle( at ).backgroundColor;
+					formats = formats && COLOR.test( css );
+					const value = rgb( css );
+					const alpha = value.length === 3 ? 1 : value[ 3 ];
+					if ( alpha === 1 ) {
 						bg = value.slice( 0, 3 );
+					} else if ( alpha > 0 ) {
+						// A tint over the background: the measured pair
+						// would not be the painted one.
+						translucent = true;
 					}
 				}
 				const fg = rgb( getComputedStyle( el ).color ).slice( 0, 3 );
@@ -655,11 +703,15 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
 							'[role="dialog"], [role="alertdialog"]'
 						) !== null,
 					opaque: bg !== null,
+					translucent,
+					formats,
 					ratio: ( hi + 0.05 ) / ( lo + 0.05 ),
 				};
 			}, node.target );
 			expect( measured.inModal, node.html ).toBe( true );
 			expect( measured.opaque, node.html ).toBe( true );
+			expect( measured.translucent, node.html ).toBe( false );
+			expect( measured.formats, node.html ).toBe( true );
 			expect( measured.ratio, node.html ).toBeGreaterThanOrEqual( 4.5 );
 		}
 	};
@@ -689,15 +741,129 @@ test( 'overlay gallery with dialog, confirm and palette open has no axe violatio
 			await page.keyboard.press( 'Escape' );
 			await expect( page.getByRole( 'alertdialog' ) ).toHaveCount( 0 );
 
-			await page.keyboard.press( 'Control+K' );
-			await expect(
-				page
-					.getByRole( 'dialog', { name: 'Command palette' } )
-					.getByRole( 'option' )
-					.first()
-			).toBeVisible();
+			const palette = await openPaletteWithTrigger( page );
+			await expect( palette.getByRole( 'option' ).first() ).toBeVisible();
 			await analyze( PORTAL_LAYER );
 			await page.keyboard.press( 'Escape' );
 		} );
 	}
+} );
+
+test( "without core's command palette Mod+K opens ours, never over a pending confirmation", async ( {
+	page,
+} ) => {
+	await openOverlays( page, 'system', WITHOUT_CORE_PALETTE );
+	expect( await hasCorePalette( page ) ).toBe( false );
+	const trigger = page.getByRole( 'button', { name: /^Search commands/ } );
+	await expect( trigger ).toHaveAttribute( 'aria-keyshortcuts', 'Control+K' );
+	// The key hint reads "Ctrl K" in both directions (rtlcss must not flip it).
+	const hint = trigger.locator( 'kbd' );
+	await expect( hint ).toHaveCSS( 'direction', 'ltr' );
+	expect(
+		await hint.evaluate( ( el ) => {
+			const key = el.querySelector( '.sup-kbd__key' ) as HTMLElement;
+			const range = document.createRange();
+			range.selectNodeContents( el.firstChild as Node );
+			return (
+				range.getBoundingClientRect().left <
+				key.getBoundingClientRect().left
+			);
+		} )
+	).toBe( true );
+	await page.locator( `${ APP_ROOT } #supcheckout-content` ).focus();
+	await page.keyboard.press( 'Control+K' );
+	const palette = page.getByRole( 'dialog', { name: 'Command palette' } );
+	await expect( palette ).toBeVisible();
+	await page.keyboard.press( 'Escape' );
+	await expect( palette ).toHaveCount( 0 );
+
+	// A pending money confirmation: Mod+K and Enter change nothing.
+	await specimen( page, 'confirm-dialog' )
+		.getByRole( 'button', { name: 'Refund order #10234' } )
+		.click();
+	const confirm = page.getByRole( 'alertdialog' );
+	await confirm.getByRole( 'button', { name: 'Refund 12.500 KWD' } ).click();
+	await expect(
+		confirm.getByRole( 'button', { name: 'Refund 12.500 KWD' } )
+	).toHaveAttribute( 'aria-disabled', 'true' );
+	await page.keyboard.press( 'Control+K' );
+	await page.keyboard.press( 'Enter' );
+	await expect( palette ).toHaveCount( 0 );
+	await expect(
+		page.getByRole( 'dialog', { name: 'Edit webhook' } )
+	).toHaveCount( 0 );
+	await expect(
+		confirm.getByText( 'UPayments confirmed the refund of 12.500 KWD.' )
+	).toBeVisible();
+	await expect( palette ).toHaveCount( 0 );
+} );
+
+test( 'a header that wraps onto more rows still never covers the focused element', async ( {
+	page,
+} ) => {
+	await page.setViewportSize( { width: 900, height: 700 } );
+	await openOverlays( page );
+	const header = page.locator( HEADER );
+	const before = ( await header.boundingBox() )?.height ?? 0;
+	// A long translated title wraps the header onto more rows.
+	await page.locator( `${ HEADER } h1` ).evaluate( ( el ) => {
+		el.textContent =
+			'Payments, refunds and pay links for every UPayments account of this store';
+	} );
+	await expect
+		.poll( async () => ( await header.boundingBox() )?.height ?? 0 )
+		.toBeGreaterThan( before + 20 );
+	const measured = await header.evaluate( ( el ) => ( {
+		height: el.getBoundingClientRect().height,
+		token: getComputedStyle( el ).getPropertyValue(
+			'--sup-app-shell-header-height'
+		),
+	} ) );
+	expect(
+		Math.abs( parseFloat( measured.token ) - measured.height )
+	).toBeLessThan( 1.5 );
+
+	const buttons = specimen( page, 'focus-scroll' ).getByRole( 'button' );
+	const count = await buttons.count();
+	await buttons.last().focus();
+	await page.keyboard.press( 'Tab' );
+	await page.keyboard.press( 'Shift+Tab' );
+	for ( let i = 1; i < count; i++ ) {
+		await page.keyboard.press( 'Shift+Tab' );
+		const { label, focused, header: box } = await focusBoxes( page );
+		expect(
+			{ step: i, label, header: overlap( focused, box ) },
+			'covered by the wrapped sticky header'
+		).toEqual( { step: i, label, header: 0 } );
+	}
+} );
+
+test( 'an Arabic dialog title that starts with a Latin name keeps the RTL direction', async ( {
+	page,
+}, testInfo ) => {
+	const { dir } = projectMode( testInfo );
+	test.skip( dir !== 'rtl', 'the RTL projects own this check' );
+	await openOverlays( page );
+	const dialog = await openDialog( page );
+	const title = dialog.locator( '.sup-dialog__title' );
+	await expect( title ).toHaveCSS( 'direction', 'rtl' );
+	await expect( title ).not.toHaveCSS( 'unicode-bidi', 'plaintext' );
+	// "UPayments" first, then Arabic: in an RTL paragraph the Latin name
+	// is the start of the line, so it sits on the right.
+	const order = await title.evaluate( ( el ) => {
+		el.textContent =
+			'UPayments \u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a';
+		const text = el.firstChild as Text;
+		const latin = document.createRange();
+		latin.setStart( text, 0 );
+		latin.setEnd( text, 9 );
+		const arabic = document.createRange();
+		arabic.setStart( text, 10 );
+		arabic.setEnd( text, text.length );
+		return {
+			latin: latin.getBoundingClientRect().left,
+			arabic: arabic.getBoundingClientRect().left,
+		};
+	} );
+	expect( order.latin ).toBeGreaterThan( order.arabic );
 } );
