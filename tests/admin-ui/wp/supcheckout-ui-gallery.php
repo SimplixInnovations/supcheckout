@@ -98,8 +98,12 @@ if (!defined('SUPCHECKOUT_UI_GALLERY') || true !== SUPCHECKOUT_UI_GALLERY) {
         ) {
             return;
         }
+        // Deregistered, not only dequeued: WooCommerce's admin scripts depend
+        // on wp-commands, and WordPress skips any script whose dependency is
+        // missing, so nothing on this test page loads the commands package.
         foreach (array('wp-core-commands', 'wp-commands') as $core_handle) {
             wp_dequeue_script($core_handle);
+            wp_deregister_script($core_handle);
             wp_dequeue_style($core_handle);
         }
     }, PHP_INT_MAX);
