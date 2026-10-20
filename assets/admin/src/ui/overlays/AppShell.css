@@ -45,7 +45,9 @@
 	justify-content: space-between;
 	gap: var(--sup-space-3) var(--sup-space-6);
 	box-sizing: border-box;
-	min-block-size: var(--sup-app-shell-header-height);
+
+	/* The base token, not the measured height (which this would freeze). */
+	min-block-size: var(--sup-size-app-header);
 	padding-block: var(--sup-space-3);
 	padding-inline: var(--sup-space-7);
 	border-block-end: var(--sup-border-width-hairline) solid var(--sup-color-border-default);

@@ -2,7 +2,9 @@
  * Search normalization for the command palette.
  *
  * Merchants type without diacritics, in either script, and often without
- * matching case: "cafe" must find "Café" and "تطبيق" must find "تَطْبِيـق".
+ * matching case: "cafe" must find "Café", and the Arabic word for
+ * "application" written without marks must find it written with tashkeel and
+ * a tatweel.
  * Both the query and each candidate pass through `normalizeForSearch`, and
  * a candidate matches when its normalized text contains the normalized
  * query.
@@ -13,7 +15,7 @@
  * combining marks), the Arabic tashkeel U+064B–U+065F and the superscript
  * alef U+0670, and the tatweel U+0640 (a stretch with no meaning).
  */
-const IGNORED = /[\p{M}ً-ٰٟـ]/gu;
+const IGNORED = /[\p{M}\u064B-\u065F\u0670\u0640]/gu;
 
 /**
  * @param text Any user-visible text or query.

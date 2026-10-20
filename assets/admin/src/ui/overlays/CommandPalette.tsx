@@ -1,23 +1,29 @@
 /**
  * CommandPalette: a keyboard-first way to reach any command.
  *
- * - PALETTE_SHORTCUT (Meta+K on macOS, Ctrl+K elsewhere) toggles it from
- *   anywhere on the page, and the trigger button in the AppShell header
- *   opens it. The shortcut is ignored during an IME composition and when an
- *   earlier handler already used the key (`defaultPrevented`), so an editor
- *   that binds Mod+K keeps it. The trigger announces it (`aria-keyshortcuts`).
- * - wp-admin has its own command palette (wp-commands) on the same keys,
- *   listening on `document`. The listener here sits on `document.body`: it
- *   runs after every element and React handler (so inputs keep first
- *   refusal) and before `document`, and it stops a handled Mod+K there, so
- *   on SUPCheckout screens the key opens one palette, this one.
+ * - The trigger button in the AppShell header always opens it.
+ * - Mod+K (PALETTE_SHORTCUT: Meta+K on macOS, Ctrl+K elsewhere) belongs to
+ *   WordPress core's command palette (wp-commands) wherever core loads it:
+ *   the SUPCheckout palette then binds no key and announces none, and
+ *   Sub-project 2 registers SUPCheckout commands into core's palette
+ *   (`wp.data.dispatch( 'core/commands' ).registerCommand()`). Only where
+ *   core's palette is absent does Mod+K toggle this one. Core is detected
+ *   at runtime (`wp.commands` or the `core/commands` store); nothing of it
+ *   is bundled or declared as a dependency.
+ * - The binding listens on `document.body`, after every element and React
+ *   handler, so an editor that binds Mod+K keeps it (`defaultPrevented`);
+ *   it never stops propagation. It ignores IME composition, matches the
+ *   physical K key on other layouts (`code`), and never opens the palette
+ *   over another modal (a pending confirmation, any dialog): the trigger
+ *   is then behind that modal (`inert` / `aria-hidden`).
  * - The palette is a modal Dialog in the portal layer. Its panel (Base UI
  *   Autocomplete and the search) is the lazy `command-palette` chunk: it
  *   loads on first open, so screens that never open it never pay for it.
  *   Until it arrives the dialog shows a placeholder and its Close button.
- * - Activating a command (Enter on the highlighted one, or a click) closes
- *   the palette and runs `perform` exactly once per opening; focus returns
- *   to where it was before the palette opened.
+ * - Choosing a command (Enter on the highlighted one, or a click) closes
+ *   the palette; `perform` runs exactly once per opening, after the close
+ *   transition has finished, and focus has returned to where it was before
+ *   the palette opened.
  *
  * The registry is the caller's: the palette never invents, fetches or
  * persists commands.
@@ -55,6 +61,8 @@ export interface PaletteShortcut {
 	modifier: ShortcutModifier;
 	/** The key, compared case-insensitively. */
 	key: 'k';
+	/** The physical key, for layouts where K types another letter. */
+	code: 'KeyK';
 	/** The value for `aria-keyshortcuts`. */
 	ariaKeyShortcuts: 'Meta+K' | 'Control+K';
 }
@@ -67,8 +75,18 @@ const APPLE_PLATFORM = /mac|iphone|ipad|ipod/i;
  */
 export function paletteShortcut( platform: string ): PaletteShortcut {
 	return APPLE_PLATFORM.test( platform )
-		? { modifier: 'meta', key: 'k', ariaKeyShortcuts: 'Meta+K' }
-		: { modifier: 'ctrl', key: 'k', ariaKeyShortcuts: 'Control+K' };
+		? {
+				modifier: 'meta',
+				key: 'k',
+				code: 'KeyK',
+				ariaKeyShortcuts: 'Meta+K',
+			}
+		: {
+				modifier: 'ctrl',
+				key: 'k',
+				code: 'KeyK',
+				ariaKeyShortcuts: 'Control+K',
+			};
 }
 
 interface UserAgentDataNavigator {
@@ -101,13 +119,14 @@ export function isPaletteShortcut(
 	event: KeyboardEvent,
 	shortcut: PaletteShortcut = PALETTE_SHORTCUT
 ): boolean {
+	const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
 	if (
 		event.defaultPrevented ||
 		event.isComposing ||
 		event.keyCode === IME_KEY_CODE ||
 		event.altKey ||
 		event.shiftKey ||
-		event.key.toLowerCase() !== shortcut.key
+		( key !== shortcut.key && event.code !== shortcut.code )
 	) {
 		return false;
 	}
@@ -115,6 +134,35 @@ export function isPaletteShortcut(
 		? event.metaKey && ! event.ctrlKey
 		: event.ctrlKey && ! event.metaKey;
 }
+
+interface WordPressGlobal {
+	wp?: {
+		commands?: unknown;
+		data?: { select?: ( store: string ) => unknown };
+	};
+}
+
+/**
+ * @return Whether WordPress core's command palette is on this page.
+ */
+export function hasCoreCommandPalette(): boolean {
+	if ( typeof window === 'undefined' ) {
+		return false;
+	}
+	const { wp } = window as unknown as WordPressGlobal;
+	if ( wp?.commands ) {
+		return true;
+	}
+	try {
+		return Boolean( wp?.data?.select?.( 'core/commands' ) );
+	} catch {
+		// An unregistered store may throw: core's palette is not here.
+		return false;
+	}
+}
+
+/** Somewhere a modal has made the page behind it unreachable. */
+const BEHIND_MODAL = '[inert], [aria-hidden="true"]';
 
 const Panel = lazy(
 	() =>
@@ -129,17 +177,27 @@ export interface CommandPaletteProps {
 
 export function CommandPalette( { commands }: CommandPaletteProps ) {
 	const [ open, setOpen ] = useState( false );
+	const [ bindShortcut ] = useState( () => ! hasCoreCommandPalette() );
+	const isOpen = useRef( false );
+	const triggerRef = useRef< HTMLButtonElement >( null );
 	// One run per opening, whatever repeats (held Enter, a double click).
 	const ran = useRef( false );
+	// The chosen command, run once the palette has finished closing.
+	const queued = useRef< Command | null >( null );
 
 	const show = useCallback( ( next: boolean ) => {
 		if ( next ) {
 			ran.current = false;
+			queued.current = null;
 		}
+		isOpen.current = next;
 		setOpen( next );
 	}, [] );
 
 	useEffect( () => {
+		if ( ! bindShortcut ) {
+			return undefined;
+		}
 		const onKeyDown = ( event: KeyboardEvent ) => {
 			if ( ! isPaletteShortcut( event ) ) {
 				return;
@@ -148,28 +206,41 @@ export function CommandPalette( { commands }: CommandPaletteProps ) {
 			if ( target?.isContentEditable ) {
 				return;
 			}
+			// Another modal is open (the palette's own is handled above):
+			// never open over it, and leave the key alone.
+			if (
+				! isOpen.current &&
+				triggerRef.current?.closest( BEHIND_MODAL )
+			) {
+				return;
+			}
 			event.preventDefault();
-			// One palette per key press: WordPress's listens on document.
-			event.stopPropagation();
-			setOpen( ( current ) => {
-				if ( ! current ) {
-					ran.current = false;
-				}
-				return ! current;
-			} );
+			show( ! isOpen.current );
 		};
 		const { body } = document;
 		body.addEventListener( 'keydown', onKeyDown );
 		return () => body.removeEventListener( 'keydown', onKeyDown );
-	}, [] );
+	}, [ bindShortcut, show ] );
 
-	const run = useCallback( ( command: Command ) => {
-		if ( ran.current ) {
+	const run = useCallback(
+		( command: Command ) => {
+			if ( ran.current ) {
+				return;
+			}
+			ran.current = true;
+			queued.current = command;
+			show( false );
+		},
+		[ show ]
+	);
+
+	const afterTransition = useCallback( ( next: boolean ) => {
+		if ( next ) {
 			return;
 		}
-		ran.current = true;
-		setOpen( false );
-		command.perform();
+		const command = queued.current;
+		queued.current = null;
+		command?.perform();
 	}, [] );
 
 	const keyName =
@@ -180,23 +251,29 @@ export function CommandPalette( { commands }: CommandPaletteProps ) {
 	return (
 		<>
 			<Button
+				ref={ triggerRef }
 				className="sup-palette-trigger"
 				iconStart="search"
 				aria-haspopup="dialog"
-				aria-keyshortcuts={ PALETTE_SHORTCUT.ariaKeyShortcuts }
+				aria-keyshortcuts={
+					bindShortcut ? PALETTE_SHORTCUT.ariaKeyShortcuts : undefined
+				}
 				onClick={ () => show( true ) }
 			>
 				{ __( 'Search commands', 'supcheckout' ) }
-				<kbd className="sup-kbd" dir="ltr" aria-hidden="true">
-					{ keyName }
-					<span className="sup-kbd__key">K</span>
-				</kbd>
+				{ bindShortcut && (
+					<kbd className="sup-kbd" dir="ltr" aria-hidden="true">
+						{ keyName }
+						<span className="sup-kbd__key">K</span>
+					</kbd>
+				) }
 			</Button>
 			<DialogFrame
 				open={ open }
 				size="md"
 				className="sup-palette"
 				onOpenChange={ ( next ) => show( next ) }
+				onOpenChangeComplete={ afterTransition }
 			>
 				<BaseDialog.Title className="sup-visually-hidden">
 					{ __( 'Command palette', 'supcheckout' ) }

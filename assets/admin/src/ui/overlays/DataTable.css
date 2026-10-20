@@ -113,10 +113,14 @@
 	outline-offset: var(--sup-size-focus-offset);
 }
 
-/* The chevron shows only on the sorted column: down for descending. */
+/*
+ * The chevron is full strength on the sorted column (down for descending)
+ * and a quiet resting hint on the other sortable columns; aria-sort and
+ * the button name carry the meaning, the icon is decorative.
+ */
 .supcheckout-admin .sup-table__sort-icon {
 	display: inline-flex;
-	opacity: 0;
+	opacity: 0.4;
 	transition-property: opacity, rotate;
 	transition-duration: var(--sup-motion-duration-fast);
 	transition-timing-function: var(--sup-motion-ease-standard);
@@ -136,9 +140,9 @@
 	rotate: 180deg;
 }
 
-/* An unsorted sortable header hints at the chevron on hover. */
+/* An unsorted sortable header strengthens the hint on hover. */
 .supcheckout-admin .sup-table__sort:not(.sup-table__sort--ascending, .sup-table__sort--descending):hover .sup-table__sort-icon {
-	opacity: 0.5;
+	opacity: 0.7;
 }
 
 .supcheckout-admin .sup-table__empty {

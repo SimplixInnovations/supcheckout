@@ -113,7 +113,9 @@ export default function CommandPalettePanel( {
 			</div>
 			<div className="sup-palette__results">
 				<Autocomplete.Empty className="sup-palette__empty">
-					{ __( 'No matching commands', 'supcheckout' ) }
+					{ commands.length === 0
+						? __( 'No commands yet', 'supcheckout' )
+						: __( 'No matching commands', 'supcheckout' ) }
 				</Autocomplete.Empty>
 				<Autocomplete.List className="sup-palette__list">
 					{ ( group: CommandGroup ) => (

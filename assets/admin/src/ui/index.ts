@@ -117,6 +117,7 @@ export { AppShell } from './overlays/AppShell';
 export type { AppShellProps, NavItem } from './overlays/AppShell';
 export {
 	CommandPalette,
+	hasCoreCommandPalette,
 	isPaletteShortcut,
 	PALETTE_SHORTCUT,
 	paletteShortcut,

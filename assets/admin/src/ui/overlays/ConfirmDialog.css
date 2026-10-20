@@ -32,7 +32,6 @@
 .supcheckout-admin .sup-confirm__consequence {
 	color: var(--sup-color-fg-muted);
 	text-wrap: pretty;
-	unicode-bidi: plaintext;
 }
 
 .supcheckout-admin .sup-confirm--money .sup-confirm__body {
@@ -84,8 +83,9 @@
 	line-height: var(--sup-line-height-body);
 	text-wrap: pretty;
 
-	/* An untranslated message keeps its own direction inside RTL. */
-	unicode-bidi: plaintext;
+	/* The caller's message is isolated from the pill next to it and keeps
+	   the page direction (an Arabic message may start with "UPayments"). */
+	unicode-bidi: isolate;
 }
 
 @media (forced-colors: active) {

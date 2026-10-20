@@ -6,17 +6,21 @@
  * - It only calls the caller's `onConfirm` and renders the caller's result.
  *   It never calls a server, never infers success and never closes on its
  *   own. "Verified" appears only when the result says `verified`.
- * - `onConfirm` runs at most once per opening. A ref guard, set
- *   synchronously before the call, holds against a double click, a held
- *   Enter that auto-repeats, Enter followed by a click, and Space. A new
- *   opening (closed, then open again) starts a new guard.
+ * - `onConfirm` runs at most once per opening, and never again while a call
+ *   is in flight. A ref guard, set synchronously before the call, holds
+ *   against a double click, a held Enter that auto-repeats, Enter followed
+ *   by a click, and Space. A second ref marks the call in flight until it
+ *   settles (`finally`): if the screen closes and reopens the dialog in the
+ *   meantime, the new opening shows that request as pending (busy, not
+ *   dismissible) and then its result, and cannot start another one. Only an
+ *   opening that starts with nothing in flight gets a new guard.
  * - While the call is pending, Escape and backdrop presses are refused,
  *   Cancel is `aria-disabled` and inert, and the confirm button is `busy`
  *   (focusable, announced through its `busyLabel`, inert to activation).
  * - A rejected promise, a synchronous throw and a result that is not a
  *   well-formed ConfirmResult all become the failed result, with a generic
- *   message: the raw error never reaches the screen. A result that arrives
- *   after its opening ended is ignored.
+ *   message: the raw error never reaches the screen. A result that settles
+ *   while the dialog is closed (or closing) is not shown and moves no focus.
  * - On settle, the result panel replaces the consequence: a StatusPill
  *   (verified: success, failed: danger, pending: warning) and the message,
  *   with one "Close" button that receives focus and is described by the
@@ -161,17 +165,20 @@ export function ConfirmDialog( {
 	// One guard per opening: set before onConfirm runs, so no second
 	// activation in the same opening can reach it, whatever React batches.
 	const fired = useRef( false );
-	// Increments on every opening; a settle from an older opening is dropped.
-	const opening = useRef( 0 );
+	// True from the call until it settles, across close and reopen.
+	const inFlight = useRef( false );
+	// Whether the dialog is open now; a settle while closed is not shown.
+	const isOpen = useRef( open );
 	const cancelRef = useRef< HTMLButtonElement >( null );
 	const closeRef = useRef< HTMLButtonElement >( null );
 	const resultId = useId();
 
 	useLayoutEffect( () => {
+		isOpen.current = open;
 		if ( open ) {
-			opening.current += 1;
-			fired.current = false;
-			setPhase( 'idle' );
+			// A request still in flight keeps this opening armed and pending.
+			fired.current = inFlight.current;
+			setPhase( inFlight.current ? 'pending' : 'idle' );
 			setResult( null );
 		}
 	}, [ open ] );
@@ -185,19 +192,23 @@ export function ConfirmDialog( {
 	const pending = phase === 'pending';
 
 	const confirm = async () => {
-		if ( fired.current ) {
+		if ( fired.current || inFlight.current ) {
 			return;
 		}
 		fired.current = true;
-		const current = opening.current;
+		inFlight.current = true;
 		setPhase( 'pending' );
 		let settled: ConfirmResult;
 		try {
 			settled = toResult( await onConfirm() );
 		} catch {
 			settled = failedResult();
+		} finally {
+			inFlight.current = false;
 		}
-		if ( opening.current !== current ) {
+		// Closed (or closing) ends the opening for display: no panel swap,
+		// no focus move. An opening made while it was in flight shows it.
+		if ( ! isOpen.current ) {
 			return;
 		}
 		setResult( settled );

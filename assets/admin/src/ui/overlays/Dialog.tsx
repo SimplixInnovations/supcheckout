@@ -117,14 +117,80 @@ function NestedLayer( { layer }: NestedLayerProps ) {
 /** The attribute Base UI puts on everything outside an open popup. */
 const OUTSIDE_MARKER = '[data-base-ui-inert]';
 
+/** Regions that must keep speaking while a modal is open. */
+const LIVE_REGION =
+	'[aria-live], [role="status"], [role="alert"], [role="log"]';
+
+/**
+ * How many open modals hold each node inert. Module level, so dialogs that
+ * close out of order (not last-in, first-out) never lift `inert` from the
+ * page while another dialog still needs it.
+ */
+const inertHolds = new Map< Element, number >();
+
+/**
+ * @param node A node to hold inert.
+ * @return Whether this call holds it (false when something else made it
+ *         inert first: that `inert` is never ours to lift).
+ */
+function holdInert( node: Element ): boolean {
+	const holds = inertHolds.get( node ) ?? 0;
+	if ( holds === 0 ) {
+		if ( node.hasAttribute( 'inert' ) ) {
+			return false;
+		}
+		node.setAttribute( 'inert', '' );
+	}
+	inertHolds.set( node, holds + 1 );
+	return true;
+}
+
+function releaseInert( node: Element ): void {
+	const holds = inertHolds.get( node ) ?? 0;
+	if ( holds <= 1 ) {
+		inertHolds.delete( node );
+		if ( holds === 1 ) {
+			node.removeAttribute( 'inert' );
+		}
+		return;
+	}
+	inertHolds.set( node, holds - 1 );
+}
+
+/**
+ * Holds `node` inert, or, when it holds a live region, each of its children
+ * that does not (recursively), leaving the region and its ancestors usable:
+ * the keep-set of Base UI's markOthers, applied to `inert`.
+ *
+ * @param node The outside node Base UI marked.
+ * @param held Collects the nodes this call holds.
+ */
+function inertOutside( node: Element, held: Element[] ): void {
+	if ( node.matches( LIVE_REGION ) ) {
+		return;
+	}
+	if ( node.querySelector( LIVE_REGION ) ) {
+		for ( const child of Array.from( node.children ) ) {
+			inertOutside( child, held );
+		}
+		return;
+	}
+	if ( holdInert( node ) ) {
+		held.push( node );
+	}
+}
+
 /**
  * Makes the page behind an open modal `inert`, on top of the `aria-hidden`
  * Base UI sets: nothing behind the dialog stays focusable or clickable,
  * which is what assistive technology and axe (`aria-hidden-focus`) expect
- * of a modal. Base UI marks the outside nodes in its own effect, so they
+ * of a modal. Live regions (wp.a11y.speak(), admin notices) and their
+ * ancestors stay usable, so announcements made while the dialog is open are
+ * still heard. Base UI marks the outside nodes in its own effect, so they
  * are read one frame after opening. Nodes inside the portal layer (the
- * toast region, other overlays' portals) are left alone. Runs as a layout
- * effect, so `inert` is gone before Base UI returns focus to the trigger.
+ * toast region, other overlays' portals) are left alone. Holds are
+ * reference-counted across dialogs. Runs as a layout effect, so `inert` is
+ * gone before Base UI returns focus to the trigger.
  *
  * @param open  Whether the dialog is open.
  * @param layer The SupRoot portal layer.
@@ -134,24 +200,22 @@ function useInertBackground( open: boolean, layer: HTMLElement | null ) {
 		if ( ! open || typeof document === 'undefined' ) {
 			return undefined;
 		}
-		const made: Element[] = [];
+		const held: Element[] = [];
 		const frame = window.requestAnimationFrame( () => {
 			for ( const node of document.querySelectorAll( OUTSIDE_MARKER ) ) {
 				if (
-					node.hasAttribute( 'inert' ) ||
 					node.closest( '.sup-portal-layer' ) ||
 					( layer && node.contains( layer ) )
 				) {
 					continue;
 				}
-				node.setAttribute( 'inert', '' );
-				made.push( node );
+				inertOutside( node, held );
 			}
 		} );
 		return () => {
 			window.cancelAnimationFrame( frame );
-			for ( const node of made ) {
-				node.removeAttribute( 'inert' );
+			for ( const node of held ) {
+				releaseInert( node );
 			}
 		};
 	}, [ open, layer ] );
@@ -169,6 +233,8 @@ export interface DialogFrameProps {
 	size: DialogSize;
 	className?: string;
 	initialFocus?: RefObject< HTMLElement | null >;
+	/** Called after the open or close transition has finished. */
+	onOpenChangeComplete?: ( open: boolean ) => void;
 	children: ReactNode;
 }
 
@@ -177,14 +243,15 @@ export interface DialogFrameProps {
  * backdrop, viewport and popup in the portal layer. Not exported from the
  * library barrel.
  *
- * @param props              The frame props.
- * @param props.alert        `alertdialog` semantics.
- * @param props.open         Whether the dialog is open.
- * @param props.onOpenChange Receives proposed changes; `false` refuses one.
- * @param props.size         Inline size.
- * @param props.className    Extra popup classes.
- * @param props.initialFocus Element focused on open.
- * @param props.children     The popup content.
+ * @param props                      The frame props.
+ * @param props.alert                `alertdialog` semantics.
+ * @param props.open                 Whether the dialog is open.
+ * @param props.onOpenChange         Receives proposed changes; `false` refuses one.
+ * @param props.size                 Inline size.
+ * @param props.className            Extra popup classes.
+ * @param props.initialFocus         Element focused on open.
+ * @param props.onOpenChangeComplete Called after the transition finished.
+ * @param props.children             The popup content.
  */
 export function DialogFrame( {
 	alert = false,
@@ -193,6 +260,7 @@ export function DialogFrame( {
 	size,
 	className,
 	initialFocus,
+	onOpenChangeComplete,
 	children,
 }: DialogFrameProps ) {
 	const container = usePortalContainer();
@@ -234,13 +302,18 @@ export function DialogFrame( {
 			<BaseAlertDialog.Root
 				open={ open }
 				onOpenChange={ handleOpenChange }
+				onOpenChangeComplete={ onOpenChangeComplete }
 			>
 				{ parts }
 			</BaseAlertDialog.Root>
 		);
 	}
 	return (
-		<BaseDialog.Root open={ open } onOpenChange={ handleOpenChange }>
+		<BaseDialog.Root
+			open={ open }
+			onOpenChange={ handleOpenChange }
+			onOpenChangeComplete={ onOpenChangeComplete }
+		>
 			{ parts }
 		</BaseDialog.Root>
 	);
