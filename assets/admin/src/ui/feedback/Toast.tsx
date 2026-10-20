@@ -11,9 +11,10 @@
  * - Success and info toasts close after TOAST_TIMEOUT_MS; the timer pauses
  *   while the pointer is over the stack, while keyboard focus is in it and
  *   while the window is in the background. A toast that arrives while the
- *   window is already in the background waits for the window to regain
- *   focus before its timer starts (works around mui/base-ui#5955, where
- *   such a toast starts timing at once). Errors never close on their own.
+ *   window is already in the background, with no other timed toast on the
+ *   stack, waits for the window to regain focus before its timer starts
+ *   (works around mui/base-ui#5955, where such a toast starts timing at
+ *   once; see createBackgroundHold). Errors never close on their own.
  * - At most TOAST_LIMIT toasts show; older ones are hidden and inert.
  *   Known limitation: when a visible toast closes and a hidden one becomes
  *   visible again, whether a screen reader re-announces it depends on the
@@ -312,23 +313,44 @@ function Toaster( { onAction }: ToasterProps ) {
 	);
 }
 
+type ToastAddOptions = Parameters<
+	ReturnType< typeof BaseToast.createToastManager< ToastData > >[ 'add' ]
+>[ 0 ];
+
 interface BackgroundHold {
-	/** Whether the window is in the background right now. */
-	windowInBackground: () => boolean;
+	/**
+	 * Whether a new timed toast must be held: the window is in the
+	 * background and Base UI cannot have seen it go there, because no toast
+	 * it times is on the stack (every toast is held, or there is none).
+	 */
+	shouldHold: () => boolean;
+	/** Records a toast that is on the stack, until `removed`. */
+	track: ( id: string ) => void;
+	/** Base UI removed this toast (after its exit animation). */
+	removed: ( id: string ) => void;
 	/** Keeps this toast untimed until the window regains focus. */
 	hold: ( id: string ) => void;
 	/** Drops a held toast that was dismissed. */
 	forget: ( id: string ) => void;
-	/** Removes the focus listener (provider unmount). */
+	/** Re-attaches after a (StrictMode) remount; releases if focused. */
+	resume: () => void;
+	/** Removes the focus listener and any pending release (unmount). */
 	dispose: () => void;
 }
 
 /**
  * Works around mui/base-ui#5955 (Base UI 1.8.0): a toast created while the
  * window is unfocused and no toast exists starts its auto-dismiss timer at
- * once, so it can vanish before anyone sees it. Such toasts are created
- * untimed; when the window regains focus they get TOAST_TIMEOUT_MS. The
- * window `focus` listener exists only while a toast is held.
+ * once, so it can vanish before anyone sees it.
+ *
+ * - Only then is a toast held (created untimed). When other toasts are on
+ *   the stack, Base UI saw the blur itself and pauses every timer, so a new
+ *   toast is created timed and paused with them.
+ * - On the window `focus` event the held toasts get TOAST_TIMEOUT_MS in a
+ *   0 ms timeout: Base UI resumes its timers on focus but marks the window
+ *   focused only after its own 0 ms timeout, and an update before that
+ *   would pause every timer again.
+ * - The `focus` listener exists only while a toast is held.
  *
  * @param manager The provider's toast manager.
  * @return The hold for that manager.
@@ -336,39 +358,82 @@ interface BackgroundHold {
 function createBackgroundHold(
 	manager: ReturnType< typeof BaseToast.createToastManager< ToastData > >
 ): BackgroundHold {
+	let active: readonly string[] = [];
 	let held: readonly string[] = [];
 	let target: Window | null = null;
+	let pending: ReturnType< typeof setTimeout > | null = null;
 
-	const detach = () => {
-		target?.removeEventListener( 'focus', release );
-		target = null;
-	};
-	const release = () => {
+	const windowInBackground = () =>
+		typeof document !== 'undefined' && ! document.hasFocus();
+
+	const flush = () => {
+		pending = null;
 		const ids = held;
 		held = [];
-		detach();
 		for ( const id of ids ) {
 			manager.update( id, { timeout: TOAST_TIMEOUT_MS } );
 		}
 	};
+	const detach = () => {
+		target?.removeEventListener( 'focus', release );
+		target = null;
+	};
+	const scheduleFlush = () => {
+		if ( pending === null ) {
+			pending = setTimeout( flush, 0 );
+		}
+	};
+	const release = () => {
+		detach();
+		scheduleFlush();
+	};
+	const attach = () => {
+		if ( target || held.length === 0 || typeof window === 'undefined' ) {
+			return;
+		}
+		target = window;
+		target.addEventListener( 'focus', release );
+	};
+	const forget = ( id: string ) => {
+		held = held.filter( ( heldId ) => heldId !== id );
+		if ( held.length === 0 ) {
+			detach();
+		}
+	};
 
 	return {
-		windowInBackground: () =>
-			typeof document !== 'undefined' && ! document.hasFocus(),
+		shouldHold: () =>
+			windowInBackground() &&
+			active.every( ( id ) => held.includes( id ) ),
+		track( id ) {
+			active = [ ...active, id ];
+		},
+		removed( id ) {
+			active = active.filter( ( activeId ) => activeId !== id );
+			forget( id );
+		},
 		hold( id ) {
 			held = [ ...held, id ];
-			if ( ! target && typeof window !== 'undefined' ) {
-				target = window;
-				target.addEventListener( 'focus', release );
-			}
+			attach();
 		},
-		forget( id ) {
-			held = held.filter( ( heldId ) => heldId !== id );
+		forget,
+		resume() {
 			if ( held.length === 0 ) {
-				detach();
+				return;
+			}
+			if ( windowInBackground() ) {
+				attach();
+			} else {
+				scheduleFlush();
 			}
 		},
-		dispose: detach,
+		dispose() {
+			detach();
+			if ( pending !== null ) {
+				clearTimeout( pending );
+				pending = null;
+			}
+		},
 	};
 }
 
@@ -390,7 +455,28 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 	const [ backgroundHold ] = useState( () =>
 		createBackgroundHold( manager )
 	);
-	useEffect( () => backgroundHold.dispose, [ backgroundHold ] );
+	// Base UI's provider subscribes to the manager in an effect, which runs
+	// after its children's effects: a toast shown from a screen's mount
+	// effect is queued until then. This effect is the parent's, so it runs
+	// after that subscription; it flushes the queue, and resume() re-attaches
+	// the background hold after StrictMode's simulated unmount and remount.
+	const subscribed = useRef( false );
+	const queued = useRef< readonly ToastAddOptions[] >( [] );
+	useEffect( () => {
+		subscribed.current = true;
+		const pending = queued.current;
+		queued.current = [];
+		for ( const options of pending ) {
+			manager.add( options );
+		}
+		backgroundHold.resume();
+		return () => {
+			subscribed.current = false;
+			backgroundHold.dispose();
+		};
+	}, [ manager, backgroundHold ] );
+	// Per-provider toast ids, known before add() so onRemove can name them.
+	const nextId = useRef( 0 );
 	// Ids whose action already ran: a double click runs the action once.
 	const actedOn = useRef< ReadonlySet< string > >( new Set() );
 
@@ -398,15 +484,25 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 		() => ( {
 			show( { tone, title, description, action } ) {
 				const timed = tone !== 'error';
-				const hold = timed && backgroundHold.windowInBackground();
-				const id = manager.add( {
+				const hold = timed && backgroundHold.shouldHold();
+				nextId.current += 1;
+				const id = `sup-toast-${ nextId.current }`;
+				backgroundHold.track( id );
+				const options: ToastAddOptions = {
+					id,
 					type: tone,
 					title,
 					description,
 					timeout: timed && ! hold ? TOAST_TIMEOUT_MS : 0,
 					priority: 'low',
 					data: action ? { action } : undefined,
-				} );
+					onRemove: () => backgroundHold.removed( id ),
+				};
+				if ( subscribed.current ) {
+					manager.add( options );
+				} else {
+					queued.current = [ ...queued.current, options ];
+				}
 				if ( hold ) {
 					backgroundHold.hold( id );
 				}
@@ -414,6 +510,9 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 			},
 			dismiss( id ) {
 				if ( id !== '' ) {
+					queued.current = queued.current.filter(
+						( options ) => options.id !== id
+					);
 					backgroundHold.forget( id );
 					manager.close( id );
 				}
