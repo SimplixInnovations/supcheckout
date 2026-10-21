@@ -297,7 +297,36 @@ async function capture(
 		target = prepare ? await prepare( page ) : frame( page, group.name );
 		await isolate( page, target );
 	}
+	await settleAnimations( page );
 	await expect( target ).toHaveScreenshot( `${ group.name }--${ mode }.png` );
+}
+
+/**
+ * Lets every finite animation and transition finish, then waits two frames,
+ * so the capture never races a style change that just happened (the pending
+ * Cancel turning disabled). Infinite animations (the spinner) are left to
+ * the screenshot's own `animations: 'disabled'`.
+ *
+ * @param page The page.
+ */
+async function settleAnimations( page: Page ): Promise< void > {
+	await page.evaluate( async () => {
+		const finite = document
+			.getAnimations()
+			.filter(
+				( animation ) =>
+					animation.effect?.getComputedTiming().iterations !==
+					Infinity
+			);
+		await Promise.all(
+			finite.map( ( animation ) =>
+				animation.finished.catch( () => undefined )
+			)
+		);
+		await new Promise( ( resolve ) =>
+			requestAnimationFrame( () => requestAnimationFrame( resolve ) )
+		);
+	} );
 }
 
 for ( const group of SPECIMEN_GROUPS ) {
