@@ -71,7 +71,9 @@ test( 'the pending confirmation Cancel looks disabled and stays focusable; the b
 	await expect( cancel ).toHaveAttribute( 'aria-disabled', 'true' );
 	await expect( confirm ).toHaveAttribute( 'aria-disabled', 'true' );
 
-	expect( await lookOf( cancel ) ).toEqual( expected );
+	// The color transition (no reduced motion in this lane) settles on the
+	// disabled look; poll rather than read one mid-transition frame.
+	await expect.poll( () => lookOf( cancel ) ).toEqual( expected );
 	expect(
 		await cancel.evaluate( ( node ) => node.matches( ':disabled' ) )
 	).toBe( false );
