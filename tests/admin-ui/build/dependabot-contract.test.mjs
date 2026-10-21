@@ -19,9 +19,9 @@ const DEPENDABOT = read( '.github/dependabot.yml' ).replace( /\r\n/g, '\n' );
 /** @return {Map<string, string>} Each `updates` entry's text, by ecosystem. */
 function ecosystems() {
 	const blocks = new Map();
-	for ( const block of DEPENDABOT.split( /\n(?=  - package-ecosystem: )/ ).slice(
-		1
-	) ) {
+	for ( const block of DEPENDABOT.split(
+		/\n(?=  - package-ecosystem: )/
+	).slice( 1 ) ) {
 		const name = block.match( /^ {2}- package-ecosystem: (\S+)/ )[ 1 ];
 		blocks.set( name, block );
 	}
@@ -38,10 +38,12 @@ test( 'dependabot covers github-actions, composer and npm', () => {
 
 test( 'no ecosystem uses the deprecated reviewers key; CODEOWNERS owns every path', () => {
 	for ( const [ name, block ] of ecosystems() ) {
-		expect( { name, reviewers: /^\s+reviewers:/m.test( block ) } ).toEqual( {
-			name,
-			reviewers: false,
-		} );
+		expect( { name, reviewers: /^\s+reviewers:/m.test( block ) } ).toEqual(
+			{
+				name,
+				reviewers: false,
+			}
+		);
 	}
 	const owners = read( '.github/CODEOWNERS' );
 	expect( owners ).toMatch( /^\*\s+@SimplixInnovationsAdmin\s*$/m );
