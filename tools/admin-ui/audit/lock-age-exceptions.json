@@ -1,0 +1,8 @@
+[
+	{
+		"name": "markdown-it",
+		"version": "14.3.3",
+		"reason": "Owner-approved exception (2026-10-21) to the 14-day release-age floor, adopted through Dependabot PR #208. 14.3.3 (published 2026-10-16) patches GHSA-gfr2-rv44-r23c (high) and GHSA-vfgh-jcmw-g37q (low), both quadratic-time Markdown parsing DoS. It reaches only development tooling (markdownlint-cli inside @wordpress/scripts) and nothing from it is bundled. Remove this entry once 14.3.3 clears the floor on 2026-10-30.",
+		"expires": "2026-10-30"
+	}
+]
