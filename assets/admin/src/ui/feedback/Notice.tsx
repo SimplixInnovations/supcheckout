@@ -16,9 +16,11 @@
  *
  * Dismissing moves focus before `onDismiss` runs, so it never falls to
  * `<body>` when the caller removes the notice (WCAG 2.4.3): to
- * `focusAfterDismiss` when given, otherwise to the first focusable element
- * after the notice, otherwise to the nearest focusable ancestor (the
- * AppShell content region is one).
+ * `focusAfterDismiss` when given, otherwise to the first displayed
+ * focusable element after the notice inside its region (the nearest
+ * `tabindex` ancestor, such as the AppShell content, or the SUPCheckout
+ * root), otherwise to that region. Focus never leaves for WordPress's own
+ * chrome (`#wpfooter`).
  *
  * Rule for screens (SP2): pass `focusAfterDismiss` whenever the task goes on
  * somewhere other than the next element, for example the control the notice
@@ -70,26 +72,63 @@ const FOCUSABLE = [
 const UNAVAILABLE = '[inert], [hidden], [aria-hidden="true"]';
 
 /**
+ * @param element A candidate.
+ * @param scope   The search scope; ancestors above it are not checked.
+ * @return Whether it is rendered: `checkVisibility()` where the browser has
+ *         it (jsdom does not), and no `display: none` up to the scope.
+ */
+function isDisplayed( element: HTMLElement, scope: HTMLElement ): boolean {
+	if (
+		typeof element.checkVisibility === 'function' &&
+		! element.checkVisibility()
+	) {
+		return false;
+	}
+	const view = element.ownerDocument.defaultView;
+	for (
+		let node: HTMLElement | null = element;
+		node && node !== scope.parentElement;
+		node = node.parentElement
+	) {
+		if ( view?.getComputedStyle( node ).display === 'none' ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * Where focus goes when the notice is dismissed without a target. The
+ * search stays inside the nearest focusable region (`tabindex`, e.g. the
+ * AppShell content) or the SUPCheckout root, so focus never escapes to
+ * WordPress's own chrome (`#wpfooter`) or falls to `<body>`.
+ *
  * @param notice The notice's root element.
- * @return Where focus goes when the notice is dismissed without a target:
- *         the first focusable element after it, else the nearest focusable
- *         ancestor (`tabindex`, e.g. the AppShell content), else null.
+ * @return The first displayed focusable element after the notice in that
+ *         scope, else the region itself when it is focusable, else null.
  */
 function focusTargetAfter( notice: HTMLElement ): HTMLElement | null {
-	const candidates =
-		notice.ownerDocument.querySelectorAll< HTMLElement >( FOCUSABLE );
+	const scope =
+		notice.parentElement?.closest< HTMLElement >(
+			'[tabindex], .supcheckout-admin'
+		) ?? notice.parentElement;
+	if ( ! scope ) {
+		return null;
+	}
+	const candidates = scope.querySelectorAll< HTMLElement >( FOCUSABLE );
 	for ( const candidate of Array.from( candidates ) ) {
 		if (
 			! notice.contains( candidate ) &&
 			// eslint-disable-next-line no-bitwise -- a DOM position bit mask.
 			notice.compareDocumentPosition( candidate ) &
 				Node.DOCUMENT_POSITION_FOLLOWING &&
-			! candidate.closest( UNAVAILABLE )
+			! candidate.closest( UNAVAILABLE ) &&
+			isDisplayed( candidate, scope )
 		) {
 			return candidate;
 		}
 	}
-	return notice.parentElement?.closest< HTMLElement >( '[tabindex]' ) ?? null;
+	return scope.hasAttribute( 'tabindex' ) ? scope : null;
 }
 
 export function Notice( {

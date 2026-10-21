@@ -15,6 +15,7 @@ import {
 	LIVE_REGION_DELAY_MS,
 	Notice,
 	StatusPill,
+	SupRoot,
 } from '../../../../assets/admin/src/ui';
 import type { StatusPillStatus } from '../../../../assets/admin/src/ui';
 
@@ -320,6 +321,56 @@ test( 'with nothing focusable after it, dismissing a notice focuses its parent r
 	);
 	expect( screen.getByTestId( 'region' ) ).toHaveFocus();
 	expect( document.body ).not.toHaveFocus();
+} );
+
+test( 'the last notice in the app moves focus to its region, never to the WordPress footer', async () => {
+	render(
+		<SupRoot>
+			<Button>Before</Button>
+			<div tabIndex={ -1 } data-testid="region">
+				<DismissibleNotice />
+			</div>
+		</SupRoot>
+	);
+	// wp-admin prints #wpfooter (with links) after the app.
+	const footer = document.createElement( 'div' );
+	footer.id = 'wpfooter';
+	footer.innerHTML = '<a href="https://wordpress.org/">WordPress</a>';
+	document.body.append( footer );
+	try {
+		await userEvent.click(
+			screen.getByRole( 'button', { name: 'Dismiss notice' } )
+		);
+		expect( screen.getByTestId( 'region' ) ).toHaveFocus();
+	} finally {
+		footer.remove();
+	}
+} );
+
+test( 'dismissing a notice skips a following element that is not displayed', async () => {
+	render(
+		<SupRoot>
+			<div tabIndex={ -1 }>
+				<DismissibleNotice
+					after={
+						<>
+							<Button style={ { display: 'none' } }>
+								Hidden
+							</Button>
+							<div style={ { display: 'none' } }>
+								<Button>Inside hidden</Button>
+							</div>
+							<Button>Visible</Button>
+						</>
+					}
+				/>
+			</div>
+		</SupRoot>
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Dismiss notice' } )
+	);
+	expect( screen.getByRole( 'button', { name: 'Visible' } ) ).toHaveFocus();
 } );
 
 test( 'a notice without onDismiss has no button', () => {
