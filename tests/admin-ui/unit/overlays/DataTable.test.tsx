@@ -250,3 +250,126 @@ test( 'a sort the user asks for is announced in the polite status, never on moun
 		expect( status ).toHaveTextContent( 'Sorted by Order, ascending' )
 	);
 } );
+
+function ControlledSortTable( {
+	ignorePresses = false,
+	loadOnSort = false,
+}: {
+	ignorePresses?: boolean;
+	loadOnSort?: boolean;
+} ) {
+	const [ sort, setSort ] = useState< TableSort >( {
+		columnId: 'order',
+		direction: 'descending',
+	} );
+	const [ loading, setLoading ] = useState( false );
+	return (
+		<>
+			<button type="button" onClick={ () => setLoading( true ) }>
+				Start load
+			</button>
+			<button type="button" onClick={ () => setLoading( false ) }>
+				Finish load
+			</button>
+			<button
+				type="button"
+				onClick={ () =>
+					setSort( { columnId: 'amount', direction: 'ascending' } )
+				}
+			>
+				Sort by amount from the URL
+			</button>
+			<DataTable< Payment >
+				caption="Recent payments"
+				columns={ COLUMNS }
+				rows={ ROWS }
+				rowKey={ ( row ) => row.id }
+				sort={ sort }
+				loading={ loading }
+				onSortChange={ ( columnId ) => {
+					if ( ignorePresses ) {
+						return;
+					}
+					if ( loadOnSort ) {
+						setLoading( true );
+					}
+					setSort( ( current ) => ( {
+						columnId,
+						direction:
+							current.columnId === columnId &&
+							current.direction === 'ascending'
+								? 'descending'
+								: 'ascending',
+					} ) );
+				} }
+			/>
+		</>
+	);
+}
+
+const statusRegion = () =>
+	document.querySelector( '.sup-table-wrap > [role="status"]' );
+
+const waitForRegionReady = () =>
+	act( async () => {
+		await new Promise( ( resolve ) =>
+			setTimeout( resolve, LIVE_REGION_DELAY_MS + 10 )
+		);
+	} );
+
+const press = ( name: string ) =>
+	userEvent.click( screen.getByRole( 'button', { name } ) );
+
+test( 'a refresh or pagination load after a sort does not announce that sort again', async () => {
+	render(
+		<SupRoot>
+			<ControlledSortTable />
+		</SupRoot>
+	);
+	await waitForRegionReady();
+	await press( 'Amount' );
+	await waitFor( () =>
+		expect( statusRegion() ).toHaveTextContent(
+			'Sorted by Amount, ascending'
+		)
+	);
+	await press( 'Start load' );
+	await waitFor( () =>
+		expect( statusRegion() ).toHaveTextContent( 'Loading: Recent payments' )
+	);
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+} );
+
+test( 'a load that starts with the sort it serves announces that sort once the rows arrive', async () => {
+	render(
+		<SupRoot>
+			<ControlledSortTable loadOnSort />
+		</SupRoot>
+	);
+	await waitForRegionReady();
+	await press( 'Amount' );
+	expect( statusRegion() ).toHaveTextContent( 'Loading: Recent payments' );
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( 'Sorted by Amount, ascending' );
+	// A second, unrelated load (a refresh) no longer repeats it.
+	await press( 'Start load' );
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+} );
+
+test( 'an ignored header press never makes a later programmatic sort announce', async () => {
+	render(
+		<SupRoot>
+			<ControlledSortTable ignorePresses />
+		</SupRoot>
+	);
+	await waitForRegionReady();
+	await press( 'Amount' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+	await press( 'Sort by amount from the URL' );
+	expect(
+		screen.getByRole( 'columnheader', { name: 'Amount' } )
+	).toHaveAttribute( 'aria-sort', 'ascending' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+} );

@@ -109,35 +109,84 @@ function sortAnnouncement( header: string, direction: SortDirection ): string {
 /**
  * Announces a sort once the caller applied it, only after a header press.
  *
+ * - A press is pending until the sort changes. If, after the press, the
+ *   sort is unchanged and no load started (the caller ignored it), or a
+ *   load it started ends without changing the sort, the press is dropped,
+ *   so a later programmatic sort is never announced as the user's.
+ * - A load clears the announcement, except a load that starts together
+ *   with the sort it serves (the caller fetches the newly sorted rows): that
+ *   sort is announced again once the rows arrive. A later refresh or the
+ *   next page never repeats a stale sort.
+ *
  * @param columns The columns.
  * @param sort    The current sort.
- * @return The announcement (empty until a requested sort is applied) and the
- *         press handler that requests one.
+ * @param loading Whether the table is loading.
+ * @return The announcement (empty unless a requested sort was applied) and
+ *         the press handler that requests one.
  */
 function useSortAnnouncement< Row >(
 	columns: readonly Column< Row >[],
-	sort: TableSort | undefined
+	sort: TableSort | undefined,
+	loading: boolean
 ): { announcement: string; requested: () => void } {
 	const [ announcement, setAnnouncement ] = useState( '' );
-	const pressed = useRef( false );
+	const [ presses, setPresses ] = useState( 0 );
+	// The sort a pending press started from; null when none is pending.
+	const pending = useRef< string | null >( null );
+	// The announcement belongs to a load that started with its sort.
+	const serving = useRef( false );
 	const columnId = sort?.columnId;
 	const direction = sort?.direction;
+	const sortKey = `${ columnId ?? '' }:${ direction ?? '' }`;
+
+	// The caller applied a pending sort (declared first: it runs first).
 	useEffect( () => {
-		if ( ! pressed.current || ! columnId || ! direction ) {
+		if ( pending.current === null || pending.current === sortKey ) {
 			return;
 		}
-		pressed.current = false;
+		pending.current = null;
 		const column = columns.find(
 			( candidate ) => candidate.id === columnId
 		);
-		if ( column ) {
+		if ( column && direction ) {
+			serving.current = loading;
 			setAnnouncement( sortAnnouncement( column.header, direction ) );
 		}
-	}, [ columns, columnId, direction ] );
+		// The sort is what changed; loading is read as it is now.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ columns, columnId, direction, sortKey ] );
+
+	// After a press: unchanged and not loading means the caller ignored it.
+	useEffect( () => {
+		if ( presses > 0 && ! loading && pending.current === sortKey ) {
+			pending.current = null;
+		}
+		// Only the press itself re-runs this check.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ presses ] );
+
+	useEffect( () => {
+		if ( loading ) {
+			if ( serving.current ) {
+				serving.current = false;
+			} else {
+				setAnnouncement( '' );
+			}
+			return;
+		}
+		// A load ended without applying the pending sort: drop the press.
+		if ( pending.current === sortKey ) {
+			pending.current = null;
+		}
+		// Only a change of loading re-runs this.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ loading ] );
+
 	return {
 		announcement,
 		requested: () => {
-			pressed.current = true;
+			pending.current = sortKey;
+			setPresses( ( count ) => count + 1 );
 		},
 	};
 }
@@ -172,7 +221,11 @@ export function DataTable< Row >( {
 }: DataTableProps< Row > ) {
 	const captionId = useId();
 	const statusReady = useLiveRegionReady( true );
-	const { announcement, requested } = useSortAnnouncement( columns, sort );
+	const { announcement, requested } = useSortAnnouncement(
+		columns,
+		sort,
+		loading
+	);
 	let statusText = '';
 	if ( statusReady ) {
 		statusText = loading
