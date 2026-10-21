@@ -12,19 +12,5 @@
 		"severity": "moderate",
 		"expires": "2027-01-17",
 		"reason": "Denial of service through unbounded precision specifiers (published 2026-09-24). No patched sprintf-js release exists. It reaches only test tooling: argparse 1.x, from js-yaml 3.x, from @istanbuljs/load-nyc-config in the Jest coverage stack. It formats repository-controlled strings, never user input, and nothing from it is bundled. Remove this entry when a patched sprintf-js is published and adopted."
-	},
-	{
-		"id": "GHSA-vfgh-jcmw-g37q",
-		"package": "markdown-it",
-		"severity": "low",
-		"expires": "2026-11-06",
-		"reason": "Quadratic-time inline-HTML parsing DoS with html enabled (low, published 2026-10-20). The patched 14.3.3 was published 2026-10-16 and is younger than the 14-day release-age floor (.npmrc min-release-age=14), so it cannot be locked yet. It reaches only development tooling: markdownlint-cli inside @wordpress/scripts (lint-md-docs), which no repository script runs and which would parse repository-controlled Markdown, never user input; nothing from it is bundled. Remove this entry when markdown-it 14.3.3 or later is adopted (it clears the floor on 2026-10-30)."
-	},
-	{
-		"id": "GHSA-gfr2-rv44-r23c",
-		"package": "markdown-it",
-		"severity": "high",
-		"expires": "2026-11-06",
-		"reason": "Quadratic-time rendering of one multi-line link reference definition with default options (high, CVSS 7.5, published 2026-10-20; affects >=14.1.0 <14.3.3). The patched 14.3.3 was published 2026-10-16 and is younger than the 14-day release-age floor (.npmrc min-release-age=14), so it cannot be locked yet. It reaches only development tooling: markdownlint-cli inside @wordpress/scripts (lint-md-docs), which no repository script runs and which would parse repository-controlled Markdown, never user input; nothing from it is bundled. Remove this entry when markdown-it 14.3.3 or later is adopted (it clears the floor on 2026-10-30)."
 	}
 ]
