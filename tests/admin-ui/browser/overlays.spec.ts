@@ -962,9 +962,8 @@ test( 'live Notices behind an open ConfirmDialog stay audible: never aria-hidden
 	const alert = confirm.locator( '.sup-notice__content[role="alert"]' );
 	await expect( status ).toHaveText( /\S/ );
 	await expect( alert ).toHaveText( /\S/ );
-	const trigger = specimen( page, 'dialog' ).getByRole( 'button', {
-		name: 'Edit webhook',
-	} );
+	// A CSS locator: role queries skip the trigger once it is aria-hidden.
+	const trigger = specimen( page, 'dialog' ).locator( 'button' ).first();
 	await confirm
 		.getByRole( 'button', { name: 'Refund order #10234' } )
 		.click();
