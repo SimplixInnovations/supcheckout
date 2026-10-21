@@ -248,7 +248,7 @@ jobs:
 
   visual:
     name: Visual regression — WordPress 7.1.3 / WooCommerce 11.1.2 (Linux baselines)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       WP_CLI_BIN: /tmp/wp-cli.phar

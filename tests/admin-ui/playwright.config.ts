@@ -9,9 +9,10 @@
  * Visual lane (`npm run test:visual`, Task 8): one `visual-<mode>` project per
  * VISUAL_MODES entry, with the mode in `metadata.mode`, under deterministic
  * rendering settings: a fixed 1280x900 viewport at device scale 1, reduced
- * motion, Chromium's font hinting off and the sRGB color profile forced, and
- * screenshots with animations disabled and the caret hidden. Baselines are
- * Linux-only files at `visual/baselines/<group>--<mode>.png`. A missing or
+ * motion, locale en-US and time zone UTC, Chromium's font hinting off and the
+ * sRGB color profile forced, and screenshots with animations disabled and the
+ * caret hidden. Baselines are Linux files of the ubuntu-24.04 runner at
+ * `visual/baselines/<group>--<mode>.png`, compared exactly. A missing or
  * different baseline fails (`updateSnapshots: 'none'`); only the workflow's
  * `update_visual_baselines` dispatch sets SUP_UPDATE_BASELINES to rewrite
  * them, and that run's gate fails until a human commits them.
@@ -47,14 +48,14 @@ const MODES: readonly Mode[] = [
 const VIEWPORT = { width: 1280, height: 900 };
 
 /**
- * Per-pixel color tolerance: none. Baselines are pixel-exact on the pinned
- * Chromium, and Playwright's default (0.2) let a 1px control-radius change
- * pass, because each antialiased corner pixel moved by less than that.
+ * Exact comparison (controller ruling, SP1 Task 8 fix round 1): no per-pixel
+ * colour tolerance and no differing pixel. Playwright's default threshold
+ * (0.2) let a 1px control-radius change pass, and a 0.0005 pixel ratio still
+ * let large frames absorb it. A red visual run is investigated, never retried
+ * or loosened blindly; any tolerance is a reviewed per-group exception.
  */
 const PIXEL_THRESHOLD = 0;
-
-/** Share of differing pixels a screenshot may have (antialiasing noise only). */
-const MAX_DIFF_PIXEL_RATIO = 0.0005;
+const MAX_DIFF_PIXELS = 0;
 
 function modeNamed( name: string ): Mode {
 	const mode = MODES.find( ( candidate ) => candidate.name === name );
@@ -109,7 +110,7 @@ export default defineConfig( {
 				expect: {
 					toHaveScreenshot: {
 						threshold: PIXEL_THRESHOLD,
-						maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,
+						maxDiffPixels: MAX_DIFF_PIXELS,
 						animations: 'disabled' as const,
 						caret: 'hide' as const,
 						scale: 'css' as const,
@@ -120,6 +121,8 @@ export default defineConfig( {
 					storageState: mode.storageState,
 					deviceScaleFactor: 1,
 					reducedMotion: 'reduce' as const,
+					locale: 'en-US',
+					timezoneId: 'UTC',
 					launchOptions: {
 						args: [
 							'--font-render-hinting=none',

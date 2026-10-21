@@ -82,6 +82,9 @@ const row = {
 
 const stack = { display: 'grid', gap: 'var(--sup-space-4)' } as const;
 
+/** The content column: frames shrink-wrap, as in the components view. */
+const frameStack = { ...stack, justifyItems: 'start' } as const;
+
 const later = < T, >( value: () => T ): Promise< T > =>
 	new Promise( ( resolve ) =>
 		setTimeout( () => resolve( value() ), resultDelay() )
@@ -458,7 +461,7 @@ export function OverlaysSpecimens( { open }: OverlaysSpecimensProps ) {
 			actions={ <Button>{ __( 'Export CSV', 'supcheckout' ) }</Button> }
 		>
 			{ open === 'palette' && <OpenPaletteOnMount /> }
-			<div style={ stack } data-overlays-ready="true">
+			<div style={ frameStack } data-overlays-ready="true">
 				<SpecimenFrame name="overlay-triggers">
 					<Specimen
 						name="dialog"
