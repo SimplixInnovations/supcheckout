@@ -41,10 +41,12 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const CURRENT_GATE_ID = 'hardening_program_audit_fix_loop';
     /** The Sub-project 1 evidence record. */
     private const SUBPROJECT_1_EVIDENCE = 'docs/project/evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md';
-    /** Last SP1 runtime-bearing merge (PR #207, Task 8). */
-    private const SUBPROJECT_1_LAST_MERGE = 'ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a';
+    /** Last SP1 runtime-bearing merge (PR #211, the whole-SP1 UI and accessibility hardening). */
+    private const SUBPROJECT_1_LAST_MERGE = '453e103bd5dc2c81f35e65520ac29dfa9182fbc5';
     /** Deterministic package at the Sub-project 1 close (built twice, byte-identical). */
-    private const SUBPROJECT_1_PACKAGE_SHA256 = '67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac';
+    private const SUBPROJECT_1_PACKAGE_SHA256 = '2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4';
+    /** The superseded Task 8 package; no living record may still present it as current. */
+    private const SUPERSEDED_TASK_8_PACKAGE_SHA256 = '67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac';
     private const SUPERSEDED_GATE ='Current executable gate: **external certification & release readiness**.';
 
     /**
@@ -457,7 +459,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString(self::SUBPROJECT_1_PACKAGE_SHA256, $evidence);
         self::assertStringContainsString('byte-identical', $evidence);
         self::assertStringContainsString(self::SUBPROJECT_1_LAST_MERGE, $evidence);
-        foreach (array('#195', '#196', '#197', '#199', '#200', '#202', '#203', '#204', '#205', '#206', '#207') as $pr) {
+        foreach (array('#195', '#196', '#197', '#199', '#200', '#202', '#203', '#204', '#205', '#206', '#207', '#208', '#209', '#211') as $pr) {
             self::assertStringContainsString($pr, $evidence, 'the SP1 evidence must list PR ' . $pr);
         }
         self::assertStringContainsString('## SP2 rules carried from SP1', $evidence);
@@ -479,8 +481,39 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         }
         self::assertStringContainsString('## Pending owner acknowledgements', $evidence);
         self::assertStringContainsString('markdown-it 14.3.3', $evidence);
-        self::assertStringContainsString('2026-10-30', $evidence);
         self::assertStringContainsString('unicode-bidi: plaintext', $evidence);
+        // The four whole-SP1 reviews and how each finding was resolved.
+        self::assertStringContainsString('## Whole-SP1 independent reviews', $evidence);
+        foreach (array('**Security**', '**Code**', '**Accessibility**', '**Release**', 'C1', 'I1', 'M6', 'N3', 'H1', 'L7') as $review) {
+            self::assertStringContainsString($review, $evidence, 'review record missing: ' . $review);
+        }
+        // Tracker: markdown-it is done (#208); #210 is the first hardening item.
+        self::assertStringContainsString('#210', $evidence);
+        self::assertStringNotContainsString('waits for that date', $evidence);
+        // SP2 rules: the nav-href rule is enforced in the component; two rules are new.
+        self::assertStringContainsString('savedRevision', $evidence);
+        self::assertStringContainsString('explicit `aria-live`', $evidence);
+        self::assertStringNotContainsString('AppShell navigation `href` values must be relative', $evidence);
+        foreach (array('Aquatic', 'Desert', 'F6', 'wp.a11y.speak', '400%', 'text-spacing', 'swipe') as $manual) {
+            self::assertStringContainsString($manual, $evidence, 'owner manual test missing: ' . $manual);
+        }
+        foreach (array(
+            'AGENTS.md',
+            'docs/project/START-HERE.md',
+            'docs/project/PROJECT-STATUS.md',
+            'docs/project/NEW-CHAT-HANDOFF.md',
+            'docs/project/RELEASE-ENGINEERING.md',
+            '.ai-architect/architecture-contract.yaml',
+            self::SUBPROJECT_1_EVIDENCE,
+        ) as $record) {
+            self::assertStringNotContainsString(self::SUPERSEDED_TASK_8_PACKAGE_SHA256, self::read_repository_file($record), $record . ' still carries the superseded Task 8 package');
+        }
+        self::assertStringContainsString(self::SUBPROJECT_1_PACKAGE_SHA256, self::read_repository_file('docs/project/NEW-CHAT-HANDOFF.md'));
+        self::assertStringContainsString('subproject_1_package_sha256: ' . self::SUBPROJECT_1_PACKAGE_SHA256, self::read_repository_file('.ai-architect/architecture-contract.yaml'));
+        // Admin UI Gate is a required status check in the Main Rule ruleset (owner approval 2026-10-21).
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md', 'docs/project/NEW-CHAT-HANDOFF.md', 'docs/project/OWNER-HANDOFF.md') as $living) {
+            self::assertStringContainsString('`Admin UI Gate`', self::read_repository_file($living), $living . ' must list Admin UI Gate as a required check');
+        }
 
         self::assertStringContainsString(
             'Sub-project 1 design system: **224 files**, SHA-256 `' . self::SUBPROJECT_1_PACKAGE_SHA256 . '`',
@@ -515,8 +548,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             'sockjs',
             'react-dom-19',
             '90 days',
-            '2026-11-06',
             '2027-01-17',
+            'audit:lock-age',
             '### Reverting a Sub-project 1 change',
             'git revert',
             'update_visual_baselines',
@@ -532,6 +565,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $compatibility = self::read_repository_file('docs/COMPATIBILITY.md');
         self::assertStringContainsString('### Admin UI boundary (Sub-project 1)', $compatibility);
         self::assertStringContainsString('git working tree, not the packaged ZIP', $compatibility);
+        foreach (array(':has()', 'Firefox 121', 'Safari 15.4') as $floor) {
+            self::assertStringContainsString($floor, $compatibility, 'admin UI browser floor missing: ' . $floor);
+        }
+        self::assertStringNotContainsString('| GHSA-gfr2-rv44-r23c |', $release, 'markdown-it was adopted in #208');
         foreach (array(
             'Playwright 1.63.0',
             'WP 6.9.10 / WC 10.8.1',
