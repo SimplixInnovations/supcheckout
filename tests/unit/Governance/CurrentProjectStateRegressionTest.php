@@ -492,8 +492,46 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringContainsString(basename(self::SUBPROJECT_1_EVIDENCE), $text, $living);
         }
 
+        // Post-merge verification on main at the last SP1 runtime merge.
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md') as $living) {
+            self::assertStringContainsString('39575252375', self::read_repository_file($living), $living);
+        }
+
+        // Release review additions: merge gate, build contract, dependency hygiene, revert recipe.
+        self::assertStringContainsString(
+            'Admin UI Gate green (static, Windows drift, both browser cells, visual)',
+            self::read_repository_file('AGENTS.md')
+        );
+        $release = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
+        foreach (array(
+            '## Admin UI build contract (Sub-project 1)',
+            'git ls-files --eol',
+            '### Dependency hygiene',
+            'serialize-javascript',
+            'postcss-selector-parser',
+            'js-yaml',
+            'smol-toml',
+            'katex',
+            'sockjs',
+            'react-dom-19',
+            '90 days',
+            '2026-11-06',
+            '2027-01-17',
+            '### Reverting a Sub-project 1 change',
+            'git revert',
+            'update_visual_baselines',
+            'npm_config_before',
+        ) as $rule) {
+            self::assertStringContainsString($rule, $release, 'RELEASE-ENGINEERING.md missing: ' . $rule);
+        }
+        $contributing = self::read_repository_file('CONTRIBUTING.md');
+        foreach (array('npm_config_script_shell', 'Git Bash', 'NODE_ENV', 'BROWSERSLIST', 'Never hand-merge') as $rule) {
+            self::assertStringContainsString($rule, $contributing, 'CONTRIBUTING.md missing: ' . $rule);
+        }
+
         $compatibility = self::read_repository_file('docs/COMPATIBILITY.md');
         self::assertStringContainsString('### Admin UI boundary (Sub-project 1)', $compatibility);
+        self::assertStringContainsString('git working tree, not the packaged ZIP', $compatibility);
         foreach (array(
             'Playwright 1.63.0',
             'WP 6.9.10 / WC 10.8.1',
@@ -522,7 +560,16 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringContainsString('wizard UI moves to Sub-project 2', $text, $living);
         }
 
-        self::assertStringContainsString('Sub-project 0c onboarding backend: **134 files**', self::read_repository_file('docs/project/RELEASE-ENGINEERING.md'));
+        // The 0c package is history once Sub-project 1 changed the distributable bytes.
+        $release = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
+        self::assertStringContainsString('Historical Sub-project 0c package (superseded by Sub-project 1): **134 files**', $release);
+        self::assertStringNotContainsString('**Revamp development package (NOT owner accepted):** Sub-project 0c onboarding backend', $release);
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md') as $living) {
+            $text = self::read_repository_file($living);
+            self::assertStringNotContainsString('package 134 files (`RELEASE-ENGINEERING.md`)', $text, $living);
+            self::assertStringNotContainsString('; package 134 files;', $text, $living);
+            self::assertStringNotContainsString('Deterministic package: 134 files', $text, $living);
+        }
     }
 
     public function test_the_0c_certification_is_not_claimed_for_the_pr_head(): void {
