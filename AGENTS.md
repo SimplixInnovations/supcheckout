@@ -195,6 +195,7 @@ External AI/bot output is evidence input, not authority. Before merging runtime/
 - Quality/H12 green;
 - Compatibility Gate green with all 20 runtime cells successful;
 - Release Artifact including packaged + migration cells green;
+- Admin UI Gate green (static, Windows drift, both browser cells, visual);
 - bounded Provider Sandbox green when applicable;
 - WordPress.org Submission Check green;
 - CodeQL/security green;

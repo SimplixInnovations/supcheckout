@@ -50,6 +50,9 @@ npm run test:unit:react19   # the same component tests on React 19
 ```
 
 - Change the source, run `npm run build`, commit the source and the rebuilt `assets/admin/build/` together, then run `npm run quality`. Its `check:drift` step fails when the committed build differs from a clean rebuild or when `assets/admin` holds uncommitted changes.
+- `check:drift` is a POSIX shell command. On Windows run npm with Git Bash as the script shell: set `npm_config_script_shell` to Git Bash's `bash.exe` (for example `C:\Program Files\Git\bin\bash.exe`), as the `build-windows` CI lane does.
+- Build in a clean environment: do not set `NODE_ENV` or `BROWSERSLIST` (or a `.browserslistrc`), because they change the emitted bundle and the drift gate then fails against CI's build.
+- Never hand-merge build files. On a conflict in `assets/admin/build/`, rebase onto the target branch, take either side, run `npm run build`, and commit the result.
 - Never edit `assets/admin/build/` or `assets/admin/src/tokens/tokens.generated.css` by hand. Tokens change in `assets/admin/src/tokens/*.tokens.json`; the build regenerates the CSS and fails on any WCAG 2.2 AA contrast failure.
 - Lint with `npm run lint:js` only. Do not run `wp-scripts lint-js --fix` with a path: in Sub-project 1 it rewrote files outside that path, including payment JavaScript.
 - New dependencies are pinned exactly and must be at least 14 days old (`.npmrc`); they normally arrive through Dependabot. `npm run audit:full` must stay green.

@@ -127,6 +127,7 @@ Sub-project 1 adds the design-token system and the React component library that 
   - WCAG 2.2 AA contrast of every token pair in light and dark across the nine schemes, the committed-build drift gate on Linux and Windows, and the build contract (externals, no source maps, licenses, gzip budgets).
 - **Unit-only:** React 19 (`npm run test:unit:react19`, Jest with React 19.3.0). No WordPress release in the matrix ships React 19 yet.
 - **Emulated only:** `forced-colors: active` and `prefers-reduced-motion` are Playwright media emulation. Forced-colors emulation only toggles the media query; it does not apply a real Windows High Contrast theme.
+- **Working tree, not the ZIP:** the browser and visual lanes run against the git working tree, not the packaged ZIP. The Release Artifact harness separately asserts that every committed build file under `assets/admin/build/` is in the canonical ZIP, and the drift gate proves the committed build equals a clean rebuild.
 - **Limits of the gallery copy:** the gallery shows English copy in RTL. Real Arabic text rendering is baselined only through the `foundations-arabic` specimen (Noto Sans Arabic, a test-only font) and the Arabic fixture translations.
 - **External / manual:**
   - Safari, Firefox and mobile devices (only Chromium is automated);
