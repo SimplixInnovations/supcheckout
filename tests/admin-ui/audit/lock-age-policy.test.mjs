@@ -237,23 +237,17 @@ describe( 'validateExceptions', () => {
 		] );
 	} );
 
-	test( 'the committed exceptions file is valid and seeds the owner-approved markdown-it 14.3.3', () => {
+	test( 'the committed exceptions file is a valid list', () => {
+		// markdown-it 14.3.3 was adopted through #208 before this check
+		// existed, so main needs no exception for it; the file starts empty.
 		const committed = JSON.parse(
 			readFileSync(
 				join( ROOT, 'tools/admin-ui/audit/lock-age-exceptions.json' ),
 				'utf8'
 			)
 		);
+		expect( Array.isArray( committed ) ).toBe( true );
 		expect( validateExceptions( committed, TODAY ) ).toEqual( [] );
-		expect( committed ).toEqual(
-			expect.arrayContaining( [
-				expect.objectContaining( {
-					name: 'markdown-it',
-					version: '14.3.3',
-					expires: '2026-10-30',
-				} ),
-			] )
-		);
 	} );
 } );
 
