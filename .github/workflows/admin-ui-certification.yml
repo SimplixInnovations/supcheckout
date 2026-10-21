@@ -20,7 +20,9 @@ env:
 
 concurrency:
   group: admin-ui-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded PR run may be cancelled; a push to main never is, so every
+  # main commit keeps its own complete certification.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   static:

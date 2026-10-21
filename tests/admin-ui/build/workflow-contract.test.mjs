@@ -202,6 +202,13 @@ test( 'the gate also needs the visual lane and fails on its skip or cancel', () 
 	expect( gate ).toContain( '"$VISUAL_RESULT" != success' );
 } );
 
+test( 'only pull-request runs cancel in progress, so a push to main is never cancelled', () => {
+	expect( WORKFLOW ).toMatch(
+		/\nconcurrency:\n\s+group: admin-ui-\$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}\n(?: +#.*\n)*\s+cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}\n/
+	);
+	expect( WORKFLOW ).not.toMatch( /cancel-in-progress: true/ );
+} );
+
 test( 'test:visual runs exactly the four visual projects', () => {
 	const pkg = JSON.parse(
 		readFileSync( join( ROOT, 'package.json' ), 'utf8' )
