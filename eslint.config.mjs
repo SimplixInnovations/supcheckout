@@ -4,7 +4,8 @@
  * Starts from the `@wordpress/scripts` default (WordPress coding standards,
  * TypeScript, React and Jest rules) and adds Node globals for the build
  * tooling and the Node tests, plus the UI library boundary: screens import
- * primitives only through `assets/admin/src/ui`.
+ * primitives, and the library itself, only through the `assets/admin/src/ui`
+ * barrel.
  */
 import globals from 'globals';
 import wordpressConfig from '@wordpress/scripts/config/eslint.config.cjs';
@@ -33,6 +34,13 @@ const UI_INTERNALS = {
 	group: [ '**/assets/admin/src/ui/*/**' ],
 	message:
 		'Import the UI library through its barrel (assets/admin/src/ui), never a module inside it.',
+};
+
+const SCREEN_UI_INTERNALS = {
+	// Relative (`../ui/controls/Button`) or absolute, at any depth.
+	group: [ '**/ui/*/**' ],
+	message:
+		'Screens import the UI library through its barrel (../ui), never a module inside it.',
 };
 
 export default [
@@ -101,6 +109,23 @@ export default [
 			'no-restricted-imports': [
 				'error',
 				{ patterns: [ WP_COMPONENTS, PRIMITIVES, UI_INTERNALS ] },
+			],
+		},
+	},
+	{
+		// Screens consume the library as its public API: the barrel only
+		// (tokens.generated.css and their own CSS stay importable).
+		files: [ 'assets/admin/src/app/**/*.{js,ts,tsx}' ],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{
+					patterns: [
+						WP_COMPONENTS,
+						PRIMITIVES,
+						SCREEN_UI_INTERNALS,
+					],
+				},
 			],
 		},
 	},
