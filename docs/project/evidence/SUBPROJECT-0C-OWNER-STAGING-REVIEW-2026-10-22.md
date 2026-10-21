@@ -12,7 +12,7 @@ The owner verified every fact below on 2026-10-22. No credentials, card data, cu
 ## Setup checks
 - `GET supcheckout/v1/onboarding/status` reported the takeover as `finalized`. That is the result of the earlier takeover rehearsal ([evidence](TAKEOVER-REHEARSAL-2026-10-18.md)).
 - `POST /setup/checks` started an operation. The Action Scheduler async runner then completed it on admin requests, even though WP-Cron is disabled on staging. A manual `wp action-scheduler run --hooks=supcheckout_onboarding_drive` found 0 pending actions. No stall warning appeared, because there was no stall.
-- The `GET /setup/checks` report passed every check:
+- The `GET /setup/checks` report passed all seven checks it runs; the optional sandbox test payment is deferred to the setup screen:
 
 | Check | Result |
 |---|---|
