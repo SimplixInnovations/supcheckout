@@ -41,10 +41,31 @@
 	align-items: center;
 }
 
+/*
+ * The palette's viewport is a flex column (a definite height), so the
+ * palette's block-size bound resolves and its result list shrinks and
+ * scrolls instead of pushing Close out of the window.
+ */
+.supcheckout-admin .sup-dialog-viewport:has(> .sup-palette) {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
 .supcheckout-admin .sup-palette {
-	align-self: start;
+	flex: 0 1 auto;
+	min-block-size: 0;
 	max-block-size: calc(100% - var(--sup-space-12));
 	margin-block-start: var(--sup-space-12);
+}
+
+/* A short window gives the list the room the top offset would take. */
+@media (max-height: 480px) {
+
+	.supcheckout-admin .sup-palette {
+		max-block-size: 100%;
+		margin-block-start: 0;
+	}
 }
 
 .supcheckout-admin .sup-palette__fallback {

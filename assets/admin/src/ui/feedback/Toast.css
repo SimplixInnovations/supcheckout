@@ -75,10 +75,7 @@
 
 .supcheckout-admin .sup-toast__content {
 	display: grid;
-
-	/* The action column stops at half the toast, so a long label wraps
-	   and the text keeps room. */
-	grid-template-columns: auto minmax(0, 1fr) fit-content(calc(100% / 2)) auto;
+	grid-template-columns: auto minmax(0, 1fr) auto;
 	align-items: start;
 	gap: var(--sup-space-3) var(--sup-space-4);
 }
@@ -122,8 +119,15 @@
 	line-height: var(--sup-line-height-body);
 }
 
-/* A long or translated action label wraps inside the toast. */
+/*
+ * The action sits under the text, at its inline start, so the text keeps
+ * the full column on a narrow window and a long or translated label wraps
+ * inside the toast.
+ */
 .supcheckout-admin .sup-toast .sup-button.sup-toast__action {
+	grid-row: 2;
+	grid-column: 2;
+	justify-self: start;
 	block-size: auto;
 	min-block-size: var(--sup-button-height-sm);
 	max-inline-size: 100%;
@@ -132,8 +136,7 @@
 	text-align: center;
 }
 
-/* Both buttons center on the title's first line. */
-.supcheckout-admin .sup-toast .sup-button.sup-toast__action,
+/* The close button centers on the title's first line. */
 .supcheckout-admin .sup-toast .sup-button.sup-toast__close {
 	margin-block: calc((var(--sup-font-size-md) * var(--sup-line-height-body) - var(--sup-button-height-sm)) / 2);
 }
