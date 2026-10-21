@@ -939,3 +939,210 @@ test( "while a SUPCheckout modal is open Mod+K never reaches WordPress core's co
 	await expect( coreMenu ).toHaveCount( 1 );
 	await page.keyboard.press( 'Escape' );
 } );
+
+/**
+ * @param target An element.
+ * @return Whether it, or an ancestor, is aria-hidden, and whether inert.
+ */
+function hiddenState(
+	target: Locator
+): Promise< { ariaHidden: boolean; inert: boolean } > {
+	return target.evaluate( ( node ) => ( {
+		ariaHidden: node.closest( '[aria-hidden="true"]' ) !== null,
+		inert: node.closest( '[inert]' ) !== null,
+	} ) );
+}
+
+test( 'live Notices behind an open ConfirmDialog stay audible: never aria-hidden, never inert', async ( {
+	page,
+} ) => {
+	await openOverlays( page, 'system', { notice: 'live' } );
+	const confirm = specimen( page, 'confirm-dialog' );
+	const status = confirm.locator( '.sup-notice__content[role="status"]' );
+	const alert = confirm.locator( '.sup-notice__content[role="alert"]' );
+	await expect( status ).toHaveText( /\S/ );
+	await expect( alert ).toHaveText( /\S/ );
+	const trigger = specimen( page, 'dialog' ).getByRole( 'button', {
+		name: 'Edit webhook',
+	} );
+	await confirm
+		.getByRole( 'button', { name: 'Refund order #10234' } )
+		.click();
+	await expect(
+		page.getByRole( 'alertdialog', { name: 'Refund 12.500 KWD?' } )
+	).toBeVisible();
+	// Base UI hides the page one frame after opening; the inert hold follows.
+	await expect
+		.poll( () => hiddenState( trigger ) )
+		.toEqual( { ariaHidden: true, inert: true } );
+	for ( const region of [ status, alert ] ) {
+		expect( await hiddenState( region ) ).toEqual( {
+			ariaHidden: false,
+			inert: false,
+		} );
+	}
+	// Still in the accessibility tree: role queries skip hidden nodes.
+	await expect(
+		page.getByRole( 'status' ).filter( {
+			hasText: 'Refunds sync with UPayments every minute.',
+		} )
+	).toHaveCount( 1 );
+	await expect(
+		page.getByRole( 'alert' ).filter( {
+			hasText: 'The last refund sync failed.',
+		} )
+	).toHaveCount( 1 );
+} );
+
+test( 'between 601 and 782 px, Shift+Tab into the header and the skip link never lands under the admin bar', async ( {
+	page,
+} ) => {
+	await page.setViewportSize( { width: 700, height: 600 } );
+	await openOverlays( page );
+	// WordPress keeps its 46 px admin bar fixed in this band.
+	expect(
+		await page
+			.locator( '#wpadminbar' )
+			.evaluate( ( node ) => getComputedStyle( node ).position )
+	).toBe( 'fixed' );
+	await page.evaluate( () =>
+		window.scrollTo( 0, document.documentElement.scrollHeight )
+	);
+	await page
+		.locator( `${ APP_ROOT } .sup-app-shell__nav-link` )
+		.first()
+		.focus();
+
+	const visited: Array< { name: string; top: number; barBottom: number } > =
+		[];
+	for ( let step = 0; step < 12; step += 1 ) {
+		await page.keyboard.press( 'Shift+Tab' );
+		const state = await page.evaluate( () => {
+			// eslint-disable-next-line @wordpress/no-global-active-element -- runs inside the page, with no node ref to start from.
+			const active = document.activeElement as HTMLElement | null;
+			const bar = document.getElementById( 'wpadminbar' );
+			if (
+				! active ||
+				! bar ||
+				! active.closest( '.sup-app-shell__header, .sup-skip-link' )
+			) {
+				return null;
+			}
+			return {
+				name:
+					active.getAttribute( 'aria-label' ) ??
+					active.textContent?.trim() ??
+					active.tagName,
+				top: active.getBoundingClientRect().top,
+				barBottom: bar.getBoundingClientRect().bottom,
+				skip: active.classList.contains( 'sup-skip-link' ),
+			};
+		} );
+		if ( state === null ) {
+			break;
+		}
+		visited.push( {
+			name: state.name,
+			top: state.top,
+			barBottom: state.barBottom,
+		} );
+		if ( state.skip ) {
+			break;
+		}
+	}
+	expect( visited.length ).toBeGreaterThanOrEqual( 3 );
+	expect( visited[ visited.length - 1 ].name ).toBe( 'Skip to content' );
+	expect(
+		visited.filter( ( entry ) => entry.top < entry.barBottom )
+	).toEqual( [] );
+} );
+
+for ( const size of [
+	{ width: 320, height: 256 },
+	{ width: 683, height: 330 },
+] ) {
+	test( `at ${ size.width }x${ size.height } a long dialog's close and footer buttons and the palette's Close can be scrolled into view`, async ( {
+		page,
+	} ) => {
+		await page.setViewportSize( size );
+		await openOverlays( page, 'system', {
+			labels: 'long',
+			...WITHOUT_CORE_PALETTE,
+		} );
+		await specimen( page, 'dialog' )
+			.getByRole( 'button', { name: 'Edit webhook' } )
+			.click();
+		const dialog = page.getByRole( 'dialog', { name: 'Edit webhook' } );
+		await expect( dialog ).toBeVisible();
+		await layerSettled( page );
+		const targets = [
+			dialog.getByRole( 'button', { name: 'Close dialog' } ),
+			...( await dialog
+				.locator( '.sup-dialog__footer' )
+				.getByRole( 'button' )
+				.all() ),
+		];
+		expect( targets ).toHaveLength( 3 );
+		for ( const target of targets ) {
+			await target.scrollIntoViewIfNeeded();
+			await expect( target ).toBeInViewport( { ratio: 1 } );
+		}
+		await page.keyboard.press( 'Escape' );
+		await expect( dialog ).toHaveCount( 0 );
+
+		const palette = await openPaletteWithTrigger( page );
+		await expect( palette.locator( '.sup-palette__item' ) ).toHaveCount(
+			5
+		);
+		await layerSettled( page );
+		const close = palette.getByRole( 'button', { name: /^Close/ } );
+		await close.scrollIntoViewIfNeeded();
+		await expect( close ).toBeInViewport( { ratio: 1 } );
+		await expect(
+			palette.getByRole( 'combobox', { name: 'Search commands' } )
+		).toBeInViewport( { ratio: 1 } );
+	} );
+}
+
+test( 'long dialog footer labels wrap inside the dialog at 320 px', async ( {
+	page,
+} ) => {
+	await page.setViewportSize( { width: 320, height: 640 } );
+	await openOverlays( page, 'system', { labels: 'long' } );
+	await specimen( page, 'dialog' )
+		.getByRole( 'button', { name: 'Edit webhook' } )
+		.click();
+	const dialog = page.getByRole( 'dialog', { name: 'Edit webhook' } );
+	await expect( dialog ).toBeVisible();
+	await layerSettled( page );
+	const report = await dialog.evaluate( ( node ) => {
+		const box = node.getBoundingClientRect();
+		return Array.from(
+			node.querySelectorAll( '.sup-dialog__footer .sup-button' )
+		).map( ( button ) => {
+			const rect = button.getBoundingClientRect();
+			return {
+				label: button.textContent?.trim() ?? '',
+				inside:
+					rect.left >= box.left - 0.5 &&
+					rect.right <= box.right + 0.5,
+				clipped: button.scrollWidth > button.clientWidth + 1,
+				wraps: rect.height > 40,
+			};
+		} );
+	} );
+	expect( report ).toHaveLength( 2 );
+	for ( const entry of report ) {
+		expect( entry ).toEqual( {
+			label: entry.label,
+			inside: true,
+			clipped: false,
+			wraps: true,
+		} );
+	}
+	expect(
+		await dialog.evaluate(
+			( node ) => node.scrollWidth <= node.clientWidth + 1
+		)
+	).toBe( true );
+} );

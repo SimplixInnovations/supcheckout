@@ -13,6 +13,11 @@
  * `?confirm=hold` (visual suite) stretches that to HELD_RESULT_DELAY_MS, so
  * the pending state stays on screen for a screenshot without a timing race.
  * `open` opens one overlay on mount, for the unit axe suite.
+ * `?notice=live` adds two live Notices beside the confirmation triggers (the
+ * browser suite checks they stay audible behind an open modal), and
+ * `?labels=long` gives the dialog footer long German labels (wrapping at
+ * 320 px). Without them the specimens, and the visual baselines, are
+ * unchanged.
  */
 import { useEffect, useMemo, useState } from '@wordpress/element';
 import { __, sprintf } from '@wordpress/i18n';
@@ -24,6 +29,7 @@ import {
 	DataTable,
 	Dialog,
 	EmptyState,
+	Notice,
 	StatusPill,
 	Tabs,
 	Text,
@@ -61,6 +67,26 @@ export const RESULT_DELAY_MS = 800;
 export const HELD_RESULT_DELAY_MS = 10 * 60 * 1000;
 
 const CONFIRM_QUERY = 'confirm';
+
+/**
+ * @param name  A gallery query parameter.
+ * @param value The value that turns the option on.
+ * @return Whether the page URL sets it.
+ */
+function galleryOption( name: string, value: string ): boolean {
+	return (
+		typeof window !== 'undefined' &&
+		new URLSearchParams( window.location.search ).get( name ) === value
+	);
+}
+
+/**
+ * Long German labels (test fixtures, not translations) for the wrap test.
+ */
+const LONG_LABELS = {
+	cancel: 'Abbrechen und zur Zahlungsübersicht zurückkehren',
+	save: 'Webhook-Adresse speichern und Verbindung überprüfen',
+} as const;
 
 function resultDelay(): number {
 	return typeof window !== 'undefined' &&
@@ -242,6 +268,7 @@ interface DialogSpecimenProps {
 }
 
 function WebhookDialog( { open, onOpenChange }: DialogSpecimenProps ) {
+	const long = galleryOption( 'labels', 'long' );
 	return (
 		<Dialog
 			open={ open }
@@ -254,13 +281,17 @@ function WebhookDialog( { open, onOpenChange }: DialogSpecimenProps ) {
 			footer={
 				<>
 					<Button onClick={ () => onOpenChange( false ) }>
-						{ __( 'Cancel', 'supcheckout' ) }
+						{ long
+							? LONG_LABELS.cancel
+							: __( 'Cancel', 'supcheckout' ) }
 					</Button>
 					<Button
 						variant="primary"
 						onClick={ () => onOpenChange( false ) }
 					>
-						{ __( 'Save webhook', 'supcheckout' ) }
+						{ long
+							? LONG_LABELS.save
+							: __( 'Save webhook', 'supcheckout' ) }
 					</Button>
 				</>
 			}
@@ -482,6 +513,22 @@ export function OverlaysSpecimens( { open }: OverlaysSpecimensProps ) {
 						name="confirm-dialog"
 						title={ __( 'Confirmation', 'supcheckout' ) }
 					>
+						{ galleryOption( 'notice', 'live' ) && (
+							<>
+								<Notice tone="info" live>
+									{ __(
+										'Refunds sync with UPayments every minute.',
+										'supcheckout'
+									) }
+								</Notice>
+								<Notice tone="error" live>
+									{ __(
+										'The last refund sync failed.',
+										'supcheckout'
+									) }
+								</Notice>
+							</>
+						) }
 						<ConfirmScenarios
 							key={ refund }
 							initial={

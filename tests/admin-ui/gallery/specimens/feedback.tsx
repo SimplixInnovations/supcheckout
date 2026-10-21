@@ -7,6 +7,8 @@
  * Interactive specimens hold their own state; nothing here calls a server.
  * `?pin=focus-target-block-end` pins the last specimen's button to the
  * window corner where the toast stack appears, for the focus-obscured test.
+ * `?labels=long` gives the info toast's action a long German label, for the
+ * 320 px wrap test.
  */
 import { useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
@@ -133,8 +135,16 @@ function LiveErrorNoticeSpecimen() {
 	);
 }
 
+/** A long German action label (a test fixture) under `?labels=long`. */
+const LONG_ACTION_LABEL =
+	'Archivierung rückgängig machen und Bestellung wiederherstellen';
+
 function ToastTriggers() {
 	const toast = useToast();
+	const longLabels =
+		typeof window !== 'undefined' &&
+		new URLSearchParams( window.location.search ).get( 'labels' ) ===
+			'long';
 	return (
 		<div style={ row }>
 			<Button
@@ -157,7 +167,9 @@ function ToastTriggers() {
 						tone: 'info',
 						title: __( 'Order archived', 'supcheckout' ),
 						action: {
-							label: __( 'Undo', 'supcheckout' ),
+							label: longLabels
+								? LONG_ACTION_LABEL
+								: __( 'Undo', 'supcheckout' ),
 							onClick: () => undefined,
 						},
 					} )
