@@ -22,7 +22,7 @@ final class AdminAssets {
     public const ROOT_ID = 'supcheckout-admin-root';
     public const BODY_CLASS = 'supcheckout-admin-page';
     public const TEXT_DOMAIN = 'supcheckout';
-    public const CHUNK_PATTERN = '#^chunks/[a-z0-9-]+\.[a-f0-9]{8}\.js$#';
+    public const CHUNK_PATTERN = '#^chunks/[a-z0-9-]+\.[a-f0-9]{8}\.js\z#';
 
     private const BUILD_PATH = 'assets/admin/build/';
     private const CHUNK_HANDLE_PREFIX = 'supcheckout-admin-chunk-';
@@ -70,11 +70,16 @@ final class AdminAssets {
     /**
      * Register and enqueue the app for a SUPCheckout screen.
      *
-     * @param string $hook_suffix The current admin screen's hook suffix.
-     * @return bool False, with nothing enqueued, for any other screen or an invalid manifest.
+     * Untyped on purpose, like body_class(): `admin_enqueue_scripts` can be
+     * fired with a non-string by another caller, and a TypeError here would
+     * break the admin screen. Such a value enqueues nothing.
+     *
+     * @param mixed $hook_suffix The current admin screen's hook suffix.
+     * @return bool False, with nothing enqueued, for a non-string, any other
+     *         screen or an invalid manifest.
      */
-    public function enqueue_for(string $hook_suffix): bool {
-        if (! $this->is_supcheckout_screen($hook_suffix)) {
+    public function enqueue_for($hook_suffix): bool {
+        if (! is_string($hook_suffix) || ! $this->is_supcheckout_screen($hook_suffix)) {
             return false;
         }
 
