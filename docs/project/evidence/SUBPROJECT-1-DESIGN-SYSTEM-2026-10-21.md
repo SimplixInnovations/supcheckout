@@ -23,34 +23,42 @@ Every PR was squash-merged after all of its exact-head workflows succeeded. The 
 | #204 | Task 6 — status, notice, skeleton, stepper, toast, tooltip | `6b581aa1f1d31d518fa8dccfe968870f02d51eb2` | `b08222c34e7943c65807caece0b88320e231e8de` | Admin UI 39473793132, Quality Gates 39473793366, Compatibility 39473793315, Release Artifact 39473793171, WordPress.org 39473793465, CodeQL 39473786682 |
 | #206 | Task 7 — dialogs, money-safe confirmation, tabs, data table, app shell, command palette | `d7e2efb4f2e6e97603661abb0b8cfb05f788ab38` | `b53a268b15c7e8cb22e4d297986ef274d83f2cf1` | Admin UI 39490521473, Quality Gates 39490521862, Compatibility 39490522416, Release Artifact 39490522451, WordPress.org 39490522111, CodeQL 39490516784 |
 | #207 | Task 8 — pinned visual-regression lane and the Sub-project 1 exit gate | `dde7a40726e5e081c8c843597a8ec8836022da2b` | `ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a` | Admin UI 39570193162, Quality Gates 39570192907, Compatibility 39570192883, Release Artifact 39570192934, WordPress.org 39570193148, Ecosystem 39570193035, CodeQL 39570187916 |
+| #208 | markdown-it 14.3.3 (Dependabot, from 14.3.2), an owner-approved security exception to the 14-day cooldown taken on 2026-10-21; both markdown-it allow-list entries removed | `58af8db15205aff2f245cd2747ec4c3019370555` | `e0ecd7ff52931957e552a43e0cbec64554b67205` | Admin UI 39582027389, Quality Gates 39582027481, Compatibility 39582027472, Release Artifact 39582027413, Ecosystem 39582027485, CodeQL 39582023534 |
+| #209 | Release, PHP and supply-chain hardening from the whole-SP1 security and release reviews | `a173ad32f4b091629c5702cd05d8786773407e7f` | `09b6ad7d58e4f3ae1ce7e148ea2ecbf2291628d2` | Admin UI 39591138514, Quality Gates 39591138424, Compatibility 39591138490, Release Artifact 39591138467, WordPress.org 39591138402, Takeover Matrix 39591138468, Supply Chain 39591138508, CodeQL 39591134046 |
+| #211 | UI and accessibility hardening from the whole-SP1 code and accessibility reviews | `5df53a145140930ed81a258a4966eb89a525e901` | `453e103bd5dc2c81f35e65520ac29dfa9182fbc5` | Admin UI 39645796841 and a second exact-head dispatch 39645855876, Quality Gates 39645796906, Compatibility 39645796795, Release Artifact 39645796796, WordPress.org 39645796772, Ecosystem 39645796827, CodeQL 39645793986 |
 | Task 9 | This record, the living documents and the governance tests (documents only) | the closeout PR head | — | exact-head gates of the closeout PR |
 
-Not merged: #198 (React 19, TypeScript 7 and `globals` 17 majors) was closed, because the runtime React is WordPress's 18.3.1 and TypeScript 7 breaks `typescript-eslint`. #201 (`globals` 16 → 17, lint-only) was deferred until the SP1 stack merged and is still open.
+Package per follow-up PR: #208 changes no distributable byte (development dependency); #209 224 files `8a598fbb…`; #211 224 files `2e1f7c03…` (the final package below). Each PR records its full hash.
 
-`ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a` is the last Sub-project 1 commit that changes distributable bytes.
+Not merged: #198 (React 19, TypeScript 7 and `globals` 17 majors) was closed, because the runtime React is WordPress's 18.3.1 and TypeScript 7 breaks `typescript-eslint`. #201 (`globals` 16 → 17) was closed, superseded by Dependabot #210 (see the hardening tracker).
+
+`453e103bd5dc2c81f35e65520ac29dfa9182fbc5` (#211) is the last Sub-project 1 commit that changes distributable bytes.
 
 ## Exit gate
 
 The Sub-project 1 exit gate is `admin-ui-certification.yml` job `gate`: it succeeds only when `static`, `build-windows`, `browser` (both WordPress versions) and `visual` all succeed; a skipped or cancelled lane fails it, and a baseline-update dispatch always fails it.
 
 - **Exact head of Task 8** (`dde7a40`): Admin UI Certification run **39570193162** SUCCESS, including the browser and accessibility suite on WP 6.9.10 / WC 10.8.1 and WP 7.1.3 / WC 11.1.2 and the exact visual suite on WP 7.1.3 / WC 11.1.2.
-- **Post-merge on `main`** (`ef9a101`, recorded 2026-10-21): Admin UI Certification run **39575252375** SUCCESS; Quality Gates 39575252463, WordPress.org Submission Check 39575252335, Supply Chain Evidence 39575252609, R6 Final Evidence 39575252479 and CodeQL 39575253276 SUCCESS. Compatibility Certification 39575252634, Ecosystem Certification 39575252440 and Release Artifact 39575252360 were still queued when this was recorded and are not claimed.
+- **Exact head of #211** (`5df53a1`): Admin UI Certification runs **39645796841** (pull request) and **39645855876** (a second dispatch at the same head) both SUCCESS.
+- **Post-merge on `main` at `ef9a101`** (Task 8): every workflow SUCCESS, including Admin UI Certification **39575252375**, Compatibility Certification 39575252634, Ecosystem Certification 39575252440, Release Artifact 39575252360, Quality Gates 39575252463, WordPress.org Submission Check 39575252335 and CodeQL 39575253276.
+- **Post-merge on `main` at `453e103`** (#211, recorded 2026-10-21): WordPress.org Submission Check 39660030118 and Supply Chain Evidence 39660030107 SUCCESS; Admin UI Certification 39660030227, Quality Gates 39660030318, Compatibility 39660029878, Ecosystem 39660030041, Release Artifact 39660030161 and CodeQL 39660030013 were still queued when this was recorded and are not claimed.
+- **Required check:** `Admin UI Gate` is a required status check in the `Main Rule` ruleset (owner approval 2026-10-21), next to `Governance`, `H12 Regression Harness`, `Compatibility Gate` and `Release Gate`.
 - **Stability:** two fresh dispatched runs at `dde7a40` with exact comparison, **39567360421** and **39568574767**, both SUCCESS.
 - **The gate catches a change:** dispatched proof run **39567446898** (scratch commit `7b575b7`: `--sup-radius-control` 6 px → 7 px, CSS rebuilt) FAILED with 69 visual differences under the exact comparison; only groups with no control-radius surface passed. The superseded tolerances caught too little: proof run 39503943298 (Playwright's default per-pixel threshold) passed, and 39505836011 (a 0.0005 pixel ratio) caught only 7.
 
 ## Package
 
-`supcheckout-0.1.0.zip`: **224 files**, SHA-256 `67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac`. Built with `scripts/build-release.sh` twice at the Task 9 closeout head, **byte-identical**, and verified both times with `scripts/verify-release.sh` (VERIFIED). The same bytes come from `ef9a101` and from the Task 8 head `dde7a40`; Task 9 changes no distributable byte. Sub-project 1 adds 90 files to the 134 of 0c: 9 committed build files under `assets/admin/build/`, 80 source files under `assets/admin/src/` and `src/Admin/AdminAssets.php`. The package grew task by task (146, 151, 165, 166, 188, 209, 223 and then 224 files); those intermediate builds are superseded, and each PR records its own count and hash. This package is **not owner accepted**.
+`supcheckout-0.1.0.zip`: **224 files**, SHA-256 `2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4`. Built with `scripts/build-release.sh` twice at the Task 9 closeout head, **byte-identical**, and verified both times with `scripts/verify-release.sh` (VERIFIED). It equals the package of #211's final head and of `main` at `453e103`; Task 9 changes no distributable byte. Sub-project 1 adds 90 files to the 134 of 0c: 9 committed build files under `assets/admin/build/`, 80 source files under `assets/admin/src/` and `src/Admin/AdminAssets.php`. The package grew task by task (146, 151, 165, 166, 188, 209, 223 and then 224 files), and the 224-file bytes changed again in #209 and #211; those intermediate builds are superseded, and each PR records its own count and hash. This package is **not owner accepted**.
 
 ## Bundle sizes
 
-Measured on the committed build (gzip level 9, the build-contract method). Budgets: `app.js` 60 KiB, `app.css` 16 KiB, each lazy chunk and the whole palette payload 30 KiB.
+Measured on the committed build at the closeout head (gzip level 9, the build-contract method). Budgets: `app.js` 60 KiB, `app.css` 16 KiB, each lazy chunk and the whole palette payload 30 KiB.
 
 | File | Bytes | gzip |
 |---|---:|---:|
-| `app.js` | 113804 | 38379 |
-| `app.css` | 54356 | 7670 |
-| `app-rtl.css` | 54356 | 7670 |
+| `app.js` | 114576 | 38632 |
+| `app.css` | 56304 | 7888 |
+| `app-rtl.css` | 56304 | 7888 |
 | `chunks/884.176adad5.js` (Base UI Autocomplete, async vendor split) | 47771 | 16806 |
 | `chunks/command-palette.a159e014.js` | 2104 | 1036 |
 | Command palette payload (both chunks) | 49875 | 17622 |
@@ -71,19 +79,30 @@ Each controller ruling recorded its cost if wrong; the full ledger is in the PR 
 - **Visual determinism (Task 8).** Comparison is exact (`threshold 0`, `maxDiffPixels 0`) on a pinned `ubuntu-24.04` runner, with two fresh exact runs and a re-proved radius gate. Fonts come from `@fontsource` development dependencies (OFL Noto Sans, Noto Sans Arabic, Noto Sans Mono), never shipped, and are applied through a test-only brand file. `--disable-partial-raster` is accepted. A fallback tolerance of at most 14 px for `confirm-dialog-pending` alone is approved only if the partial-raster flake returns.
 - **Plugin Check (#205).** `@wordpress/env` 12.0.0 depended on an unpublished package, and `plugin-check-action` installs wp-env unpinned. The job therefore sets `npm_config_before` to now minus 14 days, the same cooldown policy as the rest of the toolchain.
 
-## Independent reviews (whole Sub-project 1 diff from `ccf58f8`)
+## Whole-SP1 independent reviews
 
-The controller runs these reviews separately, on the whole diff, once this closeout PR is ready.
+The controller ran four independent reviews on the whole Sub-project 1 diff from `ccf58f8`. Every finding was fixed or recorded before this close.
 
-- **Security review:** APPROVE, with no Critical, High or Medium finding. Low findings:
-  - L1: `AdminAssets::CHUNK_PATTERN` `$` also matches before a trailing newline (use `\z` or the `D` modifier).
-  - L2: `AppShell` navigation `href` values are unchecked (risk of a `javascript:` URL in Sub-project 2).
-  - L3: `enqueue_for(string)` throws a `TypeError` when another plugin passes `null`.
-  - L4: `plugin-check-action` installs wp-env unpinned; the 14-day cooldown is in place and no secrets are involved.
-  - Documentation: `readme.txt` should say `npm ci --ignore-scripts`.
-
-  Controller ruling: L1, L2, L3 and the readme wording are fixed in one Sub-project 1 follow-up PR, together with the code-review findings. L4 stays recorded. That follow-up changes distributable bytes, so it records its own package.
-- **Code review, accessibility review (the gallery in four modes) and release review:** run by the controller and recorded in the closeout PR.
+- **Security** (APPROVE; Low findings only):
+  - L1, `AdminAssets::CHUNK_PATTERN` `$` also matched before a trailing newline: fixed in #209.
+  - L3, `enqueue_for(string)` threw a `TypeError` when another plugin passed `null`: fixed in #209.
+  - L2, `AppShell` navigation `href` values were unchecked: fixed in #211; the component now enforces it.
+  - L4, `plugin-check-action` installs wp-env unpinned: recorded; the 14-day cooldown is sufficient and no secrets are involved.
+  - The `readme.txt` build command now says `npm ci --ignore-scripts` (#209).
+- **Code** (no Critical): fixed in #211.
+  - C1: Base UI keeps only `[aria-live]` elements audible behind a modal, so role-only live regions (Notice, Skeleton, DataTable, Button status) were hidden; every region now carries an explicit `aria-live`.
+  - C2: the Button `busyLabel` and mount-time toasts skipped `LIVE_REGION_DELAY_MS`.
+  - C3: the barrel-only import rule was not enforced for `assets/admin/src/app/**`.
+  - C4: DataTable `density="comfortable"` could not override a compact root.
+- **Accessibility** (approve; Important I1–I4, Minor M1–M6): all fixed in #211, together with the re-review items N1 (DataTable stale sort announcement, including a mid-load edge case) and N2 (the Notice focus target's scope and visibility), and new forced-colors coverage of the palette (`palette-forced-colors` baseline). The re-review approved 14 of 14 items. N3, the palette viewport's use of `:has()`, is recorded as a browser floor in `docs/COMPATIBILITY.md`.
+- **Release** (reproducible, 224 files built twice; WordPress.org compliant):
+  - H1, Admin UI Gate was not a required check: done; the owner approved it on 2026-10-21 and `Admin UI Gate` is a required status check in the `Main Rule` ruleset. `AGENTS.md` merge discipline names it (pending owner acknowledgement).
+  - H2, the markdown-it allow-list expiry was untracked: resolved by #208.
+  - M1, `min-release-age` was not enforced on the lockfile: the lock-age check (`npm run audit:lock-age`) in #209.
+  - M2, the build and dependency documentation, and M3, the revert recipe: these docs (`RELEASE-ENGINEERING.md`, `CONTRIBUTING.md`).
+  - L1 (the readme `--ignore-scripts` and its harness string), L2 (main-branch runs of Admin UI Certification are never cancelled), L3 (Dependabot `reviewers` replaced by CODEOWNERS; `@types/node` held to the Node 24 runtime) and L7 (the SBOM `serialNumber` is an RFC 4122 UUIDv5): #209.
+  - L4, the overrides were undocumented: the overrides table in `RELEASE-ENGINEERING.md`.
+  - L5, L6: documentation findings, addressed in these docs.
 
 ## Pending owner acknowledgements
 
@@ -92,10 +111,10 @@ Work proceeded on these recommendations; each waits for the owner's acknowledgem
 1. The `--sup-*` token prefix, scoped under `.supcheckout-admin`.
 2. Light and dark with a manual toggle that defaults to the system preference.
 3. Shipping the human-readable TypeScript source (`assets/admin/src/**`) in the package.
-4. The audit allow-list: braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c (no patched release, development-only, expiring 2027-01-17), and the two markdown-it entries below. Alternatively, the owner may require a bare `npm audit --audit-level=high`.
+4. The audit allow-list: braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c (no patched release, development-only, expiring 2027-01-17). Alternatively, the owner may require a bare `npm audit --audit-level=high`.
 5. The darkened colour values: the light strong border `#858B96` (drafted `#8A919C`), the retuned subtle text, and the dark `*-950` status tints.
 6. Mod+K yields to WordPress core's command palette.
-7. The `AGENTS.md` diff in the closeout PR: the gate sentence edit and the permanent-controls addition.
+7. The `AGENTS.md` diff in the closeout PR: the gate sentence edit, the permanent-controls addition and the "Admin UI Gate green" merge-discipline line.
 
 ## Owner manual test list
 
@@ -103,23 +122,29 @@ CI cannot do these. They are External / manual in `docs/COMPATIBILITY.md`.
 
 1. **Screen readers: NVDA (Windows, Firefox or Chrome) and VoiceOver (macOS Safari).** On the gallery, check:
    - the dialog: name, focus in, focus return;
-   - the money confirmation: question, consequence, the busy state, and the result announced with the focus move to Close;
-   - toasts: polite announcement; whether a limited toast that becomes visible again is re-announced;
+   - ConfirmDialog: question, consequence, the busy state, and the result announced with the focus move to Close;
+   - toasts: polite announcement, F6 into the toast region, and whether a limited toast that becomes visible again is re-announced;
    - tabs: roving focus and RTL arrows;
-   - the command palette: search results and the count.
-2. **Real Windows High Contrast** (a real contrast theme, not emulation): every boundary, focus ring, selected state and status stays visible.
-3. **Safari, Firefox and mobile devices:** the same gallery in the four modes. Only Chromium is automated.
-4. **Real Arabic copy review:** a native speaker reviews the Arabic strings and their rendering. The gallery shows English in RTL, and only the `foundations-arabic` specimen shows real Arabic text.
+   - the command palette: search results and the count;
+   - DataTable: the sort announcement and the loading status;
+   - Stepper in Safari;
+   - Notice live regions;
+   - `wp.a11y.speak` while a dialog is open (still heard behind the modal).
+2. **Real Windows contrast themes (Aquatic and Desert, in Edge):** not emulation. Check the selected tab, the current nav item, the palette highlight, the segmented radio, toggle and checkbox, the stepper, progress, dialog and toast borders, and the `aria-disabled` Cancel. Every boundary, focus ring, selected state and status stays visible (this is the real Windows High Contrast pass).
+3. **Zoom and text spacing:** 200% zoom at 1366×768 and 400% zoom at 1280×1024 (reflow, nothing clipped or covered), and a text-spacing bookmarklet (WCAG 1.4.12).
+4. **Safari, Firefox and mobile devices:** the same gallery in the four modes. Only Chromium is automated.
+5. **Touch:** toast swipe-to-dismiss in RTL.
+6. **Real Arabic copy review:** a native speaker reviews the Arabic strings and their rendering, including Arabic amounts in `Numeric`. The gallery shows English in RTL, and only the `foundations-arabic` specimen shows real Arabic text.
 
 ## Hardening tracker
 
 Carried into the hardening program:
 
-- **markdown-it 14.3.3, after 2026-10-30.** The allow-list entries GHSA-vfgh-jcmw-g37q (low) and GHSA-gfr2-rv44-r23c (high) are development-only (markdownlint-cli inside `@wordpress/scripts`, which no repository script runs) and expire 2026-11-06. The fix 14.3.3 was published 2026-10-16 and clears the 14-day release-age floor (`min-release-age=14`) on 2026-10-30. Adopt it after 2026-10-30 with a lockfile-only change; the stale-entry check then fails until both entries are removed in the same change. Dependabot PR #208 (14.3.2 → 14.3.3) waits for that date.
+- **Dependabot #210, the first hardening-program item** (`@wordpress/dependency-extraction-webpack-plugin` 6.57, `@wordpress/dom-ready` 4.57, `@wordpress/element` **9.0 major**, `@wordpress/i18n` 6.30, `globals` 17). Take the minors and `globals` 17; hold the `@wordpress/element` major behind a Dependabot ignore until a deliberate React 19 decision, because it tracks WordPress's React 18 runtime.
+- **Allow-list dates.** braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c expire 2027-01-17; adopt a fix when one is published, otherwise review each entry before it expires. markdown-it is done (#208).
 - **`wp-scripts lint-js --fix <path>` rewrote files outside its path**, including payment JavaScript, during Sub-project 1. The cause is not explained. The guard so far is documentation only (`CONTRIBUTING.md`: use `npm run lint:js`, never `--fix` with a path); the hardening audit investigates it.
-- **Dependabot #201** (`globals` 17, lint-only) can now rebase and merge if green.
 - **Optional:** `wp transient delete _wc_activation_redirect` in the browser job, for determinism.
-- **Deferred:** a CODEOWNERS entry for the audit directory. This is a single-owner repository, and review is already required.
+- **CODEOWNERS:** review routing now comes from `.github/CODEOWNERS` (#209); a dedicated entry for the audit directory stays deferred (single-owner repository, review already required).
 
 ## Open Sub-project 5 decision
 
@@ -138,7 +163,9 @@ Sub-project 2 (the admin screens) must apply every one of these. They were parke
 7. **Keep ConfirmDialog mounted.** Keep it mounted while its request may be in flight, and pass `actionKey` (for example `refund:10234`) whenever the screen may remount it (a route change, a list re-render). Keep the key stable for one opening.
 8. **StrictMode.** Guard one-shot mount toasts under React StrictMode, so a toast fired from a mount effect is not shown twice in development.
 9. **Bounded `onConfirm`.** Give `onConfirm` a bounded network call (for example `AbortSignal.timeout(…)`), and map a timeout to `{ status: 'pending' }`, never `failed`, because the server may still complete it. A promise that never settles keeps the dialog and its `actionKey` pending until the page reloads.
+10. **SecretInput `savedRevision`.** A screen that flips SecretInput `hasSavedValue` must also bump `savedRevision`, so the typed draft is cleared and leaves the page.
+11. **Explicit `aria-live`.** Every live region a screen adds must carry an explicit `aria-live` (a `role` alone is not enough): Base UI keeps only `[aria-live]` elements audible behind a modal.
 
-Also from the reviews: AppShell navigation `href` values must be relative or `http(s)` (security review L2, fixed in the Sub-project 1 follow-up), and the theme preference is persisted server-side (user meta through `supcheckout/v1`) in Sub-project 2.
+The AppShell navigation `href` rule (relative or `http(s)` only) is no longer a screen rule: #211 enforces it in the component. The theme preference is persisted server-side (user meta through `supcheckout/v1`) in Sub-project 2.
 
 No real secrets, card data, customer data or production data are recorded here.

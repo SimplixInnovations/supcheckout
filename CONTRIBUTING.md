@@ -55,7 +55,7 @@ npm run test:unit:react19   # the same component tests on React 19
 - Never hand-merge build files. On a conflict in `assets/admin/build/`, rebase onto the target branch, take either side, run `npm run build`, and commit the result.
 - Never edit `assets/admin/build/` or `assets/admin/src/tokens/tokens.generated.css` by hand. Tokens change in `assets/admin/src/tokens/*.tokens.json`; the build regenerates the CSS and fails on any WCAG 2.2 AA contrast failure.
 - Lint with `npm run lint:js` only. Do not run `wp-scripts lint-js --fix` with a path: in Sub-project 1 it rewrote files outside that path, including payment JavaScript.
-- New dependencies are pinned exactly and must be at least 14 days old (`.npmrc`); they normally arrive through Dependabot. `npm run audit:full` must stay green.
+- New dependencies are pinned exactly and must be at least 14 days old (`.npmrc`); they normally arrive through Dependabot. `npm run audit:full` and `npm run audit:lock-age` must stay green.
 
 ### Visual-regression policy
 

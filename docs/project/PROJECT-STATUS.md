@@ -47,7 +47,7 @@
 | Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** (2026-10-17) |
 | Sub-project 0b takeover engine | **Tasks 1–12 merged**; Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
 | Sub-project 0c onboarding backend | **Tasks 1–10 merged** (PR #194 `5dce3f1d1397d455baa4b4bfe64ef3f89184de6e`) — services + admin-only `supcheckout/v1` REST API, no UI (wizard in Sub-project 2); its 134-file package is historical, superseded by Sub-project 1; owner staging review pending owner action |
-| Sub-project 1 design system | **DONE / VERIFIED** — PRs #195–#197, #199, #200 and #202–#207; last merge `ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a`; package 224 files, SHA-256 `67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac` (NOT owner accepted) |
+| Sub-project 1 design system | **DONE / VERIFIED** — PRs #195–#197, #199, #200, #202–#209 and #211; last merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5`; package 224 files, SHA-256 `2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4` (NOT owner accepted) |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -189,11 +189,15 @@ Sub-project 1 design-token system and admin component library — **DONE / VERIF
 | 6 — status, notice, skeleton, stepper, toast, tooltip | #204 | `b08222c34e7943c65807caece0b88320e231e8de` |
 | 7 — dialogs, money-safe confirmation, tabs, data table, app shell, command palette | #206 | `b53a268b15c7e8cb22e4d297986ef274d83f2cf1` |
 | 8 — pinned visual-regression lane and the Sub-project 1 exit gate | #207 | `ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a` |
+| markdown-it 14.3.3 (owner-approved cooldown exception); both markdown-it allow-list entries removed | #208 | `e0ecd7ff52931957e552a43e0cbec64554b67205` |
+| Release, PHP and supply-chain hardening from the whole-SP1 reviews | #209 | `09b6ad7d58e4f3ae1ce7e148ea2ecbf2291628d2` |
+| UI and accessibility hardening from the whole-SP1 reviews | #211 | `453e103bd5dc2c81f35e65520ac29dfa9182fbc5` |
 
 - Brand-ready, not branded: SP1 ships no brand values; they arrive only through `brand.tokens.json` in Sub-project 5. It covers light and dark (default: the system preference), the nine core admin colour schemes, Arabic RTL, reduced motion and forced colours.
+- The four whole-SP1 reviews (security, code, accessibility, release) are recorded with every finding's resolution in the evidence file; their fixes landed in #208, #209 and #211.
 - Every SP1 PR merged after all of its exact-head workflows succeeded. The exit gate (`admin-ui-certification.yml` `gate`: static lane, Windows build, the browser and accessibility suite on WP 6.9.10 / WC 10.8.1 and WP 7.1.3 / WC 11.1.2, and the exact visual-regression suite) succeeded at the Task 8 head `dde7a40726e5e081c8c843597a8ec8836022da2b` (run 39570193162).
-- Deterministic package: 224 files (134 after 0c, plus the committed build, the shipped TypeScript source and `AdminAssets.php`), SHA-256 `67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac` (`RELEASE-ENGINEERING.md`). NOT owner accepted.
-- Post-merge verification on `main` at `ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a` (recorded 2026-10-21): Admin UI Certification run 39575252375 **SUCCESS** (its gate covers static, Windows drift, both browser cells and visual), Quality Gates 39575252463, WordPress.org Submission Check 39575252335, Supply Chain Evidence 39575252609, R6 Final Evidence 39575252479 and CodeQL 39575253276 **SUCCESS**. Compatibility Certification 39575252634, Ecosystem Certification 39575252440 and Release Artifact 39575252360 were still queued when this was recorded; they are not claimed here.
+- Deterministic package: 224 files (134 after 0c, plus the committed build, the shipped TypeScript source and `AdminAssets.php`), SHA-256 `2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4` (`RELEASE-ENGINEERING.md`). NOT owner accepted.
+- Post-merge verification on `main`: at the Task 8 merge `ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a` every workflow succeeded, including Admin UI Certification run 39575252375 (its gate covers static, Windows drift, both browser cells and visual), Compatibility Certification 39575252634 and Release Artifact 39575252360. At the final SP1 merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5` (#211, recorded 2026-10-21) the WordPress.org Submission Check 39660030118 and Supply Chain Evidence 39660030107 had succeeded and the rest (Admin UI Certification 39660030227, Quality Gates, Compatibility, Ecosystem, Release Artifact, CodeQL) were still queued; they are not claimed here. `Admin UI Gate` is a required status check in the `Main Rule` ruleset (owner approval 2026-10-21).
 - `.github/workflows/admin-ui-certification.yml` is a permanent quality control (`AGENTS.md`). The public boundary is `docs/COMPATIBILITY.md` "Admin UI boundary (Sub-project 1)".
 
 Owner decision 2026-10-20 (binding): the owner shares the full revamp, branding and information architecture only once functionality, security and performance are verified. The program after Sub-project 1 is therefore a hardening program: a full audit of functionality, security and performance, then a fix loop. Sub-project 2 screens, the wizard IA, the menu structure and the visual checkout redesign wait for the owner's information architecture and branding.
@@ -233,7 +237,7 @@ They stay protected until migrated by the approved takeover (Sub-project 0b): co
 
 ## Repository/release governance
 
-Required protected-branch checks remain `Governance`, `H12 Regression Harness`, `Compatibility Gate`, and `Release Gate`.
+Required protected-branch checks are `Governance`, `H12 Regression Harness`, `Compatibility Gate`, `Release Gate` and `Admin UI Gate` (added 2026-10-21 with owner approval).
 
 Exact-head qualification also accounts for CodeQL/security, Provider Sandbox, WordPress.org Submission Check, deterministic cross-platform release evidence, locked dependency audit where applicable, review-thread resolution and post-merge verification.
 
