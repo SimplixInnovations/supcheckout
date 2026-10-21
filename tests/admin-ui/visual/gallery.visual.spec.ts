@@ -283,7 +283,23 @@ const ELEMENT_CAPTURES: Readonly< Record< string, Capture > > = {
 		prepare: ( page ) => openConfirmation( page, 'verified' ),
 	},
 	'command-palette': PALETTE_CAPTURE,
-	'palette-forced-colors': PALETTE_CAPTURE,
+	'palette-forced-colors': {
+		query: PALETTE_CAPTURE.query,
+		async prepare( page ) {
+			const palette = await PALETTE_CAPTURE.prepare( page );
+			// Forced colors override the hidden caret's color, and a blinking
+			// caret would make the capture flaky: Tab moves focus from the
+			// search field to Close; the first command stays highlighted.
+			await page.keyboard.press( 'Tab' );
+			await expect(
+				palette.locator( '.sup-palette__close' )
+			).toBeFocused();
+			await expect(
+				palette.locator( '.sup-palette__item[data-highlighted]' )
+			).toHaveCount( 1 );
+			return palette;
+		},
+	},
 };
 
 /** Frames that need a state change before the capture. */
