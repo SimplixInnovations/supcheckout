@@ -6,9 +6,15 @@
  *
  * - The viewport is a polite live region (`aria-live="polite"`) that is
  *   mounted, empty, before any toast exists, so each toast is announced as
- *   a change. Every tone is announced politely: an error the user must act
- *   on belongs in a `live` Notice next to the cause, which is an alert.
- * - Success and info toasts close after TOAST_TIMEOUT_MS; the timer pauses
+ *   a change. A toast shown before the region has existed for
+ *   LIVE_REGION_DELAY_MS (from a screen's mount effect) is queued until
+ *   then (see liveRegion.ts). Every tone is announced politely: an error
+ *   the user must act on belongs in a `live` Notice next to the cause,
+ *   which is an alert.
+ * - Success and info toasts without an action close after
+ *   TOAST_TIMEOUT_MS. A toast with an action never closes on its own (WCAG
+ *   2.2.1: the user gets all the time they need to reach it); it closes
+ *   when the action runs or the user dismisses it. The timer pauses
  *   while the pointer is over the stack, while keyboard focus is in it and
  *   while the window is in the background. A toast that arrives while the
  *   window is already in the background, with no other timed toast on the
@@ -49,6 +55,7 @@ import { Icon } from '../foundations/Icon';
 import type { IconName } from '../foundations/icons';
 import { usePortalContainer } from '../foundations/portal';
 import { buttonClassName } from '../controls/Button';
+import { useLiveRegionReady } from './liveRegion';
 import '../controls/IconButton.css';
 import './Toast.css';
 
@@ -68,16 +75,17 @@ export interface ToastAction {
 
 export interface ToastOptions {
 	/**
-	 * `success` and `info` close after TOAST_TIMEOUT_MS. `error` stays until
-	 * dismissed and, like every toast, is announced politely: an error the
-	 * user must act on now belongs in a `live` Notice next to its cause,
-	 * which is an alert.
+	 * `success` and `info` close after TOAST_TIMEOUT_MS unless they carry an
+	 * `action`. `error` stays until dismissed and, like every toast, is
+	 * announced politely: an error the user must act on now belongs in a
+	 * `live` Notice next to its cause, which is an alert.
 	 */
 	tone: ToastTone;
 	/** Translated one-line summary. */
 	title: string;
 	/** Translated detail or next step. */
 	description?: string;
+	/** A toast with an action never closes on its own (WCAG 2.2.1). */
 	action?: ToastAction;
 }
 
@@ -487,25 +495,39 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 		createBackgroundHold( manager )
 	);
 	// Base UI's provider subscribes to the manager in an effect, which runs
-	// after its children's effects: a toast shown from a screen's mount
-	// effect is queued until then. This effect is the parent's, so it runs
-	// after that subscription; it flushes the queue, and resume() re-attaches
-	// the background hold after StrictMode's simulated unmount and remount.
+	// after its children's effects, and the viewport region must exist for
+	// LIVE_REGION_DELAY_MS before a toast lands in it, or the toast may not
+	// be announced. A toast shown before both (from a screen's mount effect)
+	// is queued. These effects are the parent's, so they run after that
+	// subscription; the second flushes the queue once the region is ready,
+	// and resume() re-attaches the background hold after StrictMode's
+	// simulated unmount and remount.
+	const regionReady = useLiveRegionReady( true );
 	const subscribed = useRef( false );
+	const accepting = useRef( false );
 	const queued = useRef< readonly ToastAddOptions[] >( [] );
 	useEffect( () => {
 		subscribed.current = true;
-		const pending = queued.current;
-		queued.current = [];
-		for ( const options of pending ) {
-			manager.add( options );
-		}
 		backgroundHold.resume();
 		return () => {
 			subscribed.current = false;
 			backgroundHold.dispose();
 		};
 	}, [ manager, backgroundHold ] );
+	useEffect( () => {
+		if ( ! regionReady ) {
+			return undefined;
+		}
+		accepting.current = true;
+		const pending = queued.current;
+		queued.current = [];
+		for ( const options of pending ) {
+			manager.add( options );
+		}
+		return () => {
+			accepting.current = false;
+		};
+	}, [ manager, regionReady ] );
 	// Per-provider toast ids, known before add() so onRemove can name them.
 	const nextId = useRef( 0 );
 	// Ids whose action already ran: a double click runs the action once.
@@ -514,7 +536,8 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 	const controller = useMemo< ToastController >(
 		() => ( {
 			show( { tone, title, description, action } ) {
-				const timed = tone !== 'error';
+				// An action needs all the time the user needs (WCAG 2.2.1).
+				const timed = tone !== 'error' && action === undefined;
 				nextId.current += 1;
 				const id = `sup-toast-${ nextId.current }`;
 				const hold = backgroundHold.admit( id, timed );
@@ -528,7 +551,7 @@ export function ToastProvider( { children }: ToastProviderProps ) {
 					data: action ? { action } : undefined,
 					onRemove: () => backgroundHold.removed( id ),
 				};
-				if ( subscribed.current ) {
+				if ( subscribed.current && accepting.current ) {
 					manager.add( options );
 				} else {
 					queued.current = [ ...queued.current, options ];

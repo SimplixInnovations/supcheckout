@@ -9,7 +9,8 @@
  *   returns to the element that opened it on close.
  * - A dismissible dialog (the default) closes on Escape, on a backdrop
  *   click and with its close button. `dismissible={ false }` keeps it open
- *   until the caller closes it, e.g. from a footer action.
+ *   until the caller closes it from a footer action, so the types require
+ *   a `footer` with it: a dialog the user cannot leave is never built.
  * - An open Tooltip inside closes on Escape first; the dialog stays open
  *   until the next Escape. Tooltips inside render in the dialog's own
  *   layer, so the modal never hides them from assistive technology.
@@ -35,7 +36,7 @@ import './Dialog.css';
 
 export type DialogSize = 'sm' | 'md' | 'lg';
 
-export interface DialogProps {
+interface DialogBaseProps {
 	open: boolean;
 	/** Called with `false` when the user dismisses the dialog. */
 	onOpenChange: ( open: boolean ) => void;
@@ -45,14 +46,27 @@ export interface DialogProps {
 	description?: string;
 	/** Inline size; defaults to `md`. */
 	size?: DialogSize;
-	/** Escape, backdrop click and the close button close it; defaults to true. */
-	dismissible?: boolean;
 	/** Element that receives focus on open, instead of the first tabbable one. */
 	initialFocus?: RefObject< HTMLElement | null >;
-	/** Actions, e.g. Cancel and a primary Button, at the block end. */
-	footer?: ReactNode;
 	children: ReactNode;
 }
+
+interface DismissibleDialogProps extends DialogBaseProps {
+	/** Escape, backdrop click and the close button close it; the default. */
+	dismissible?: true;
+	/** Actions, e.g. Cancel and a primary Button, at the block end. */
+	footer?: ReactNode;
+}
+
+interface BlockingDialogProps extends DialogBaseProps {
+	/** Only the caller closes it, from a footer action. */
+	dismissible: false;
+	/** Required: the footer holds the only way out. */
+	footer: ReactNode;
+}
+
+/** A dialog that is not dismissible must have a footer (its only way out). */
+export type DialogProps = DismissibleDialogProps | BlockingDialogProps;
 
 /** Why Base UI wants to close: dismissals the frame may refuse. */
 type CloseReason =
@@ -118,9 +132,13 @@ function NestedLayer( { layer }: NestedLayerProps ) {
 /** The attribute Base UI puts on everything outside an open popup. */
 const OUTSIDE_MARKER = '[data-base-ui-inert]';
 
-/** Regions that must keep speaking while a modal is open. */
-const LIVE_REGION =
-	'[aria-live], [role="status"], [role="alert"], [role="log"]';
+/**
+ * Regions that must keep speaking while a modal is open: exactly Base UI
+ * markOthers' keep-set, so `inert` never reaches further than its
+ * `aria-hidden`. A role-only region (`role="status"` without `aria-live`)
+ * is hidden by Base UI, so every SUPCheckout region sets `aria-live`.
+ */
+const LIVE_REGION = '[aria-live]';
 
 /**
  * How many open modals hold each node inert. Module level, so dialogs that

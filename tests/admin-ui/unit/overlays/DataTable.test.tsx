@@ -3,15 +3,20 @@
  * sortable headers, bidi-isolated numeric cells and a loading state (SP1
  * Task 7, Review Focus 4).
  */
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from '@wordpress/element';
 
 import {
 	DataTable,
 	LIVE_REGION_DELAY_MS,
 	SupRoot,
 } from '../../../../assets/admin/src/ui';
-import type { Column, DataTableProps } from '../../../../assets/admin/src/ui';
+import type {
+	Column,
+	DataTableProps,
+	TableSort,
+} from '../../../../assets/admin/src/ui';
 
 interface Payment {
 	id: string;
@@ -153,4 +158,95 @@ test( 'the scroll region is focusable and labelled by the caption', () => {
 	const caption = region.querySelector( 'caption' );
 	expect( caption ).toHaveClass( 'sup-visually-hidden' );
 	expect( region.getAttribute( 'aria-labelledby' ) ).toBe( caption?.id );
+} );
+
+test( 'without a density prop the table sets no density and inherits the root', () => {
+	render(
+		<SupRoot density="compact">
+			<DataTable< Payment >
+				caption="Recent payments"
+				columns={ COLUMNS }
+				rows={ ROWS }
+				rowKey={ ( row ) => row.id }
+			/>
+		</SupRoot>
+	);
+	const region = screen.getByRole( 'region', { name: 'Recent payments' } );
+	expect( region ).not.toHaveAttribute( 'data-sup-density' );
+	expect(
+		region.parentElement?.closest( '[data-sup-density]' )
+	).toHaveAttribute( 'data-sup-density', 'compact' );
+} );
+
+test( 'an explicit comfortable density is set on the table, so it overrides a compact root', () => {
+	render(
+		<SupRoot density="compact">
+			<DataTable< Payment >
+				caption="Recent payments"
+				columns={ COLUMNS }
+				rows={ ROWS }
+				rowKey={ ( row ) => row.id }
+				density="comfortable"
+			/>
+		</SupRoot>
+	);
+	expect(
+		screen.getByRole( 'region', { name: 'Recent payments' } )
+	).toHaveAttribute( 'data-sup-density', 'comfortable' );
+} );
+
+function SortedTable() {
+	const [ sort, setSort ] = useState< TableSort >( {
+		columnId: 'order',
+		direction: 'descending',
+	} );
+	return (
+		<DataTable< Payment >
+			caption="Recent payments"
+			columns={ COLUMNS }
+			rows={ ROWS }
+			rowKey={ ( row ) => row.id }
+			sort={ sort }
+			onSortChange={ ( columnId ) =>
+				setSort( ( current ) => ( {
+					columnId,
+					direction:
+						current.columnId === columnId &&
+						current.direction === 'ascending'
+							? 'descending'
+							: 'ascending',
+				} ) )
+			}
+		/>
+	);
+}
+
+test( 'a sort the user asks for is announced in the polite status, never on mount', async () => {
+	render(
+		<SupRoot>
+			<SortedTable />
+		</SupRoot>
+	);
+	const status = screen.getByRole( 'status' );
+	expect( status ).toHaveAttribute( 'aria-live', 'polite' );
+	await act( async () => {
+		await new Promise( ( resolve ) =>
+			setTimeout( resolve, LIVE_REGION_DELAY_MS + 10 )
+		);
+	} );
+	// The initial sort is part of the page, not a change.
+	expect( status ).toHaveTextContent( /^$/ );
+
+	await userEvent.click( screen.getByRole( 'button', { name: 'Amount' } ) );
+	await waitFor( () =>
+		expect( status ).toHaveTextContent( 'Sorted by Amount, ascending' )
+	);
+	await userEvent.click( screen.getByRole( 'button', { name: 'Amount' } ) );
+	await waitFor( () =>
+		expect( status ).toHaveTextContent( 'Sorted by Amount, descending' )
+	);
+	await userEvent.click( screen.getByRole( 'button', { name: 'Order' } ) );
+	await waitFor( () =>
+		expect( status ).toHaveTextContent( 'Sorted by Order, ascending' )
+	);
 } );

@@ -2,6 +2,9 @@
  * WCAG 2.2 AA contrast for every semantic pair, in light and dark, for every
  * core WordPress admin color scheme (spec section 4.1, SP1 Task 2).
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { oklch, wcagContrast } from 'culori';
 
 import {
@@ -13,7 +16,7 @@ import {
 	resolveColor,
 	SCHEME_NAMES,
 } from '../../../tools/admin-ui/tokens/resolve.mjs';
-import { readJson } from './support.mjs';
+import { readJson, ROOT } from './support.mjs';
 
 const contrastSource = readJson(
 	'assets/admin/src/tokens/contrast-pairs.json'
@@ -350,4 +353,36 @@ test( 'dark status tints are calm: OKLCH chroma 0.04–0.06 at their former ligh
 			lightness: Math.abs( tint.l - lightness ) <= 0.003,
 		} ).toEqual( { status, chroma: true, lightness: true } );
 	}
+} );
+
+test( 'the command palette highlight indicator is a named 3:1 non-text pair, and the palette draws it in that token', () => {
+	const pair = pairs.find(
+		( p ) => p.use === 'command-palette-highlight-indicator'
+	);
+	expect( pair ).toEqual( {
+		use: 'command-palette-highlight-indicator',
+		fg: 'color-focus-ring',
+		bg: expect.arrayContaining( [
+			'color-bg-surface-raised',
+			'color-accent-subtle-bg',
+		] ),
+		kind: 'non-text',
+	} );
+	expect(
+		checkContrast( loadTokens(), [ pair ] ).map(
+			( failure ) =>
+				`${ failure.mode } ${ failure.scheme } ${ failure.bg }`
+		)
+	).toEqual( [] );
+	const css = readFileSync(
+		join( ROOT, 'assets/admin/src/ui/overlays/CommandPalette.css' ),
+		'utf8'
+	);
+	const indicator = css.match(
+		/\.sup-palette__item\[data-highlighted\]::before\s*\{([^}]*)\}/
+	);
+	expect( indicator?.[ 1 ] ).toMatch(
+		/background-color:\s*var\(--sup-color-focus-ring\)/
+	);
+	expect( indicator?.[ 1 ] ).toMatch( /inset-inline-start:\s*0/ );
 } );

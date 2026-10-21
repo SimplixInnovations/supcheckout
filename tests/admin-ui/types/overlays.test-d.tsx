@@ -78,6 +78,12 @@ export const allowed = [
 	>
 		Body
 	</Dialog>,
+	<Dialog key="a2" open onOpenChange={ noop } title="Edit" dismissible>
+		A dismissible dialog needs no footer
+	</Dialog>,
+	<Dialog key="a3" open onOpenChange={ noop } title="Edit">
+		Dismissible by default
+	</Dialog>,
 	<ConfirmDialog
 		key="b"
 		open
@@ -126,6 +132,10 @@ export const rejected = [
 	</Dialog>,
 	// @ts-expect-error a Dialog needs a title
 	<Dialog key="b" open onOpenChange={ noop }>
+		Body
+	</Dialog>,
+	// @ts-expect-error a Dialog that is not dismissible needs a footer (its only way out)
+	<Dialog key="b2" open onOpenChange={ noop } title="x" dismissible={ false }>
 		Body
 	</Dialog>,
 	<ConfirmDialog

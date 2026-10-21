@@ -80,7 +80,11 @@ export function SkeletonGroup( { label, children }: SkeletonGroupProps ) {
 			<div className="sup-skeleton-group__shapes" aria-busy="true">
 				{ children }
 			</div>
-			<span role="status" className="sup-visually-hidden">
+			<span
+				role="status"
+				aria-live="polite"
+				className="sup-visually-hidden"
+			>
 				{ ready &&
 					sprintf(
 						/* translators: %s: what is loading, e.g. "payments". */

@@ -75,7 +75,10 @@
 
 .supcheckout-admin .sup-toast__content {
 	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto auto;
+
+	/* The action column stops at half the toast, so a long label wraps
+	   and the text keeps room. */
+	grid-template-columns: auto minmax(0, 1fr) fit-content(calc(100% / 2)) auto;
 	align-items: start;
 	gap: var(--sup-space-3) var(--sup-space-4);
 }
@@ -117,6 +120,16 @@
 	color: var(--sup-color-fg-muted);
 	font-size: var(--sup-font-size-sm);
 	line-height: var(--sup-line-height-body);
+}
+
+/* A long or translated action label wraps inside the toast. */
+.supcheckout-admin .sup-toast .sup-button.sup-toast__action {
+	block-size: auto;
+	min-block-size: var(--sup-button-height-sm);
+	max-inline-size: 100%;
+	padding-block: var(--sup-space-1);
+	white-space: normal;
+	text-align: center;
 }
 
 /* Both buttons center on the title's first line. */

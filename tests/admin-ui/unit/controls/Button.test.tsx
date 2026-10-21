@@ -2,11 +2,15 @@
  * Button and IconButton: native buttons with variants, sizes, icons and a
  * focus-keeping busy state (SP1 Task 5).
  */
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef } from '@wordpress/element';
 
-import { Button, IconButton } from '../../../../assets/admin/src/ui';
+import {
+	Button,
+	IconButton,
+	LIVE_REGION_DELAY_MS,
+} from '../../../../assets/admin/src/ui';
 
 test( 'a busy button keeps focus, announces the busy label and ignores clicks', async () => {
 	const onClick = jest.fn();
@@ -22,10 +26,33 @@ test( 'a busy button keeps focus, announces the busy label and ignores clicks', 
 	expect( onClick ).not.toHaveBeenCalled();
 	expect( b ).toHaveAttribute( 'aria-disabled', 'true' );
 	expect( b ).toHaveFocus();
-	expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Saving' );
+	await waitFor( () =>
+		expect( screen.getByRole( 'status' ) ).toHaveTextContent( 'Saving' )
+	);
 } );
 
-test( 'the busy status region is mounted empty before the button turns busy', () => {
+test( 'a button mounted busy inserts its status empty and fills it LIVE_REGION_DELAY_MS later', () => {
+	jest.useFakeTimers();
+	render(
+		<Button busy busyLabel="Saving">
+			Save
+		</Button>
+	);
+	const status = screen.getByRole( 'status' );
+	expect( status ).toHaveAttribute( 'aria-live', 'polite' );
+	expect( status ).toHaveTextContent( /^$/ );
+	act( () => {
+		jest.advanceTimersByTime( LIVE_REGION_DELAY_MS - 1 );
+	} );
+	expect( status ).toHaveTextContent( /^$/ );
+	act( () => {
+		jest.advanceTimersByTime( 1 );
+	} );
+	expect( status ).toHaveTextContent( 'Saving' );
+	jest.useRealTimers();
+} );
+
+test( 'the busy status region is mounted empty before the button turns busy', async () => {
 	const { rerender } = render(
 		<Button busyLabel="Saving" onClick={ jest.fn() }>
 			Save
@@ -41,7 +68,7 @@ test( 'the busy status region is mounted empty before the button turns busy', ()
 	);
 	// Same live region, now with text: assistive technology announces it.
 	expect( screen.getByRole( 'status' ) ).toBe( status );
-	expect( status ).toHaveTextContent( 'Saving' );
+	await waitFor( () => expect( status ).toHaveTextContent( 'Saving' ) );
 	// The status sits outside the button, so the name stays the visible label.
 	expect( screen.getByRole( 'button' ) ).toHaveAccessibleName( 'Save' );
 } );
@@ -252,5 +279,49 @@ test( 'IconButton is named by its label and its icon is decorative', async () =>
 		'true'
 	);
 	await userEvent.click( button );
+	expect( onClick ).toHaveBeenCalledTimes( 1 );
+} );
+
+test.each( [
+	[ 'true (boolean)', true ],
+	[ "'true' (string)", 'true' as const ],
+] )(
+	'aria-disabled=%s blocks activation like busy: no onClick and no submit',
+	async ( _name, ariaDisabled ) => {
+		const onClick = jest.fn();
+		const onSubmit = jest.fn( ( event: { preventDefault: () => void } ) =>
+			event.preventDefault()
+		);
+		render(
+			<form onSubmit={ onSubmit }>
+				<Button
+					type="submit"
+					aria-disabled={ ariaDisabled }
+					onClick={ onClick }
+				>
+					Save
+				</Button>
+			</form>
+		);
+		const button = screen.getByRole( 'button', { name: 'Save' } );
+		expect( button ).toHaveAttribute( 'aria-disabled', 'true' );
+		await userEvent.click( button );
+		button.focus();
+		await userEvent.keyboard( '{Enter}' );
+		await userEvent.keyboard( ' ' );
+		expect( onClick ).not.toHaveBeenCalled();
+		expect( onSubmit ).not.toHaveBeenCalled();
+		expect( button ).toHaveFocus();
+	}
+);
+
+test( "aria-disabled='false' does not block activation", async () => {
+	const onClick = jest.fn();
+	render(
+		<Button aria-disabled="false" onClick={ onClick }>
+			Save
+		</Button>
+	);
+	await userEvent.click( screen.getByRole( 'button', { name: 'Save' } ) );
 	expect( onClick ).toHaveBeenCalledTimes( 1 );
 } );

@@ -3,7 +3,10 @@
  * a search field on top of a grouped list in the dialog frame. The
  * highlighted command takes the accent tint; group labels are small and
  * muted. Bundled with the app CSS (not the lazy chunk), so it is in place
- * before the panel arrives and has its RTL twin.
+ * before the panel arrives and has its RTL twin. The highlighted row also
+ * carries an inline-start bar in the focus-ring color, a 3:1 indicator on
+ * the row tint and the raised surface (contrast pair
+ * command-palette-highlight-indicator); the tint alone is too faint.
  */
 .supcheckout-admin .sup-kbd {
 	display: inline-flex;
@@ -40,6 +43,7 @@
 
 .supcheckout-admin .sup-palette {
 	align-self: start;
+	max-block-size: calc(100% - var(--sup-space-12));
 	margin-block-start: var(--sup-space-12);
 }
 
@@ -126,6 +130,7 @@
 }
 
 .supcheckout-admin .sup-palette__item {
+	position: relative;
 	display: flex;
 	align-items: center;
 	box-sizing: border-box;
@@ -142,6 +147,16 @@
 .supcheckout-admin .sup-palette__item[data-highlighted] {
 	color: var(--sup-color-accent-fg);
 	background-color: var(--sup-color-accent-subtle-bg);
+}
+
+.supcheckout-admin .sup-palette__item[data-highlighted]::before {
+	content: "";
+	position: absolute;
+	inset-block: var(--sup-space-2);
+	inset-inline-start: 0;
+	inline-size: var(--sup-border-width-focus);
+	border-radius: var(--sup-radius-pill);
+	background-color: var(--sup-color-focus-ring);
 }
 
 .supcheckout-admin .sup-palette__empty {
@@ -217,6 +232,10 @@
 		forced-color-adjust: none;
 		color: highlighttext;
 		background-color: highlight;
+	}
+
+	.supcheckout-admin .sup-palette__item[data-highlighted]::before {
+		background-color: highlighttext;
 	}
 
 	.supcheckout-admin .sup-kbd {

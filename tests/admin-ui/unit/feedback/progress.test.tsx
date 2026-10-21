@@ -161,6 +161,8 @@ test( 'Stepper marks the current step and announces completed steps', () => {
 	);
 	const list = screen.getByRole( 'list', { name: 'Setup steps' } );
 	expect( list.tagName ).toBe( 'OL' );
+	// Explicit: WebKit drops list semantics when list-style is none.
+	expect( list ).toHaveAttribute( 'role', 'list' );
 	const items = within( list ).getAllByRole( 'listitem' );
 	expect( items ).toHaveLength( 4 );
 

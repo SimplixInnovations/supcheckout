@@ -8,7 +8,10 @@
  * - Headers are `<th scope="col">`. A sortable header holds a button named
  *   by its text; the sorted column's `<th>` carries `aria-sort`, so the
  *   state is announced on the header, and the caller owns the order
- *   (`sort`, `onSortChange`): the table never reorders rows itself.
+ *   (`sort`, `onSortChange`): the table never reorders rows itself. When
+ *   the caller applies a sort the user asked for, the polite status says
+ *   "Sorted by {header}, ascending" (or descending), since focus stays on
+ *   the button and `aria-sort` alone may not be re-read.
  * - Numeric columns (amounts, order numbers, counts) are end-aligned and
  *   isolated LTR in tabular figures (`Numeric`), so `12.500 KWD` and
  *   `#10234` keep their order inside RTL rows (Review Focus 4).
@@ -19,8 +22,8 @@
  *   ideally, saying why it is empty and how to fill it).
  */
 import type { ReactNode } from 'react';
-import { useId } from '@wordpress/element';
-import { __, sprintf } from '@wordpress/i18n';
+import { useEffect, useId, useRef, useState } from '@wordpress/element';
+import { __, _x, sprintf } from '@wordpress/i18n';
 
 import { classNames } from '../controls/classNames';
 import { Icon } from '../foundations/Icon';
@@ -67,6 +70,10 @@ export interface DataTableProps< Row > {
 	sort?: TableSort;
 	/** Called with the id of a sortable column whose header was pressed. */
 	onSortChange?: ( columnId: string ) => void;
+	/**
+	 * Row and control density. Unset, the table inherits it from SupRoot;
+	 * `comfortable` or `compact` overrides the root for this table.
+	 */
 	density?: TableDensity;
 }
 
@@ -81,6 +88,58 @@ function cellClass< Row >( column: Column< Row > ): string {
 		'sup-table__cell',
 		alignOf( column ) === 'end' && 'sup-table__cell--end'
 	);
+}
+
+/**
+ * @param header    The sorted column's translated header.
+ * @param direction The sort direction.
+ * @return The polite announcement of a sort the user asked for.
+ */
+function sortAnnouncement( header: string, direction: SortDirection ): string {
+	return sprintf(
+		/* translators: 1: a column header, e.g. "Amount"; 2: "ascending" or "descending". */
+		__( 'Sorted by %1$s, %2$s', 'supcheckout' ),
+		header,
+		direction === 'ascending'
+			? _x( 'ascending', 'sort direction', 'supcheckout' )
+			: _x( 'descending', 'sort direction', 'supcheckout' )
+	);
+}
+
+/**
+ * Announces a sort once the caller applied it, only after a header press.
+ *
+ * @param columns The columns.
+ * @param sort    The current sort.
+ * @return The announcement (empty until a requested sort is applied) and the
+ *         press handler that requests one.
+ */
+function useSortAnnouncement< Row >(
+	columns: readonly Column< Row >[],
+	sort: TableSort | undefined
+): { announcement: string; requested: () => void } {
+	const [ announcement, setAnnouncement ] = useState( '' );
+	const pressed = useRef( false );
+	const columnId = sort?.columnId;
+	const direction = sort?.direction;
+	useEffect( () => {
+		if ( ! pressed.current || ! columnId || ! direction ) {
+			return;
+		}
+		pressed.current = false;
+		const column = columns.find(
+			( candidate ) => candidate.id === columnId
+		);
+		if ( column ) {
+			setAnnouncement( sortAnnouncement( column.header, direction ) );
+		}
+	}, [ columns, columnId, direction ] );
+	return {
+		announcement,
+		requested: () => {
+			pressed.current = true;
+		},
+	};
 }
 
 function renderCell< Row >( column: Column< Row >, row: Row ): ReactNode {
@@ -109,10 +168,21 @@ export function DataTable< Row >( {
 	empty,
 	sort,
 	onSortChange,
-	density = 'comfortable',
+	density,
 }: DataTableProps< Row > ) {
 	const captionId = useId();
 	const statusReady = useLiveRegionReady( true );
+	const { announcement, requested } = useSortAnnouncement( columns, sort );
+	let statusText = '';
+	if ( statusReady ) {
+		statusText = loading
+			? sprintf(
+					/* translators: %s: the table caption, e.g. "Recent payments". */
+					__( 'Loading: %s', 'supcheckout' ),
+					caption
+				)
+			: announcement;
+	}
 
 	let body: ReactNode;
 	if ( loading ) {
@@ -196,9 +266,10 @@ export function DataTable< Row >( {
 													sorted &&
 														`sup-table__sort--${ sorted }`
 												) }
-												onClick={ () =>
-													onSortChange?.( column.id )
-												}
+												onClick={ () => {
+													requested();
+													onSortChange?.( column.id );
+												} }
 											>
 												<span>{ column.header }</span>
 												<span
@@ -222,14 +293,12 @@ export function DataTable< Row >( {
 					<tbody>{ body }</tbody>
 				</table>
 			</div>
-			<span role="status" className="sup-visually-hidden">
-				{ statusReady && loading
-					? sprintf(
-							/* translators: %s: the table caption, e.g. "Recent payments". */
-							__( 'Loading: %s', 'supcheckout' ),
-							caption
-						)
-					: '' }
+			<span
+				role="status"
+				aria-live="polite"
+				className="sup-visually-hidden"
+			>
+				{ statusText }
 			</span>
 		</div>
 	);

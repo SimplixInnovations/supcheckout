@@ -131,3 +131,75 @@ test( 'the measured header height feeds the focus clearance, also when the heade
 		globalThis.ResizeObserver = original;
 	}
 } );
+
+const UNSAFE_HREFS = [
+	'javascript:alert(1)',
+	'data:text/html,<script>alert(1)</script>',
+	'JAVASCRIPT:alert(1)',
+	' javascript:alert(1)',
+	'\tjava\tscript:alert(1)',
+	'java\nscript:alert(1)',
+	'\u0000javascript:alert(1)',
+	'vbscript:msgbox(1)',
+	'file:///etc/passwd',
+];
+
+const SAFE_HREFS = [
+	'admin.php?page=x',
+	'/wp-admin/admin.php?page=supcheckout',
+	'#payments',
+	'?page=supcheckout&tab=payments',
+	'https://example.com/docs',
+	'HTTP://example.com/',
+];
+
+afterEach( () => {
+	globalThis.SCRIPT_DEBUG = undefined;
+} );
+
+test.each( UNSAFE_HREFS )(
+	'a nav item with the href %j renders as text, never as a link',
+	( href ) => {
+		globalThis.SCRIPT_DEBUG = false;
+		renderShell( [ { id: 'x', label: 'Danger', href } ] );
+		const nav = screen.getByRole( 'navigation', {
+			name: 'SUPCheckout sections',
+		} );
+		expect( within( nav ).queryByRole( 'link' ) ).toBeNull();
+		expect( within( nav ).getByText( 'Danger' ) ).toBeInTheDocument();
+		expect( nav.querySelector( '[href]' ) ).toBeNull();
+	}
+);
+
+test.each( SAFE_HREFS )(
+	'a nav item with the href %j is a link to it',
+	( href ) => {
+		renderShell( [ { id: 'x', label: 'Section', href } ] );
+		expect(
+			screen.getByRole( 'link', { name: 'Section' } )
+		).toHaveAttribute( 'href', href );
+	}
+);
+
+test( 'a rejected href warns in development only', () => {
+	const warn = jest.spyOn( console, 'warn' ).mockImplementation( () => {} );
+	try {
+		globalThis.SCRIPT_DEBUG = true;
+		const { unmount } = renderShell( [
+			{ id: 'x', label: 'Danger', href: 'javascript:alert(1)' },
+		] );
+		expect( warn ).toHaveBeenCalledTimes( 1 );
+		expect( String( warn.mock.calls[ 0 ][ 0 ] ) ).toContain(
+			'SUPCheckout AppShell'
+		);
+		unmount();
+		warn.mockClear();
+		globalThis.SCRIPT_DEBUG = false;
+		renderShell( [
+			{ id: 'x', label: 'Danger', href: 'javascript:alert(1)' },
+		] );
+		expect( warn ).not.toHaveBeenCalled();
+	} finally {
+		warn.mockRestore();
+	}
+} );

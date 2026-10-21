@@ -1,7 +1,8 @@
 /**
  * Stepper: where the user is in a fixed sequence, such as the setup wizard.
  *
- * An ordered list named by `label`; the list gives "step 2 of 4". The current
+ * An ordered list named by `label` (with an explicit `role="list"`, which
+ * WebKit drops on an unstyled list); the list gives "step 2 of 4". The current
  * step carries `aria-current="step"`, which screen readers announce as
  * "current step"; every other step ends with a visually hidden state
  * ("Completed" or "Not started", translated in the "setup step state"
@@ -57,7 +58,8 @@ export function Stepper( {
 	const completed = new Set( completedIds );
 	return (
 		<div className="sup-stepper">
-			<ol className="sup-stepper__list" aria-label={ label }>
+			{ /* eslint-disable-next-line jsx-a11y/no-redundant-roles -- WebKit drops list semantics from a list with list-style: none. */ }
+			<ol className="sup-stepper__list" role="list" aria-label={ label }>
 				{ steps.map( ( step, index ) => {
 					let state: StepState = 'upcoming';
 					if ( step.id === currentId ) {

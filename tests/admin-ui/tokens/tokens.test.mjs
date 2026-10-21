@@ -62,6 +62,8 @@ const ARABIC =
 	'.supcheckout-admin:lang(ar),\n.supcheckout-admin:lang(fa),\n.supcheckout-admin:lang(ur),\n.supcheckout-admin [lang]:lang(ar),\n.supcheckout-admin [lang]:lang(fa),\n.supcheckout-admin [lang]:lang(ur)';
 const COMPACT =
 	'.supcheckout-admin[data-sup-density="compact"],\n.supcheckout-admin [data-sup-density="compact"]';
+const COMFORTABLE =
+	'.supcheckout-admin[data-sup-density="comfortable"],\n.supcheckout-admin [data-sup-density="comfortable"]';
 const REDUCED_MOTION = '@media (prefers-reduced-motion: reduce)';
 
 const generatedCss = () => renderCss( loadTokens() );
@@ -529,6 +531,27 @@ describe( 'generated stylesheet', () => {
 			.map( ( px ) => Number( px[ 1 ] ) );
 		expect( sizes.length ).toBeGreaterThan( 0 );
 		expect( sizes.filter( ( size ) => size < 24 ) ).toEqual( [] );
+	} );
+
+	test( 'comfortable density restores every compact override, so an explicit comfortable DataTable overrides a compact root', () => {
+		const css = generatedCss();
+		const compact = declarations( blockAfter( css, `\n${ COMPACT }` ) );
+		const comfortable = declarations(
+			blockAfter( css, `\n${ COMFORTABLE }` )
+		);
+		expect( Object.keys( comfortable ).sort() ).toEqual(
+			Object.keys( compact ).sort()
+		);
+		const root = declarations( blockAfter( css, '.supcheckout-admin' ) );
+		for ( const [ name, value ] of Object.entries( comfortable ) ) {
+			expect( [ name, value ] ).toEqual( [ name, root[ name ] ] );
+		}
+		expect( comfortable[ '--sup-size-control-md' ] ).toBe( '36px' );
+		expect( comfortable[ '--sup-size-table-row' ] ).toBe( '48px' );
+		// Declared after compact: on a nested element its own block wins.
+		expect( css.indexOf( `\n${ COMFORTABLE } {` ) ).toBeGreaterThan(
+			css.indexOf( `\n${ COMPACT } {` )
+		);
 	} );
 } );
 

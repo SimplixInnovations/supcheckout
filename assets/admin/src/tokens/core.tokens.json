@@ -1190,7 +1190,7 @@
 			}
 		},
 		"compact": {
-			"$description": "Applied under [data-sup-density=\"compact\"] (a SupRoot and DataTable prop). Never below the 24px target.",
+			"$description": "Applied under [data-sup-density=\"compact\"] (a SupRoot and DataTable prop). Never below the 24px target. [data-sup-density=\"comfortable\"] restores the base values, so an explicit comfortable DataTable overrides a compact root.",
 			"size": {
 				"control-md": {
 					"$value": "32px",

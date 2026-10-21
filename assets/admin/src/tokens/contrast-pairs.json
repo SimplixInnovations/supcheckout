@@ -1,5 +1,5 @@
 {
-	"$description": "WCAG 2.2 AA pairs checked by tools/admin-ui/tokens/contrast.mjs in light and dark for every core admin color scheme (or the brand accent). kind text needs 4.5:1 (SC 1.4.3), large-text 3:1 (24px or more), non-text 3:1 (SC 1.4.11: control boundaries, focus indicators, meaningful icons). Token names omit the --sup- prefix. Every semantic color is either paired or listed in decorative with a reason; every text foreground is paired on every background default text is paired on, or excluded with a reason; every background a control boundary or focus ring can meet is either paired or listed in exclusions with a reason.",
+	"$description": "WCAG 2.2 AA pairs checked by tools/admin-ui/tokens/contrast.mjs in light and dark for every core admin color scheme (or the brand accent). kind text needs 4.5:1 (SC 1.4.3), large-text 3:1 (24px or more), non-text 3:1 (SC 1.4.11: control boundaries, focus indicators, meaningful icons). Token names omit the --sup- prefix. A pair may name its use (for example the command palette highlight indicator, an inline-start bar in color-focus-ring on the highlighted row, against the raised dialog surface and the row tint). Every semantic color is either paired or listed in decorative with a reason; every text foreground is paired on every background default text is paired on, or excluded with a reason; every background a control boundary or focus ring can meet is either paired or listed in exclusions with a reason.",
 	"decorative": [
 		{
 			"token": "color-bg-overlay-backdrop",
@@ -374,6 +374,15 @@
 			"fg": "color-status-neutral-border",
 			"bg": [
 				"color-status-neutral-bg"
+			],
+			"kind": "non-text"
+		},
+		{
+			"use": "command-palette-highlight-indicator",
+			"fg": "color-focus-ring",
+			"bg": [
+				"color-bg-surface-raised",
+				"color-accent-subtle-bg"
 			],
 			"kind": "non-text"
 		},
