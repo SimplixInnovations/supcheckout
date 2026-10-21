@@ -1005,56 +1005,47 @@ test( 'between 601 and 782 px, Shift+Tab into the header and the skip link never
 			.locator( '#wpadminbar' )
 			.evaluate( ( node ) => getComputedStyle( node ).position )
 	).toBe( 'fixed' );
-	await page.evaluate( () =>
-		window.scrollTo( 0, document.documentElement.scrollHeight )
-	);
-	await page
-		.locator( `${ APP_ROOT } .sup-app-shell__nav-link` )
-		.first()
-		.focus();
-
-	const visited: Array< { name: string; top: number; barBottom: number } > =
-		[];
-	for ( let step = 0; step < 12; step += 1 ) {
+	const header = page.locator( HEADER );
+	// Tab order, backwards: the first nav link, the checked Appearance radio,
+	// the palette trigger, the screen action, the skip link.
+	const order: Locator[] = [
+		page.locator( `${ APP_ROOT } .sup-app-shell__nav-link` ).first(),
+		header.locator( 'input[type="radio"]:checked' ),
+		header.getByRole( 'button', { name: /^Search commands/ } ),
+		header.getByRole( 'button', { name: 'Export CSV' } ),
+		page.locator( `${ APP_ROOT } .sup-skip-link` ),
+	];
+	const results: Array< { target: string; top: number; bar: number } > = [];
+	for ( let index = 1; index < order.length; index += 1 ) {
+		const target = order[ index ];
+		// The target sits in the viewport but under the admin bar (8 px from
+		// the top), the case a plain scroll-into-view leaves alone.
+		await target.evaluate( ( node ) => {
+			window.scrollBy( 0, node.getBoundingClientRect().top - 8 );
+		} );
+		await order[ index - 1 ].evaluate( ( node ) =>
+			( node as HTMLElement ).focus( { preventScroll: true } )
+		);
 		await page.keyboard.press( 'Shift+Tab' );
-		const state = await page.evaluate( () => {
-			// eslint-disable-next-line @wordpress/no-global-active-element -- runs inside the page, with no node ref to start from.
-			const active = document.activeElement as HTMLElement | null;
-			const bar = document.getElementById( 'wpadminbar' );
-			if (
-				! active ||
-				! bar ||
-				! active.closest( '.sup-app-shell__header, .sup-skip-link' )
-			) {
-				return null;
-			}
-			return {
-				name:
-					active.getAttribute( 'aria-label' ) ??
-					active.textContent?.trim() ??
-					active.tagName,
-				top: active.getBoundingClientRect().top,
-				barBottom: bar.getBoundingClientRect().bottom,
-				skip: active.classList.contains( 'sup-skip-link' ),
-			};
-		} );
-		if ( state === null ) {
-			break;
-		}
-		visited.push( {
-			name: state.name,
-			top: state.top,
-			barBottom: state.barBottom,
-		} );
-		if ( state.skip ) {
-			break;
-		}
+		await expect( target ).toBeFocused();
+		results.push(
+			await target.evaluate( ( node ) => ( {
+				target:
+					node.getAttribute( 'aria-label' ) ??
+					node.textContent?.trim() ??
+					node.tagName,
+				top: node.getBoundingClientRect().top,
+				bar:
+					document
+						.getElementById( 'wpadminbar' )
+						?.getBoundingClientRect().bottom ?? 0,
+			} ) )
+		);
 	}
-	expect( visited.length ).toBeGreaterThanOrEqual( 3 );
-	expect( visited[ visited.length - 1 ].name ).toBe( 'Skip to content' );
-	expect(
-		visited.filter( ( entry ) => entry.top < entry.barBottom )
-	).toEqual( [] );
+	expect( results ).toHaveLength( 4 );
+	expect( results.filter( ( entry ) => entry.top < entry.bar ) ).toEqual(
+		[]
+	);
 } );
 
 for ( const size of [
