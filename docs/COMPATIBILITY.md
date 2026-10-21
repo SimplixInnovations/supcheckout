@@ -114,6 +114,26 @@ Sub-project 0c adds an admin-only REST API, `supcheckout/v1`, that runs the take
 
 The real-WordPress REST and driver certification runs in every Compatibility cell, and the purge step runs in the Ecosystem Certification E3 cells. Evidence: `docs/project/evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md`.
 
+### Admin UI boundary (Sub-project 1)
+
+Sub-project 1 adds the design-token system and the React component library that the SUPCheckout admin screens will be built from (Sub-project 2). It adds no admin screen, menu or REST call. `AdminAssets` registers and enqueues the committed build only on the SUPCheckout screens registered with it; in Sub-project 1 only the test-only gallery registers any, so no shipped wp-admin page loads the build yet. The admin UI is brand-neutral until Sub-project 5. Evidence: `docs/project/evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md`.
+
+- **Verified** (Admin UI Certification, `.github/workflows/admin-ui-certification.yml`, on a test-only component gallery in real wp-admin):
+  - Chromium, as pinned by Playwright 1.63.0, on WP 6.9.10 / WC 10.8.1 and WP 7.1.3 / WC 11.1.2: axe WCAG 2.2 A/AA with zero violations and no disabled rule, keyboard operation, focus visibility and focus never obscured, 24 px targets, scoping to SUPCheckout screens, WordPress admin CSS not bleeding into the controls, the RTL stylesheet swap and translations, including the lazy chunk;
+  - the React 18.3.1 runtime that WordPress 6.9 and 7.1 bundle (`wp-element`); React, `react-dom` and the JSX runtime are never bundled;
+  - LTR and Arabic RTL, in light and dark (four modes);
+  - the nine core admin colour schemes (`fresh`, `light`, `modern`, `blue`, `coffee`, `ectoplasm`, `midnight`, `ocean`, `sunrise`). The `--wp-admin-theme-color` of each is recorded at WP 7.1.3; WP 6.9.10 differs for seven schemes (`light`, `blue`, `coffee`, `ectoplasm`, `midnight`, `ocean`, `sunrise`) and those deltas are recorded and asserted;
+  - exact visual regression (`threshold 0`, `maxDiffPixels 0`) of every gallery specimen in the four modes on WP 7.1.3 / WC 11.1.2, on a pinned `ubuntu-24.04` runner;
+  - WCAG 2.2 AA contrast of every token pair in light and dark across the nine schemes, the committed-build drift gate on Linux and Windows, and the build contract (externals, no source maps, licenses, gzip budgets).
+- **Unit-only:** React 19 (`npm run test:unit:react19`, Jest with React 19.3.0). No WordPress release in the matrix ships React 19 yet.
+- **Emulated only:** `forced-colors: active` and `prefers-reduced-motion` are Playwright media emulation. Forced-colors emulation only toggles the media query; it does not apply a real Windows High Contrast theme.
+- **Limits of the gallery copy:** the gallery shows English copy in RTL. Real Arabic text rendering is baselined only through the `foundations-arabic` specimen (Noto Sans Arabic, a test-only font) and the Arabic fixture translations.
+- **External / manual:**
+  - Safari, Firefox and mobile devices (only Chromium is automated);
+  - screen-reader passes with NVDA and VoiceOver over the dialog, the money confirmation, toasts (including whether a limited toast that becomes visible again is re-announced), tabs and the command palette;
+  - real Windows High Contrast;
+  - a real Arabic copy review by a native speaker.
+
 Historical package-root movement remains certified for both pre-stable `simplixpay-upayments` and `sucheckout-upayments` roots moving to canonical `supcheckout`, including protected data continuity and rollback.
 
 ## Capability matrix
@@ -135,6 +155,7 @@ Historical package-root movement remains certified for both pre-stable `simplixp
 | Historical package-root migration | **Permanent exact-head gate** | Both pre-stable roots → `supcheckout`, continuity + rollback. |
 | Takeover from the official plugin / pre-0b SUPCheckout | **Verified — bounded** | Official `V2.0.5`, `upayments-V2.2.1`, `3.0.0`, `3.1.1` × HPOS/legacy, pre-0b lane and 10,000 orders on real WordPress, without provider traffic. WCML/FunnelKit settings are report-only; real WPML/WCML is external/manual. |
 | Onboarding admin REST API (`supcheckout/v1`) | **Verified — bounded** | Admin-only routes with explicit `wp_rest` nonce on writes, and the Action Scheduler driver, on real WordPress in every Compatibility cell, without provider traffic. Cache purge runtime-verified for LiteSpeed Cache, W3 Total Cache, Breeze and SiteGround Speed Optimizer; WP Rocket and WP Super Cache unit-verified; Cloudflare manual. |
+| Admin UI design system (Sub-project 1) | **Verified — bounded** | Chromium (Playwright 1.63.0) on WP 6.9.10 / WC 10.8.1 and WP 7.1.3 / WC 11.1.2, React 18.3.1 runtime, LTR + Arabic RTL, light + dark, nine core admin schemes, on a test-only gallery. React 19 unit-only. Safari, Firefox, mobile, screen readers, real Windows High Contrast and real Arabic copy are external/manual. See "Admin UI boundary (Sub-project 1)". |
 | Official WordPress Plugin Check | **Permanent packaged-artifact gate** | Runs against unpacked deterministic package with `strict: true`. |
 | Browser/callback payment updates | **Non-authoritative alone** | Cannot establish paid state without trusted provider verification. |
 | Free-theme WooCommerce runtime interoperability | **Verified — bounded** | Twenty Twenty-Five 1.5, Storefront 4.6.2, Astra 4.13.11, Blocksy 2.1.56 and Kadence 1.5.2, including real child-theme WooCommerce template override precedence, server-side checkout validation and finalized economics. |
@@ -182,6 +203,7 @@ The evidence stack is layered:
 - packaged legacy/HPOS smoke;
 - historical package-root migration/rollback;
 - real-WordPress takeover migration matrix;
+- Admin UI Certification: token contrast, build contract and drift, accessibility on real WordPress and exact visual regression;
 - official packaged WordPress Plugin Check;
 - bounded provider-sandbox certification;
 - CodeQL/security analysis at merge/release boundaries.

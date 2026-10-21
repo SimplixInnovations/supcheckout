@@ -1,7 +1,7 @@
 # SUPCheckout for UPayments — Project Status
 
 **Status document:** canonical living engineering state
-**Last reconciled:** 2026-10-19
+**Last reconciled:** 2026-10-21
 **Canonical repository:** `SimplixInnovations/supcheckout`
 **Development version:** `0.1.0`
 **Owner technical acceptance:** **ACCEPTED for Release Candidate 1** (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1`, recorded 2026-10-07)
@@ -39,14 +39,15 @@
 | R3 | **DONE / VERIFIED** — PR #112 certified head `de0162b4a1cca77c62f07290224b055902120c2a`, merged main `e1ad33819b5f4ec1e01c3feb6afd15e604f89b11`; candidate package SHA-256 `070279120064a6fe558dbeef3702a10b90330b8dc79fd9f21f028cd5fefba4da` (NOT owner accepted) |
 | R4 | **DONE / VERIFIED** — PR #114 certified head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
-| Current executable gate | **Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT**; 0c engineering (services + REST) complete. Next after the 0c exit gate: Sub-project 1 design-token system and admin component library |
+| Current executable gate | **Hardening program: full functionality, security and performance audit and fix loop — NEXT** (owner decision 2026-10-20). Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding |
 | Release gate | **external certification & release readiness — open**; spec §9 places its owner acceptance and live acceptance in Sub-project 5 |
 | Post-acceptance runtime on `main` | PR #133 payment lifecycle hardening (2026-10-10 review), merged main `35ea66d4cb9c8395b264cd24b4844eaa268aa470`; package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; then PR #138 non-white-label Charge fix, package `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`; **NOT owner accepted** |
 | Owner step before live evidence | **Fresh technical acceptance of the current `main` package** (`LOCAL-FINAL-VERIFICATION.md`). Live evidence must be produced with the package that will be released, not Release Candidate 1. |
 | Next release dependency | **Fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth: `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe, 2026-10-13, [evidence](evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md), runbook [`PRODUCTION-AUTH-ACCOUNT-PROBE.md`](PRODUCTION-AUTH-ACCOUNT-PROBE.md)) |
 | Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** (2026-10-17) |
 | Sub-project 0b takeover engine | **Tasks 1–12 merged**; Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
-| Sub-project 0c onboarding backend | **Tasks 1–10** — services + admin-only `supcheckout/v1` REST API, no UI (wizard in Sub-project 2); package 134 files; owner staging review pending |
+| Sub-project 0c onboarding backend | **Tasks 1–10 merged** (PR #194 `5dce3f1d1397d455baa4b4bfe64ef3f89184de6e`) — services + admin-only `supcheckout/v1` REST API, no UI (wizard in Sub-project 2); package 134 files; owner staging review pending owner action |
+| Sub-project 1 design system | **DONE / VERIFIED** — PRs #195–#197, #199, #200 and #202–#207; last merge `ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a`; package 224 files, SHA-256 `67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac` (NOT owner accepted) |
 | Public tag / GitHub Release | **NOT CREATED / NOT AUTHORIZED** |
 | WordPress.org publication | **NOT PERFORMED / NOT AUTHORIZED** |
 
@@ -121,7 +122,7 @@ R0 permanently introduced current-state regression coverage. For the E3→R2 tra
 
 The overall program is **not finished**.
 
-Current executable gate: **Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT** (see "Revamp program"). Release gate (open): **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
+Current executable gate: **Hardening program: full functionality, security and performance audit and fix loop — NEXT** (see "Revamp program"). Release gate (open): **external certification & release readiness**. The first-release core provider contract is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (2026-10-13), scoped to the release merchant account and packages containing PR #138. Publication remains NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
 
 R5 callback lifecycle consolidation is **DONE / VERIFIED** (Option B / ADR-003; PR #116 certified head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`).
 
@@ -135,7 +136,7 @@ R3 subscription safety is **DONE / VERIFIED** (PR #112 certified head `de0162b4a
 4. **R5 / T4 — callback consolidation:** DONE / VERIFIED under Option B / ADR-003. Legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only.
 5. **R6 — final release qualification:** immutable exact-head gates, manual/external qualification, fresh owner re-acceptance and explicit version/publication decision.
 
-## Revamp program (reconciled 2026-10-19)
+## Revamp program (reconciled 2026-10-21)
 
 Spec: [`../superpowers/specs/2026-10-16-supcheckout-revamp-design.md`](../superpowers/specs/2026-10-16-supcheckout-revamp-design.md). Delivery (spec §9) is Sub-projects 0–5; Sub-project 5 holds the final owner technical acceptance, live acceptance and release. The external certification & release readiness gate above stays open until then.
 
@@ -169,13 +170,36 @@ The 0b takeover staging rehearsal PASSED on 2026-10-18 (`docs/project/evidence/T
 - Cache purge after the compare-and-swap: LiteSpeed Cache, WP Rocket, W3 Total Cache, WP Super Cache, Breeze and SiteGround Optimizer, plus the object cache; the Cloudflare plugin is reported `manual`.
 - Self-test: one read-only availability probe in test and live mode alike.
 
-The on-the-wire notes and the independent security review (no Critical or High finding) are in [`evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md`](evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md). Its real-WordPress REST and driver certification (compatibility run 39177850394) is historical: it certified `535b1b4b80b308731bb7352def785130b86d6b72`, before the `activate_plugins` fix and the final review wave. The exact-head CI gates (Compatibility Certification (all 20 cells and the Compatibility Gate, including the new real `shop_manager` assertion), Ecosystem Certification E3, the Takeover Migration Matrix, Release Artifact, the WordPress.org Submission Check and CodeQL) are pending on the PR head. The public boundary is `docs/COMPATIBILITY.md` "Onboarding API boundary (Sub-project 0c)". Deterministic package: 134 files, SHA-256 `914cca32cfc2ea4b60ba1fc32e61205d12e0d443e2ab55b08167436033600bba` (`RELEASE-ENGINEERING.md`).
+The on-the-wire notes and the independent security review (no Critical or High finding) are in [`evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md`](evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md). Its real-WordPress REST and driver certification (compatibility run 39177850394) is historical: it certified `535b1b4b80b308731bb7352def785130b86d6b72`, before the `activate_plugins` fix and the final review wave. Tasks 4–10 then merged through PR #194 (`5dce3f1d1397d455baa4b4bfe64ef3f89184de6e`) after every exact-head workflow succeeded at its head `b48badf1f1c81284546ac4c3be62ca211201676f`: Compatibility Certification run 39205662675 (all 20 cells and the Compatibility Gate, including the real `shop_manager` assertion), Ecosystem Certification 39205662699, the Takeover Migration Matrix 39205662713, Release Artifact 39205662707, the WordPress.org Submission Check 39205662685, Quality Gates 39205662712, Provider Sandbox 39205662715 and CodeQL 39205661870. The same workflows succeeded again on `main` at `5dce3f1`. The public boundary is `docs/COMPATIBILITY.md` "Onboarding API boundary (Sub-project 0c)". Deterministic package: 134 files, SHA-256 `914cca32cfc2ea4b60ba1fc32e61205d12e0d443e2ab55b08167436033600bba` (`RELEASE-ENGINEERING.md`).
 
-0c exit gate, owner action: on the My Organic World staging copy, start a switch and a rollback through the REST API and see the automatic LiteSpeed purge take effect (rehearsal follow-up 2), and confirm WCML per-currency checkout visibility against the `multilingual` check (follow-up 3).
+Sub-project 0c owner staging review — **pending owner action**: on the My Organic World staging copy, start a switch and a rollback through the REST API and see the automatic LiteSpeed purge take effect (rehearsal follow-up 2), and confirm WCML per-currency checkout visibility against the `multilingual` check (follow-up 3). It no longer blocks engineering work.
 
-Current executable gate: **Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT**. 0c engineering is complete; Tasks 4–10 ship as one PR that merges only after its exact-head CI is green. The project does not move past 0c until the owner's staging review passes.
+Sub-project 1 design-token system and admin component library — **DONE / VERIFIED**. Plan: [`../superpowers/plans/2026-10-19-subproject-1-design-system.md`](../superpowers/plans/2026-10-19-subproject-1-design-system.md). Evidence, the SP2 rules carried from SP1, the pending owner acknowledgements and the owner manual test list: [`evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md`](evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md).
 
-**Next after the 0c exit gate: Sub-project 1 design-token system and admin component library** (spec §9; its exit gate: visual-regression and accessibility suites green), then Sub-projects 2–5. Follow-up: provider `status: "error"` with a null result stays Pending through bounded reconciliation; closing it sooner needs provider-contract evidence. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
+| Task | PR | Merged main |
+|---|---|---|
+| Plan | #195 | `c8e85f4d5a797923099e00e3e825380a037faab5` |
+| 1 — pinned toolchain, committed-build contract, Admin UI Certification | #196 | `55899aef09cc9d3d41e1898cda59bb2317d20bdd` |
+| 2 — `--sup-*` token system, WCAG 2.2 AA contrast in light and dark | #197 | `a01a7b0c158f1244d1ed4f0ef34e63299334c3d9` |
+| 3 — `SupRoot`, scoped portal layer, RTL-aware foundations | #199 | `4495ad60579d60d6eb533037bda1699a3d44ae02` |
+| Dev-tooling advisories; the audit blocks every severity from low up | #200 | `dc3ac3f87c51dacfae3d360387b3f76115bc404f` |
+| 4 — `AdminAssets` loader, test gallery, real-WordPress browser lane | #202 | `a4d1850ee7b82f5b4ab169f6b30c03d28c7d4dda` |
+| 5 — buttons and form controls, write-only `SecretInput` | #203 | `6686e8a7f77c41346eda36cf6dd2f3504903aa2f` |
+| Plugin Check wp-env held to the 14-day dependency cooldown | #205 | `eb103cf60feded1ec911a4a18291690e72f30ccb` |
+| 6 — status, notice, skeleton, stepper, toast, tooltip | #204 | `b08222c34e7943c65807caece0b88320e231e8de` |
+| 7 — dialogs, money-safe confirmation, tabs, data table, app shell, command palette | #206 | `b53a268b15c7e8cb22e4d297986ef274d83f2cf1` |
+| 8 — pinned visual-regression lane and the Sub-project 1 exit gate | #207 | `ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a` |
+
+- Brand-ready, not branded: SP1 ships no brand values; they arrive only through `brand.tokens.json` in Sub-project 5. It covers light and dark (default: the system preference), the nine core admin colour schemes, Arabic RTL, reduced motion and forced colours.
+- Every SP1 PR merged after all of its exact-head workflows succeeded. The exit gate (`admin-ui-certification.yml` `gate`: static lane, Windows build, the browser and accessibility suite on WP 6.9.10 / WC 10.8.1 and WP 7.1.3 / WC 11.1.2, and the exact visual-regression suite) succeeded at the Task 8 head `dde7a40726e5e081c8c843597a8ec8836022da2b` (run 39570193162).
+- Deterministic package: 224 files (134 after 0c, plus the committed build, the shipped TypeScript source and `AdminAssets.php`), SHA-256 `67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac` (`RELEASE-ENGINEERING.md`). NOT owner accepted.
+- `.github/workflows/admin-ui-certification.yml` is a permanent quality control (`AGENTS.md`). The public boundary is `docs/COMPATIBILITY.md` "Admin UI boundary (Sub-project 1)".
+
+Owner decision 2026-10-20 (binding): the owner shares the full revamp, branding and information architecture only once functionality, security and performance are verified. The program after Sub-project 1 is therefore a hardening program: a full audit of functionality, security and performance, then a fix loop. Sub-project 2 screens, the wizard IA, the menu structure and the visual checkout redesign wait for the owner's information architecture and branding.
+
+Current executable gate: **Hardening program: full functionality, security and performance audit and fix loop — NEXT**.
+
+**Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding**, then Sub-projects 3–5. Follow-up: provider `status: "error"` with a null result stays Pending through bounded reconciliation; closing it sooner needs provider-contract evidence. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
 
 ## Current provider-contract disposition
 
