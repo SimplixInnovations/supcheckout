@@ -24,10 +24,10 @@ def write_fixture(d: Path, unknown: int) -> None:
     d.mkdir(parents=True, exist_ok=True)
     comps = [{"type": "file", "name": f"f{i}.php"} for i in range(50)]
     (d / "runtime-sbom.cdx.json").write_text(
-        json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.5", "serialNumber": "urn:uuid:x", "version": 1, "components": comps})
+        json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.5", "serialNumber": "urn:uuid:7a6d52fd-7fdd-5552-a69d-3e35277610ee", "version": 1, "components": comps})
     )
     (d / "dev-sbom.cdx.json").write_text(
-        json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.5", "serialNumber": "urn:uuid:y", "version": 1, "components": [{"type": "library", "name": "x", "version": "1"}]})
+        json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.5", "serialNumber": "urn:uuid:d7af9085-cfcd-5d1a-b791-d2c0640d1c1f", "version": 1, "components": [{"type": "library", "name": "x", "version": "1"}]})
     )
     deps = [{"package": "p", "version": "1", "license": "MIT", "class": "development", "source": "composer.lock", "ecosystem": "composer"}]
     if unknown:
