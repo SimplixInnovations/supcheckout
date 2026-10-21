@@ -689,6 +689,15 @@ body.admin-color-sunrise .supcheckout-admin[data-sup-theme="dark"] {
 	--sup-table-row-height: var(--sup-size-table-row);
 }
 
+.supcheckout-admin[data-sup-density="comfortable"],
+.supcheckout-admin [data-sup-density="comfortable"] {
+	--sup-button-height-md: var(--sup-size-control-md);
+	--sup-input-height: var(--sup-size-control-md);
+	--sup-size-control-md: 36px;
+	--sup-size-table-row: 48px;
+	--sup-table-row-height: var(--sup-size-table-row);
+}
+
 @media (prefers-reduced-motion: reduce) {
 
 	.supcheckout-admin {

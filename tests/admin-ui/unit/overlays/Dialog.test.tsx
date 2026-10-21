@@ -9,7 +9,11 @@ import { useRef, useState } from '@wordpress/element';
 
 import {
 	Button,
+	DataTable,
 	Dialog,
+	Notice,
+	SkeletonGroup,
+	Spinner,
 	SupRoot,
 	TextInput,
 	Tooltip,
@@ -207,6 +211,7 @@ test( 'the inert background never silences live regions and keeps their siblings
 	speak.id = 'a11y-speak-polite';
 	const status = document.createElement( 'p' );
 	status.setAttribute( 'role', 'status' );
+	status.setAttribute( 'aria-live', 'polite' );
 	const sibling = document.createElement( 'button' );
 	sibling.textContent = 'Outside';
 	wrapper.append( speak, sibling );
@@ -291,4 +296,75 @@ test( 'nested dialogs closing out of order never un-inert the page under one sti
 	await userEvent.click( screen.getByRole( 'button', { name: 'Done' } ) );
 	await waitFor( () => expect( screen.queryByRole( 'dialog' ) ).toBeNull() );
 	expect( container.closest( '[inert]' ) ).toBeNull();
+} );
+
+test( 'every SUPCheckout live region behind an open modal stays audible: never aria-hidden, never inert', async () => {
+	const { container } = render(
+		<SupRoot>
+			<Notice tone="success" live>
+				Webhook saved.
+			</Notice>
+			<Notice tone="error" live>
+				The webhook address is not reachable.
+			</Notice>
+			<SkeletonGroup label="payments">
+				<span>placeholder</span>
+			</SkeletonGroup>
+			<DataTable
+				caption="Recent payments"
+				columns={ [
+					{ id: 'id', header: 'Order', cell: ( row: string ) => row },
+				] }
+				rows={ [] }
+				rowKey={ ( row: string ) => row }
+				loading
+			/>
+			<Button busy busyLabel="Saving…">
+				Save
+			</Button>
+			<Spinner label="Checking the connection" />
+			<Host />
+		</SupRoot>
+	);
+	const regions = Array.from(
+		container.querySelectorAll( '[role="status"], [role="alert"]' )
+	);
+	// Two Notices, the skeleton, table, button and spinner statuses.
+	expect( regions ).toHaveLength( 6 );
+	const trigger = screen.getByRole( 'button', { name: 'Edit webhook' } );
+	await openDialog();
+	await waitFor( () =>
+		expect( trigger.closest( '[inert]' ) ).not.toBeNull()
+	);
+	const toastViewport = document.querySelector( '.sup-toast-viewport' );
+	expect( toastViewport ).not.toBeNull();
+	for ( const region of [ ...regions, toastViewport as Element ] ) {
+		expect( [
+			region.outerHTML.slice( 0, 60 ),
+			region.closest( '[aria-hidden="true"]' ),
+			region.closest( '[inert]' ),
+		] ).toEqual( [ region.outerHTML.slice( 0, 60 ), null, null ] );
+	}
+} );
+
+test( 'a role-only region (no aria-live) is inert behind a modal, matching Base UI, which hides it', async () => {
+	const status = document.createElement( 'p' );
+	status.setAttribute( 'role', 'status' );
+	document.body.append( status );
+	try {
+		render(
+			<SupRoot>
+				<Host />
+			</SupRoot>
+		);
+		await openDialog();
+		await waitFor( () =>
+			expect( status.closest( '[aria-hidden="true"]' ) ).not.toBeNull()
+		);
+		await waitFor( () =>
+			expect( status.closest( '[inert]' ) ).not.toBeNull()
+		);
+	} finally {
+		status.remove();
+	}
 } );

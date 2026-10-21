@@ -2,7 +2,8 @@
  * The UI library is the only import surface: outside assets/admin/src/ui,
  * ESLint forbids Base UI (every `@base-ui/*` package), Floating UI,
  * lucide-react and `@wordpress/components`; inside it, only
- * `@wordpress/components` stays forbidden.
+ * `@wordpress/components` stays forbidden. Screens (assets/admin/src/app)
+ * and the gallery also reach the library only through its barrel.
  *
  * Lints an in-memory probe through the real eslint.config.mjs (stdin with a
  * virtual file name), so no probe file is ever written to the tree.
@@ -120,4 +121,34 @@ test( 'component tests may still import UI internals directly', () => {
 	expect(
 		restrictedImports( 'tests/admin-ui/unit/probe.test.tsx', GALLERY_PROBE )
 	).toEqual( [ '@base-ui/react/dialog', '@wordpress/components' ] );
+}, 60000 );
+
+const APP_PROBE = [
+	"import '../ui';",
+	"import '../ui/index';",
+	"import '../tokens/tokens.generated.css';",
+	"import './app.css';",
+	"import '../ui/controls/Button';",
+	"import '../ui/foundations/foundations.css';",
+	"import '../../src/ui/overlays/Dialog';",
+	"import './ui/feedback/Toast';",
+	"import 'assets/admin/src/ui/controls/Button';",
+	"import '/srv/supcheckout/assets/admin/src/ui/feedback/liveRegion';",
+	'',
+].join( '\n' );
+
+test( 'screens import the UI library only through its barrel, never a module inside it', () => {
+	expect(
+		restrictedImports( 'assets/admin/src/app/probe.tsx', APP_PROBE )
+	).toEqual( [
+		'../ui/controls/Button',
+		'../ui/foundations/foundations.css',
+		'../../src/ui/overlays/Dialog',
+		'./ui/feedback/Toast',
+		'assets/admin/src/ui/controls/Button',
+		'/srv/supcheckout/assets/admin/src/ui/feedback/liveRegion',
+	] );
+	expect(
+		restrictedImports( 'assets/admin/src/app/screens/probe.tsx', APP_PROBE )
+	).toHaveLength( 6 );
 }, 60000 );

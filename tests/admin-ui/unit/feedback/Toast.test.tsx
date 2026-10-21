@@ -9,6 +9,7 @@ import { StrictMode, useEffect, useRef } from '@wordpress/element';
 import type { ReactNode } from 'react';
 
 import {
+	LIVE_REGION_DELAY_MS,
 	SupRoot,
 	TOAST_TIMEOUT_MS,
 	useToast,
@@ -48,6 +49,13 @@ function renderToaster( children?: ReactNode ): {
 			/>
 		</SupRoot>
 	);
+	// Toasts land once the viewport region has existed for
+	// LIVE_REGION_DELAY_MS; under fake timers, let that time pass now.
+	if ( usingFakeTimers() ) {
+		act( () => {
+			jest.advanceTimersByTime( LIVE_REGION_DELAY_MS );
+		} );
+	}
 	return {
 		toast: () => {
 			if ( ! controller ) {
@@ -57,6 +65,23 @@ function renderToaster( children?: ReactNode ): {
 		},
 		unmount,
 	};
+}
+
+/** @return Whether Jest's modern fake timers are installed. */
+function usingFakeTimers(): boolean {
+	return (
+		typeof ( setTimeout as unknown as { clock?: unknown } ).clock !==
+		'undefined'
+	);
+}
+
+/** Lets the viewport region become ready under real timers. */
+async function regionReady(): Promise< void > {
+	await act( async () => {
+		await new Promise( ( resolve ) =>
+			setTimeout( resolve, LIVE_REGION_DELAY_MS + 10 )
+		);
+	} );
 }
 
 const layer = () =>
@@ -80,8 +105,9 @@ afterEach( () => {
 	jest.useRealTimers();
 } );
 
-test( 'the toast viewport is a polite region mounted empty before any toast', () => {
+test( 'the toast viewport is a polite region mounted empty before any toast', async () => {
 	const { toast } = renderToaster();
+	await regionReady();
 	const viewport = within( layer() ).getByRole( 'region', {
 		name: 'Notifications',
 	} );
@@ -98,8 +124,9 @@ test( 'the toast viewport is a polite region mounted empty before any toast', ()
 	expect( viewport ).toHaveTextContent( 'Settings saved' );
 } );
 
-test( 'toasts render inside the scoped portal layer', () => {
+test( 'toasts render inside the scoped portal layer', async () => {
 	const { toast } = renderToaster();
+	await regionReady();
 	act( () => {
 		toast().show( {
 			tone: 'info',
@@ -190,8 +217,9 @@ test( 'show returns an id that dismiss closes', () => {
 	expect( screen.getByText( 'Second' ) ).toBeInTheDocument();
 } );
 
-test( 'at most three toasts are visible', () => {
+test( 'at most three toasts are visible', async () => {
 	const { toast } = renderToaster();
+	await regionReady();
 	act( () => {
 		for ( const title of [ 'One', 'Two', 'Three', 'Four' ] ) {
 			toast().show( { tone: 'error', title } );
@@ -226,6 +254,26 @@ test( 'a toast action runs its callback once and closes the toast', async () => 
 	advance( 1000 );
 	expect( screen.queryByText( 'Order archived' ) ).toBeNull();
 } );
+
+test.each( [ 'info', 'success' ] as const )(
+	'%s toast with an action never auto-dismisses (WCAG 2.2.1): it stays until acted on or dismissed',
+	( tone ) => {
+		jest.useFakeTimers();
+		const { toast } = renderToaster();
+		act( () => {
+			toast().show( {
+				tone,
+				title: 'Order archived',
+				action: { label: 'Undo', onClick: () => undefined },
+			} );
+		} );
+		advance( TOAST_TIMEOUT_MS * 3 );
+		expect( screen.getByText( 'Order archived' ) ).toBeInTheDocument();
+		expect(
+			screen.getByRole( 'button', { name: 'Undo' } )
+		).toBeInTheDocument();
+	}
+);
 
 test( 'the controller is stable across renders', () => {
 	const seen: ToastController[] = [];
@@ -330,8 +378,9 @@ test( 'the stack listens for focus only while toasts exist', () => {
 	}
 } );
 
-test( 'the stack moves again when the window resizes', () => {
+test( 'the stack moves again when the window resizes', async () => {
 	const { toast } = renderToaster( <button>Target</button> );
+	await regionReady();
 	const target = screen.getByRole( 'button', { name: 'Target' } );
 	let targetBox = box( 1100, 680, 1240, 720 );
 	target.getBoundingClientRect = () => targetBox;
@@ -355,7 +404,7 @@ test( 'the stack moves again when the window resizes', () => {
 	expect( viewport ).toHaveAttribute( 'data-sup-placement', 'end' );
 } );
 
-test( 'the stack moves again when its own size changes', () => {
+test( 'the stack moves again when its own size changes', async () => {
 	const observers: Array< {
 		callback: ResizeObserverCallback;
 		targets: Element[];
@@ -378,6 +427,7 @@ test( 'the stack moves again when its own size changes', () => {
 	} as unknown as typeof ResizeObserver;
 	try {
 		const { toast, unmount } = renderToaster( <button>Target</button> );
+		await regionReady();
 		const target = screen.getByRole( 'button', { name: 'Target' } );
 		let targetBox = box( 400, 100, 540, 140 );
 		target.getBoundingClientRect = () => targetBox;
@@ -624,12 +674,32 @@ function ShowOnMount() {
 test( "a toast shown from a screen's mount effect is not lost", () => {
 	// Children's effects run before Base UI's provider subscribes to the
 	// manager, so an add() then would vanish unless it is queued.
+	jest.useFakeTimers();
 	render(
 		<SupRoot>
 			<ShowOnMount />
 		</SupRoot>
 	);
+	advance( LIVE_REGION_DELAY_MS );
 	expect( screen.getByText( 'Shown on mount' ) ).toBeInTheDocument();
+} );
+
+test( 'a mount-time toast waits until the viewport region has existed LIVE_REGION_DELAY_MS, so it is announced', () => {
+	jest.useFakeTimers();
+	render(
+		<SupRoot>
+			<ShowOnMount />
+		</SupRoot>
+	);
+	const viewport = within( layer() ).getByRole( 'region', {
+		name: 'Notifications',
+	} );
+	// Mounted empty: the toast is held, not inserted with the region.
+	expect( viewport ).toHaveTextContent( /^$/ );
+	advance( LIVE_REGION_DELAY_MS - 1 );
+	expect( viewport ).toHaveTextContent( /^$/ );
+	advance( 1 );
+	expect( viewport ).toHaveTextContent( 'Shown on mount' );
 } );
 
 test( 'an error that arrives in the background does not unhold the next success', () => {

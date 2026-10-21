@@ -140,6 +140,12 @@ export const SPECIMEN_GROUPS = [
 		specimens: [],
 	},
 	{
+		name: 'toast-action-open',
+		view: 'components',
+		capture: 'element',
+		specimens: [],
+	},
+	{
 		name: 'tooltip-open',
 		view: 'components',
 		capture: 'element',
@@ -223,6 +229,14 @@ export const EXTRA_GROUPS = [
 		name: 'data-table-compact',
 		view: 'overlays',
 		capture: 'frame',
+		specimens: [],
+	},
+	{
+		// The open palette under forced colors: the highlighted row and its
+		// inline-start bar in system colors.
+		name: 'palette-forced-colors',
+		view: 'overlays',
+		capture: 'element',
 		specimens: [],
 	},
 ] as const satisfies readonly SpecimenGroup[];

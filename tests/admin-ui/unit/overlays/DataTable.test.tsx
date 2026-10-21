@@ -3,15 +3,20 @@
  * sortable headers, bidi-isolated numeric cells and a loading state (SP1
  * Task 7, Review Focus 4).
  */
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from '@wordpress/element';
 
 import {
 	DataTable,
 	LIVE_REGION_DELAY_MS,
 	SupRoot,
 } from '../../../../assets/admin/src/ui';
-import type { Column, DataTableProps } from '../../../../assets/admin/src/ui';
+import type {
+	Column,
+	DataTableProps,
+	TableSort,
+} from '../../../../assets/admin/src/ui';
 
 interface Payment {
 	id: string;
@@ -153,4 +158,249 @@ test( 'the scroll region is focusable and labelled by the caption', () => {
 	const caption = region.querySelector( 'caption' );
 	expect( caption ).toHaveClass( 'sup-visually-hidden' );
 	expect( region.getAttribute( 'aria-labelledby' ) ).toBe( caption?.id );
+} );
+
+test( 'without a density prop the table sets no density and inherits the root', () => {
+	render(
+		<SupRoot density="compact">
+			<DataTable< Payment >
+				caption="Recent payments"
+				columns={ COLUMNS }
+				rows={ ROWS }
+				rowKey={ ( row ) => row.id }
+			/>
+		</SupRoot>
+	);
+	const region = screen.getByRole( 'region', { name: 'Recent payments' } );
+	expect( region ).not.toHaveAttribute( 'data-sup-density' );
+	expect(
+		region.parentElement?.closest( '[data-sup-density]' )
+	).toHaveAttribute( 'data-sup-density', 'compact' );
+} );
+
+test( 'an explicit comfortable density is set on the table, so it overrides a compact root', () => {
+	render(
+		<SupRoot density="compact">
+			<DataTable< Payment >
+				caption="Recent payments"
+				columns={ COLUMNS }
+				rows={ ROWS }
+				rowKey={ ( row ) => row.id }
+				density="comfortable"
+			/>
+		</SupRoot>
+	);
+	expect(
+		screen.getByRole( 'region', { name: 'Recent payments' } )
+	).toHaveAttribute( 'data-sup-density', 'comfortable' );
+} );
+
+function SortedTable() {
+	const [ sort, setSort ] = useState< TableSort >( {
+		columnId: 'order',
+		direction: 'descending',
+	} );
+	return (
+		<DataTable< Payment >
+			caption="Recent payments"
+			columns={ COLUMNS }
+			rows={ ROWS }
+			rowKey={ ( row ) => row.id }
+			sort={ sort }
+			onSortChange={ ( columnId ) =>
+				setSort( ( current ) => ( {
+					columnId,
+					direction:
+						current.columnId === columnId &&
+						current.direction === 'ascending'
+							? 'descending'
+							: 'ascending',
+				} ) )
+			}
+		/>
+	);
+}
+
+test( 'a sort the user asks for is announced in the polite status, never on mount', async () => {
+	render(
+		<SupRoot>
+			<SortedTable />
+		</SupRoot>
+	);
+	const status = screen.getByRole( 'status' );
+	expect( status ).toHaveAttribute( 'aria-live', 'polite' );
+	await act( async () => {
+		await new Promise( ( resolve ) =>
+			setTimeout( resolve, LIVE_REGION_DELAY_MS + 10 )
+		);
+	} );
+	// The initial sort is part of the page, not a change.
+	expect( status ).toHaveTextContent( /^$/ );
+
+	await userEvent.click( screen.getByRole( 'button', { name: 'Amount' } ) );
+	await waitFor( () =>
+		expect( status ).toHaveTextContent( 'Sorted by Amount, ascending' )
+	);
+	await userEvent.click( screen.getByRole( 'button', { name: 'Amount' } ) );
+	await waitFor( () =>
+		expect( status ).toHaveTextContent( 'Sorted by Amount, descending' )
+	);
+	await userEvent.click( screen.getByRole( 'button', { name: 'Order' } ) );
+	await waitFor( () =>
+		expect( status ).toHaveTextContent( 'Sorted by Order, ascending' )
+	);
+} );
+
+function ControlledSortTable( {
+	ignorePresses = false,
+	loadOnSort = false,
+	sortMidLoad = false,
+}: {
+	ignorePresses?: boolean;
+	loadOnSort?: boolean;
+	sortMidLoad?: boolean;
+} ) {
+	const [ sort, setSort ] = useState< TableSort >( {
+		columnId: 'order',
+		direction: 'descending',
+	} );
+	const [ loading, setLoading ] = useState( false );
+	return (
+		<>
+			<button type="button" onClick={ () => setLoading( true ) }>
+				Start load
+			</button>
+			<button type="button" onClick={ () => setLoading( false ) }>
+				Finish load
+			</button>
+			<button
+				type="button"
+				onClick={ () =>
+					setSort( { columnId: 'amount', direction: 'ascending' } )
+				}
+			>
+				Sort by amount from the URL
+			</button>
+			<DataTable< Payment >
+				caption="Recent payments"
+				columns={ COLUMNS }
+				rows={ ROWS }
+				rowKey={ ( row ) => row.id }
+				sort={ sort }
+				loading={ loading }
+				onSortChange={ ( columnId ) => {
+					if ( ignorePresses ) {
+						return;
+					}
+					if ( loadOnSort || sortMidLoad ) {
+						setLoading( true );
+					}
+					if ( sortMidLoad ) {
+						// The caller applies the sort after an await, while
+						// the load it started is still running.
+						setTimeout( () =>
+							setSort( { columnId, direction: 'ascending' } )
+						);
+						return;
+					}
+					setSort( ( current ) => ( {
+						columnId,
+						direction:
+							current.columnId === columnId &&
+							current.direction === 'ascending'
+								? 'descending'
+								: 'ascending',
+					} ) );
+				} }
+			/>
+		</>
+	);
+}
+
+const statusRegion = () =>
+	document.querySelector( '.sup-table-wrap > [role="status"]' );
+
+const waitForRegionReady = () =>
+	act( async () => {
+		await new Promise( ( resolve ) =>
+			setTimeout( resolve, LIVE_REGION_DELAY_MS + 10 )
+		);
+	} );
+
+const press = ( name: string ) =>
+	userEvent.click( screen.getByRole( 'button', { name } ) );
+
+test( 'a refresh or pagination load after a sort does not announce that sort again', async () => {
+	render(
+		<SupRoot>
+			<ControlledSortTable />
+		</SupRoot>
+	);
+	await waitForRegionReady();
+	await press( 'Amount' );
+	await waitFor( () =>
+		expect( statusRegion() ).toHaveTextContent(
+			'Sorted by Amount, ascending'
+		)
+	);
+	await press( 'Start load' );
+	await waitFor( () =>
+		expect( statusRegion() ).toHaveTextContent( 'Loading: Recent payments' )
+	);
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+} );
+
+test( 'a load that starts with the sort it serves announces that sort once the rows arrive', async () => {
+	render(
+		<SupRoot>
+			<ControlledSortTable loadOnSort />
+		</SupRoot>
+	);
+	await waitForRegionReady();
+	await press( 'Amount' );
+	expect( statusRegion() ).toHaveTextContent( 'Loading: Recent payments' );
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( 'Sorted by Amount, ascending' );
+	// A second, unrelated load (a refresh) no longer repeats it.
+	await press( 'Start load' );
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+} );
+
+test( 'a sort applied while its load is running is not repeated by the next refresh', async () => {
+	render(
+		<SupRoot>
+			<ControlledSortTable sortMidLoad />
+		</SupRoot>
+	);
+	await waitForRegionReady();
+	await press( 'Amount' );
+	await waitFor( () =>
+		expect(
+			screen.getByRole( 'columnheader', { name: 'Amount' } )
+		).toHaveAttribute( 'aria-sort', 'ascending' )
+	);
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( 'Sorted by Amount, ascending' );
+	// A later, unrelated refresh must not repeat the stale sort.
+	await press( 'Start load' );
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+} );
+
+test( 'an ignored header press never makes a later programmatic sort announce', async () => {
+	render(
+		<SupRoot>
+			<ControlledSortTable ignorePresses />
+		</SupRoot>
+	);
+	await waitForRegionReady();
+	await press( 'Amount' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+	await press( 'Sort by amount from the URL' );
+	expect(
+		screen.getByRole( 'columnheader', { name: 'Amount' } )
+	).toHaveAttribute( 'aria-sort', 'ascending' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
 } );

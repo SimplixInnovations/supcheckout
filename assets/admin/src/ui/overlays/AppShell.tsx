@@ -7,7 +7,11 @@
  *   ThemeToggle. On narrow screens (where WordPress lets its own admin bar
  *   scroll away) the header scrolls with the page.
  * - `<nav aria-label="SUPCheckout sections">` with the current section
- *   marked `aria-current="page"`; left out when there are no sections.
+ *   marked `aria-current="page"`; left out when there are no sections. A
+ *   nav `href` must be relative (`admin.php?page=…`, `#section`) or use
+ *   `http:` / `https:`; any other scheme (`javascript:`, `data:`, also
+ *   disguised by case, spaces, tabs or control characters) renders the
+ *   item as plain text, with a development warning (SCRIPT_DEBUG).
  * - The content in `<div id="supcheckout-content" tabIndex={-1}>`. It is
  *   not a `main` element and has no `role`: wp-admin already provides the
  *   one main landmark (`#wpbody[role=main]`).
@@ -19,7 +23,7 @@
  *   the 64px token is the fallback until it is measured.
  */
 import type { ReactNode } from 'react';
-import { useLayoutEffect, useRef } from '@wordpress/element';
+import { useEffect, useLayoutEffect, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 
 import { ThemeToggle } from '../controls/ThemeToggle';
@@ -55,6 +59,26 @@ export interface AppShellProps {
 }
 
 const NO_COMMANDS: readonly Command[] = [];
+
+/** The only URL schemes a nav link may use; relative URLs have none. */
+const SAFE_SCHEMES: ReadonlySet< string > = new Set( [ 'http', 'https' ] );
+
+/**
+ * Browsers drop leading C0 controls and spaces and every tab and newline
+ * before they read a URL's scheme, so `\tjava\nscript:` still runs script.
+ * Every such character is removed before the scheme is read.
+ */
+const URL_NOISE = /[\u0000- \u007f]+/g;
+const SCHEME = /^([a-z][a-z\d+.-]*):/i;
+
+/**
+ * @param href A nav item's href.
+ * @return Whether it is relative or uses http: or https:.
+ */
+function isSafeNavHref( href: string ): boolean {
+	const scheme = SCHEME.exec( href.replace( URL_NOISE, '' ) );
+	return scheme === null || SAFE_SCHEMES.has( scheme[ 1 ].toLowerCase() );
+}
 
 const HEADER_HEIGHT_PROPERTY = '--sup-app-shell-header-height';
 
@@ -102,6 +126,19 @@ export function AppShell( {
 	children,
 }: AppShellProps ) {
 	const { shellRef, headerRef } = useMeasuredHeader();
+	useEffect( () => {
+		if ( ! globalThis.SCRIPT_DEBUG ) {
+			return;
+		}
+		for ( const item of nav ) {
+			if ( ! isSafeNavHref( item.href ) ) {
+				// eslint-disable-next-line no-console -- development-only guidance, dropped from production builds.
+				console.warn(
+					`SUPCheckout AppShell: the nav item "${ item.id }" has an href that is not relative, http: or https:, so it renders as text.`
+				);
+			}
+		}
+	}, [ nav ] );
 	return (
 		<div className="sup-app-shell" ref={ shellRef }>
 			<a className="sup-skip-link" href={ `#${ CONTENT_ID }` }>
@@ -137,6 +174,21 @@ export function AppShell( {
 						<ul className="sup-app-shell__nav-list">
 							{ nav.map( ( item ) => {
 								const current = item.id === currentNavId;
+								if ( ! isSafeNavHref( item.href ) ) {
+									return (
+										<li key={ item.id }>
+											<span className="sup-app-shell__nav-link sup-app-shell__nav-link--text">
+												{ item.icon && (
+													<Icon
+														name={ item.icon }
+														size={ 16 }
+													/>
+												) }
+												<span>{ item.label }</span>
+											</span>
+										</li>
+									);
+								}
 								return (
 									<li key={ item.id }>
 										<a

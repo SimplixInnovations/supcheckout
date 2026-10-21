@@ -28,7 +28,7 @@ export function Spinner( { label, size = 20 }: SpinnerProps ) {
 		);
 	}
 	return (
-		<span className={ className } role="status">
+		<span className={ className } role="status" aria-live="polite">
 			<span className="sup-spinner__ring" aria-hidden="true" />
 			<VisuallyHidden>{ label }</VisuallyHidden>
 		</span>

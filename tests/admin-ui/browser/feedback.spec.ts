@@ -643,3 +643,40 @@ test( 'feedback gallery with a toast and a tooltip open has no axe violations', 
 		} );
 	}
 } );
+
+test( 'a long toast action label wraps inside the toast at 320 px', async ( {
+	page,
+} ) => {
+	await page.setViewportSize( { width: 320, height: 640 } );
+	await openGallery( page, { labels: 'long' } );
+	await specimen( page, 'toast-trigger' )
+		.getByRole( 'button', { name: 'Show info toast' } )
+		.click();
+	const toast = page.locator( `${ VIEWPORT } .sup-toast` );
+	await expect( toast ).toBeVisible();
+	await layerSettled( page );
+	const report = await toast.evaluate( ( node ) => {
+		const action = node.querySelector( '.sup-toast__action' );
+		const title = node.querySelector( '.sup-toast__title' );
+		if ( ! action || ! title ) {
+			return null;
+		}
+		const box = node.getBoundingClientRect();
+		const rect = action.getBoundingClientRect();
+		return {
+			inside:
+				rect.left >= box.left - 0.5 && rect.right <= box.right + 0.5,
+			clipped: action.scrollWidth > action.clientWidth + 1,
+			wraps: rect.height > 28,
+			titleReadable: title.getBoundingClientRect().width >= 60,
+			toastOverflows: node.scrollWidth > node.clientWidth + 1,
+		};
+	} );
+	expect( report ).toEqual( {
+		inside: true,
+		clipped: false,
+		wraps: true,
+		titleReadable: true,
+		toastOverflows: false,
+	} );
+} );

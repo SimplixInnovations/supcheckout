@@ -4,6 +4,8 @@
  */
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useRef, useState } from '@wordpress/element';
+import type { ReactNode, RefObject } from 'react';
 
 import {
 	Badge,
@@ -13,6 +15,7 @@ import {
 	LIVE_REGION_DELAY_MS,
 	Notice,
 	StatusPill,
+	SupRoot,
 } from '../../../../assets/admin/src/ui';
 import type { StatusPillStatus } from '../../../../assets/admin/src/ui';
 
@@ -234,6 +237,140 @@ test( 'a notice with onDismiss has a "Dismiss notice" icon button', async () => 
 	expect(
 		container.querySelector( '.sup-notice__icon svg, .sup-notice > svg' )
 	).toHaveAttribute( 'aria-hidden', 'true' );
+} );
+
+function DismissibleNotice( {
+	before,
+	after,
+	focusAfterDismiss,
+}: {
+	before?: ReactNode;
+	after?: ReactNode;
+	focusAfterDismiss?: RefObject< HTMLElement | null >;
+} ) {
+	const [ shown, setShown ] = useState( true );
+	return (
+		<>
+			{ before }
+			{ shown && (
+				<Notice
+					tone="warning"
+					onDismiss={ () => setShown( false ) }
+					focusAfterDismiss={ focusAfterDismiss }
+				>
+					The webhook address changed.
+				</Notice>
+			) }
+			{ after }
+		</>
+	);
+}
+
+test( 'dismissing a notice moves focus to the next focusable element after it, never to body', async () => {
+	render(
+		<div>
+			<DismissibleNotice
+				before={ <Button>Before</Button> }
+				after={
+					<p>
+						Text, then <Button>Next</Button>
+					</p>
+				}
+			/>
+		</div>
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Dismiss notice' } )
+	);
+	expect( screen.queryByText( 'The webhook address changed.' ) ).toBeNull();
+	expect( screen.getByRole( 'button', { name: 'Next' } ) ).toHaveFocus();
+	expect( document.body ).not.toHaveFocus();
+} );
+
+test( 'dismissing a notice with focusAfterDismiss moves focus to that element', async () => {
+	function WithTarget() {
+		const target = useRef< HTMLButtonElement >( null );
+		return (
+			<DismissibleNotice
+				before={ <Button ref={ target }>Test connection</Button> }
+				after={ <Button>Next</Button> }
+				focusAfterDismiss={ target }
+			/>
+		);
+	}
+	render( <WithTarget /> );
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Dismiss notice' } )
+	);
+	expect(
+		screen.getByRole( 'button', { name: 'Test connection' } )
+	).toHaveFocus();
+} );
+
+test( 'with nothing focusable after it, dismissing a notice focuses its parent region', async () => {
+	render(
+		<div>
+			<Button>Before</Button>
+			<div tabIndex={ -1 } data-testid="region">
+				<DismissibleNotice />
+			</div>
+		</div>
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Dismiss notice' } )
+	);
+	expect( screen.getByTestId( 'region' ) ).toHaveFocus();
+	expect( document.body ).not.toHaveFocus();
+} );
+
+test( 'the last notice in the app moves focus to its region, never to the WordPress footer', async () => {
+	render(
+		<SupRoot>
+			<Button>Before</Button>
+			<div tabIndex={ -1 } data-testid="region">
+				<DismissibleNotice />
+			</div>
+		</SupRoot>
+	);
+	// wp-admin prints #wpfooter (with links) after the app.
+	const footer = document.createElement( 'div' );
+	footer.id = 'wpfooter';
+	footer.innerHTML = '<a href="https://wordpress.org/">WordPress</a>';
+	document.body.append( footer );
+	try {
+		await userEvent.click(
+			screen.getByRole( 'button', { name: 'Dismiss notice' } )
+		);
+		expect( screen.getByTestId( 'region' ) ).toHaveFocus();
+	} finally {
+		footer.remove();
+	}
+} );
+
+test( 'dismissing a notice skips a following element that is not displayed', async () => {
+	render(
+		<SupRoot>
+			<div tabIndex={ -1 }>
+				<DismissibleNotice
+					after={
+						<>
+							<Button style={ { display: 'none' } }>
+								Hidden
+							</Button>
+							<div style={ { display: 'none' } }>
+								<Button>Inside hidden</Button>
+							</div>
+							<Button>Visible</Button>
+						</>
+					}
+				/>
+			</div>
+		</SupRoot>
+	);
+	await userEvent.click(
+		screen.getByRole( 'button', { name: 'Dismiss notice' } )
+	);
+	expect( screen.getByRole( 'button', { name: 'Visible' } ) ).toHaveFocus();
 } );
 
 test( 'a notice without onDismiss has no button', () => {

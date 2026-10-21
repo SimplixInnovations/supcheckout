@@ -3,7 +3,10 @@
  * hairline below it, held just under the WordPress admin bar; the nav is a
  * quiet row of section links with the accent underline on the current one.
  * Focus scrolling clears the admin bar plus the header (WCAG 2.4.11)
- * through scroll-margin on everything in the shell body.
+ * through scroll-margin on everything in the shell body, and clears the
+ * admin bar for the skip link and the header's own controls (which the
+ * header carries along while it is sticky, and which scroll with the page
+ * below 783px, under WordPress's fixed 46px admin bar down to 601px).
  */
 .supcheckout-admin .sup-app-shell {
 	position: relative;
@@ -96,8 +99,15 @@
 	padding-inline: var(--sup-space-7);
 }
 
-/* Whatever receives focus (or the skip link's target) scrolls into view
-   below the admin bar and the sticky header, never under them. */
+/* The skip link and the header controls scroll into view below the admin
+   bar, never under it. */
+.supcheckout-admin .sup-app-shell,
+.supcheckout-admin .sup-app-shell * {
+	scroll-margin-block-start: calc(var(--sup-app-shell-offset-block-start) + var(--sup-space-4));
+}
+
+/* Whatever receives focus in the body (or the skip link's target) scrolls
+   into view below the admin bar and the sticky header, never under them. */
 .supcheckout-admin .sup-app-shell__body,
 .supcheckout-admin .sup-app-shell__body * {
 	scroll-margin-block-start: calc(var(--sup-app-shell-offset-block-start) + var(--sup-app-shell-header-height) + var(--sup-space-4));
@@ -148,6 +158,13 @@
 .supcheckout-admin .sup-app-shell__nav-link:hover {
 	color: var(--sup-color-fg-default);
 	background-color: var(--sup-color-bg-surface-sunken);
+}
+
+/* An item whose href was rejected: plain text, never a link. */
+.supcheckout-admin .sup-app-shell__nav-link--text,
+.supcheckout-admin .sup-app-shell__nav-link--text:hover {
+	color: var(--sup-color-fg-muted);
+	background-color: transparent;
 }
 
 .supcheckout-admin .sup-app-shell__nav-link:focus {

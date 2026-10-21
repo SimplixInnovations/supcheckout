@@ -11,8 +11,8 @@
  * Determinism: the projects pin the viewport, device scale, reduced motion
  * and Chromium's font hinting and color profile; the expect settings
  * disable animations and hide the caret. Interactions use the keyboard, so
- * the pointer never hovers anything. Toasts use the error tone, which never
- * times out; the pending confirmation is held open through the gallery
+ * the pointer never hovers anything. Toasts use the error tone or carry an
+ * action, which never time out; the pending confirmation is held open through the gallery
  * (`confirm=hold`); live-region text is awaited before the capture.
  */
 import { expect, test } from '@playwright/test';
@@ -187,6 +187,28 @@ async function openConfirmation(
 	return dialog;
 }
 
+/** The open command palette with its first command highlighted. */
+const PALETTE_CAPTURE: Capture = {
+	// Core's palette is dropped so the page holds no WordPress commands.
+	query: { sup_core_commands: 'off' },
+	async prepare( page ) {
+		await activate( page.locator( '.sup-palette-trigger' ) );
+		const palette = page.locator( '.sup-palette' );
+		await expect( palette ).toBeVisible();
+		// The panel is the lazy chunk: wait until its results render.
+		await expect( palette.locator( '.sup-palette__item' ) ).toHaveCount(
+			5
+		);
+		return palette;
+	},
+};
+
+/** Light-ltr-only groups captured under emulated forced colors. */
+const FORCED_COLORS_GROUPS: ReadonlySet< string > = new Set( [
+	'focus-forced-colors',
+	'palette-forced-colors',
+] );
+
 /** How each `element` group reaches its captured state. */
 const ELEMENT_CAPTURES: Readonly< Record< string, Capture > > = {
 	'toast-open': {
@@ -199,6 +221,23 @@ const ELEMENT_CAPTURES: Readonly< Record< string, Capture > > = {
 			await expect( viewport.locator( '.sup-toast' ) ).toHaveCount( 1 );
 			await expect(
 				viewport.locator( '.sup-toast--error' )
+			).toBeVisible();
+			return viewport;
+		},
+	},
+	'toast-action-open': {
+		// An info toast with an action never times out (it waits for the
+		// user); the long German label shows the action under the text,
+		// wrapping inside the toast.
+		query: { labels: 'long' },
+		async prepare( page ) {
+			await activate(
+				specimen( page, 'toast-trigger' ).getByRole( 'button' ).nth( 1 )
+			);
+			const viewport = page.locator( '.sup-toast-viewport' );
+			await expect( viewport.locator( '.sup-toast' ) ).toHaveCount( 1 );
+			await expect(
+				viewport.locator( '.sup-toast--info .sup-toast__action' )
 			).toBeVisible();
 			return viewport;
 		},
@@ -243,17 +282,21 @@ const ELEMENT_CAPTURES: Readonly< Record< string, Capture > > = {
 	'confirm-dialog-verified': {
 		prepare: ( page ) => openConfirmation( page, 'verified' ),
 	},
-	'command-palette': {
-		// Core's palette is dropped so the page holds no WordPress commands.
-		query: { sup_core_commands: 'off' },
+	'command-palette': PALETTE_CAPTURE,
+	'palette-forced-colors': {
+		query: PALETTE_CAPTURE.query,
 		async prepare( page ) {
-			await activate( page.locator( '.sup-palette-trigger' ) );
-			const palette = page.locator( '.sup-palette' );
-			await expect( palette ).toBeVisible();
-			// The panel is the lazy chunk: wait until its results render.
-			await expect( palette.locator( '.sup-palette__item' ) ).toHaveCount(
-				5
-			);
+			const palette = await PALETTE_CAPTURE.prepare( page );
+			// Forced colors override the hidden caret's color, and a blinking
+			// caret would make the capture flaky: Tab moves focus from the
+			// search field to Close; the first command stays highlighted.
+			await page.keyboard.press( 'Tab' );
+			await expect(
+				palette.locator( '.sup-palette__close' )
+			).toBeFocused();
+			await expect(
+				palette.locator( '.sup-palette__item[data-highlighted]' )
+			).toHaveCount( 1 );
 			return palette;
 		},
 	},
@@ -341,7 +384,7 @@ for ( const group of EXTRA_GROUPS ) {
 			modeOf( info ) !== EXTRA_GROUP_MODE,
 			`${ EXTRA_GROUP_MODE } only`
 		);
-		if ( group.name === 'focus-forced-colors' ) {
+		if ( FORCED_COLORS_GROUPS.has( group.name ) ) {
 			await page.emulateMedia( { forcedColors: 'active' } );
 		}
 		await capture( page, group, EXTRA_GROUP_MODE );
@@ -363,9 +406,9 @@ test( 'the four visual projects cover VISUAL_MODES exactly', async ( {}, info ) 
 
 test( 'every element group has a capture and every capture a group', async ( {}, info ) => {
 	test.skip( modeOf( info ) !== EXTRA_GROUP_MODE, 'checked once' );
-	const elementGroups = SPECIMEN_GROUPS.filter(
-		( group ) => group.capture === 'element'
-	).map( ( group ) => group.name );
+	const elementGroups = [ ...SPECIMEN_GROUPS, ...EXTRA_GROUPS ]
+		.filter( ( group ) => group.capture === 'element' )
+		.map( ( group ): string => group.name );
 	expect( Object.keys( ELEMENT_CAPTURES ).sort() ).toEqual(
 		[ ...elementGroups ].sort()
 	);

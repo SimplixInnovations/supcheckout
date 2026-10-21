@@ -6,8 +6,12 @@
  * `aria-disabled="true"`, swallows clicks (and so Enter, Space and form
  * submission) and shows a decorative spinner. With `busyLabel`, a visually
  * hidden polite status next to the button announces it; that region is
- * mounted before the button turns busy so the change is announced, and it
- * sits outside the button so the accessible name stays the visible label.
+ * mounted empty and holds no text until LIVE_REGION_DELAY_MS after it
+ * mounted (see liveRegion.ts), so a button that mounts already busy (a
+ * reopened pending ConfirmDialog) is announced too. The region sits outside
+ * the button so the accessible name stays the visible label. A button given
+ * `aria-disabled` (boolean `true` or the string `"true"`) is inert to
+ * activation like a busy one: clicks are swallowed and `onClick` never runs.
  *
  * Contract for callers:
  * - Pass `busyLabel` whenever the button may become busy, not only while it
@@ -26,6 +30,7 @@ import { forwardRef } from '@wordpress/element';
 import { Icon } from '../foundations/Icon';
 import type { IconName } from '../foundations/icons';
 import { Spinner } from '../foundations/Spinner';
+import { useLiveRegionReady } from '../feedback/liveRegion';
 import { classNames } from './classNames';
 import './Button.css';
 
@@ -85,8 +90,12 @@ export const Button = forwardRef< HTMLButtonElement, ButtonProps >(
 		ref
 	) {
 		const iconSize = size === 'sm' ? 16 : 20;
+		// The status region exists LIVE_REGION_DELAY_MS before it may speak.
+		const statusReady = useLiveRegionReady( busyLabel !== undefined );
+		// aria-disabled keeps the button focusable; it must also be inert.
+		const inert = busy || ariaDisabled === true || ariaDisabled === 'true';
 		const handleClick = ( event: MouseEvent< HTMLButtonElement > ) => {
-			if ( busy ) {
+			if ( inert ) {
 				// Also stops a submit button from submitting its form.
 				event.preventDefault();
 				return;
@@ -123,8 +132,12 @@ export const Button = forwardRef< HTMLButtonElement, ButtonProps >(
 		return (
 			<>
 				{ button }
-				<span role="status" className="sup-visually-hidden">
-					{ busy ? busyLabel : '' }
+				<span
+					role="status"
+					aria-live="polite"
+					className="sup-visually-hidden"
+				>
+					{ busy && statusReady ? busyLabel : '' }
 				</span>
 			</>
 		);

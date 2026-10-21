@@ -939,3 +939,257 @@ test( "while a SUPCheckout modal is open Mod+K never reaches WordPress core's co
 	await expect( coreMenu ).toHaveCount( 1 );
 	await page.keyboard.press( 'Escape' );
 } );
+
+/**
+ * @param target An element.
+ * @return Whether it, or an ancestor, is aria-hidden, and whether inert.
+ */
+function hiddenState(
+	target: Locator
+): Promise< { ariaHidden: boolean; inert: boolean } > {
+	return target.evaluate( ( node ) => ( {
+		ariaHidden: node.closest( '[aria-hidden="true"]' ) !== null,
+		inert: node.closest( '[inert]' ) !== null,
+	} ) );
+}
+
+test( 'live Notices behind an open ConfirmDialog stay audible: never aria-hidden, never inert', async ( {
+	page,
+} ) => {
+	await openOverlays( page, 'system', { notice: 'live' } );
+	const confirm = specimen( page, 'confirm-dialog' );
+	const status = confirm.locator( '.sup-notice__content[role="status"]' );
+	const alert = confirm.locator( '.sup-notice__content[role="alert"]' );
+	await expect( status ).toHaveText( /\S/ );
+	await expect( alert ).toHaveText( /\S/ );
+	// A CSS locator: role queries skip the trigger once it is aria-hidden.
+	const trigger = specimen( page, 'dialog' ).locator( 'button' ).first();
+	await confirm
+		.getByRole( 'button', { name: 'Refund order #10234' } )
+		.click();
+	await expect(
+		page.getByRole( 'alertdialog', { name: 'Refund 12.500 KWD?' } )
+	).toBeVisible();
+	// Base UI hides the page one frame after opening; the inert hold follows.
+	await expect
+		.poll( () => hiddenState( trigger ) )
+		.toEqual( { ariaHidden: true, inert: true } );
+	for ( const region of [ status, alert ] ) {
+		expect( await hiddenState( region ) ).toEqual( {
+			ariaHidden: false,
+			inert: false,
+		} );
+	}
+	// Still in the accessibility tree: role queries skip hidden nodes.
+	await expect(
+		page.getByRole( 'status' ).filter( {
+			hasText: 'Refunds sync with UPayments every minute.',
+		} )
+	).toHaveCount( 1 );
+	await expect(
+		page.getByRole( 'alert' ).filter( {
+			hasText: 'The last refund sync failed.',
+		} )
+	).toHaveCount( 1 );
+} );
+
+/*
+ * WordPress's admin-bar.css gives `html` a scroll-padding-top of the admin
+ * bar height, which already clears the bar for focus scrolling; a theme,
+ * plugin or browser setting can drop it. The shell's own scroll-margin must
+ * clear the bar either way, so the test runs with and without it.
+ */
+for ( const pagePadding of [ 'kept', 'removed' ] as const ) {
+	test( `between 601 and 782 px, Shift+Tab into the header and the skip link never lands under the admin bar (page scroll-padding ${ pagePadding })`, async ( {
+		page,
+	} ) => {
+		await page.setViewportSize( { width: 700, height: 600 } );
+		await openOverlays( page );
+		// WordPress keeps its 46 px admin bar fixed in this band.
+		expect(
+			await page
+				.locator( '#wpadminbar' )
+				.evaluate( ( node ) => getComputedStyle( node ).position )
+		).toBe( 'fixed' );
+		if ( pagePadding === 'removed' ) {
+			await page.evaluate( () => {
+				document.documentElement.style.scrollPaddingBlockStart = '0px';
+			} );
+		}
+		const header = page.locator( HEADER );
+		// Tab order, backwards: the first nav link, the checked Appearance
+		// radio, the palette trigger, the screen action, the skip link.
+		const order: Locator[] = [
+			page.locator( `${ APP_ROOT } .sup-app-shell__nav-link` ).first(),
+			header.locator( 'input[type="radio"]:checked' ),
+			header.getByRole( 'button', { name: /^Search commands/ } ),
+			header.getByRole( 'button', { name: 'Export CSV' } ),
+			page.locator( `${ APP_ROOT } .sup-skip-link` ),
+		];
+		const results: Array< {
+			target: string;
+			top: number;
+			bar: number;
+		} > = [];
+		for ( let index = 1; index < order.length; index += 1 ) {
+			const target = order[ index ];
+			// The target sits in the viewport but under the admin bar (8 px
+			// from the top).
+			await target.evaluate( ( node ) => {
+				window.scrollBy( 0, node.getBoundingClientRect().top - 8 );
+			} );
+			await order[ index - 1 ].evaluate( ( node ) =>
+				( node as HTMLElement ).focus( { preventScroll: true } )
+			);
+			await page.keyboard.press( 'Shift+Tab' );
+			await expect( target ).toBeFocused();
+			results.push(
+				await target.evaluate( ( node ) => ( {
+					target:
+						node.getAttribute( 'aria-label' ) ??
+						node.textContent?.trim() ??
+						node.tagName,
+					top: node.getBoundingClientRect().top,
+					bar:
+						document
+							.getElementById( 'wpadminbar' )
+							?.getBoundingClientRect().bottom ?? 0,
+				} ) )
+			);
+		}
+		expect( results ).toHaveLength( 4 );
+		expect( results.filter( ( entry ) => entry.top < entry.bar ) ).toEqual(
+			[]
+		);
+	} );
+}
+
+for ( const size of [
+	{ width: 320, height: 256 },
+	{ width: 683, height: 330 },
+] ) {
+	test( `at ${ size.width }x${ size.height } a long dialog's close and footer buttons and the palette's Close can be scrolled into view`, async ( {
+		page,
+	} ) => {
+		await page.setViewportSize( size );
+		await openOverlays( page, 'system', {
+			labels: 'long',
+			...WITHOUT_CORE_PALETTE,
+		} );
+		await specimen( page, 'dialog' )
+			.getByRole( 'button', { name: 'Edit webhook' } )
+			.click();
+		const dialog = page.getByRole( 'dialog', { name: 'Edit webhook' } );
+		await expect( dialog ).toBeVisible();
+		await layerSettled( page );
+		const targets = [
+			dialog.getByRole( 'button', { name: 'Close dialog' } ),
+			...( await dialog
+				.locator( '.sup-dialog__footer' )
+				.getByRole( 'button' )
+				.all() ),
+		];
+		expect( targets ).toHaveLength( 3 );
+		for ( const target of targets ) {
+			await target.scrollIntoViewIfNeeded();
+			await expect( target ).toBeInViewport( { ratio: 1 } );
+		}
+		await page.keyboard.press( 'Escape' );
+		await expect( dialog ).toHaveCount( 0 );
+
+		const palette = await openPaletteWithTrigger( page );
+		await expect( palette.locator( '.sup-palette__item' ) ).toHaveCount(
+			5
+		);
+		await layerSettled( page );
+		const close = palette.getByRole( 'button', { name: /^Close/ } );
+		await close.scrollIntoViewIfNeeded();
+		await expect( close ).toBeInViewport( { ratio: 1 } );
+		await expect(
+			palette.getByRole( 'combobox', { name: 'Search commands' } )
+		).toBeInViewport( { ratio: 1 } );
+	} );
+}
+
+test( 'long dialog footer labels wrap inside the dialog at 320 px', async ( {
+	page,
+} ) => {
+	await page.setViewportSize( { width: 320, height: 640 } );
+	await openOverlays( page, 'system', { labels: 'long' } );
+	await specimen( page, 'dialog' )
+		.getByRole( 'button', { name: 'Edit webhook' } )
+		.click();
+	const dialog = page.getByRole( 'dialog', { name: 'Edit webhook' } );
+	await expect( dialog ).toBeVisible();
+	await layerSettled( page );
+	const report = await dialog.evaluate( ( node ) => {
+		const box = node.getBoundingClientRect();
+		return Array.from(
+			node.querySelectorAll( '.sup-dialog__footer .sup-button' )
+		).map( ( button ) => {
+			const rect = button.getBoundingClientRect();
+			return {
+				label: button.textContent?.trim() ?? '',
+				inside:
+					rect.left >= box.left - 0.5 &&
+					rect.right <= box.right + 0.5,
+				clipped: button.scrollWidth > button.clientWidth + 1,
+				wraps: rect.height > 40,
+			};
+		} );
+	} );
+	expect( report ).toHaveLength( 2 );
+	for ( const entry of report ) {
+		expect( entry ).toEqual( {
+			label: entry.label,
+			inside: true,
+			clipped: false,
+			wraps: true,
+		} );
+	}
+	expect(
+		await dialog.evaluate(
+			( node ) => node.scrollWidth <= node.clientWidth + 1
+		)
+	).toBe( true );
+} );
+
+test( 'under forced colors the highlighted palette row keeps a visible inline-start bar in a system color', async ( {
+	page,
+} ) => {
+	await page.emulateMedia( { forcedColors: 'active' } );
+	await openOverlays( page, 'system', WITHOUT_CORE_PALETTE );
+	const palette = await openPaletteWithTrigger( page );
+	const highlighted = palette.locator(
+		'.sup-palette__item[data-highlighted]'
+	);
+	await expect( highlighted ).toHaveCount( 1 );
+	const bar = await highlighted.evaluate( ( item ) => {
+		// System colors resolve to the forced palette's real values.
+		const probe = item.ownerDocument.createElement( 'span' );
+		probe.style.color = 'HighlightText';
+		probe.style.backgroundColor = 'Highlight';
+		item.append( probe );
+		const system = getComputedStyle( probe );
+		const expected = {
+			highlightText: system.color,
+			highlight: system.backgroundColor,
+		};
+		probe.remove();
+		const before = getComputedStyle( item, '::before' );
+		return {
+			content: before.content,
+			color: before.backgroundColor,
+			width: parseFloat( before.width ),
+			height: parseFloat( before.height ),
+			rowBackground: getComputedStyle( item ).backgroundColor,
+			...expected,
+		};
+	} );
+	expect( bar.content ).not.toBe( 'none' );
+	expect( bar.width ).toBeGreaterThanOrEqual( 2 );
+	expect( bar.height ).toBeGreaterThan( 0 );
+	expect( bar.color ).toBe( bar.highlightText );
+	expect( bar.rowBackground ).toBe( bar.highlight );
+	expect( bar.color ).not.toBe( bar.rowBackground );
+} );

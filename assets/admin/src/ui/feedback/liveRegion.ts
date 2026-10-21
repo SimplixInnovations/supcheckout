@@ -12,6 +12,11 @@
  *
  * `role="alert"` regions do not use the delay: assistive technology
  * announces an alert when it is inserted, with its content.
+ *
+ * Every SUPCheckout region also sets an explicit `aria-live` (`polite` on a
+ * status, `assertive` on an alert). Behind an open modal Base UI hides
+ * everything except `[aria-live]` regions and their ancestors, so a
+ * role-only region would be silenced (see Dialog.tsx).
  */
 import { useEffect, useState } from '@wordpress/element';
 

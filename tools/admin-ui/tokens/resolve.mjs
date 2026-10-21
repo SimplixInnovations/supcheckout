@@ -578,6 +578,26 @@ function withDependants( changed, candidates ) {
 	return out;
 }
 
+/**
+ * The base value of every token an override block changes: the block that
+ * undoes it on a nested element (an explicit comfortable DataTable inside a
+ * compact root).
+ *
+ * @param {Record<string,string>} overrides Overridden tokens.
+ * @param {Record<string,string>} base      Base values.
+ * @return {Record<string,string>} The same names with their base values.
+ */
+function restored( overrides, base ) {
+	return Object.fromEntries(
+		Object.keys( overrides ).map( ( key ) => {
+			if ( ! Object.hasOwn( base, key ) ) {
+				throw new Error( `override ${ key } has no base value` );
+			}
+			return [ key, base[ key ] ];
+		} )
+	);
+}
+
 function zeroed( tokens, prefix, zero ) {
 	return Object.fromEntries(
 		Object.keys( tokens )
@@ -629,7 +649,8 @@ function schemeRules( set ) {
  * Deterministic: declarations are sorted, lines end in LF and the file ends
  * with one newline. Selector order: root (light), system dark, explicit dark,
  * admin-scheme accents (omitted with a brand accent), Arabic, compact
- * density, reduced motion.
+ * density, comfortable density (restores the base values on an element that
+ * asks for it inside a compact root), reduced motion.
  *
  * @param {TokenSet} set Token set.
  * @return {string} CSS.
@@ -637,6 +658,8 @@ function schemeRules( set ) {
 export function renderCss( set ) {
 	const defaults = set.schemes[ DEFAULT_SCHEME ];
 	const { light, dark } = set.semantic;
+	const densityBase = { ...light, ...set.component };
+	const compact = withDependants( set.modifiers.compact, densityBase );
 	const blocks = [
 		HEADER,
 		...( set.brandAccent ? [] : [ SCHEME_LINT_NOTE ] ),
@@ -675,10 +698,14 @@ export function renderCss( set ) {
 				`${ SCOPE }[data-sup-density="compact"]`,
 				`${ SCOPE } [data-sup-density="compact"]`,
 			],
-			withDependants( set.modifiers.compact, {
-				...light,
-				...set.component,
-			} )
+			compact
+		),
+		rule(
+			[
+				`${ SCOPE }[data-sup-density="comfortable"]`,
+				`${ SCOPE } [data-sup-density="comfortable"]`,
+			],
+			restored( compact, densityBase )
 		),
 		atRule(
 			REDUCED_MOTION_MEDIA,

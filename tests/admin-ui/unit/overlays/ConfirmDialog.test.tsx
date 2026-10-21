@@ -321,6 +321,46 @@ test( 'closing and reopening while a request is in flight never re-arms onConfir
 	expect( onConfirm ).toHaveBeenCalledTimes( 1 );
 } );
 
+test( 'a reopened pending confirmation inserts its busy status empty and announces the label LIVE_REGION_DELAY_MS later', async () => {
+	const first = deferred< ConfirmResult >();
+	renderControlled( first.promise );
+	await userEvent.click( confirmBtn( 'Capture' ) );
+	// The text each busy status region had when it was inserted.
+	const atInsertion: string[] = [];
+	const observer = new MutationObserver( ( records ) => {
+		for ( const record of records ) {
+			for ( const node of Array.from( record.addedNodes ) ) {
+				if ( ! ( node instanceof Element ) ) {
+					continue;
+				}
+				for ( const region of Array.from(
+					node.querySelectorAll(
+						'.sup-dialog__footer [role="status"]'
+					)
+				) ) {
+					atInsertion.push( region.textContent ?? '' );
+				}
+			}
+		}
+	} );
+	observer.observe( document.body, { childList: true, subtree: true } );
+	try {
+		await forceCloseAndReopen();
+	} finally {
+		observer.disconnect();
+	}
+	expect( atInsertion.length ).toBeGreaterThan( 0 );
+	expect( atInsertion.filter( ( text ) => text !== '' ) ).toEqual( [] );
+	const status = confirmBtn( 'Capture' ).nextElementSibling;
+	expect( status ).toHaveAttribute( 'role', 'status' );
+	expect( status ).toHaveAttribute( 'aria-live', 'polite' );
+	await waitFor( () =>
+		expect( status ).toHaveTextContent(
+			'Waiting for the result. Keep this window open.'
+		)
+	);
+} );
+
 test( 'a result that settles while the dialog is closed never swaps the panel or moves focus', async () => {
 	const first = deferred< ConfirmResult >();
 	const { onConfirm } = renderControlled( first.promise );
