@@ -140,6 +140,12 @@ export const SPECIMEN_GROUPS = [
 		specimens: [],
 	},
 	{
+		name: 'toast-action-open',
+		view: 'components',
+		capture: 'element',
+		specimens: [],
+	},
+	{
 		name: 'tooltip-open',
 		view: 'components',
 		capture: 'element',

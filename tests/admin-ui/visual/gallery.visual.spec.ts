@@ -11,8 +11,8 @@
  * Determinism: the projects pin the viewport, device scale, reduced motion
  * and Chromium's font hinting and color profile; the expect settings
  * disable animations and hide the caret. Interactions use the keyboard, so
- * the pointer never hovers anything. Toasts use the error tone, which never
- * times out; the pending confirmation is held open through the gallery
+ * the pointer never hovers anything. Toasts use the error tone or carry an
+ * action, which never time out; the pending confirmation is held open through the gallery
  * (`confirm=hold`); live-region text is awaited before the capture.
  */
 import { expect, test } from '@playwright/test';
@@ -199,6 +199,23 @@ const ELEMENT_CAPTURES: Readonly< Record< string, Capture > > = {
 			await expect( viewport.locator( '.sup-toast' ) ).toHaveCount( 1 );
 			await expect(
 				viewport.locator( '.sup-toast--error' )
+			).toBeVisible();
+			return viewport;
+		},
+	},
+	'toast-action-open': {
+		// An info toast with an action never times out (it waits for the
+		// user); the long German label shows the action under the text,
+		// wrapping inside the toast.
+		query: { labels: 'long' },
+		async prepare( page ) {
+			await activate(
+				specimen( page, 'toast-trigger' ).getByRole( 'button' ).nth( 1 )
+			);
+			const viewport = page.locator( '.sup-toast-viewport' );
+			await expect( viewport.locator( '.sup-toast' ) ).toHaveCount( 1 );
+			await expect(
+				viewport.locator( '.sup-toast--info .sup-toast__action' )
 			).toBeVisible();
 			return viewport;
 		},
