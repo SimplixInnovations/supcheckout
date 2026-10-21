@@ -187,6 +187,28 @@ async function openConfirmation(
 	return dialog;
 }
 
+/** The open command palette with its first command highlighted. */
+const PALETTE_CAPTURE: Capture = {
+	// Core's palette is dropped so the page holds no WordPress commands.
+	query: { sup_core_commands: 'off' },
+	async prepare( page ) {
+		await activate( page.locator( '.sup-palette-trigger' ) );
+		const palette = page.locator( '.sup-palette' );
+		await expect( palette ).toBeVisible();
+		// The panel is the lazy chunk: wait until its results render.
+		await expect( palette.locator( '.sup-palette__item' ) ).toHaveCount(
+			5
+		);
+		return palette;
+	},
+};
+
+/** Light-ltr-only groups captured under emulated forced colors. */
+const FORCED_COLORS_GROUPS: ReadonlySet< string > = new Set( [
+	'focus-forced-colors',
+	'palette-forced-colors',
+] );
+
 /** How each `element` group reaches its captured state. */
 const ELEMENT_CAPTURES: Readonly< Record< string, Capture > > = {
 	'toast-open': {
@@ -260,20 +282,8 @@ const ELEMENT_CAPTURES: Readonly< Record< string, Capture > > = {
 	'confirm-dialog-verified': {
 		prepare: ( page ) => openConfirmation( page, 'verified' ),
 	},
-	'command-palette': {
-		// Core's palette is dropped so the page holds no WordPress commands.
-		query: { sup_core_commands: 'off' },
-		async prepare( page ) {
-			await activate( page.locator( '.sup-palette-trigger' ) );
-			const palette = page.locator( '.sup-palette' );
-			await expect( palette ).toBeVisible();
-			// The panel is the lazy chunk: wait until its results render.
-			await expect( palette.locator( '.sup-palette__item' ) ).toHaveCount(
-				5
-			);
-			return palette;
-		},
-	},
+	'command-palette': PALETTE_CAPTURE,
+	'palette-forced-colors': PALETTE_CAPTURE,
 };
 
 /** Frames that need a state change before the capture. */
@@ -358,7 +368,7 @@ for ( const group of EXTRA_GROUPS ) {
 			modeOf( info ) !== EXTRA_GROUP_MODE,
 			`${ EXTRA_GROUP_MODE } only`
 		);
-		if ( group.name === 'focus-forced-colors' ) {
+		if ( FORCED_COLORS_GROUPS.has( group.name ) ) {
 			await page.emulateMedia( { forcedColors: 'active' } );
 		}
 		await capture( page, group, EXTRA_GROUP_MODE );
@@ -380,9 +390,9 @@ test( 'the four visual projects cover VISUAL_MODES exactly', async ( {}, info ) 
 
 test( 'every element group has a capture and every capture a group', async ( {}, info ) => {
 	test.skip( modeOf( info ) !== EXTRA_GROUP_MODE, 'checked once' );
-	const elementGroups = SPECIMEN_GROUPS.filter(
-		( group ) => group.capture === 'element'
-	).map( ( group ) => group.name );
+	const elementGroups = [ ...SPECIMEN_GROUPS, ...EXTRA_GROUPS ]
+		.filter( ( group ) => group.capture === 'element' )
+		.map( ( group ): string => group.name );
 	expect( Object.keys( ELEMENT_CAPTURES ).sort() ).toEqual(
 		[ ...elementGroups ].sort()
 	);

@@ -231,6 +231,14 @@ export const EXTRA_GROUPS = [
 		capture: 'frame',
 		specimens: [],
 	},
+	{
+		// The open palette under forced colors: the highlighted row and its
+		// inline-start bar in system colors.
+		name: 'palette-forced-colors',
+		view: 'overlays',
+		capture: 'element',
+		specimens: [],
+	},
 ] as const satisfies readonly SpecimenGroup[];
 
 /**

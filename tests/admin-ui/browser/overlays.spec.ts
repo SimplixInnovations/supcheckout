@@ -1153,3 +1153,43 @@ test( 'long dialog footer labels wrap inside the dialog at 320 px', async ( {
 		)
 	).toBe( true );
 } );
+
+test( 'under forced colors the highlighted palette row keeps a visible inline-start bar in a system color', async ( {
+	page,
+} ) => {
+	await page.emulateMedia( { forcedColors: 'active' } );
+	await openOverlays( page, 'system', WITHOUT_CORE_PALETTE );
+	const palette = await openPaletteWithTrigger( page );
+	const highlighted = palette.locator(
+		'.sup-palette__item[data-highlighted]'
+	);
+	await expect( highlighted ).toHaveCount( 1 );
+	const bar = await highlighted.evaluate( ( item ) => {
+		// System colors resolve to the forced palette's real values.
+		const probe = item.ownerDocument.createElement( 'span' );
+		probe.style.color = 'HighlightText';
+		probe.style.backgroundColor = 'Highlight';
+		item.append( probe );
+		const system = getComputedStyle( probe );
+		const expected = {
+			highlightText: system.color,
+			highlight: system.backgroundColor,
+		};
+		probe.remove();
+		const before = getComputedStyle( item, '::before' );
+		return {
+			content: before.content,
+			color: before.backgroundColor,
+			width: parseFloat( before.width ),
+			height: parseFloat( before.height ),
+			rowBackground: getComputedStyle( item ).backgroundColor,
+			...expected,
+		};
+	} );
+	expect( bar.content ).not.toBe( 'none' );
+	expect( bar.width ).toBeGreaterThanOrEqual( 2 );
+	expect( bar.height ).toBeGreaterThan( 0 );
+	expect( bar.color ).toBe( bar.highlightText );
+	expect( bar.rowBackground ).toBe( bar.highlight );
+	expect( bar.color ).not.toBe( bar.rowBackground );
+} );
