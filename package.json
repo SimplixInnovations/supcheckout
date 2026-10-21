@@ -55,7 +55,7 @@
 		"@wordpress/i18n": "6.29.0",
 		"@wordpress/scripts": "36.0.0",
 		"culori": "4.0.2",
-		"globals": "16.5.0",
+		"globals": "17.13.0",
 		"jest": "30.5.2",
 		"jest-axe": "11.0.0",
 		"jest-environment-jsdom": "30.5.2",
