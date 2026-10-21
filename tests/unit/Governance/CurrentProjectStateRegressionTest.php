@@ -17,16 +17,19 @@ final class CurrentProjectStateRegressionTest extends TestCase {
      * The current executable gate (reconciled 2026-10-21): the hardening program. Owner decision
      * 2026-10-20: the full revamp, branding and information architecture follow only once
      * functionality, security and performance are verified, so a full audit and fix loop comes
-     * next. Sub-project 1 is done; the 0c owner staging review stays pending owner action and
-     * does not block engineering work.
+     * next. Sub-project 1 is done and the 0c owner staging review is owner-verified.
      */
     private const CURRENT_GATE = '**Hardening program: full functionality, security and performance audit and fix loop — NEXT**';
     /** What follows the hardening program (owner decision 2026-10-20). */
     private const NEXT_AFTER_GATE = 'Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding';
     /** Sub-project 1 status in every living record. */
     private const SUBPROJECT_1_DONE = 'Sub-project 1 design-token system and admin component library — **DONE / VERIFIED**';
-    /** The 0c owner staging review is still owed by the owner, but no longer the gate. */
-    private const SUBPROJECT_0C_REVIEW_PENDING = 'Sub-project 0c owner staging review — **pending owner action**';
+    /** The 0c owner staging review passed on the My Organic World staging copy (2026-10-22). */
+    private const SUBPROJECT_0C_REVIEW_DONE = 'Sub-project 0c owner staging review — **DONE / OWNER-VERIFIED** (2026-10-22)';
+    /** The superseded 0c review wording: the review is no longer pending. */
+    private const SUPERSEDED_0C_REVIEW_PENDING = 'Sub-project 0c owner staging review — **pending owner action**';
+    /** The 0c owner staging review evidence record. */
+    private const SUBPROJECT_0C_REVIEW_EVIDENCE = 'docs/project/evidence/SUBPROJECT-0C-OWNER-STAGING-REVIEW-2026-10-22.md';
     /** The binding owner decision that put the hardening program first. */
     private const OWNER_DECISION_HARDENING = 'Owner decision 2026-10-20';
     /** Sub-project 1 is done; it can never be the next gate again. */
@@ -388,7 +391,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('    subproject_0c_plan: docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md', $contract);
         self::assertStringContainsString('    subproject_0c_status: onboarding_backend_tasks_1_10', $contract);
         self::assertStringContainsString('    current_gate: ' . self::CURRENT_GATE_ID, $contract);
-        self::assertStringContainsString('    subproject_0c_owner_staging_review: pending', $contract);
+        self::assertStringContainsString('    subproject_0c_owner_staging_review: done_owner_verified', $contract);
         self::assertStringContainsString('    subproject_1_plan: docs/superpowers/plans/2026-10-19-subproject-1-design-system.md', $contract);
         self::assertStringContainsString('    subproject_1_status: done_verified', $contract);
         self::assertStringContainsString('    subproject_1_last_merge: ' . self::SUBPROJECT_1_LAST_MERGE, $contract);
@@ -436,7 +439,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             $content = self::read_repository_file($path);
             self::assertStringContainsString(self::CURRENT_GATE, $content, $path);
             self::assertStringContainsString(self::SUBPROJECT_1_DONE, $content, $path);
-            self::assertStringContainsString(self::SUBPROJECT_0C_REVIEW_PENDING, $content, $path);
+            self::assertStringContainsString(self::SUBPROJECT_0C_REVIEW_DONE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_0C_REVIEW_PENDING, $content, $path);
+            self::assertStringContainsString(basename(self::SUBPROJECT_0C_REVIEW_EVIDENCE), $content, $path);
             self::assertStringContainsString(self::OWNER_DECISION_HARDENING, $content, $path);
             self::assertStringContainsString(self::NEXT_AFTER_GATE, $content, $path);
             self::assertStringNotContainsString('Next after the 0c exit gate:', $content, $path);
@@ -445,12 +450,57 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         }
         self::assertStringContainsString('Current executable gate: ' . self::CURRENT_GATE, self::read_repository_file('docs/project/OWNER-HANDOFF.md'));
 
-        // AGENTS.md takes the same gate sentence and Sub-project 1 status (pending owner acknowledgement).
+        // AGENTS.md takes the same gate sentence and Sub-project 1 status.
         $agents = self::read_repository_file('AGENTS.md');
         self::assertStringContainsString(self::SUBPROJECT_1_DONE, $agents);
-        self::assertStringContainsString(self::SUBPROJECT_0C_REVIEW_PENDING, $agents);
+        self::assertStringContainsString(self::SUBPROJECT_0C_REVIEW_DONE, $agents);
+        self::assertStringNotContainsString(self::SUPERSEDED_0C_REVIEW_PENDING, $agents);
         self::assertStringContainsString('Admin UI token, contrast, build-contract, accessibility and visual-regression suites', $agents);
         self::assertStringContainsString('.github/workflows/admin-ui-certification.yml', $agents);
+    }
+
+    public function test_sub_project_0c_owner_staging_review_is_recorded(): void {
+        $evidence = self::read_repository_file(self::SUBPROJECT_0C_REVIEW_EVIDENCE);
+        foreach (array(
+            '2026-10-22',
+            '224 files',
+            'f4ce1a3a942295123ec023bb1227197af8f97685a77c0714ada214907f7deec9',
+            '2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4',
+            'test_payment_ui_driven',
+            'Follow-up 3',
+            'PASSED',
+            'Follow-up 2',
+            'CachePurgeRuntimeTest',
+            'LiteSpeed Cache 7.9.1',
+            'external certification',
+            'CAPTURED',
+        ) as $fact) {
+            self::assertStringContainsString($fact, $evidence, '0c review evidence missing: ' . $fact);
+        }
+
+        // The owner acknowledgements are recorded and no pending-acknowledgement wording is left.
+        foreach (array(
+            'DESIGN.md',
+            'docs/project/evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md',
+            'docs/project/evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md',
+            'docs/project/RELEASE-ENGINEERING.md',
+            'docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md',
+        ) as $path) {
+            $text = self::read_repository_file($path);
+            self::assertStringNotContainsStringIgnoringCase('pending owner acknowledgement', $text, $path);
+            self::assertStringNotContainsStringIgnoringCase('Pending owner acknowledgements', $text, $path);
+        }
+        self::assertStringContainsString(
+            'acknowledged by the owner 2026-10-22',
+            self::read_repository_file('docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md')
+        );
+
+        // Owner manual test list: the live cutover purge and the store configuration advice.
+        $sp1 = self::read_repository_file(self::SUBPROJECT_1_EVIDENCE);
+        self::assertStringContainsString('Live cutover', $sp1);
+        self::assertStringContainsString('LiteSpeed/Cloudflare purge', $sp1);
+        self::assertStringContainsString('decimal separator', $sp1);
+        self::assertStringNotContainsString('pending owner action', self::read_repository_file('docs/project/START-HERE.md'));
     }
 
     public function test_sub_project_1_package_and_evidence_are_recorded(): void {
@@ -479,7 +529,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         foreach (array('NVDA', 'VoiceOver', 'Windows High Contrast', 'Safari', 'Firefox', 'Arabic copy') as $manual) {
             self::assertStringContainsString($manual, $evidence, 'owner manual test missing: ' . $manual);
         }
-        self::assertStringContainsString('## Pending owner acknowledgements', $evidence);
+        self::assertStringContainsString('## Owner acknowledgements', $evidence);
+        self::assertStringNotContainsString('Pending owner acknowledgements', $evidence);
+        self::assertStringContainsString('acknowledged by the owner 2026-10-22', $evidence);
         self::assertStringContainsString('markdown-it 14.3.3', $evidence);
         self::assertStringContainsString('unicode-bidi: plaintext', $evidence);
         // The four whole-SP1 reviews and how each finding was resolved.
