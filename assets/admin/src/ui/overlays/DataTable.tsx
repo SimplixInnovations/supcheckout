@@ -174,6 +174,9 @@ function useSortAnnouncement< Row >(
 			}
 			return;
 		}
+		// The load this announcement served has ended (also when the caller
+		// applied the sort mid-load): the next load is a refresh again.
+		serving.current = false;
 		// A load ended without applying the pending sort: drop the press.
 		if ( pending.current === sortKey ) {
 			pending.current = null;

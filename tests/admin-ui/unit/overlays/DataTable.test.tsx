@@ -254,9 +254,11 @@ test( 'a sort the user asks for is announced in the polite status, never on moun
 function ControlledSortTable( {
 	ignorePresses = false,
 	loadOnSort = false,
+	sortMidLoad = false,
 }: {
 	ignorePresses?: boolean;
 	loadOnSort?: boolean;
+	sortMidLoad?: boolean;
 } ) {
 	const [ sort, setSort ] = useState< TableSort >( {
 		columnId: 'order',
@@ -290,8 +292,16 @@ function ControlledSortTable( {
 					if ( ignorePresses ) {
 						return;
 					}
-					if ( loadOnSort ) {
+					if ( loadOnSort || sortMidLoad ) {
 						setLoading( true );
+					}
+					if ( sortMidLoad ) {
+						// The caller applies the sort after an await, while
+						// the load it started is still running.
+						setTimeout( () =>
+							setSort( { columnId, direction: 'ascending' } )
+						);
+						return;
 					}
 					setSort( ( current ) => ( {
 						columnId,
@@ -353,6 +363,27 @@ test( 'a load that starts with the sort it serves announces that sort once the r
 	await press( 'Finish load' );
 	expect( statusRegion() ).toHaveTextContent( 'Sorted by Amount, ascending' );
 	// A second, unrelated load (a refresh) no longer repeats it.
+	await press( 'Start load' );
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( /^$/ );
+} );
+
+test( 'a sort applied while its load is running is not repeated by the next refresh', async () => {
+	render(
+		<SupRoot>
+			<ControlledSortTable sortMidLoad />
+		</SupRoot>
+	);
+	await waitForRegionReady();
+	await press( 'Amount' );
+	await waitFor( () =>
+		expect(
+			screen.getByRole( 'columnheader', { name: 'Amount' } )
+		).toHaveAttribute( 'aria-sort', 'ascending' )
+	);
+	await press( 'Finish load' );
+	expect( statusRegion() ).toHaveTextContent( 'Sorted by Amount, ascending' );
+	// A later, unrelated refresh must not repeat the stale sort.
 	await press( 'Start load' );
 	await press( 'Finish load' );
 	expect( statusRegion() ).toHaveTextContent( /^$/ );
