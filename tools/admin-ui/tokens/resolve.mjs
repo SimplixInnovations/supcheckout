@@ -655,8 +655,16 @@ export function renderCss( set ) {
 			...changedFrom( light, dark ),
 		} ),
 		...schemeRules( set ),
+		// The root in an Arabic, Persian or Urdu locale, and any nested run in
+		// those languages (an Arabic note on an English screen); foundations.css
+		// re-applies the family, line height and spacing on such a run.
 		rule(
-			ARABIC_LANGS.map( ( lang ) => `${ SCOPE }:lang(${ lang })` ),
+			[
+				...ARABIC_LANGS.map( ( lang ) => `${ SCOPE }:lang(${ lang })` ),
+				...ARABIC_LANGS.map(
+					( lang ) => `${ SCOPE } [lang]:lang(${ lang })`
+				),
+			],
 			{
 				...set.modifiers.arabic,
 				...zeroed( light, 'letter-spacing-', '0' ),

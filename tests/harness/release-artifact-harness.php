@@ -303,6 +303,13 @@ if ($version !== '') {
                     }
                 }
                 release_assert($admin_dev_entries === array(), 'canonical package has no source map, __tests__, tools/, node_modules/ or tests/admin-ui/ entry');
+                $font_entries = array();
+                foreach ($names as $name) {
+                    if (preg_match('/\.(woff2?|ttf|otf|eot)$/i', $name) === 1) {
+                        $font_entries[] = substr($name, strlen($prefix));
+                    }
+                }
+                release_assert($font_entries === array(), 'canonical package ships no web font (the visual-regression test fonts stay in the gallery build)');
 
                 $plugin = $zip->getFromName($prefix . 'supcheckout.php');
                 release_assert(

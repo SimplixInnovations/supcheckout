@@ -10,6 +10,8 @@
  *
  * Nothing here calls a server: the confirmation outcomes are local promises
  * that settle after RESULT_DELAY_MS, so the pending state is observable.
+ * `?confirm=hold` (visual suite) stretches that to HELD_RESULT_DELAY_MS, so
+ * the pending state stays on screen for a screenshot without a timing race.
  * `open` opens one overlay on mount, for the unit axe suite.
  */
 import { useEffect, useMemo, useState } from '@wordpress/element';
@@ -36,7 +38,8 @@ import type {
 	NavItem,
 	TableSort,
 } from '../../../../assets/admin/src/ui';
-import { Specimen } from './foundations';
+import { Specimen, SPECIMEN_STYLE } from './foundations';
+import { SpecimenFrame } from './frame';
 
 /** Specimen names in DOM order (asserted by the browser suite). */
 export const OVERLAY_SPECIMENS = [
@@ -54,6 +57,19 @@ export type OverlayName = 'dialog' | 'confirm' | 'palette';
 /** How long a specimen confirmation stays pending. */
 export const RESULT_DELAY_MS = 800;
 
+/** How long it stays pending under `?confirm=hold`: the promise still settles. */
+export const HELD_RESULT_DELAY_MS = 10 * 60 * 1000;
+
+const CONFIRM_QUERY = 'confirm';
+
+function resultDelay(): number {
+	return typeof window !== 'undefined' &&
+		new URLSearchParams( window.location.search ).get( CONFIRM_QUERY ) ===
+			'hold'
+		? HELD_RESULT_DELAY_MS
+		: RESULT_DELAY_MS;
+}
+
 /** Rows in the long specimen that the sticky-header focus test tabs through. */
 const FOCUS_ROWS = 24;
 
@@ -66,9 +82,12 @@ const row = {
 
 const stack = { display: 'grid', gap: 'var(--sup-space-4)' } as const;
 
+/** The content column: frames shrink-wrap, as in the components view. */
+const frameStack = { ...stack, justifyItems: 'start' } as const;
+
 const later = < T, >( value: () => T ): Promise< T > =>
 	new Promise( ( resolve ) =>
-		setTimeout( () => resolve( value() ), RESULT_DELAY_MS )
+		setTimeout( () => resolve( value() ), resultDelay() )
 	);
 
 interface Payment {
@@ -162,6 +181,31 @@ function sortPayments( sort: TableSort ): Payment[] {
 		sort.columnId === 'amount'
 			? ( a.cents - b.cents ) * sign
 			: a.order.localeCompare( b.order ) * sign
+	);
+}
+
+/**
+ * The light-ltr-only `data-table-compact` frame (visual suite): the payments
+ * table at compact density. Not a `[data-specimen]`, so the browser suite's
+ * overlay specimen order is unchanged.
+ */
+function CompactTableFrame() {
+	const columns = useMemo( paymentColumns, [] );
+	return (
+		<SpecimenFrame name="data-table-compact">
+			<section
+				aria-label={ __( 'Compact data table', 'supcheckout' ) }
+				style={ SPECIMEN_STYLE }
+			>
+				<DataTable< Payment >
+					caption={ __( 'Recent payments, compact', 'supcheckout' ) }
+					columns={ columns }
+					rows={ PAYMENTS }
+					rowKey={ ( payment ) => payment.order }
+					density="compact"
+				/>
+			</section>
+		</SpecimenFrame>
 	);
 }
 
@@ -301,7 +345,7 @@ function ConfirmScenarios( { initial }: { initial?: Scenario } ) {
 					new Promise< ConfirmResult >( ( _resolve, reject ) =>
 						setTimeout(
 							() => reject( new Error( 'network' ) ),
-							RESULT_DELAY_MS
+							resultDelay()
 						)
 					)
 				}
@@ -417,122 +461,139 @@ export function OverlaysSpecimens( { open }: OverlaysSpecimensProps ) {
 			actions={ <Button>{ __( 'Export CSV', 'supcheckout' ) }</Button> }
 		>
 			{ open === 'palette' && <OpenPaletteOnMount /> }
-			<div style={ stack } data-overlays-ready="true">
-				<Specimen name="dialog" title={ __( 'Dialog', 'supcheckout' ) }>
-					<div>
-						<Button onClick={ () => setDialogOpen( true ) }>
-							{ __( 'Edit webhook', 'supcheckout' ) }
-						</Button>
-					</div>
-					<WebhookDialog
-						open={ dialogOpen }
-						onOpenChange={ setDialogOpen }
-					/>
-				</Specimen>
+			<div style={ frameStack } data-overlays-ready="true">
+				<SpecimenFrame name="overlay-triggers">
+					<Specimen
+						name="dialog"
+						title={ __( 'Dialog', 'supcheckout' ) }
+					>
+						<div>
+							<Button onClick={ () => setDialogOpen( true ) }>
+								{ __( 'Edit webhook', 'supcheckout' ) }
+							</Button>
+						</div>
+						<WebhookDialog
+							open={ dialogOpen }
+							onOpenChange={ setDialogOpen }
+						/>
+					</Specimen>
 
-				<Specimen
-					name="confirm-dialog"
-					title={ __( 'Confirmation', 'supcheckout' ) }
-				>
-					<ConfirmScenarios
-						key={ refund }
-						initial={
-							open === 'confirm' || refund > 0
-								? 'refund'
-								: undefined
-						}
-					/>
-				</Specimen>
+					<Specimen
+						name="confirm-dialog"
+						title={ __( 'Confirmation', 'supcheckout' ) }
+					>
+						<ConfirmScenarios
+							key={ refund }
+							initial={
+								open === 'confirm' || refund > 0
+									? 'refund'
+									: undefined
+							}
+						/>
+					</Specimen>
+				</SpecimenFrame>
 
-				<Specimen name="tabs" title={ __( 'Tabs', 'supcheckout' ) }>
-					<Tabs
-						label={ __( 'Payment views', 'supcheckout' ) }
-						tabs={ [
-							{
-								id: 'all',
-								label: __( 'All payments', 'supcheckout' ),
-								panel: (
-									<Text variant="muted">
-										{ __(
-											'Every payment UPayments reported for this store.',
-											'supcheckout'
-										) }
-									</Text>
-								),
-							},
-							{
-								id: 'attention',
-								label: __( 'Needs attention', 'supcheckout' ),
-								badge: '2',
-								panel: (
-									<Text variant="muted">
-										{ __(
-											'Payments that UPayments has not confirmed yet.',
-											'supcheckout'
-										) }
-									</Text>
-								),
-							},
-							{
-								id: 'refunds',
-								label: __( 'Refunds', 'supcheckout' ),
-								panel: (
-									<Text variant="muted">
-										{ __(
-											'Refunds and their UPayments confirmation.',
-											'supcheckout'
-										) }
-									</Text>
-								),
-							},
-						] }
-					/>
-				</Specimen>
+				<SpecimenFrame name="tabs">
+					<Specimen name="tabs" title={ __( 'Tabs', 'supcheckout' ) }>
+						<Tabs
+							label={ __( 'Payment views', 'supcheckout' ) }
+							tabs={ [
+								{
+									id: 'all',
+									label: __( 'All payments', 'supcheckout' ),
+									panel: (
+										<Text variant="muted">
+											{ __(
+												'Every payment UPayments reported for this store.',
+												'supcheckout'
+											) }
+										</Text>
+									),
+								},
+								{
+									id: 'attention',
+									label: __(
+										'Needs attention',
+										'supcheckout'
+									),
+									badge: '2',
+									panel: (
+										<Text variant="muted">
+											{ __(
+												'Payments that UPayments has not confirmed yet.',
+												'supcheckout'
+											) }
+										</Text>
+									),
+								},
+								{
+									id: 'refunds',
+									label: __( 'Refunds', 'supcheckout' ),
+									panel: (
+										<Text variant="muted">
+											{ __(
+												'Refunds and their UPayments confirmation.',
+												'supcheckout'
+											) }
+										</Text>
+									),
+								},
+							] }
+						/>
+					</Specimen>
+				</SpecimenFrame>
 
-				<Specimen
-					name="data-table"
-					title={ __( 'Data table', 'supcheckout' ) }
-				>
-					<SortableTable />
-				</Specimen>
+				<SpecimenFrame name="data-table">
+					<Specimen
+						name="data-table"
+						title={ __( 'Data table', 'supcheckout' ) }
+					>
+						<SortableTable />
+					</Specimen>
+				</SpecimenFrame>
 
-				<Specimen
-					name="data-table-loading"
-					title={ __( 'Loading data table', 'supcheckout' ) }
-				>
-					<DataTable< Payment >
-						caption={ __( 'Payments loading', 'supcheckout' ) }
-						columns={ paymentColumns() }
-						rows={ [] }
-						rowKey={ ( payment ) => payment.order }
-						loading
-						skeletonRows={ 3 }
-					/>
-				</Specimen>
+				<SpecimenFrame name="data-table-states">
+					<Specimen
+						name="data-table-loading"
+						title={ __( 'Loading data table', 'supcheckout' ) }
+					>
+						<DataTable< Payment >
+							caption={ __( 'Payments loading', 'supcheckout' ) }
+							columns={ paymentColumns() }
+							rows={ [] }
+							rowKey={ ( payment ) => payment.order }
+							loading
+							skeletonRows={ 3 }
+						/>
+					</Specimen>
 
-				<Specimen
-					name="data-table-empty"
-					title={ __( 'Empty data table', 'supcheckout' ) }
-				>
-					<DataTable< Payment >
-						caption={ __( 'Refunds', 'supcheckout' ) }
-						columns={ paymentColumns() }
-						rows={ [] }
-						rowKey={ ( payment ) => payment.order }
-						density="compact"
-						empty={
-							<EmptyState
-								icon="inbox"
-								headingLevel={ 3 }
-								title={ __( 'No refunds yet', 'supcheckout' ) }
-								description={ __(
-									'Refunds appear here after you refund an order from WooCommerce.',
-									'supcheckout'
-								) }
-							/>
-						}
-					/>
-				</Specimen>
+					<Specimen
+						name="data-table-empty"
+						title={ __( 'Empty data table', 'supcheckout' ) }
+					>
+						<DataTable< Payment >
+							caption={ __( 'Refunds', 'supcheckout' ) }
+							columns={ paymentColumns() }
+							rows={ [] }
+							rowKey={ ( payment ) => payment.order }
+							density="compact"
+							empty={
+								<EmptyState
+									icon="inbox"
+									headingLevel={ 3 }
+									title={ __(
+										'No refunds yet',
+										'supcheckout'
+									) }
+									description={ __(
+										'Refunds appear here after you refund an order from WooCommerce.',
+										'supcheckout'
+									) }
+								/>
+							}
+						/>
+					</Specimen>
+				</SpecimenFrame>
 
 				<Specimen
 					name="focus-scroll"
@@ -552,6 +613,8 @@ export function OverlaysSpecimens( { open }: OverlaysSpecimensProps ) {
 						) ) }
 					</ul>
 				</Specimen>
+
+				<CompactTableFrame />
 			</div>
 		</AppShell>
 	);

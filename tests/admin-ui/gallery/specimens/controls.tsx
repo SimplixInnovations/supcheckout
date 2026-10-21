@@ -24,6 +24,7 @@ import {
 	Toggle,
 } from '../../../../assets/admin/src/ui';
 import { Specimen } from './foundations';
+import { SpecimenFrame } from './frame';
 
 /** Specimen names in DOM order (asserted by the browser suite). */
 export const CONTROL_SPECIMENS = [
@@ -131,243 +132,262 @@ const ignore = () => undefined;
 export function ControlsSpecimens() {
 	return (
 		<>
-			<Specimen
-				name="button-variants"
-				title={ __( 'Button variants', 'supcheckout' ) }
-			>
-				<div style={ row }>
-					<Button variant="primary">
-						{ __( 'Save changes', 'supcheckout' ) }
-					</Button>
-					<Button>{ __( 'Test connection', 'supcheckout' ) }</Button>
-					<Button variant="tertiary">
-						{ __( 'View logs', 'supcheckout' ) }
-					</Button>
-					<Button variant="danger">
-						{ __( 'Revoke key', 'supcheckout' ) }
-					</Button>
-				</div>
-			</Specimen>
+			<SpecimenFrame name="buttons">
+				<Specimen
+					name="button-variants"
+					title={ __( 'Button variants', 'supcheckout' ) }
+				>
+					<div style={ row }>
+						<Button variant="primary">
+							{ __( 'Save changes', 'supcheckout' ) }
+						</Button>
+						<Button>
+							{ __( 'Test connection', 'supcheckout' ) }
+						</Button>
+						<Button variant="tertiary">
+							{ __( 'View logs', 'supcheckout' ) }
+						</Button>
+						<Button variant="danger">
+							{ __( 'Revoke key', 'supcheckout' ) }
+						</Button>
+					</div>
+				</Specimen>
 
-			<Specimen
-				name="button-states"
-				title={ __( 'Button sizes, icons and states', 'supcheckout' ) }
-			>
-				<div style={ row }>
-					<Button variant="primary" size="sm" iconStart="refresh">
-						{ __( 'Sync now', 'supcheckout' ) }
-					</Button>
-					<Button size="sm" iconEnd="external">
-						{ __( 'Open UPayments dashboard', 'supcheckout' ) }
-					</Button>
-					<Button
-						variant="primary"
-						busy
-						busyLabel={ __( 'Saving settings', 'supcheckout' ) }
-					>
-						{ __( 'Save settings', 'supcheckout' ) }
-					</Button>
-					<Button disabled>
-						{ __( 'Unavailable', 'supcheckout' ) }
-					</Button>
-				</div>
-			</Specimen>
-
-			<Specimen
-				name="icon-button"
-				title={ __( 'Icon buttons', 'supcheckout' ) }
-			>
-				<div style={ row }>
-					<IconButton
-						icon="close"
-						label={ __( 'Dismiss', 'supcheckout' ) }
-					/>
-					<IconButton
-						icon="copy"
-						variant="secondary"
-						label={ __( 'Copy merchant ID', 'supcheckout' ) }
-					/>
-					<IconButton
-						icon="more"
-						size="sm"
-						label={ __( 'More actions', 'supcheckout' ) }
-					/>
-				</div>
-			</Specimen>
-
-			<Specimen
-				name="text-input-default"
-				title={ __( 'Text input', 'supcheckout' ) }
-			>
-				<Field
-					label={ __( 'Store name', 'supcheckout' ) }
-					description={ __(
-						'Shown to customers on the payment page.',
+				<Specimen
+					name="button-states"
+					title={ __(
+						'Button sizes, icons and states',
 						'supcheckout'
 					) }
 				>
-					{ ( control ) => (
-						<TextInput
-							{ ...control }
-							defaultValue={ __(
-								'Simplix Store',
+					<div style={ row }>
+						<Button variant="primary" size="sm" iconStart="refresh">
+							{ __( 'Sync now', 'supcheckout' ) }
+						</Button>
+						<Button size="sm" iconEnd="external">
+							{ __( 'Open UPayments dashboard', 'supcheckout' ) }
+						</Button>
+						<Button
+							variant="primary"
+							busy
+							busyLabel={ __( 'Saving settings', 'supcheckout' ) }
+						>
+							{ __( 'Save settings', 'supcheckout' ) }
+						</Button>
+						<Button disabled>
+							{ __( 'Unavailable', 'supcheckout' ) }
+						</Button>
+					</div>
+				</Specimen>
+
+				<Specimen
+					name="icon-button"
+					title={ __( 'Icon buttons', 'supcheckout' ) }
+				>
+					<div style={ row }>
+						<IconButton
+							icon="close"
+							label={ __( 'Dismiss', 'supcheckout' ) }
+						/>
+						<IconButton
+							icon="copy"
+							variant="secondary"
+							label={ __( 'Copy merchant ID', 'supcheckout' ) }
+						/>
+						<IconButton
+							icon="more"
+							size="sm"
+							label={ __( 'More actions', 'supcheckout' ) }
+						/>
+					</div>
+				</Specimen>
+			</SpecimenFrame>
+
+			<SpecimenFrame name="text-fields">
+				<Specimen
+					name="text-input-default"
+					title={ __( 'Text input', 'supcheckout' ) }
+				>
+					<Field
+						label={ __( 'Store name', 'supcheckout' ) }
+						description={ __(
+							'Shown to customers on the payment page.',
+							'supcheckout'
+						) }
+					>
+						{ ( control ) => (
+							<TextInput
+								{ ...control }
+								defaultValue={ __(
+									'Simplix Store',
+									'supcheckout'
+								) }
+							/>
+						) }
+					</Field>
+				</Specimen>
+
+				<Specimen
+					name="text-input-error"
+					title={ __( 'Text input with an error', 'supcheckout' ) }
+				>
+					<Field
+						label={ __( 'Merchant ID', 'supcheckout' ) }
+						required
+						error={ __(
+							'Enter the merchant ID from your UPayments dashboard.',
+							'supcheckout'
+						) }
+					>
+						{ ( control ) => <TextInput { ...control } /> }
+					</Field>
+				</Specimen>
+
+				<Specimen
+					name="textarea-default"
+					title={ __( 'Textarea', 'supcheckout' ) }
+				>
+					<Field
+						label={ __( 'Payment page note', 'supcheckout' ) }
+						description={ __(
+							'Optional. Up to 200 characters.',
+							'supcheckout'
+						) }
+					>
+						{ ( control ) => (
+							<Textarea { ...control } rows={ 3 } />
+						) }
+					</Field>
+				</Specimen>
+			</SpecimenFrame>
+
+			<SpecimenFrame name="secret-inputs">
+				<Specimen
+					name="secret-input-saved"
+					title={ __( 'Secret input, key saved', 'supcheckout' ) }
+				>
+					<SecretInput
+						label={ __( 'Live API key', 'supcheckout' ) }
+						description={ __(
+							'From your UPayments dashboard.',
+							'supcheckout'
+						) }
+						hasSavedValue
+						onChange={ ignore }
+					/>
+				</Specimen>
+
+				<Specimen
+					name="secret-input-new"
+					title={ __( 'Secret input, nothing saved', 'supcheckout' ) }
+				>
+					<SecretInput
+						label={ __( 'Sandbox API key', 'supcheckout' ) }
+						hasSavedValue={ false }
+						onChange={ ignore }
+					/>
+				</Specimen>
+			</SpecimenFrame>
+
+			<SpecimenFrame name="select-and-checkboxes">
+				<Specimen
+					name="select-default"
+					title={ __( 'Select', 'supcheckout' ) }
+				>
+					<Field label={ __( 'Environment', 'supcheckout' ) }>
+						{ ( control ) => (
+							<Select
+								{ ...control }
+								defaultValue="sandbox"
+								options={ [
+									{
+										value: 'sandbox',
+										label: __( 'Sandbox', 'supcheckout' ),
+									},
+									{
+										value: 'live',
+										label: __( 'Live', 'supcheckout' ),
+									},
+								] }
+							/>
+						) }
+					</Field>
+				</Specimen>
+
+				<Specimen
+					name="checkbox-checked"
+					title={ __( 'Checkbox, checked', 'supcheckout' ) }
+				>
+					<Checkbox
+						defaultChecked
+						label={ __(
+							'Save cards for returning customers',
+							'supcheckout'
+						) }
+						description={ __(
+							'Customers can pay with a saved card next time.',
+							'supcheckout'
+						) }
+					/>
+				</Specimen>
+
+				<Specimen
+					name="checkbox-states"
+					title={ __( 'Checkbox states', 'supcheckout' ) }
+				>
+					<div style={ stack }>
+						<Checkbox
+							label={ __(
+								'Email me a daily summary',
 								'supcheckout'
 							) }
 						/>
-					) }
-				</Field>
-			</Specimen>
-
-			<Specimen
-				name="text-input-error"
-				title={ __( 'Text input with an error', 'supcheckout' ) }
-			>
-				<Field
-					label={ __( 'Merchant ID', 'supcheckout' ) }
-					required
-					error={ __(
-						'Enter the merchant ID from your UPayments dashboard.',
-						'supcheckout'
-					) }
-				>
-					{ ( control ) => <TextInput { ...control } /> }
-				</Field>
-			</Specimen>
-
-			<Specimen
-				name="textarea-default"
-				title={ __( 'Textarea', 'supcheckout' ) }
-			>
-				<Field
-					label={ __( 'Payment page note', 'supcheckout' ) }
-					description={ __(
-						'Optional. Up to 200 characters.',
-						'supcheckout'
-					) }
-				>
-					{ ( control ) => <Textarea { ...control } rows={ 3 } /> }
-				</Field>
-			</Specimen>
-
-			<Specimen
-				name="secret-input-saved"
-				title={ __( 'Secret input, key saved', 'supcheckout' ) }
-			>
-				<SecretInput
-					label={ __( 'Live API key', 'supcheckout' ) }
-					description={ __(
-						'From your UPayments dashboard.',
-						'supcheckout'
-					) }
-					hasSavedValue
-					onChange={ ignore }
-				/>
-			</Specimen>
-
-			<Specimen
-				name="secret-input-new"
-				title={ __( 'Secret input, nothing saved', 'supcheckout' ) }
-			>
-				<SecretInput
-					label={ __( 'Sandbox API key', 'supcheckout' ) }
-					hasSavedValue={ false }
-					onChange={ ignore }
-				/>
-			</Specimen>
-
-			<Specimen
-				name="select-default"
-				title={ __( 'Select', 'supcheckout' ) }
-			>
-				<Field label={ __( 'Environment', 'supcheckout' ) }>
-					{ ( control ) => (
-						<Select
-							{ ...control }
-							defaultValue="sandbox"
-							options={ [
-								{
-									value: 'sandbox',
-									label: __( 'Sandbox', 'supcheckout' ),
-								},
-								{
-									value: 'live',
-									label: __( 'Live', 'supcheckout' ),
-								},
-							] }
+						<Checkbox
+							indeterminate
+							label={ __( 'Select all orders', 'supcheckout' ) }
 						/>
-					) }
-				</Field>
-			</Specimen>
+						<Checkbox
+							disabled
+							label={ __(
+								'Automatic refunds (not supported)',
+								'supcheckout'
+							) }
+						/>
+					</div>
+				</Specimen>
+			</SpecimenFrame>
 
-			<Specimen
-				name="checkbox-checked"
-				title={ __( 'Checkbox, checked', 'supcheckout' ) }
-			>
-				<Checkbox
-					defaultChecked
-					label={ __(
-						'Save cards for returning customers',
-						'supcheckout'
-					) }
-					description={ __(
-						'Customers can pay with a saved card next time.',
-						'supcheckout'
-					) }
-				/>
-			</Specimen>
+			<SpecimenFrame name="radio-groups">
+				<Specimen
+					name="radio-group-list"
+					title={ __( 'Radio group', 'supcheckout' ) }
+				>
+					<CheckoutModeSpecimen />
+				</Specimen>
 
-			<Specimen
-				name="checkbox-states"
-				title={ __( 'Checkbox states', 'supcheckout' ) }
-			>
-				<div style={ stack }>
-					<Checkbox
-						label={ __(
-							'Email me a daily summary',
-							'supcheckout'
-						) }
-					/>
-					<Checkbox
-						indeterminate
-						label={ __( 'Select all orders', 'supcheckout' ) }
-					/>
-					<Checkbox
-						disabled
-						label={ __(
-							'Automatic refunds (not supported)',
-							'supcheckout'
-						) }
-					/>
-				</div>
-			</Specimen>
+				<Specimen
+					name="radio-group-segmented"
+					title={ __( 'Segmented radio group', 'supcheckout' ) }
+				>
+					<DensitySpecimen />
+				</Specimen>
+			</SpecimenFrame>
 
-			<Specimen
-				name="radio-group-list"
-				title={ __( 'Radio group', 'supcheckout' ) }
-			>
-				<CheckoutModeSpecimen />
-			</Specimen>
+			<SpecimenFrame name="toggles">
+				<Specimen
+					name="toggle-default"
+					title={ __( 'Toggle', 'supcheckout' ) }
+				>
+					<TogglesSpecimen />
+				</Specimen>
 
-			<Specimen
-				name="radio-group-segmented"
-				title={ __( 'Segmented radio group', 'supcheckout' ) }
-			>
-				<DensitySpecimen />
-			</Specimen>
-
-			<Specimen
-				name="toggle-default"
-				title={ __( 'Toggle', 'supcheckout' ) }
-			>
-				<TogglesSpecimen />
-			</Specimen>
-
-			<Specimen
-				name="theme-toggle"
-				title={ __( 'Theme toggle', 'supcheckout' ) }
-			>
-				<ThemeToggle />
-			</Specimen>
+				<Specimen
+					name="theme-toggle"
+					title={ __( 'Theme toggle', 'supcheckout' ) }
+				>
+					<ThemeToggle />
+				</Specimen>
+			</SpecimenFrame>
 		</>
 	);
 }

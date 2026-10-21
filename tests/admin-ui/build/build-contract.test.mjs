@@ -119,6 +119,23 @@ test( 'no source maps ship', () => {
 	expect( allText() ).not.toMatch( /sourceMappingURL/ );
 } );
 
+test( 'no web font ships: the visual lane fonts stay in the test-only gallery build', () => {
+	const assets = walk( join( ROOT, 'assets' ) ).map( ( path ) =>
+		relative( ROOT, path ).split( sep ).join( '/' )
+	);
+	expect(
+		assets.filter( ( file ) => /\.(woff2?|ttf|otf|eot)$/i.test( file ) )
+	).toEqual( [] );
+	// No @font-face and no test face or @fontsource path in the build or source.
+	const shipped = [
+		allText(),
+		...walk( join( ROOT, 'assets', 'admin', 'src' ) )
+			.filter( ( path ) => /\.(css|tsx?|json)$/.test( path ) )
+			.map( ( path ) => readFileSync( path, 'utf8' ) ),
+	].join( '\n' );
+	expect( shipped ).not.toMatch( /@font-face|@fontsource|SUP VR Noto/i );
+} );
+
 test( 'translator calls and the supcheckout domain survive minification', () => {
 	// Webpack calls an imported binding as `(0,x.__)(`; both that and a bare
 	// `__(` call are what `wp i18n make-pot` extracts from built JavaScript.
