@@ -76,3 +76,4 @@ Regenerate in these cases:
 - **A deliberate visual change.** Regenerate in the same PR.
 - **A specimen added early in a gallery view.** It shifts the specimens below it, so their baselines change too.
 - **A move to a new runner OS image.** Do it in a deliberate regeneration PR of its own, never mixed with other changes.
+- **Font or rasterizer drift on the pinned image.** `npx playwright install --with-deps` installs whatever distro font and freetype packages are current on `ubuntu-24.04`. Our fonts are vendored, but fallback glyphs can still move pixels after an image update. Investigate the diff first. If it is only that drift, regenerate in a dedicated PR.

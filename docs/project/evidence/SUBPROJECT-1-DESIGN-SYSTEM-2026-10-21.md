@@ -102,7 +102,8 @@ The controller ran four independent reviews on the whole Sub-project 1 diff from
   - M2, the build and dependency documentation, and M3, the revert recipe: these docs (`RELEASE-ENGINEERING.md`, `CONTRIBUTING.md`).
   - L1 (the readme `--ignore-scripts` and its harness string), L2 (main-branch runs of Admin UI Certification are never cancelled), L3 (Dependabot `reviewers` replaced by CODEOWNERS; `@types/node` held to the Node 24 runtime) and L7 (the SBOM `serialNumber` is an RFC 4122 UUIDv5): #209.
   - L4, the overrides were undocumented: the overrides table in `RELEASE-ENGINEERING.md`.
-  - L5, L6: documentation findings, addressed in these docs.
+  - L5, the pixel-exact visual lane can drift when `playwright install --with-deps` pulls newer distro font or freetype packages onto the pinned `ubuntu-24.04` image: documented as the expected regeneration case (`CONTRIBUTING.md` › Regenerating the baselines).
+  - L6, an ambient `NODE_ENV` or `BROWSERSLIST` changes a local build: documented as "build in a clean environment" (`CONTRIBUTING.md`).
 
 ## Pending owner acknowledgements
 

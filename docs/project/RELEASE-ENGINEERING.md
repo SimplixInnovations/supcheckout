@@ -47,10 +47,10 @@ The React admin app (`assets/admin/`) is built with npm, but the release builder
 | Override | Reason | Exit condition |
 |---|---|---|
 | `serialize-javascript` → 7.1.2 | GHSA-5c6j-r48x-rmvq in the version `copy-webpack-plugin` (inside `@wordpress/scripts`) pulls in | Remove when `@wordpress/scripts` depends on a fixed release |
-| `postcss-selector-parser` → 7.1.6 | Dependabot advisory against the transitive version (the stylelint and `css-loader` stacks inside `@wordpress/scripts`) | Remove when every dependent resolves 7.1.6 or later on its own |
-| `markdownlint-cli` → `js-yaml` 5.4.1, `smol-toml` 1.9.0 | Dependabot advisories against the versions `markdownlint-cli` (inside `@wordpress/scripts`) resolves | Remove when `markdownlint-cli` ships with fixed versions |
-| `micromark-extension-math` → `katex` 0.18.2 | Low-severity Dependabot advisory against the transitive `katex` | Remove when the math extension resolves 0.18.2 or later |
-| `sockjs` → `uuid` 11.1.1 | Dependabot advisory against the `uuid` used by `sockjs` (webpack-dev-server) | Remove when `sockjs` depends on a fixed `uuid` |
+| `postcss-selector-parser` → 7.1.6 | GHSA-rj75-hqrm-r3gf (moderate, quadratic selector parsing) against the 6.x copies in the cssnano/stylelint stacks inside `@wordpress/scripts`; the committed build was proven byte-identical with the override (#200) | Remove when every dependent resolves 7.1.6 or later on its own |
+| `markdownlint-cli` → `js-yaml` 5.4.1, `smol-toml` 1.9.0 | GHSA-r3ph-w7gj-g6xm (`js-yaml` ≤ 5.4.0, moderate) and GHSA-r4xh-jqrq-34v2 (`smol-toml` ≤ 1.8.0, moderate) in the versions `markdownlint-cli` (inside `@wordpress/scripts`) resolves (#200) | Remove when `markdownlint-cli` ships with fixed versions |
+| `micromark-extension-math` → `katex` 0.18.2 | GHSA-238p-pmpm-9mq7 (low) against the transitive `katex` 0.16.x (#200) | Remove when the math extension resolves 0.18.2 or later |
+| `sockjs` → `uuid` 11.1.1 | GHSA-w5hq-g745-h8pq (moderate) against the `uuid` 8.x used by `sockjs` (webpack-dev-server) (#200) | Remove when `sockjs` depends on a fixed `uuid` |
 | `react-dom-19` → `react`: `$react` | Satisfies the React 19 alias's `react` peer with the root pin, so `npm ci` has no peer conflict; the React 19 test lane maps `react` and `react-dom` to the aliases itself | Remove when the runtime and the development copy move to React 19 and the alias lane is retired |
 
 - **Audit allow-list rules** (`tools/admin-ui/audit/audit-allowlist.json`, enforced by `audit-policy.mjs`): each entry names a GHSA id, package, severity, reason and an expiry at most 90 days away; an entry the audit no longer reports fails (stale), and an entry whose advisory reaches the production tree or whose package is bundled is refused. `npm audit --omit=dev` stays unconditional.
