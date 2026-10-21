@@ -67,18 +67,22 @@ async function openGallery(
 	).toBeVisible();
 }
 
-test( 'every gallery heading uses the scope font, not the wp-admin heading font', async ( {
-	page,
-} ) => {
-	await openGallery( page );
-	const headings = page.locator( `${ APP_ROOT } ${ HEADINGS }` );
-	expect( await headings.count() ).toBeGreaterThan( 5 );
-	const states = await fonts( headings, 'var(--sup-font-family-sans)' );
-	expect( mismatches( states ) ).toEqual( [] );
-	for ( const state of states ) {
-		expect( state.family ).not.toMatch( /^\s*(Tahoma|Arial)\b/ );
-	}
-} );
+for ( const view of [ 'components', 'overlays' ] as const ) {
+	test( `every heading of the ${ view } view uses the scope font, not the wp-admin heading font`, async ( {
+		page,
+	} ) => {
+		await openGallery( page, view === 'overlays' ? { view } : {} );
+		const headings = page.locator( `${ APP_ROOT } ${ HEADINGS }` );
+		expect( await headings.count() ).toBeGreaterThan(
+			view === 'overlays' ? 1 : 5
+		);
+		const states = await fonts( headings, 'var(--sup-font-family-sans)' );
+		expect( mismatches( states ) ).toEqual( [] );
+		for ( const state of states ) {
+			expect( state.family ).not.toMatch( /^\s*(Tahoma|Arial)\b/ );
+		}
+	} );
+}
 
 test( 'the AppShell title and the dialog titles use the scope font', async ( {
 	page,

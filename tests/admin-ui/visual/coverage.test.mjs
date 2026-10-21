@@ -87,18 +87,26 @@ test( 'the visual modes are the four color mode and direction pairs', () => {
 	expect( VISUAL_MODES ).toContain( EXTRA_GROUP_MODE );
 } );
 
-test( 'screenshots compare every pixel exactly and allow only a tiny share to differ', () => {
+test( 'screenshots must match their baselines exactly: no per-pixel or pixel-count tolerance', () => {
 	// Playwright's default per-pixel threshold (0.2) let a 1px control-radius
-	// change pass the whole suite (gate proof, run 39503943298): antialiased
-	// corner pixels moved less than 0.2 each. Baselines are pixel-exact on the
-	// pinned Chromium, so any changed pixel counts and the ratio is the only
-	// tolerance.
+	// change pass the whole suite (gate proof, run 39503943298), and a pixel
+	// ratio of 0.0005 still let large frames absorb it (run 39505836011). The
+	// controller ruling (Task 8 fix round 1) makes the comparison exact; any
+	// tolerance is a reviewed per-group exception with a reason.
 	const config = read( 'tests/admin-ui/playwright.config.ts' );
 	expect( config ).toContain( 'const PIXEL_THRESHOLD = 0;' );
-	expect( config ).toContain( 'const MAX_DIFF_PIXEL_RATIO = 0.0005;' );
+	expect( config ).toContain( 'const MAX_DIFF_PIXELS = 0;' );
 	expect( config ).toMatch(
-		/toHaveScreenshot: \{\n\s+threshold: PIXEL_THRESHOLD,\n\s+maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,/
+		/toHaveScreenshot: \{\n\s+threshold: PIXEL_THRESHOLD,\n\s+maxDiffPixels: MAX_DIFF_PIXELS,/
 	);
+	expect( config ).not.toMatch( /maxDiffPixelRatio/ );
+} );
+
+test( 'the visual projects pin the locale and the time zone', () => {
+	const config = read( 'tests/admin-ui/playwright.config.ts' );
+	const visual = config.slice( config.indexOf( 'name: `visual-' ) );
+	expect( visual ).toMatch( /locale: 'en-US',/ );
+	expect( visual ).toMatch( /timezoneId: 'UTC',/ );
 } );
 
 test( 'the gallery mu-plugin returns early unless SUPCHECKOUT_UI_GALLERY is true', () => {

@@ -94,6 +94,24 @@ test.each( GALLERY_VIEWS )(
 	}
 );
 
+test.each( GALLERY_VIEWS )(
+	'frames in the %s view shrink-wrap: their grid container aligns items to the start',
+	async ( view ) => {
+		const container = await renderView( view );
+		const parents = new Set(
+			Array.from(
+				container.querySelectorAll( '[data-specimen-group]' ),
+				( frame ) => frame.parentElement
+			)
+		);
+		expect( parents.size ).toBeGreaterThan( 0 );
+		for ( const parent of parents ) {
+			expect( parent?.style.display ).toBe( 'grid' );
+			expect( parent?.style.justifyItems ).toBe( 'start' );
+		}
+	}
+);
+
 test( 'element captures render no frame in either view', async () => {
 	const names = SPECIMEN_GROUPS.filter(
 		( group ) => group.capture === 'element'

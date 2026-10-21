@@ -130,7 +130,10 @@ test( 'test:browser runs exactly the four browser projects', () => {
 
 test( 'the visual lane runs real WordPress 7.1.3/WC 11.1.2 on PHP 8.3 at the exact head', () => {
 	const visual = job( 'visual' );
-	expect( visual ).toContain( 'runs-on: ubuntu-latest' );
+	// Baselines are Linux pixels of one OS image: moving it is a deliberate
+	// regeneration PR, never a silent runner-image update.
+	expect( visual ).toContain( 'runs-on: ubuntu-24.04' );
+	expect( visual ).not.toContain( 'ubuntu-latest' );
 	expect( visual ).toMatch( /timeout-minutes: \d+/ );
 	expect( visual ).toContain( 'persist-credentials: false' );
 	expect( visual ).toContain(
