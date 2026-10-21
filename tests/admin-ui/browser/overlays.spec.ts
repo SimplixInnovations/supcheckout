@@ -994,59 +994,76 @@ test( 'live Notices behind an open ConfirmDialog stay audible: never aria-hidden
 	).toHaveCount( 1 );
 } );
 
-test( 'between 601 and 782 px, Shift+Tab into the header and the skip link never lands under the admin bar', async ( {
-	page,
-} ) => {
-	await page.setViewportSize( { width: 700, height: 600 } );
-	await openOverlays( page );
-	// WordPress keeps its 46 px admin bar fixed in this band.
-	expect(
-		await page
-			.locator( '#wpadminbar' )
-			.evaluate( ( node ) => getComputedStyle( node ).position )
-	).toBe( 'fixed' );
-	const header = page.locator( HEADER );
-	// Tab order, backwards: the first nav link, the checked Appearance radio,
-	// the palette trigger, the screen action, the skip link.
-	const order: Locator[] = [
-		page.locator( `${ APP_ROOT } .sup-app-shell__nav-link` ).first(),
-		header.locator( 'input[type="radio"]:checked' ),
-		header.getByRole( 'button', { name: /^Search commands/ } ),
-		header.getByRole( 'button', { name: 'Export CSV' } ),
-		page.locator( `${ APP_ROOT } .sup-skip-link` ),
-	];
-	const results: Array< { target: string; top: number; bar: number } > = [];
-	for ( let index = 1; index < order.length; index += 1 ) {
-		const target = order[ index ];
-		// The target sits in the viewport but under the admin bar (8 px from
-		// the top), the case a plain scroll-into-view leaves alone.
-		await target.evaluate( ( node ) => {
-			window.scrollBy( 0, node.getBoundingClientRect().top - 8 );
-		} );
-		await order[ index - 1 ].evaluate( ( node ) =>
-			( node as HTMLElement ).focus( { preventScroll: true } )
+/*
+ * WordPress's admin-bar.css gives `html` a scroll-padding-top of the admin
+ * bar height, which already clears the bar for focus scrolling; a theme,
+ * plugin or browser setting can drop it. The shell's own scroll-margin must
+ * clear the bar either way, so the test runs with and without it.
+ */
+for ( const pagePadding of [ 'kept', 'removed' ] as const ) {
+	test( `between 601 and 782 px, Shift+Tab into the header and the skip link never lands under the admin bar (page scroll-padding ${ pagePadding })`, async ( {
+		page,
+	} ) => {
+		await page.setViewportSize( { width: 700, height: 600 } );
+		await openOverlays( page );
+		// WordPress keeps its 46 px admin bar fixed in this band.
+		expect(
+			await page
+				.locator( '#wpadminbar' )
+				.evaluate( ( node ) => getComputedStyle( node ).position )
+		).toBe( 'fixed' );
+		if ( pagePadding === 'removed' ) {
+			await page.evaluate( () => {
+				document.documentElement.style.scrollPaddingBlockStart = '0px';
+			} );
+		}
+		const header = page.locator( HEADER );
+		// Tab order, backwards: the first nav link, the checked Appearance
+		// radio, the palette trigger, the screen action, the skip link.
+		const order: Locator[] = [
+			page.locator( `${ APP_ROOT } .sup-app-shell__nav-link` ).first(),
+			header.locator( 'input[type="radio"]:checked' ),
+			header.getByRole( 'button', { name: /^Search commands/ } ),
+			header.getByRole( 'button', { name: 'Export CSV' } ),
+			page.locator( `${ APP_ROOT } .sup-skip-link` ),
+		];
+		const results: Array< {
+			target: string;
+			top: number;
+			bar: number;
+		} > = [];
+		for ( let index = 1; index < order.length; index += 1 ) {
+			const target = order[ index ];
+			// The target sits in the viewport but under the admin bar (8 px
+			// from the top).
+			await target.evaluate( ( node ) => {
+				window.scrollBy( 0, node.getBoundingClientRect().top - 8 );
+			} );
+			await order[ index - 1 ].evaluate( ( node ) =>
+				( node as HTMLElement ).focus( { preventScroll: true } )
+			);
+			await page.keyboard.press( 'Shift+Tab' );
+			await expect( target ).toBeFocused();
+			results.push(
+				await target.evaluate( ( node ) => ( {
+					target:
+						node.getAttribute( 'aria-label' ) ??
+						node.textContent?.trim() ??
+						node.tagName,
+					top: node.getBoundingClientRect().top,
+					bar:
+						document
+							.getElementById( 'wpadminbar' )
+							?.getBoundingClientRect().bottom ?? 0,
+				} ) )
+			);
+		}
+		expect( results ).toHaveLength( 4 );
+		expect( results.filter( ( entry ) => entry.top < entry.bar ) ).toEqual(
+			[]
 		);
-		await page.keyboard.press( 'Shift+Tab' );
-		await expect( target ).toBeFocused();
-		results.push(
-			await target.evaluate( ( node ) => ( {
-				target:
-					node.getAttribute( 'aria-label' ) ??
-					node.textContent?.trim() ??
-					node.tagName,
-				top: node.getBoundingClientRect().top,
-				bar:
-					document
-						.getElementById( 'wpadminbar' )
-						?.getBoundingClientRect().bottom ?? 0,
-			} ) )
-		);
-	}
-	expect( results ).toHaveLength( 4 );
-	expect( results.filter( ( entry ) => entry.top < entry.bar ) ).toEqual(
-		[]
-	);
-} );
+	} );
+}
 
 for ( const size of [
 	{ width: 320, height: 256 },
