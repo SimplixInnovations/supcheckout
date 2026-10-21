@@ -127,6 +127,11 @@ export default defineConfig( {
 						args: [
 							'--font-render-hinting=none',
 							'--force-color-profile=srgb',
+							// Re-raster whole tiles: a partial raster of a small
+							// invalidated rect (the pending Cancel turning
+							// disabled) left its edge pixels one level apart
+							// between runs.
+							'--disable-partial-raster',
 						],
 					},
 				},
