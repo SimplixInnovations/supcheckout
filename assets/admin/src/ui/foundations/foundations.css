@@ -32,9 +32,10 @@
 /*
  * A nested Arabic, Persian or Urdu run (an Arabic note on an English screen)
  * re-applies the family, line height and spacing its tokens switch to; the
- * root does the same for an Arabic locale.
+ * root does the same for an Arabic locale. `:where()` keeps it at (0,1,0), so
+ * any component rule on the same element still wins.
  */
-.supcheckout-admin [lang]:is(:lang(ar), :lang(fa), :lang(ur)) {
+.supcheckout-admin :where([lang]:is(:lang(ar), :lang(fa), :lang(ur))) {
 	font-family: var(--sup-font-family-sans);
 	line-height: var(--sup-line-height-body);
 	letter-spacing: var(--sup-letter-spacing-normal);

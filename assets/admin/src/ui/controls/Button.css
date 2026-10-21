@@ -113,8 +113,15 @@
 	cursor: progress;
 }
 
+/*
+ * `aria-disabled` (a control that stays focusable, like ConfirmDialog's
+ * Cancel while the action is pending) looks exactly like `disabled`. A busy
+ * button is also aria-disabled but keeps its colors.
+ */
 .supcheckout-admin .sup-button:disabled,
-.supcheckout-admin .sup-button:disabled:hover {
+.supcheckout-admin .sup-button:disabled:hover,
+.supcheckout-admin .sup-button[aria-disabled="true"]:not(.sup-button--busy),
+.supcheckout-admin .sup-button[aria-disabled="true"]:not(.sup-button--busy):hover {
 	border-color: var(--sup-color-border-default);
 	color: var(--sup-color-fg-subtle);
 	background-color: var(--sup-color-bg-surface-sunken);
@@ -122,7 +129,9 @@
 }
 
 .supcheckout-admin .sup-button--tertiary:disabled,
-.supcheckout-admin .sup-button--tertiary:disabled:hover {
+.supcheckout-admin .sup-button--tertiary:disabled:hover,
+.supcheckout-admin .sup-button--tertiary[aria-disabled="true"]:not(.sup-button--busy),
+.supcheckout-admin .sup-button--tertiary[aria-disabled="true"]:not(.sup-button--busy):hover {
 	border-color: transparent;
 	background-color: transparent;
 }
@@ -133,7 +142,8 @@
 		border-color: buttontext;
 	}
 
-	.supcheckout-admin .sup-button:disabled {
+	.supcheckout-admin .sup-button:disabled,
+	.supcheckout-admin .sup-button[aria-disabled="true"]:not(.sup-button--busy) {
 		border-color: graytext;
 		color: graytext;
 	}
