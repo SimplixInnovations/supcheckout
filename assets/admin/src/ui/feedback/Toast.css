@@ -75,7 +75,10 @@
 
 .supcheckout-admin .sup-toast__content {
 	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
+
+	/* Icon, text and the close button, then the trailing column that has
+	   always followed it (its gap is part of the close button's inset). */
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
 	align-items: start;
 	gap: var(--sup-space-3) var(--sup-space-4);
 }
