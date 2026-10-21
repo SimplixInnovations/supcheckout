@@ -19,5 +19,12 @@
 		"severity": "low",
 		"expires": "2026-11-06",
 		"reason": "Quadratic-time inline-HTML parsing DoS with html enabled (low, published 2026-10-20). The patched 14.3.3 was published 2026-10-16 and is younger than the 14-day release-age floor (.npmrc min-release-age=14), so it cannot be locked yet. It reaches only development tooling: markdownlint-cli inside @wordpress/scripts (lint-md-docs), which no repository script runs and which would parse repository-controlled Markdown, never user input; nothing from it is bundled. Remove this entry when markdown-it 14.3.3 or later is adopted (it clears the floor on 2026-10-30)."
+	},
+	{
+		"id": "GHSA-gfr2-rv44-r23c",
+		"package": "markdown-it",
+		"severity": "high",
+		"expires": "2026-11-06",
+		"reason": "Quadratic-time rendering of one multi-line link reference definition with default options (high, CVSS 7.5, published 2026-10-20; affects >=14.1.0 <14.3.3). The patched 14.3.3 was published 2026-10-16 and is younger than the 14-day release-age floor (.npmrc min-release-age=14), so it cannot be locked yet. It reaches only development tooling: markdownlint-cli inside @wordpress/scripts (lint-md-docs), which no repository script runs and which would parse repository-controlled Markdown, never user input; nothing from it is bundled. Remove this entry when markdown-it 14.3.3 or later is adopted (it clears the floor on 2026-10-30)."
 	}
 ]
