@@ -9,9 +9,9 @@
  * mounted empty and holds no text until LIVE_REGION_DELAY_MS after it
  * mounted (see liveRegion.ts), so a button that mounts already busy (a
  * reopened pending ConfirmDialog) is announced too. The region sits outside
- * the button so the accessible name stays the visible label. A button that
- * carries `aria-disabled="true"` (or `"true"`) itself is treated as busy for
- * activation: clicks are swallowed and `onClick` never runs.
+ * the button so the accessible name stays the visible label. A button given
+ * `aria-disabled` (boolean `true` or the string `"true"`) is inert to
+ * activation like a busy one: clicks are swallowed and `onClick` never runs.
  *
  * Contract for callers:
  * - Pass `busyLabel` whenever the button may become busy, not only while it
