@@ -175,6 +175,40 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
         );
     }
 
+    public function test_design_contracts_record_the_sub_project_1_admin_app(): void {
+        $design = self::read_repository_file('DESIGN.md');
+        self::assertStringContainsString('## Admin app (Sub-project 1)', $design);
+        self::assertStringContainsString('brand-ready, not branded', $design);
+        foreach (array('brand.tokens.json', 'LIVE_REGION_DELAY_MS', 'actionKey', 'onConfirm', 'Mod+K', 'prefers-reduced-motion', 'Noto Sans Arabic', '--sup-z-portal') as $rule) {
+            self::assertStringContainsString($rule, $design, 'DESIGN.md admin app rule missing: ' . $rule);
+        }
+        self::assertStringContainsString('admin-canvas:', $design, 'DESIGN.md front matter must map the admin tokens.');
+        // The checkout rules stay: the admin app is the only exception to "visually subordinate".
+        self::assertStringContainsString('keep SUPCheckout visually subordinate to the host', $design);
+
+        $ux = self::read_repository_file('UX-CONTRACT.md');
+        foreach (array('| Dialog |', '| ConfirmDialog (money) |', '| Toast (admin) |', '| Tooltip |', '| Tabs |', '| DataTable |', '| CommandPalette |', '| Select (admin) |') as $row) {
+            self::assertStringContainsString($row, $ux, 'UX-CONTRACT.md Canonical UI Map row missing: ' . $row);
+        }
+        self::assertStringContainsString('`npm run quality`', $ux);
+        self::assertStringContainsString('admin-ui-certification.yml', $ux);
+        self::assertStringNotContainsString('- **Dialog primitive:** none in current scope.', $ux);
+
+        $manifest = json_decode(self::read_repository_file('premium-ui.json'), true);
+        self::assertIsArray($manifest);
+        self::assertContains('assets/admin/src', $manifest['sourceRoots']);
+        foreach (array('Dialog', 'Tabs', 'Tooltip', 'CommandPalette') as $capability) {
+            self::assertContains($capability, $manifest['requiredCapabilities']);
+        }
+        self::assertSame('npm run quality', $manifest['commands']['quality-admin']);
+        self::assertSame('composer quality', $manifest['commands']['quality']);
+
+        $contributing = self::read_repository_file('CONTRIBUTING.md');
+        foreach (array('nvm use', 'npm ci --ignore-scripts', 'npm run quality', 'update_visual_baselines', '`threshold 0`', '`maxDiffPixels 0`', 'ubuntu-24.04', 'confirm-dialog-pending') as $rule) {
+            self::assertStringContainsString($rule, $contributing, 'CONTRIBUTING.md admin UI workflow missing: ' . $rule);
+        }
+    }
+
     private static function read_repository_file(string $path): string {
         $root = dirname(__DIR__, 3);
         $full_path = $root . '/' . $path;

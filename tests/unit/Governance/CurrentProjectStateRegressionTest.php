@@ -14,22 +14,39 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
     private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
     /**
-     * The current executable gate (reconciled 2026-10-19): the Sub-project 0c exit gate. 0c
-     * engineering (onboarding backend, services + REST) is complete; the project does not move
-     * past 0c until the owner's staging review passes. The owner moved the wizard UI to
-     * Sub-project 2 (2026-10-18).
+     * The current executable gate (reconciled 2026-10-21): the hardening program. Owner decision
+     * 2026-10-20: the full revamp, branding and information architecture follow only once
+     * functionality, security and performance are verified, so a full audit and fix loop comes
+     * next. Sub-project 1 is done; the 0c owner staging review stays pending owner action and
+     * does not block engineering work.
      */
-    private const CURRENT_GATE = '**Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT**';
-    /** What follows the 0c exit gate. */
-    private const FOLLOWING_SUBPROJECT = 'Sub-project 1 design-token system and admin component library';
-    /** Sub-project 1 is not current until the 0c staging review passes. */
+    private const CURRENT_GATE = '**Hardening program: full functionality, security and performance audit and fix loop — NEXT**';
+    /** What follows the hardening program (owner decision 2026-10-20). */
+    private const NEXT_AFTER_GATE = 'Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding';
+    /** Sub-project 1 status in every living record. */
+    private const SUBPROJECT_1_DONE = 'Sub-project 1 design-token system and admin component library — **DONE / VERIFIED**';
+    /** The 0c owner staging review is still owed by the owner, but no longer the gate. */
+    private const SUBPROJECT_0C_REVIEW_PENDING = 'Sub-project 0c owner staging review — **pending owner action**';
+    /** The binding owner decision that put the hardening program first. */
+    private const OWNER_DECISION_HARDENING = 'Owner decision 2026-10-20';
+    /** Sub-project 1 is done; it can never be the next gate again. */
     private const PREMATURE_SUBPROJECT_1_GATE = 'Sub-project 1 design-token system and admin component library — NEXT';
+    /** The superseded 0c exit gate (reconciled 2026-10-19, superseded 2026-10-21). */
+    private const SUPERSEDED_0C_EXIT_GATE = '**Sub-project 0c exit gate: owner staging review of the onboarding backend — NEXT**';
     /** The superseded 0c gate wording: 0c shipped no UI. */
     private const SUPERSEDED_0C_GATE = 'Sub-project 0c onboarding UI — NEXT';
     /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
     private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
     /** The same current gate as a machine identifier (architecture contract). */
-    private const CURRENT_GATE_ID = 'subproject_0c_exit_owner_staging_review';
+    private const CURRENT_GATE_ID = 'hardening_program_audit_fix_loop';
+    /** The Sub-project 1 evidence record. */
+    private const SUBPROJECT_1_EVIDENCE = 'docs/project/evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md';
+    /** Last SP1 runtime-bearing merge (PR #211, the whole-SP1 UI and accessibility hardening). */
+    private const SUBPROJECT_1_LAST_MERGE = '453e103bd5dc2c81f35e65520ac29dfa9182fbc5';
+    /** Deterministic package at the Sub-project 1 close (built twice, byte-identical). */
+    private const SUBPROJECT_1_PACKAGE_SHA256 = '2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4';
+    /** The superseded Task 8 package; no living record may still present it as current. */
+    private const SUPERSEDED_TASK_8_PACKAGE_SHA256 = '67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac';
     private const SUPERSEDED_GATE ='Current executable gate: **external certification & release readiness**.';
 
     /**
@@ -66,7 +83,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $content = self::read_repository_file('docs/project/START-HERE.md');
 
         self::assertStringContainsString('docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c exit gate (owner staging review of the onboarding backend)**', $content);
+        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Hardening program (full functionality, security and performance audit and fix loop)**', $content);
+        self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c exit gate', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 1', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0b takeover**', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c onboarding UI**', $content);
@@ -236,7 +254,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
-        self::assertStringContainsString('**Last reconciled:** 2026-10-19', $status_hdr);
+        self::assertStringContainsString('**Last reconciled:** 2026-10-21', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
         self::assertStringContainsString('Next release dependency: **fresh owner acceptance of a package containing PR #138**', $handoff);
         // Owner decision 2026-10-08: the account probe is an accepted resolution path, so every
@@ -371,7 +389,14 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('    subproject_0c_status: onboarding_backend_tasks_1_10', $contract);
         self::assertStringContainsString('    current_gate: ' . self::CURRENT_GATE_ID, $contract);
         self::assertStringContainsString('    subproject_0c_owner_staging_review: pending', $contract);
-        self::assertStringContainsString('    next: subproject_1_design_tokens', $contract);
+        self::assertStringContainsString('    subproject_1_plan: docs/superpowers/plans/2026-10-19-subproject-1-design-system.md', $contract);
+        self::assertStringContainsString('    subproject_1_status: done_verified', $contract);
+        self::assertStringContainsString('    subproject_1_last_merge: ' . self::SUBPROJECT_1_LAST_MERGE, $contract);
+        self::assertStringContainsString('    subproject_1_evidence: ' . self::SUBPROJECT_1_EVIDENCE, $contract);
+        self::assertStringContainsString('    owner_decision_2026_10_20: hardening_program_before_revamp_ia_and_branding', $contract);
+        self::assertStringContainsString('    next: subproject_2_after_owner_ia_and_branding', $contract);
+        self::assertStringNotContainsString('next: subproject_1_design_tokens', $contract);
+        self::assertStringNotContainsString('current_gate: subproject_0c_exit_owner_staging_review', $contract);
         self::assertSame(1, substr_count($contract, 'current_gate:'), 'the architecture contract names exactly one current gate');
 
         $implementation = self::read_repository_file('.ai-architect/implementation-plan.md');
@@ -393,12 +418,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringNotContainsString(self::SUPERSEDED_GATE, $content, $path);
             self::assertStringNotContainsString(self::SUPERSEDED_0C_GATE, $content, $path);
             self::assertStringNotContainsString(self::PREMATURE_SUBPROJECT_1_GATE, $content, $path);
+            self::assertStringNotContainsString($label . self::SUPERSEDED_0C_EXIT_GATE, $content, $path);
             self::assertStringNotContainsString('Current executable gate: **R6', $content, $path);
             self::assertStringNotContainsString('Current operational gate | **external certification & release readiness** |', $content, $path);
         }
     }
 
-    public function test_sub_project_1_follows_the_0c_exit_gate_in_every_living_record(): void {
+    public function test_the_hardening_program_follows_sub_project_1_in_every_living_record(): void {
         $records = array(
             'docs/project/START-HERE.md',
             'docs/project/PROJECT-STATUS.md',
@@ -409,10 +435,153 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         foreach ($records as $path) {
             $content = self::read_repository_file($path);
             self::assertStringContainsString(self::CURRENT_GATE, $content, $path);
-            self::assertStringContainsString('Next after the 0c exit gate: ' . self::FOLLOWING_SUBPROJECT, $content, $path);
+            self::assertStringContainsString(self::SUBPROJECT_1_DONE, $content, $path);
+            self::assertStringContainsString(self::SUBPROJECT_0C_REVIEW_PENDING, $content, $path);
+            self::assertStringContainsString(self::OWNER_DECISION_HARDENING, $content, $path);
+            self::assertStringContainsString(self::NEXT_AFTER_GATE, $content, $path);
+            self::assertStringNotContainsString('Next after the 0c exit gate:', $content, $path);
             self::assertStringNotContainsString(self::PREMATURE_SUBPROJECT_1_GATE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_0C_EXIT_GATE, $content, $path);
         }
         self::assertStringContainsString('Current executable gate: ' . self::CURRENT_GATE, self::read_repository_file('docs/project/OWNER-HANDOFF.md'));
+
+        // AGENTS.md takes the same gate sentence and Sub-project 1 status (pending owner acknowledgement).
+        $agents = self::read_repository_file('AGENTS.md');
+        self::assertStringContainsString(self::SUBPROJECT_1_DONE, $agents);
+        self::assertStringContainsString(self::SUBPROJECT_0C_REVIEW_PENDING, $agents);
+        self::assertStringContainsString('Admin UI token, contrast, build-contract, accessibility and visual-regression suites', $agents);
+        self::assertStringContainsString('.github/workflows/admin-ui-certification.yml', $agents);
+    }
+
+    public function test_sub_project_1_package_and_evidence_are_recorded(): void {
+        $evidence = self::read_repository_file(self::SUBPROJECT_1_EVIDENCE);
+        self::assertStringContainsString('**224 files**', $evidence);
+        self::assertStringContainsString(self::SUBPROJECT_1_PACKAGE_SHA256, $evidence);
+        self::assertStringContainsString('byte-identical', $evidence);
+        self::assertStringContainsString(self::SUBPROJECT_1_LAST_MERGE, $evidence);
+        foreach (array('#195', '#196', '#197', '#199', '#200', '#202', '#203', '#204', '#205', '#206', '#207', '#208', '#209', '#211') as $pr) {
+            self::assertStringContainsString($pr, $evidence, 'the SP1 evidence must list PR ' . $pr);
+        }
+        self::assertStringContainsString('## SP2 rules carried from SP1', $evidence);
+        foreach (array(
+            '<hr class="wp-header-end">',
+            'AdminAssets::enqueue_for()',
+            'beforeunload',
+            'idempotency',
+            'core/commands',
+            'palette chunks',
+            'actionKey',
+            'StrictMode',
+            'AbortSignal.timeout',
+        ) as $rule) {
+            self::assertStringContainsString($rule, $evidence, 'SP2 rule missing: ' . $rule);
+        }
+        foreach (array('NVDA', 'VoiceOver', 'Windows High Contrast', 'Safari', 'Firefox', 'Arabic copy') as $manual) {
+            self::assertStringContainsString($manual, $evidence, 'owner manual test missing: ' . $manual);
+        }
+        self::assertStringContainsString('## Pending owner acknowledgements', $evidence);
+        self::assertStringContainsString('markdown-it 14.3.3', $evidence);
+        self::assertStringContainsString('unicode-bidi: plaintext', $evidence);
+        // The four whole-SP1 reviews and how each finding was resolved.
+        self::assertStringContainsString('## Whole-SP1 independent reviews', $evidence);
+        foreach (array('**Security**', '**Code**', '**Accessibility**', '**Release**', 'C1', 'I1', 'M6', 'N3', 'H1', 'L7') as $review) {
+            self::assertStringContainsString($review, $evidence, 'review record missing: ' . $review);
+        }
+        // Tracker: markdown-it is done (#208); #210 is the first hardening item.
+        self::assertStringContainsString('#210', $evidence);
+        self::assertStringNotContainsString('waits for that date', $evidence);
+        // SP2 rules: the nav-href rule is enforced in the component; two rules are new.
+        self::assertStringContainsString('savedRevision', $evidence);
+        self::assertStringContainsString('explicit `aria-live`', $evidence);
+        self::assertStringNotContainsString('AppShell navigation `href` values must be relative', $evidence);
+        foreach (array('Aquatic', 'Desert', 'F6', 'wp.a11y.speak', '400%', 'text-spacing', 'swipe') as $manual) {
+            self::assertStringContainsString($manual, $evidence, 'owner manual test missing: ' . $manual);
+        }
+        foreach (array(
+            'AGENTS.md',
+            'docs/project/START-HERE.md',
+            'docs/project/PROJECT-STATUS.md',
+            'docs/project/NEW-CHAT-HANDOFF.md',
+            'docs/project/RELEASE-ENGINEERING.md',
+            '.ai-architect/architecture-contract.yaml',
+            self::SUBPROJECT_1_EVIDENCE,
+        ) as $record) {
+            self::assertStringNotContainsString(self::SUPERSEDED_TASK_8_PACKAGE_SHA256, self::read_repository_file($record), $record . ' still carries the superseded Task 8 package');
+        }
+        self::assertStringContainsString(self::SUBPROJECT_1_PACKAGE_SHA256, self::read_repository_file('docs/project/NEW-CHAT-HANDOFF.md'));
+        self::assertStringContainsString('subproject_1_package_sha256: ' . self::SUBPROJECT_1_PACKAGE_SHA256, self::read_repository_file('.ai-architect/architecture-contract.yaml'));
+        // Admin UI Gate is a required status check in the Main Rule ruleset (owner approval 2026-10-21).
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md', 'docs/project/NEW-CHAT-HANDOFF.md', 'docs/project/OWNER-HANDOFF.md') as $living) {
+            self::assertStringContainsString('`Admin UI Gate`', self::read_repository_file($living), $living . ' must list Admin UI Gate as a required check');
+        }
+
+        self::assertStringContainsString(
+            'Sub-project 1 design system: **224 files**, SHA-256 `' . self::SUBPROJECT_1_PACKAGE_SHA256 . '`',
+            self::read_repository_file('docs/project/RELEASE-ENGINEERING.md')
+        );
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md') as $living) {
+            $text = self::read_repository_file($living);
+            self::assertStringContainsString(self::SUBPROJECT_1_PACKAGE_SHA256, $text, $living);
+            self::assertStringContainsString(basename(self::SUBPROJECT_1_EVIDENCE), $text, $living);
+        }
+
+        // Post-merge verification on main at the last SP1 runtime merge.
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md') as $living) {
+            self::assertStringContainsString('39575252375', self::read_repository_file($living), $living);
+        }
+
+        // Release review additions: merge gate, build contract, dependency hygiene, revert recipe.
+        self::assertStringContainsString(
+            'Admin UI Gate green (static, Windows drift, both browser cells, visual)',
+            self::read_repository_file('AGENTS.md')
+        );
+        $release = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
+        foreach (array(
+            '## Admin UI build contract (Sub-project 1)',
+            'git ls-files --eol',
+            '### Dependency hygiene',
+            'serialize-javascript',
+            'postcss-selector-parser',
+            'js-yaml',
+            'smol-toml',
+            'katex',
+            'sockjs',
+            'react-dom-19',
+            '90 days',
+            '2027-01-17',
+            'audit:lock-age',
+            '### Reverting a Sub-project 1 change',
+            'git revert',
+            'update_visual_baselines',
+            'npm_config_before',
+        ) as $rule) {
+            self::assertStringContainsString($rule, $release, 'RELEASE-ENGINEERING.md missing: ' . $rule);
+        }
+        $contributing = self::read_repository_file('CONTRIBUTING.md');
+        foreach (array('npm_config_script_shell', 'Git Bash', 'NODE_ENV', 'BROWSERSLIST', 'Never hand-merge') as $rule) {
+            self::assertStringContainsString($rule, $contributing, 'CONTRIBUTING.md missing: ' . $rule);
+        }
+
+        $compatibility = self::read_repository_file('docs/COMPATIBILITY.md');
+        self::assertStringContainsString('### Admin UI boundary (Sub-project 1)', $compatibility);
+        self::assertStringContainsString('git working tree, not the packaged ZIP', $compatibility);
+        foreach (array(':has()', 'Firefox 121', 'Safari 15.4') as $floor) {
+            self::assertStringContainsString($floor, $compatibility, 'admin UI browser floor missing: ' . $floor);
+        }
+        self::assertStringNotContainsString('| GHSA-gfr2-rv44-r23c |', $release, 'markdown-it was adopted in #208');
+        foreach (array(
+            'Playwright 1.63.0',
+            'WP 6.9.10 / WC 10.8.1',
+            'WP 7.1.3 / WC 11.1.2',
+            'React 18.3.1',
+            'React 19',
+            'NVDA',
+            'VoiceOver',
+            'Windows High Contrast',
+            'foundations-arabic',
+        ) as $boundary) {
+            self::assertStringContainsString($boundary, $compatibility, 'admin UI boundary missing: ' . $boundary);
+        }
     }
 
     public function test_the_onboarding_api_boundary_and_its_package_are_recorded(): void {
@@ -428,7 +597,16 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringContainsString('wizard UI moves to Sub-project 2', $text, $living);
         }
 
-        self::assertStringContainsString('Sub-project 0c onboarding backend: **134 files**', self::read_repository_file('docs/project/RELEASE-ENGINEERING.md'));
+        // The 0c package is history once Sub-project 1 changed the distributable bytes.
+        $release = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
+        self::assertStringContainsString('Historical Sub-project 0c package (superseded by Sub-project 1): **134 files**', $release);
+        self::assertStringNotContainsString('**Revamp development package (NOT owner accepted):** Sub-project 0c onboarding backend', $release);
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md') as $living) {
+            $text = self::read_repository_file($living);
+            self::assertStringNotContainsString('package 134 files (`RELEASE-ENGINEERING.md`)', $text, $living);
+            self::assertStringNotContainsString('; package 134 files;', $text, $living);
+            self::assertStringNotContainsString('Deterministic package: 134 files', $text, $living);
+        }
     }
 
     public function test_the_0c_certification_is_not_claimed_for_the_pr_head(): void {
@@ -438,8 +616,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('**pending on the PR head**', $evidence);
         self::assertStringContainsString('historical', $evidence);
         self::assertStringContainsString('**134 files**', $evidence);
+        // PR #194 then merged (5dce3f1) after its exact-head CI went green at b48badf; the living
+        // status records that, while the evidence file above stays a historical record.
         $status = self::read_repository_file('docs/project/PROJECT-STATUS.md');
-        self::assertStringContainsString('pending on the PR head', $status);
+        self::assertStringContainsString('5dce3f1d1397d455baa4b4bfe64ef3f89184de6e', $status);
+        self::assertStringContainsString('b48badf1f1c81284546ac4c3be62ca211201676f', $status);
+        self::assertStringContainsString('39205662675', $status);
+        self::assertStringNotContainsString('are pending on the PR head', $status);
         self::assertStringNotContainsString('package 133 files', $status);
         self::assertStringNotContainsString('package 133 files', self::read_repository_file('docs/project/START-HERE.md'));
     }

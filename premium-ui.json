@@ -1,27 +1,39 @@
 {
   "profile": "product-admin",
   "sourceRoots": [
-    "assets"
+    "assets",
+    "assets/admin/src"
   ],
   "locale": "wordpress-active",
   "canonicalMap": "UX-CONTRACT.md",
   "requiredCapabilities": [
     "Select/Listbox",
     "Form",
-    "Toast"
+    "Toast",
+    "Dialog",
+    "Tabs",
+    "Tooltip",
+    "CommandPalette"
   ],
   "ownership": {
     "Select/Listbox": "native",
     "Form": "wordpress-woocommerce",
-    "Toast": "authored"
+    "Toast": "authored",
+    "Dialog": "authored",
+    "Tabs": "authored",
+    "Tooltip": "authored",
+    "CommandPalette": "authored"
   },
   "requiredCommands": [
-    "quality"
+    "quality",
+    "quality-admin"
   ],
   "commands": {
-    "quality": "composer quality"
+    "quality": "composer quality",
+    "quality-admin": "npm run quality"
   },
   "evidence": {
-    "failurePaths": "tests/e2e/r6-browser-ux.spec.ts"
+    "failurePaths": "tests/e2e/r6-browser-ux.spec.ts",
+    "adminCertification": ".github/workflows/admin-ui-certification.yml"
   }
 }

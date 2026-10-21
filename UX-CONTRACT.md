@@ -38,6 +38,14 @@
 | Select/Listbox | Native HTML/WooCommerce select | This contract + checkout/account implementations | native | keyboard + locale + browser |
 | Form | WooCommerce checkout / WordPress admin form + server validation | WooCommerce lifecycle + migration contract | checkout / admin operation | integration + browser |
 | Toast | SUPCheckout polite atomic status region | `templates/new-design-form.php` + `assets/js/upayments-block.js` | classic / Blocks | accessibility unit + browser |
+| Select (admin) | Native `<select>` styled with `--sup-*` tokens (`Select`) | `assets/admin/src/ui/controls/Select.tsx` | native only; no custom listbox | Jest + jest-axe in four modes; `admin-ui-certification.yml` browser (axe, keyboard) on WP 6.9.10 and 7.1.3 + visual |
+| Dialog | `Dialog` on Base UI Dialog, in the scoped portal layer | `assets/admin/src/ui/overlays/Dialog.tsx` | dismissible / `dismissible={ false }`; sizes | Jest + jest-axe in four modes; `admin-ui-certification.yml` browser (axe, keyboard) on WP 6.9.10 and 7.1.3 + visual |
+| ConfirmDialog (money) | `ConfirmDialog` on Base UI AlertDialog: the money-safety primitive | `assets/admin/src/ui/overlays/ConfirmDialog.tsx`, `DESIGN.md` "Money-confirmation contract" | tones `money` / `danger` / `neutral`; optional `actionKey` | Jest + jest-axe in four modes; `admin-ui-certification.yml` browser (axe, keyboard) on WP 6.9.10 and 7.1.3 + visual (exactly-once `onConfirm`) |
+| Toast (admin) | `useToast` (SupRoot renders the toast viewport), a polite region in the portal layer | `assets/admin/src/ui/feedback/Toast.tsx` | success / info (timed) / error (persistent) | Jest + jest-axe in four modes; `admin-ui-certification.yml` browser (axe, keyboard) on WP 6.9.10 and 7.1.3 + visual |
+| Tooltip | `Tooltip` on Base UI Tooltip (WCAG 1.4.13) | `assets/admin/src/ui/feedback/Tooltip.tsx` | description / label (`IconButton showTooltip`) | Jest + jest-axe in four modes; `admin-ui-certification.yml` browser (axe, keyboard) on WP 6.9.10 and 7.1.3 + visual |
+| Tabs | `Tabs` on Base UI Tabs (roving focus, RTL arrows) | `assets/admin/src/ui/overlays/Tabs.tsx` | automatic / manual activation | Jest + jest-axe in four modes; `admin-ui-certification.yml` browser (axe, keyboard) on WP 6.9.10 and 7.1.3 + visual |
+| DataTable | `DataTable`: semantic `<table>`, caller-owned sort | `assets/admin/src/ui/overlays/DataTable.tsx` | default / compact density; loading; empty | Jest + jest-axe in four modes; `admin-ui-certification.yml` browser (axe, keyboard) on WP 6.9.10 and 7.1.3 + visual |
+| CommandPalette | `CommandPalette` (modal Dialog + lazy Base UI Autocomplete panel); yields Mod+K to core `core/commands` | `assets/admin/src/ui/overlays/CommandPalette.tsx` | trigger button; Mod+K only where core's palette is absent | Jest + jest-axe in four modes; `admin-ui-certification.yml` browser (axe, keyboard) on WP 6.9.10 and 7.1.3 + visual |
 
 ## Component behavior
 
@@ -82,13 +90,13 @@
 
 ## Overlays and feedback
 
-- **Dialog primitive:** none in current scope. Destructive subscription confirmation is an owned inline disclosure; native JS dialogs are prohibited.
-- **Destructive confirmation levels:** unsubscribe requires a second explicit action with consequence copy; routine pause/resume does not add an extra confirmation.
-- **Toast placement/duration/deduplication:** authored status live region, bounded duration; no financial truth is conveyed only by toast.
+- **Dialog primitive:** checkout and account have none: destructive subscription confirmation is an owned inline disclosure, and native JS dialogs are prohibited everywhere. The React admin app's primitive is `Dialog` (Base UI Dialog: focus moves in, Tab stays in, the page behind is inert, focus returns to the opener), and `ConfirmDialog` (Base UI AlertDialog) for consequential actions.
+- **Destructive confirmation levels:** unsubscribe requires a second explicit action with consequence copy; routine pause/resume does not add an extra confirmation. In the admin app, `ConfirmDialog` has three levels: `money` (refunds, charges and anything that moves money: `onConfirm` runs exactly once per opening, the dialog cannot be dismissed while pending, and only a caller result of `verified` reads as done), `danger` (irreversible but not monetary) and `neutral`. Screens pass `actionKey` when they may remount the dialog, and bound `onConfirm` so that a timeout maps to `pending`.
+- **Toast placement/duration/deduplication:** authored status live region, bounded duration; no financial truth is conveyed only by toast. Admin toasts: block end / inline end, moving away from the focused element (WCAG 2.4.11); success and info close after 6 s (paused on hover, focus and a background window), errors persist; at most 3 visible.
 - **Alert/banner scope and persistence:** WooCommerce notices for checkout; WordPress notices for migration/admin.
-- **Tooltip delay/dismissal:** no required plugin-owned tooltip primitive.
+- **Tooltip delay/dismissal:** checkout has none. Admin `Tooltip`: 400 ms hover delay, immediate on keyboard focus, Escape dismisses it without moving focus, hoverable and persistent (WCAG 1.4.13); nothing essential lives only in a tooltip, and a disabled control gets none.
 - **Unsaved-changes behavior:** checkout state follows WooCommerce; migration form does not autosave.
-- **Layer/z-index contract:** no plugin-owned modal/drawer/popover stack; checkout toast remains above the local checkout surface only.
+- **Layer/z-index contract:** checkout has no plugin-owned modal/drawer/popover stack; the checkout toast remains above the local checkout surface only. The admin app renders every overlay in one scoped portal layer at `--sup-z-portal` (100000), above the WordPress admin bar (99999); the layer mirrors the app root's theme, direction, language and density.
 
 ## Async and resilience
 
@@ -120,11 +128,11 @@
 
 ## Verification
 
-- **Required static command:** `composer quality`.
+- **Required static command:** `composer quality`; for the React admin app also `npm run quality` (lint, typecheck, unit with jest-axe, token and contrast `--check`, build contract, build and drift).
 - **Browser matrix:** repository R6 Playwright covers Classic + Blocks at desktop/mobile plus Arabic RTL; local final verification expands success/failure/keyboard/locale/theme/reduced-motion review.
 - **Accessibility checks:** axe A/AA, focus visibility, semantic unit contracts, decorative icon checks, live-region checks.
 - **Native-language/domain review:** required before claiming a newly added locale is production-quality; Arabic layout direction is automated but copy quality remains a separate human-language review.
-- **Component-state/visual regression:** R6 screenshots for Classic/Blocks/RTL plus source/unit contracts.
+- **Component-state/visual regression:** R6 screenshots for Classic/Blocks/RTL plus source/unit contracts. Admin app: `.github/workflows/admin-ui-certification.yml` (static, Windows build and drift, browser and accessibility suite on WP 6.9.10 / WC 10.8.1 and WP 7.1.3 / WC 11.1.2 in four modes, exact visual regression on WP 7.1.3, and the gate).
 - **Canonical sibling flow:** WooCommerce core checkout/account/admin behavior.
 - **Project audit:** Frontend Design Premium strict audit must be run locally against the final candidate.
 - **Failure-path evidence:** `tests/e2e/r6-browser-ux.spec.ts` plus payment lifecycle/integration harnesses.
