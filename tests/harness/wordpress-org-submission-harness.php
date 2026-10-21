@@ -57,8 +57,22 @@ wporg_assert(strpos($readme, 'Stable tag: trunk') === false, 'new-plugin readme 
 wporg_assert(
     strpos($readme, '== Source code and build ==') !== false
         && strpos($readme, 'https://github.com/SimplixInnovations/supcheckout') !== false
-        && strpos($readme, 'npm ci && npm run build') !== false,
+        && strpos($readme, 'npm ci --ignore-scripts && npm run build') !== false,
     'readme links the human-readable source and documents the admin build (guideline 4)'
+);
+$nvmrc = trim(wporg_read($root, '.nvmrc'));
+$npmrc = wporg_read($root, '.npmrc');
+$package_json = json_decode(wporg_read($root, 'package.json'), true);
+$pinned_npm = is_array($package_json) && isset($package_json['engines']['npm']) && is_string($package_json['engines']['npm'])
+    ? $package_json['engines']['npm']
+    : '';
+wporg_assert(
+    $nvmrc !== ''
+        && $pinned_npm !== ''
+        && preg_match('/^engine-strict=true$/m', $npmrc) === 1
+        && strpos($readme, 'Node.js ' . $nvmrc . ' and npm ' . $pinned_npm) !== false
+        && strpos($readme, '`engine-strict`') !== false,
+    'readme states the pinned Node.js/npm toolchain (.nvmrc, package.json engines) enforced by engine-strict'
 );
 wporg_assert(stripos($readme, 'guaranteed PCI') === false && stripos($readme, 'PCI compliant plugin') === false, 'readme makes no plugin-level PCI compliance guarantee');
 

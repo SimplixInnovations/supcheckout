@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import uuid
 import zipfile
 from urllib.parse import quote
 from datetime import datetime, timezone
@@ -47,6 +48,27 @@ def _stable_timestamp() -> str:
     ts = datetime.fromtimestamp(epoch_i, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print("SOURCE_DATE_EPOCH_USED=" + str(epoch_i) + " timestamp=" + ts)
     return ts
+
+
+# Fixed UUIDv5 namespace for SUPCheckout SBOM serial numbers. Changing it would
+# change every serial, so it is a constant, never derived at run time.
+SBOM_SERIAL_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://github.com/SimplixInnovations/supcheckout/sbom")
+
+
+def serial_number(kind: str, digest: str) -> str:
+    """Deterministic RFC 4122 UUIDv5 URN for one SBOM.
+
+    `kind` separates the runtime and development SBOMs; `digest` is a SHA-256
+    of the content the SBOM describes, so equal inputs give equal serials and a
+    changed input gives a new one.
+    """
+    return uuid.uuid5(SBOM_SERIAL_NAMESPACE, f"supcheckout-{kind}:{digest}").urn
+
+
+def components_digest(components: list[dict]) -> str:
+    """SHA-256 of a component list in canonical JSON (sorted keys, no whitespace)."""
+    canonical = json.dumps(components, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def cyclone_dx(name: str, components: list[dict], serial: str) -> dict:
@@ -117,7 +139,7 @@ def runtime_sbom(zip_path: Path) -> dict:
     return cyclone_dx(
         "supcheckout-runtime-artifact",
         comps,
-        "urn:uuid:supcheckout-runtime-0000-0000-0000-000000000001",
+        serial_number("runtime", sha256_file(zip_path)),
     )
 
 
@@ -221,7 +243,7 @@ def dev_sbom() -> tuple[dict, list[dict]]:
         cyclone_dx(
             "supcheckout-development-dependencies",
             comps,
-            "urn:uuid:supcheckout-dev-0000-0000-0000-000000000002",
+            serial_number("dev", components_digest(comps)),
         ),
         licenses,
     )

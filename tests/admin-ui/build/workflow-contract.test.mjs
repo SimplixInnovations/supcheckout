@@ -202,6 +202,26 @@ test( 'the gate also needs the visual lane and fails on its skip or cancel', () 
 	expect( gate ).toContain( '"$VISUAL_RESULT" != success' );
 } );
 
+test( 'the static lane runs the lockfile release-age check on full history', () => {
+	const staticJob = job( 'static' );
+	// The check diffs package-lock.json against the merge-base with
+	// origin/main (or HEAD^ on main), so the checkout needs every ref.
+	expect( staticJob ).toMatch(
+		/uses: actions\/checkout@[0-9a-f]{40} # v[\d.]+\n\s+with:\n\s+ref: \$\{\{ env\.ADMIN_UI_SOURCE_SHA \}\}\n\s+fetch-depth: 0\n\s+persist-credentials: false\n/
+	);
+	expect( staticJob ).toContain( 'run: npm run audit:lock-age' );
+	expect( staticJob.indexOf( 'run: npm ci --ignore-scripts' ) ).toBeLessThan(
+		staticJob.indexOf( 'run: npm run audit:lock-age' )
+	);
+} );
+
+test( 'only pull-request runs cancel in progress, so a push to main is never cancelled', () => {
+	expect( WORKFLOW ).toMatch(
+		/\nconcurrency:\n\s+group: admin-ui-\$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}\n(?: +#.*\n)*\s+cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}\n/
+	);
+	expect( WORKFLOW ).not.toMatch( /cancel-in-progress: true/ );
+} );
+
 test( 'test:visual runs exactly the four visual projects', () => {
 	const pkg = JSON.parse(
 		readFileSync( join( ROOT, 'package.json' ), 'utf8' )

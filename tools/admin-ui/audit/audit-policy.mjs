@@ -19,7 +19,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const keyOf = ( entry ) => `${ entry.id } ${ entry.package }`;
 
-function isNonEmptyString( value ) {
+/**
+ * @param {unknown} value Any value.
+ * @return {boolean} True for a string with non-whitespace content.
+ */
+export function isNonEmptyString( value ) {
 	return typeof value === 'string' && value.trim() !== '';
 }
 
@@ -41,7 +45,15 @@ function utcDate( value ) {
 	return real ? time : null;
 }
 
-function expiryProblem( expires, today ) {
+/**
+ * Shared with the lockfile release-age exceptions (lock-age-policy.mjs).
+ *
+ * @param {unknown} expires The entry's `expires` value.
+ * @param {string}  today   Today as `YYYY-MM-DD` (UTC).
+ * @return {string|null} Why the expiry is invalid, or null when it is a real
+ *         date, not past and at most 90 days away.
+ */
+export function expiryProblem( expires, today ) {
 	const expiry = utcDate( expires );
 	if ( expiry === null ) {
 		return `expires must be a real YYYY-MM-DD date, got ${ JSON.stringify(

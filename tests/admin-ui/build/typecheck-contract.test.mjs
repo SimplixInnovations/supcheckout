@@ -47,6 +47,14 @@ test( 'the type packages are exact-pinned development dependencies', () => {
 	}
 } );
 
+test( '@types/node matches the major of the pinned Node runtime', () => {
+	const pkg = readJson( 'package.json' );
+	const runtimeMajor = pkg.engines.node.match( /\d+/ )[ 0 ];
+	expect( pkg.devDependencies[ '@types/node' ].split( '.' )[ 0 ] ).toBe(
+		runtimeMajor
+	);
+} );
+
 test( 'tsconfig.tests.json never ships', () => {
 	const distignore = readFileSync( join( ROOT, '.distignore' ), 'utf8' )
 		.split( /\r?\n/ )

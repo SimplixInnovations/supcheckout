@@ -18,7 +18,7 @@ if (PHP_SAPI !== 'cli') {
 
 const SUPCHECKOUT_FIXTURE_DOMAIN = 'supcheckout';
 const SUPCHECKOUT_FIXTURE_LOCALE = 'ar';
-const SUPCHECKOUT_FIXTURE_CHUNK = '#^chunks/[a-z0-9-]+\.[a-f0-9]{8}\.js$#';
+const SUPCHECKOUT_FIXTURE_CHUNK = '#^chunks/[a-z0-9-]+\.[a-f0-9]{8}\.js\z#';
 
 /**
  * @param string $message Failure reason.

@@ -12,6 +12,12 @@ from pathlib import Path
 NPM_PURL = re.compile(r"^pkg:npm/(%40[^/@]+/)?[^/@%][^/@]*@[^@]+$")
 
 
+# CycloneDX serialNumber: `urn:uuid:` plus a lowercase RFC 4122 UUID (versions 1-5).
+SERIAL_NUMBER = re.compile(
+    r"^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+)
+
+
 def purl_failures(name: str, components: list) -> list[str]:
     return [
         f"FAIL {name} npm purl not spec-encoded: {c.get('purl')}"
@@ -25,6 +31,7 @@ def main(argv: list[str]) -> int:
     argv = [a for a in argv if a != "--purl-only"]
     d = Path(argv[0] if argv else "evidence/sbom")
     ok = True
+    serials: dict[str, str] = {}
     for name, minc in (("runtime-sbom.cdx.json", 50), ("dev-sbom.cdx.json", 1)):
         p = d / name
         if not p.exists():
@@ -41,6 +48,15 @@ def main(argv: list[str]) -> int:
         ok = ok and not failures
         if purl_only:
             continue
+        serial = o.get("serialNumber")
+        if not isinstance(serial, str) or not SERIAL_NUMBER.match(serial):
+            print(f"FAIL {name} serialNumber is not an RFC 4122 urn:uuid: {serial!r}")
+            ok = False
+        elif serial in serials.values():
+            print(f"FAIL {name} serialNumber reuses another SBOM's serial: {serial}")
+            ok = False
+        else:
+            serials[name] = serial
         n = len(o.get("components") or [])
         if n < minc:
             print(f"FAIL {name} components={n} < {minc}")

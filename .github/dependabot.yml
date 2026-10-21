@@ -1,4 +1,6 @@
 version: 2
+# Review routing comes from .github/CODEOWNERS (the `reviewers` key is
+# deprecated), so no ecosystem names reviewers here.
 updates:
   - package-ecosystem: github-actions
     directory: "/"
@@ -8,8 +10,6 @@ updates:
       time: "06:00"
       timezone: Asia/Dubai
     open-pull-requests-limit: 3
-    reviewers:
-      - SimplixInnovationsAdmin
     groups:
       github-actions:
         patterns:
@@ -23,8 +23,6 @@ updates:
       time: "06:15"
       timezone: Asia/Dubai
     open-pull-requests-limit: 3
-    reviewers:
-      - SimplixInnovationsAdmin
     versioning-strategy: increase
     groups:
       php-quality-tooling:
@@ -40,8 +38,6 @@ updates:
       time: "06:30"
       timezone: Asia/Dubai
     open-pull-requests-limit: 3
-    reviewers:
-      - SimplixInnovationsAdmin
     cooldown:
       default-days: 14
     ignore:
@@ -59,6 +55,10 @@ updates:
       # below 6.1.0 only; move TypeScript with the wp-scripts toolchain.
       - dependency-name: typescript
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Node.js types follow the pinned Node 24 runtime (.nvmrc), not the
+      # newest Node release line.
+      - dependency-name: "@types/node"
+        versions: [">= 25"]
     groups:
       admin-ui-runtime:
         dependency-type: production

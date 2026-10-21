@@ -93,7 +93,7 @@ Do not expose merchant credentials, card data, customer tokens, private webhook 
 
 The admin interface JavaScript and CSS in `assets/admin/build/` are compiled from the human-readable TypeScript and CSS source shipped in `assets/admin/src/`. The full source, including the build tooling, is public at https://github.com/SimplixInnovations/supcheckout.
 
-To rebuild, use the Node.js version in `.nvmrc` and run `npm ci && npm run build` in a clone of the repository.
+To rebuild, use Node.js 24.21.0 and npm 11.19.0 (pinned in `.nvmrc` and the `engines` field of `package.json`; `engine-strict` in `.npmrc` refuses any other version) and run `npm ci --ignore-scripts && npm run build` in a clone of the repository.
 
 == Changelog ==
 

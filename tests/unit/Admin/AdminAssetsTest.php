@@ -216,6 +216,53 @@ final class AdminAssetsTest extends TestCase {
         self::assertSame(array(), AdminAssets::chunks($this->fixture(null)));
     }
 
+    public function test_a_chunk_path_with_a_trailing_newline_drops_the_chunk_list(): void {
+        // `$` also matches before a final newline; the anchor must be `\z`.
+        self::assertSame(array(), AdminAssets::chunks($this->fixture('["chunks/x.12345678.js\n"]')));
+        self::assertSame(
+            array(),
+            AdminAssets::chunks($this->fixture('["chunks/panel.0123abcd.js","chunks/x.12345678.js\n"]'))
+        );
+        self::assertSame(0, preg_match(AdminAssets::CHUNK_PATTERN, "chunks/x.12345678.js\n"));
+        self::assertSame(1, preg_match(AdminAssets::CHUNK_PATTERN, 'chunks/x.12345678.js'));
+    }
+
+    public function test_the_fixture_translation_script_uses_the_same_chunk_pattern(): void {
+        $script = (string) file_get_contents(dirname(__DIR__, 2) . '/admin-ui/wp/make-fixture-translations.php');
+        self::assertSame(
+            1,
+            preg_match("/const SUPCHECKOUT_FIXTURE_CHUNK = '([^']+)';/", $script, $match),
+            'make-fixture-translations.php declares SUPCHECKOUT_FIXTURE_CHUNK as a single-quoted literal'
+        );
+        self::assertSame(AdminAssets::CHUNK_PATTERN, $match[1]);
+        self::assertSame(0, preg_match($match[1], "chunks/x.12345678.js\n"));
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function non_string_hook_suffixes(): array {
+        return array(
+            'null from a misbehaving caller'  => array(null),
+            'array from a misbehaving caller' => array(array(self::SCREEN)),
+            'integer from a misbehaving caller' => array(0),
+        );
+    }
+
+    /**
+     * @param mixed $hook_suffix
+     */
+    #[DataProvider('non_string_hook_suffixes')]
+    public function test_enqueue_for_a_non_string_hook_suffix_enqueues_nothing($hook_suffix): void {
+        $assets = $this->assets();
+        $assets->hook(self::SCREEN);
+
+        self::assertFalse($assets->enqueue_for($hook_suffix));
+        self::assertSame(array(), \supcheckout_test_enqueued());
+        self::assertSame(array(), $GLOBALS['supcheckout_test_admin_assets']['scripts']);
+        self::assertSame(array(), $GLOBALS['supcheckout_test_admin_assets']['styles']);
+    }
+
     public function test_valid_chunks_are_returned_in_order(): void {
         self::assertSame(
             array('chunks/995.08985fb8.js', 'chunks/command-palette.0123abcd.js'),
@@ -340,7 +387,7 @@ final class AdminAssetsTest extends TestCase {
         self::assertSame('supcheckout-admin-root', AdminAssets::ROOT_ID);
         self::assertSame('supcheckout-admin-page', AdminAssets::BODY_CLASS);
         self::assertSame('supcheckout', AdminAssets::TEXT_DOMAIN);
-        self::assertSame('#^chunks/[a-z0-9-]+\.[a-f0-9]{8}\.js$#', AdminAssets::CHUNK_PATTERN);
+        self::assertSame('#^chunks/[a-z0-9-]+\.[a-f0-9]{8}\.js\z#', AdminAssets::CHUNK_PATTERN);
     }
 
     private function assets(): AdminAssets {
