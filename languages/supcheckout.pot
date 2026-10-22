@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-22T16:01:02+00:00\n"
+"POT-Creation-Date: 2026-10-22T17:09:01+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: supcheckout\n"
@@ -67,175 +67,175 @@ msgstr ""
 msgid "Subscription resumed."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:66
+#: src/Admin/GatewaySettings.php:68
 msgid "Choose your payment method and complete your payment on the secure UPayments page."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:81
-#: src/Subscription/Presentation.php:557
+#: src/Admin/GatewaySettings.php:83
+#: src/Subscription/Presentation.php:559
 msgid "Active"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:87
+#: src/Admin/GatewaySettings.php:89
 msgid "Default Gateway"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:89
+#: src/Admin/GatewaySettings.php:91
 msgid "Make UPayments the default payment method at checkout"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:91
+#: src/Admin/GatewaySettings.php:93
 msgid "If enabled, UPayments will be preselected at checkout. Merchants can still reorder gateways."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:94
+#: src/Admin/GatewaySettings.php:96
 msgid "Title"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:96
+#: src/Admin/GatewaySettings.php:98
 msgid "This controls the title which the user sees during checkout."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:101
+#: src/Admin/GatewaySettings.php:103
 msgid "Description"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:103
+#: src/Admin/GatewaySettings.php:105
 msgid "Instructions that the customer will see on your checkout."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:108
+#: src/Admin/GatewaySettings.php:110
 msgid "Api Key"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:110
+#: src/Admin/GatewaySettings.php:112
 msgid "Copy/paste values from UPayments dashboard"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:115
+#: src/Admin/GatewaySettings.php:117
 msgid "Debug logging"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:117
+#: src/Admin/GatewaySettings.php:119
 msgid "Log non-sensitive UPayments diagnostic events to WooCommerce logs."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:121
+#: src/Admin/GatewaySettings.php:123
 msgid "Test Mode"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:127
+#: src/Admin/GatewaySettings.php:129
 msgid "Show paid orders as \"Completed\"?"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:133
+#: src/Admin/GatewaySettings.php:135
 msgid "Card Tokenization & Design"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:138
+#: src/Admin/GatewaySettings.php:140
 msgid "Use New Design"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:140
+#: src/Admin/GatewaySettings.php:142
 msgid "Use the modern design (if unchecked uses classic design)"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:144
+#: src/Admin/GatewaySettings.php:146
 msgid "Enable Save Card"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:146
+#: src/Admin/GatewaySettings.php:148
 msgid "Allow customers to save card details (Tokenization)"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:150
+#: src/Admin/GatewaySettings.php:152
 msgid "Multimerchant Configuration"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:154
+#: src/Admin/GatewaySettings.php:156
 msgid "Enable Multimerchant"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:156
+#: src/Admin/GatewaySettings.php:158
 msgid "Handle Merchant Account & Charges"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:180
+#: src/Admin/GatewaySettings.php:182
 msgid "Multimerchant Accounts"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:182
+#: src/Admin/GatewaySettings.php:184
 msgid "Manage IBAN and charges for Main-Merchant."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:185
+#: src/Admin/GatewaySettings.php:187
 msgid "Subscription Configuration"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:189
+#: src/Admin/GatewaySettings.php:191
 msgid "Enable Subscriptions"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:191
+#: src/Admin/GatewaySettings.php:193
 msgid "Enable subscription payments"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:197
-#: src/Admin/GatewaySettings.php:198
+#: src/Admin/GatewaySettings.php:199
+#: src/Admin/GatewaySettings.php:200
 msgid "Only Subscription Products are allowed at checkout If Subscription is enabled."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:199
+#: src/Admin/GatewaySettings.php:201
 msgid "Automatic renewal charges are paused."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:292
+#: src/Admin/GatewaySettings.php:294
 msgid "A key is saved. For security it is never shown. Leave this field empty to keep it, or enter a new key to replace it."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:381
+#: src/Admin/GatewaySettings.php:383
 msgid "Save Card must be enabled when Subscriptions are enabled, so it was turned on."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:516
+#: src/Admin/GatewaySettings.php:518
 msgid "Fixed"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:517
+#: src/Admin/GatewaySettings.php:519
 msgid "Percentage"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:530
+#: src/Admin/GatewaySettings.php:532
 msgid "IBAN Number"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:531
+#: src/Admin/GatewaySettings.php:533
 msgid "Knet Charge"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:532
+#: src/Admin/GatewaySettings.php:534
 msgid "Knet Charge Type"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:533
+#: src/Admin/GatewaySettings.php:535
 msgid "CC Charge"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:534
+#: src/Admin/GatewaySettings.php:536
 msgid "CC Charge Type"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:539
+#: src/Admin/GatewaySettings.php:541
 msgid "KWK00445..."
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:540
-#: src/Admin/GatewaySettings.php:549
+#: src/Admin/GatewaySettings.php:542
+#: src/Admin/GatewaySettings.php:551
 msgid "0.000"
 msgstr ""
 
-#: src/Admin/GatewaySettings.php:543
-#: src/Admin/GatewaySettings.php:552
+#: src/Admin/GatewaySettings.php:545
+#: src/Admin/GatewaySettings.php:554
 msgid "Select"
 msgstr ""
 
@@ -256,7 +256,7 @@ msgid "Billing Interval"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:277
-#: src/Gateway/CheckoutAssets.php:164
+#: src/Gateway/CheckoutAssets.php:197
 #: src/Subscription/Checkout/Fields.php:83
 msgid "One-time"
 msgstr ""
@@ -292,62 +292,62 @@ msgid "Select interval"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:288
-#: src/Gateway/CheckoutAssets.php:167
-#: src/Subscription/Presentation.php:504
+#: src/Gateway/CheckoutAssets.php:200
+#: src/Subscription/Presentation.php:506
 msgid "Every Day"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:291
-#: src/Gateway/CheckoutAssets.php:169
-#: src/Subscription/Presentation.php:506
+#: src/Gateway/CheckoutAssets.php:202
+#: src/Subscription/Presentation.php:508
 msgid "Every Week"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:292
-#: src/Gateway/CheckoutAssets.php:170
-#: src/Subscription/Presentation.php:507
+#: src/Gateway/CheckoutAssets.php:203
+#: src/Subscription/Presentation.php:509
 msgid "Every 2 Weeks"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:293
-#: src/Gateway/CheckoutAssets.php:171
-#: src/Subscription/Presentation.php:508
+#: src/Gateway/CheckoutAssets.php:204
+#: src/Subscription/Presentation.php:510
 msgid "Every 3 Weeks"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:296
-#: src/Gateway/CheckoutAssets.php:174
-#: src/Subscription/Presentation.php:511
+#: src/Gateway/CheckoutAssets.php:207
+#: src/Subscription/Presentation.php:513
 msgid "Every Month"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:297
-#: src/Gateway/CheckoutAssets.php:175
-#: src/Subscription/Presentation.php:512
+#: src/Gateway/CheckoutAssets.php:208
+#: src/Subscription/Presentation.php:514
 msgid "Every 2 Months"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:300
-#: src/Gateway/CheckoutAssets.php:178
-#: src/Subscription/Presentation.php:515
+#: src/Gateway/CheckoutAssets.php:211
+#: src/Subscription/Presentation.php:517
 msgid "Every Quarter"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:301
-#: src/Gateway/CheckoutAssets.php:179
-#: src/Subscription/Presentation.php:516
+#: src/Gateway/CheckoutAssets.php:212
+#: src/Subscription/Presentation.php:518
 msgid "Every 2 Quarters"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:302
-#: src/Gateway/CheckoutAssets.php:180
-#: src/Subscription/Presentation.php:517
+#: src/Gateway/CheckoutAssets.php:213
+#: src/Subscription/Presentation.php:519
 msgid "Every 3 Quarters"
 msgstr ""
 
 #: src/Blocks/PaymentMethodType.php:305
-#: src/Gateway/CheckoutAssets.php:182
-#: src/Subscription/Presentation.php:519
+#: src/Gateway/CheckoutAssets.php:215
+#: src/Subscription/Presentation.php:521
 msgid "Every Year"
 msgstr ""
 
@@ -382,11 +382,11 @@ msgstr ""
 msgid "requires WooCommerce to be installed and active!"
 msgstr ""
 
-#: src/Gateway/CheckoutAssets.php:146
+#: src/Gateway/CheckoutAssets.php:179
 msgid "Please log in to save or use a saved card."
 msgstr ""
 
-#: src/Gateway/CheckoutAssets.php:165
+#: src/Gateway/CheckoutAssets.php:198
 msgid "Select Interval"
 msgstr ""
 
@@ -503,11 +503,11 @@ msgstr ""
 msgid "This store has already switched to SUPCheckout, and the UPayments plugin is active again. Payments started after the switch cannot complete while SUPCheckout is paused, and UPayments does not have the gateway settings changed after the switch. Deactivate the UPayments plugin now to resume SUPCheckout."
 msgstr ""
 
-#: src/Gateway/OrderPresentation.php:41
+#: src/Gateway/OrderPresentation.php:43
 msgid "Payment Status:"
 msgstr ""
 
-#: src/Gateway/OrderPresentation.php:46
+#: src/Gateway/OrderPresentation.php:48
 msgid "UPayment ID:"
 msgstr ""
 
@@ -755,85 +755,97 @@ msgstr ""
 msgid "Create payment response received."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:264
+#: src/Payment/PaymentLifecycle.php:265
 msgid "SUPCheckout has not received a UPayments callback for this order. This is usual for an abandoned payment; if the customer reports paying, check the UPayments merchant dashboard before fulfilling the order."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1024
+#: src/Payment/PaymentLifecycle.php:1037
 msgid "SUPCheckout dropped some queued UPayments payment checks for this order; review the UPayments merchant dashboard."
 msgstr ""
 
 #. translators: %s: comma-separated UPayments track IDs.
-#: src/Payment/PaymentLifecycle.php:1063
+#: src/Payment/PaymentLifecycle.php:1076
 #, php-format
 msgid "SUPCheckout for UPayments could not verify a callback for another payment attempt on this order (track %s). Check the UPayments merchant dashboard for a captured payment."
 msgstr ""
 
 #. translators: %s: comma-separated UPayments track IDs.
-#: src/Payment/PaymentLifecycle.php:1072
+#: src/Payment/PaymentLifecycle.php:1085
 #, php-format
 msgid "UPayments still reports another payment attempt on this order (track %s) as not completed. SUPCheckout stopped checking it automatically; if the UPayments dashboard later shows it captured, review this order."
 msgstr ""
 
 #. translators: %s: UPayments track ID.
-#: src/Payment/PaymentLifecycle.php:1341
+#: src/Payment/PaymentLifecycle.php:1362
+#, php-format
+msgid "UPayments reported a transaction for another payment attempt on this order (track %s), but a plugin changes the order total WooCommerce reports, so SUPCheckout could not confirm the payment amount and did not apply it. Review the order against the UPayments merchant dashboard."
+msgstr ""
+
+#. translators: %s: UPayments track ID.
+#: src/Payment/PaymentLifecycle.php:1365
 #, php-format
 msgid "UPayments reported a transaction for another payment attempt on this order (track %s) whose amount or currency no longer matches the order. SUPCheckout did not apply it. Review it in the UPayments merchant dashboard."
 msgstr ""
 
 #. translators: %s: UPayments track ID.
-#: src/Payment/PaymentLifecycle.php:1356
+#: src/Payment/PaymentLifecycle.php:1379
+#, php-format
+msgid "UPayments reported a transaction for this order (track %s), but a plugin changes the order total WooCommerce reports, so SUPCheckout could not confirm the payment amount and did not mark the order paid. Review the order against the UPayments merchant dashboard before fulfilling it or refunding the payment."
+msgstr ""
+
+#. translators: %s: UPayments track ID.
+#: src/Payment/PaymentLifecycle.php:1382
 #, php-format
 msgid "UPayments reported a transaction for this order (track %s) whose currency does not match the order currency. SUPCheckout did not mark the order paid. Check it in the UPayments merchant dashboard; if it shows as captured, review this order before fulfilling it or refunding the payment."
 msgstr ""
 
 #. translators: %s: UPayments track ID.
-#: src/Payment/PaymentLifecycle.php:1359
+#: src/Payment/PaymentLifecycle.php:1385
 #, php-format
 msgid "UPayments reported a transaction for this order (track %s) whose amount does not match the order total. SUPCheckout did not mark the order paid. Check it in the UPayments merchant dashboard; if it shows as captured, review this order before fulfilling it or refunding the payment."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1445
+#: src/Payment/PaymentLifecycle.php:1471
 msgid "UPayments confirmed a captured payment for this order, but WooCommerce could not record it. SUPCheckout for UPayments will retry; if the order stays unpaid, review it manually."
 msgstr ""
 
 #. translators: %s: UPayments payment ID.
-#: src/Payment/PaymentLifecycle.php:1500
+#: src/Payment/PaymentLifecycle.php:1526
 #, php-format
 msgid "UPayments captured a payment (payment ID %s) for this order after its payment method was changed. SUPCheckout did not mark the order paid. Check whether the customer also paid another way, and refund in the UPayments merchant dashboard if so."
 msgstr ""
 
 #. translators: %s: UPayments payment ID of the extra capture.
-#: src/Payment/PaymentLifecycle.php:1503
+#: src/Payment/PaymentLifecycle.php:1529
 #, php-format
 msgid "UPayments captured an additional payment (payment ID %s) for this already-paid order. The customer may have been charged twice. Refund it in the UPayments merchant dashboard; SUPCheckout does not refund automatically."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1661
+#: src/Payment/PaymentLifecycle.php:1687
 msgid "UPayments authenticated payment result is terminal failure."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1662
+#: src/Payment/PaymentLifecycle.php:1688
 msgid "UPayments authenticated payment result is cancelled."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1733
+#: src/Payment/PaymentLifecycle.php:1761
 msgid "SUPCheckout could not schedule the automatic UPayments payment check for this order. Verify the payment in the UPayments merchant dashboard before fulfilling it."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1747
+#: src/Payment/PaymentLifecycle.php:1775
 msgid "SUPCheckout for UPayments reconciliation exhausted without authoritative terminal payment state. Manual review is required."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1972
+#: src/Payment/PaymentLifecycle.php:2006
 msgid "Your payment was cancelled. You can try again when you are ready."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1981
+#: src/Payment/PaymentLifecycle.php:2015
 msgid "We are confirming your payment with UPayments. You will receive your order confirmation once it is verified."
 msgstr ""
 
-#: src/Payment/PaymentLifecycle.php:1996
+#: src/Payment/PaymentLifecycle.php:2030
 msgid "Your payment was not completed. Please try again or choose another payment method."
 msgstr ""
 
@@ -855,200 +867,200 @@ msgstr ""
 msgid "Subscription renewal payment completed via UPayments Auto Deduction. PaymentID: %s"
 msgstr ""
 
-#: src/Subscription/Presentation.php:27
+#: src/Subscription/Presentation.php:29
 msgid "Subscription Product"
 msgstr ""
 
-#: src/Subscription/Presentation.php:59
+#: src/Subscription/Presentation.php:61
 msgid "Custom Settings"
 msgstr ""
 
-#: src/Subscription/Presentation.php:75
+#: src/Subscription/Presentation.php:77
 msgid "Custom Field"
 msgstr ""
 
-#: src/Subscription/Presentation.php:76
+#: src/Subscription/Presentation.php:78
 msgid "Enter value here"
 msgstr ""
 
-#: src/Subscription/Presentation.php:78
+#: src/Subscription/Presentation.php:80
 msgid "This is a description of the field."
 msgstr ""
 
-#: src/Subscription/Presentation.php:147
-#: src/Subscription/Presentation.php:170
+#: src/Subscription/Presentation.php:149
+#: src/Subscription/Presentation.php:172
 msgid "Special Feature"
 msgstr ""
 
 #. translators: %d: subscription billing interval multiplier.
-#: src/Subscription/Presentation.php:235
+#: src/Subscription/Presentation.php:237
 #, php-format
 msgid "Every %d billing period(s)"
 msgstr ""
 
-#: src/Subscription/Presentation.php:240
-#: src/Subscription/Presentation.php:368
+#: src/Subscription/Presentation.php:242
+#: src/Subscription/Presentation.php:370
 msgid "Subscription Details"
 msgstr ""
 
-#: src/Subscription/Presentation.php:242
+#: src/Subscription/Presentation.php:244
 msgid "Subscription Status"
 msgstr ""
 
-#: src/Subscription/Presentation.php:244
-#: src/Subscription/Presentation.php:371
+#: src/Subscription/Presentation.php:246
+#: src/Subscription/Presentation.php:373
 msgid "Plan"
 msgstr ""
 
-#: src/Subscription/Presentation.php:245
-#: src/Subscription/Presentation.php:372
+#: src/Subscription/Presentation.php:247
+#: src/Subscription/Presentation.php:374
 msgid "Interval"
 msgstr ""
 
-#: src/Subscription/Presentation.php:247
+#: src/Subscription/Presentation.php:249
 msgid "Auto Deduction Order"
 msgstr ""
 
-#: src/Subscription/Presentation.php:247
+#: src/Subscription/Presentation.php:249
 msgid "Yes"
 msgstr ""
 
-#: src/Subscription/Presentation.php:253
-#: src/Subscription/Presentation.php:377
+#: src/Subscription/Presentation.php:255
+#: src/Subscription/Presentation.php:379
 msgid "Automatic Renewal"
 msgstr ""
 
-#: src/Subscription/Presentation.php:255
+#: src/Subscription/Presentation.php:257
 msgid "Paused. An earlier automatic charge could not be confirmed: check the UPayments dashboard before you collect this renewal manually or send a payment link."
 msgstr ""
 
-#: src/Subscription/Presentation.php:256
+#: src/Subscription/Presentation.php:258
 msgid "Paused. Collect this renewal manually or send the customer a payment link."
 msgstr ""
 
-#: src/Subscription/Presentation.php:259
-#: src/Subscription/Presentation.php:379
+#: src/Subscription/Presentation.php:261
+#: src/Subscription/Presentation.php:381
 msgid "Next Billing Date"
 msgstr ""
 
-#: src/Subscription/Presentation.php:262
+#: src/Subscription/Presentation.php:264
 msgid "Last Billed at"
 msgstr ""
 
-#: src/Subscription/Presentation.php:286
+#: src/Subscription/Presentation.php:288
 msgid "Automatic subscription renewals are paused."
 msgstr ""
 
-#: src/Subscription/Presentation.php:299
+#: src/Subscription/Presentation.php:301
 msgid "SUPCheckout does not send automatic renewal charges until a verified UPayments capture contract is approved. Collect renewals manually or by payment link."
 msgstr ""
 
-#: src/Subscription/Presentation.php:315
+#: src/Subscription/Presentation.php:317
 msgid "You can only add subscription products to the cart when a subscription item is present."
 msgstr ""
 
-#: src/Subscription/Presentation.php:319
+#: src/Subscription/Presentation.php:321
 msgid "Subscription products cannot be added together with normal products. Please complete your current purchase first."
 msgstr ""
 
-#: src/Subscription/Presentation.php:331
+#: src/Subscription/Presentation.php:333
 msgid "Subscription"
 msgstr ""
 
-#: src/Subscription/Presentation.php:373
+#: src/Subscription/Presentation.php:375
 msgid "Started On"
 msgstr ""
 
-#: src/Subscription/Presentation.php:375
+#: src/Subscription/Presentation.php:377
 msgid "Last Billed On"
 msgstr ""
 
-#: src/Subscription/Presentation.php:377
+#: src/Subscription/Presentation.php:379
 msgid "Paused. Renewals are not charged to your card automatically."
 msgstr ""
 
-#: src/Subscription/Presentation.php:392
+#: src/Subscription/Presentation.php:394
 msgid "Resume Subscription"
 msgstr ""
 
-#: src/Subscription/Presentation.php:393
+#: src/Subscription/Presentation.php:395
 msgid "Pause Subscription"
 msgstr ""
 
-#: src/Subscription/Presentation.php:397
+#: src/Subscription/Presentation.php:399
 msgid "Unsubscribe"
 msgstr ""
 
-#: src/Subscription/Presentation.php:398
-#: src/Subscription/Presentation.php:404
+#: src/Subscription/Presentation.php:400
+#: src/Subscription/Presentation.php:406
 msgid "Confirm unsubscribe"
 msgstr ""
 
-#: src/Subscription/Presentation.php:399
+#: src/Subscription/Presentation.php:401
 msgid "Are you sure you want to unsubscribe? This stops future scheduled renewals for this subscription."
 msgstr ""
 
-#: src/Subscription/Presentation.php:429
+#: src/Subscription/Presentation.php:431
 msgid "Select Order Type:"
 msgstr ""
 
-#: src/Subscription/Presentation.php:431
+#: src/Subscription/Presentation.php:433
 msgid "All orders"
 msgstr ""
 
-#: src/Subscription/Presentation.php:432
+#: src/Subscription/Presentation.php:434
 msgid "Active subscriptions"
 msgstr ""
 
-#: src/Subscription/Presentation.php:433
+#: src/Subscription/Presentation.php:435
 msgid "Paused subscriptions"
 msgstr ""
 
-#: src/Subscription/Presentation.php:434
+#: src/Subscription/Presentation.php:436
 msgid "Cancelled subscriptions"
 msgstr ""
 
-#: src/Subscription/Presentation.php:460
+#: src/Subscription/Presentation.php:462
 msgid "Type"
 msgstr ""
 
-#: src/Subscription/Presentation.php:461
+#: src/Subscription/Presentation.php:463
 msgid "Status"
 msgstr ""
 
-#: src/Subscription/Presentation.php:473
+#: src/Subscription/Presentation.php:475
 msgid "Auto Deduction"
 msgstr ""
 
-#: src/Subscription/Presentation.php:474
+#: src/Subscription/Presentation.php:476
 msgid "Regular"
 msgstr ""
 
-#: src/Subscription/Presentation.php:493
+#: src/Subscription/Presentation.php:495
 msgid "Daily"
 msgstr ""
 
-#: src/Subscription/Presentation.php:494
+#: src/Subscription/Presentation.php:496
 msgid "Weekly"
 msgstr ""
 
-#: src/Subscription/Presentation.php:495
+#: src/Subscription/Presentation.php:497
 msgid "Monthly"
 msgstr ""
 
-#: src/Subscription/Presentation.php:496
+#: src/Subscription/Presentation.php:498
 msgid "Quarterly"
 msgstr ""
 
-#: src/Subscription/Presentation.php:497
+#: src/Subscription/Presentation.php:499
 msgid "Yearly"
 msgstr ""
 
-#: src/Subscription/Presentation.php:558
+#: src/Subscription/Presentation.php:560
 msgid "Paused"
 msgstr ""
 
-#: src/Subscription/Presentation.php:559
+#: src/Subscription/Presentation.php:561
 msgid "Cancelled"
 msgstr ""
 
