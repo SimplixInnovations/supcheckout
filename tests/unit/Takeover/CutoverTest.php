@@ -407,6 +407,9 @@ final class CutoverTest extends TestCase {
 
         self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated);
         self::assertContains('official_deactivation_unrecorded', $result['steps'], (string) json_encode($result));
+        // Review round 1, M-1: a warning in the report, never a failed tail.
+        self::assertTrue($result['ok']);
+        self::assertSame(array('official_deactivation_unrecorded'), $result['report']['warnings']);
     }
 
     public function test_a_cut_over_store_whose_official_plugin_stays_active_is_a_warning_not_a_plain_success(): void {

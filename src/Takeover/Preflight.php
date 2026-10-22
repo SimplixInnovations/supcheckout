@@ -329,6 +329,9 @@ final class Preflight {
         }
         $unreadable = false;
         try {
+            // A pure read, always: with every target absent the copier's plan never reads the
+            // journal, yet Cutover's Journal::record() fails on an unreadable one.
+            Journal::entries();
             $targets = SettingsCopier::foreign_targets(array($env, 'option'));
         } catch (\RuntimeException $e) {
             // Cutover could not read the journal either: fail closed.

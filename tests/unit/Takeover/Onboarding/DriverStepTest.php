@@ -220,6 +220,27 @@ final class DriverStepTest extends TestCase {
         self::assertSame(TakeoverState::IDLE, self::takeover_status(), 'nothing changed');
     }
 
+    /** Review round 1, I-1: the settings hint fits only the kept gateway-settings shape. */
+    public function test_a5_04_a_foreign_copied_option_or_unreadable_journal_gets_the_finding_hint(): void {
+        $shapes = array(
+            'copied option' => array('targets' => array('supcheckout_token_identity_secret_v2'), 'journal_unreadable' => false),
+            'settings and a copied option' => array('targets' => array(Keys::SETTINGS_OPTION, 'supcheckout_token_identity_secret_v2'), 'journal_unreadable' => false),
+            'unreadable journal' => array('targets' => array(), 'journal_unreadable' => true),
+        );
+        foreach ($shapes as $label => $data) {
+            \supcheckout_test_reset_wp_options();
+            TakeoverState::flush_cache();
+            $this->preflight = array(self::blocking('settings_target_foreign', $data));
+            $this->start(Operation::KIND_SWITCH, array('deactivate_official' => true));
+
+            $result = $this->tick();
+
+            self::assertSame(array('blocked', 'preflight_blocking'), array($result['outcome'], $result['error']), $label);
+            self::assertSame(DriverHints::SETTINGS_TARGET_FOREIGN, $result['hint'], $label);
+            self::assertNotSame(DriverHints::SETTINGS_KEPT, $result['hint'], $label);
+        }
+    }
+
     public function test_switch_retries_a_credential_cooldown_three_times_then_blocks(): void {
         // Review Focus 2.
         $this->preflight = array(self::blocking('credential_unverified', array('reason' => 'cooldown')));
@@ -539,6 +560,17 @@ final class DriverStepTest extends TestCase {
         self::assertSame(array(), $result['report']['warnings']);
     }
 
+    /** Review round 1, M-1: a lost deactivation record is a warning of the finished switch. */
+    public function test_a5_07_an_unrecorded_deactivation_is_a_warning_of_the_finished_switch(): void {
+        CutoverTest::state('cut_over');
+        $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'self_test', 'steps' => array('official_deactivated', 'official_deactivation_unrecorded')));
+
+        $result = $this->tick();
+
+        self::assertSame(array('done', null), array($result['outcome'], $result['error']));
+        self::assertSame(array('official_deactivation_unrecorded'), $result['report']['warnings']);
+    }
+
     public function test_a_switch_still_in_preflight_when_the_cli_cut_over_runs_and_stores_the_self_test(): void {
         // PR #194 review: a concurrent `wp supcheckout takeover run` completed the cutover
         // while the REST switch was still in its preflight phase.
@@ -760,6 +792,20 @@ final class DriverStepTest extends TestCase {
         $this->system->now = 5120;
         self::assertSame('done', $this->tick()['outcome'], (string) json_encode($this->last));
         self::assertSame(TakeoverState::PREFLIGHT_OK, self::takeover_status());
+    }
+
+    /** Review round 1, M-1: the rewind's finished report carries the lost-record warning too. */
+    public function test_a5_07_an_unrecorded_deactivation_is_a_warning_of_the_finished_abort(): void {
+        $this->system->now = 5000;
+        $this->seed_verified();
+        $this->start(Operation::KIND_ABORT, array(), array('steps' => array('official_deactivated', 'official_deactivation_unrecorded')));
+        $this->ticks(2);
+
+        $this->system->now = 5120;
+        $result = $this->tick();
+
+        self::assertSame('done', $result['outcome'], (string) json_encode($result));
+        self::assertSame(array('official_deactivation_unrecorded'), $result['report']['warnings']);
     }
 
     // --- finalize. ---

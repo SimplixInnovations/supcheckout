@@ -497,6 +497,25 @@ final class AsyncDriverTest extends TestCase {
         self::assertNotNull(Operation::start(Operation::KIND_PREFLIGHT, array(), 1, time()), 'a new start is no longer refused');
     }
 
+    /** Review round 1, M-2: a switch whose store is already switched is not a failed switch. */
+    public function test_a5_06_a_scheduler_less_switch_of_a_cut_over_store_finishes_done_with_the_self_test_skipped(): void {
+        foreach (array('cut_over', 'finalized') as $status) {
+            \supcheckout_test_reset_wp_options();
+            TakeoverState::flush_cache();
+            CutoverTest::state($status);
+            $op = self::start(Operation::KIND_SWITCH);
+            \Action_Scheduler::$initialized = false;
+            self::update($op, array('next_at' => time() - AsyncDriver::RUNNER_STALL_SECONDS - 1));
+
+            self::assertFalse(AsyncDriver::watchdog());
+
+            $current = Operation::current();
+            self::assertSame(array('done', null), array($current['outcome'], $current['error']), $status);
+            self::assertSame(array('self_test_skipped'), $current['report']['warnings'], $status);
+            \Action_Scheduler::$initialized = true;
+        }
+    }
+
     public function test_a_watchdog_declining_for_a_pending_drive_action_reschedules_itself(): void {
         // The scheduled watchdog is consumed when it runs: if it only declined, a drive action
         // that later dies (a killed in-progress tick) would leave nothing to recover it.

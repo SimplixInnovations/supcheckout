@@ -68,6 +68,7 @@ final class AsyncDriver {
     public const RUNNER_STALL_SECONDS = 60;
 
     private const HINT_SCHEDULER = 'Action Scheduler is not available, so nothing can run the operation; check that WooCommerce is active, then start again';
+    private const HINT_SELF_TEST_SKIPPED = 'the store is switched, but Action Scheduler is not available to run the self-test; check that WooCommerce is active, then run the self-test';
 
     /** @var bool Whether the queue-start callback already added the two hooks in this request. */
     private static $hooked = false;
@@ -222,7 +223,7 @@ final class AsyncDriver {
         }
         if (!self::scheduler_ready()) {
             if (self::runner_health($op, time())['stalled']) {
-                Operation::finish($op['id'], Operation::FAILED, 'scheduler_unavailable', self::HINT_SCHEDULER, array(), time());
+                self::finish_without_scheduler($op);
             }
             return false;
         }
@@ -233,6 +234,22 @@ final class AsyncDriver {
             return false;
         }
         return self::enqueue($op['id'], 0);
+    }
+
+    /**
+     * A5-06: an overdue operation nothing can run. A switch whose store is already switched
+     * (cut over, or finalized) only lacks its self-test: done, with `self_test_skipped`.
+     *
+     * @param array<string, mixed> $op The running record.
+     * @return void
+     */
+    private static function finish_without_scheduler(array $op) {
+        $switched = in_array(self::takeover_status(), array(TakeoverState::CUT_OVER, TakeoverState::FINALIZED), true);
+        if ($op['kind'] === Operation::KIND_SWITCH && $switched) {
+            Operation::finish($op['id'], Operation::DONE, null, self::HINT_SELF_TEST_SKIPPED, array('warnings' => array('self_test_skipped')), time());
+            return;
+        }
+        Operation::finish($op['id'], Operation::FAILED, 'scheduler_unavailable', self::HINT_SCHEDULER, array(), time());
     }
 
     /**

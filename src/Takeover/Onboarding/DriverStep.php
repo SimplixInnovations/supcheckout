@@ -477,7 +477,7 @@ final class DriverStep {
         $report = Bounded::document($report);
         update_option(self::last_report_option(Operation::KIND_SELF_TEST), $report, false);
         $this->add_steps(array('self_test_ran'));
-        $warnings = empty($report['ok']) ? array('self_test_failed') : array();
+        $warnings = array_merge(empty($report['ok']) ? array('self_test_failed') : array(), $this->unrecorded_warning());
         $this->end(Operation::DONE, null, null, array('self_test' => $report, 'warnings' => $warnings));
     }
 
@@ -558,8 +558,9 @@ final class DriverStep {
         $report = self::outcome_report($outcome);
         $engine = isset($data['result']) && is_array($data['result']) ? $data['result'] : array();
         $warnings = isset($engine['warnings']) && is_array($engine['warnings']) && in_array('official_not_reactivated', $engine['warnings'], true) ? array('official_not_reactivated') : array();
+        $unrecorded = $this->unrecorded_warning();
         if ($outcome->is_ok()) {
-            $this->end(Operation::DONE, null, null, $report + array('warnings' => array()));
+            $this->end(Operation::DONE, null, null, $report + array('warnings' => $unrecorded));
             return;
         }
         $reason = (string) $outcome->reason();
@@ -572,9 +573,9 @@ final class DriverStep {
             $list = $conflict_as === 'kept' ? 'kept' : 'conflicts';
             $report[$conflict_as] = isset($engine[$list]) && is_array($engine[$list]) ? $engine[$list] : array();
             $hint = isset($engine['report']['settings_diverged']) ? DriverHints::SETTINGS_KEPT : null;
-            $this->end(Operation::DONE, null, $hint, $report + array('warnings' => array_merge(array($conflict_as), $warnings)));
+            $this->end(Operation::DONE, null, $hint, $report + array('warnings' => array_merge(array($conflict_as), $warnings, $unrecorded)));
         } elseif ($outcome->code() === Outcome::OFFICIAL_NOT_REACTIVATED) {
-            $this->end(Operation::DONE, null, null, $report + array('warnings' => array('official_not_reactivated')));
+            $this->end(Operation::DONE, null, null, $report + array('warnings' => array_merge(array('official_not_reactivated'), $unrecorded)));
         } elseif ($outcome->code() === Outcome::BLOCKED) {
             $this->end(Operation::BLOCKED, $reason, DriverHints::OFFICIAL, $report);
         } elseif ($reason === 'stale_claims') {
@@ -764,6 +765,15 @@ final class DriverStep {
      */
     private function consent($key) {
         return isset($this->op['consent'][$key]) && $this->op['consent'][$key] === true;
+    }
+
+    /**
+     * @return list<string> `official_deactivation_unrecorded` when a step of this operation
+     *                      (stored, or in this tick) lost the deactivation record (A5-07).
+     */
+    private function unrecorded_warning() {
+        $steps = array_merge(self::stored_steps($this->op), $this->result['steps']);
+        return in_array('official_deactivation_unrecorded', $steps, true) ? array('official_deactivation_unrecorded') : array();
     }
 
     /** @return int */

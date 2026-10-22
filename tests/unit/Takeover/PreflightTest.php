@@ -592,6 +592,21 @@ final class PreflightTest extends TestCase {
         self::assertSame(array('targets' => array(), 'journal_unreadable' => true), $blocking['data']);
     }
 
+    /**
+     * Review round 1, I-2: after a full rollback every target is absent, so the copier's plan
+     * never reads the journal; Cutover's Journal::record() would still fail on it.
+     */
+    public function test_a5_04_an_unreadable_journal_blocks_preflight_even_with_every_target_absent(): void {
+        $GLOBALS['supcheckout_test_options'][Journal::OPTION] = 'not a journal';
+        Journal::flush_cache();
+
+        $report = Preflight::run_with(PreflightFixtures::env());
+
+        $blocking = PreflightFixtures::find($report['blocking'], 'settings_target_foreign');
+        self::assertNotNull($blocking, (string) json_encode($report['blocking']));
+        self::assertSame(array('targets' => array(), 'journal_unreadable' => true), $blocking['data']);
+    }
+
     public function test_a5_04_the_settings_target_check_is_skipped_once_the_store_is_cut_over(): void {
         foreach (array(TakeoverState::PREFLIGHT_OK, TakeoverState::COPYING, TakeoverState::VERIFIED, TakeoverState::CUT_OVER) as $to) {
             self::assertTrue(TakeoverState::transition($to), $to);
