@@ -315,6 +315,103 @@ final class PresentationTest extends TestCase {
         self::assertStringNotContainsString('Next Billing Date:', $cancelled);
     }
 
+    /** Fix A1-01: no "Next Billing Date" as if a charge will happen while auto-charges are paused. */
+    public function test_admin_summary_shows_automatic_renewal_paused_instead_of_a_next_billing_date(): void {
+        $order = $this->subscriptionOrder();
+        $order->meta['_supcheckout_auto_renewal_paused_note_v1'] = '1';
+        ob_start();
+        Presentation::render_admin_summary($order);
+        $html = ob_get_clean();
+
+        self::assertStringContainsString('upay-subscription-summary', $html);
+        self::assertStringNotContainsString('Next Billing Date', $html);
+        self::assertStringContainsString(
+            '<p><strong>Automatic Renewal:</strong> Paused. Collect this renewal manually or send the customer a payment link.</p>',
+            $html
+        );
+    }
+
+    /** Review I1: the admin box mirrors the "check the dashboard first" note. */
+    public function test_admin_summary_warns_to_check_the_dashboard_when_an_earlier_charge_is_unconfirmed(): void {
+        $expected = '<p><strong>Automatic Renewal:</strong> Paused. An earlier automatic charge could not be confirmed: '
+            . 'check the UPayments dashboard before you collect this renewal manually or send a payment link.</p>';
+
+        $noted = $this->subscriptionOrder();
+        $noted->meta['_supcheckout_auto_renewal_paused_note_v1'] = 'unconfirmed';
+        ob_start();
+        Presentation::render_admin_summary($noted);
+        self::assertStringContainsString($expected, (string) ob_get_clean(), 'the parent carries the unconfirmed note');
+
+        $unread = $this->subscriptionOrder();
+        $GLOBALS['wpdb'] = null;
+        ob_start();
+        Presentation::render_admin_summary($unread);
+        self::assertStringContainsString($expected, (string) ob_get_clean(), 'no note yet and the billing history cannot be read: fail closed');
+    }
+
+    public function test_account_details_show_automatic_renewal_paused_instead_of_a_next_billing_date(): void {
+        $html = $this->accountOutput($this->subscriptionOrder());
+
+        self::assertStringContainsString('woocommerce-subscription-details', $html);
+        self::assertStringNotContainsString('Next Billing Date', $html);
+        self::assertStringContainsString('Automatic Renewal</th>', $html);
+        self::assertStringContainsString('Paused. Renewals are not charged to your card automatically.</td>', $html);
+    }
+
+    public function test_paused_renewal_notice_renders_for_store_managers_on_store_screens(): void {
+        \update_option('woocommerce_upayments_settings', array('enable_subscriptions' => 'yes'));
+        foreach (array('woocommerce_page_wc-settings', 'plugins') as $screen) {
+            $GLOBALS['supcheckout_test_current_screen'] = (object) array('id' => $screen);
+            ob_start();
+            Presentation::render_auto_renewal_paused_notice();
+            self::assertSame(
+                '<div class="notice notice-warning"><p><strong>Automatic subscription renewals are paused.</strong> '
+                . Presentation::auto_renewal_paused_message() . '</p></div>',
+                ob_get_clean(),
+                $screen
+            );
+        }
+        self::assertSame('manage_woocommerce', $GLOBALS['supcheckout_test_subscription_presentation']['capability_calls'][0][0]);
+    }
+
+    /** Review M5: one shared paused statement for the notice and the setting. */
+    public function test_the_paused_statement_is_one_shared_string(): void {
+        self::assertSame(
+            'SUPCheckout does not send automatic renewal charges until a verified UPayments capture contract is approved. Collect renewals manually or by payment link.',
+            Presentation::auto_renewal_paused_message()
+        );
+    }
+
+    public function test_paused_renewal_notice_is_silent_without_capability_setting_or_store_screen(): void {
+        $GLOBALS['supcheckout_test_current_screen'] = (object) array('id' => 'woocommerce_page_wc-settings');
+        \update_option('woocommerce_upayments_settings', array('enable_subscriptions' => 'no'));
+        self::assertSame('', $this->noticeOutput(), 'subscriptions off');
+
+        \update_option('woocommerce_upayments_settings', array('enable_subscriptions' => 'yes'));
+        $GLOBALS['supcheckout_test_subscription_presentation']['capability_allowed'] = false;
+        self::assertSame('', $this->noticeOutput(), 'no manage_woocommerce');
+
+        $GLOBALS['supcheckout_test_subscription_presentation']['capability_allowed'] = true;
+        $GLOBALS['supcheckout_test_current_screen'] = (object) array('id' => 'edit-post');
+        self::assertSame('', $this->noticeOutput(), 'not a WooCommerce or plugins screen');
+
+        $GLOBALS['supcheckout_test_current_screen'] = null;
+        self::assertSame('', $this->noticeOutput(), 'no screen');
+    }
+
+    public function test_paused_renewal_notice_escapes_every_string(): void {
+        $source = (string) file_get_contents(dirname(__DIR__, 3) . '/src/Subscription/Presentation.php');
+        $start = strpos($source, 'public static function render_auto_renewal_paused_notice');
+        self::assertIsInt($start);
+        $body = substr($source, $start, (int) strpos($source, "\n    }\n", $start) - $start);
+        preg_match_all("/echo\\s+(.+?);/s", $body, $echoes);
+        self::assertNotSame(array(), $echoes[1]);
+        foreach ($echoes[1] as $expression) {
+            $without_escaped = preg_replace("/esc_html__\\('(?:[^'\\\\]|\\\\.)*', 'supcheckout'\\)|esc_html\\(self::auto_renewal_paused_message\\(\\)\\)/", '', $expression);
+            self::assertDoesNotMatchRegularExpression("/__\\(|\\$/", (string) $without_escaped, 'only esc_html__() copy and literal markup are echoed: ' . $expression);
+        }
+    }
+
     public function test_class_is_final_with_only_the_frozen_public_static_boundary(): void {
         $reflection = new ReflectionClass(Presentation::class);
         $public = array_map(static function (ReflectionMethod $method) {
@@ -327,6 +424,7 @@ final class PresentationTest extends TestCase {
             'add_custom_data_panel',
             'add_custom_data_tab',
             'add_custom_product_type',
+            'auto_renewal_paused_message',
             'custom_product_types',
             'display_custom_data_in_cart',
             'display_custom_field_on_frontend',
@@ -340,6 +438,7 @@ final class PresentationTest extends TestCase {
             'render_account_subscription_status',
             'render_admin_order_summary',
             'render_admin_summary',
+            'render_auto_renewal_paused_notice',
             'render_subscription_badge',
             'restrict_mixed_cart_products',
             'save_custom_data_to_order_items',
@@ -359,6 +458,12 @@ final class PresentationTest extends TestCase {
             'UPayments_AutoDeduction' => 'no',
         );
         return $order;
+    }
+
+    private function noticeOutput(): string {
+        ob_start();
+        Presentation::render_auto_renewal_paused_notice();
+        return (string) ob_get_clean();
     }
 
     private function accountOutput(\WC_Order $order): string {

@@ -204,6 +204,8 @@ Owner decision 2026-10-20 (binding): the owner shares the full revamp, branding 
 
 Current executable gate: **Hardening program: full functionality, security and performance audit and fix loop — NEXT**.
 
+Hardening fix A1-01 (owner decision 2026-10-22, "Block auto-charges"): SUPCheckout sends no automatic renewal charge while `AutoDeductResultVerifier::can_verify_success()` is false; merchants collect renewals manually (`fix/a1-01-block-auto-deduct-dispatch`).
+
 **Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding**, then Sub-projects 3–5. Follow-up: provider `status: "error"` with a null result stays Pending through bounded reconciliation; closing it sooner needs provider-contract evidence. Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED**.
 
 ## Current provider-contract disposition

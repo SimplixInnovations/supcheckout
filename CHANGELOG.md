@@ -6,6 +6,14 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Subscriptions: automatic renewal charges are blocked (hardening fix A1-01)
+
+- **SUPCheckout no longer sends an automatic renewal charge** (UPayments auto-deduct) while it cannot verify that the charge succeeded (owner decision 2026-10-22). Before, a due renewal charged the customer's saved card and was then held with no renewal order and no note.
+- A due subscription parent now stops before the saved-card lookup and before any billing-cycle claim. No due-parent action is queued for it.
+- Each subscription parent gets one order note: "Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. Collect this renewal manually or send the customer a payment link."
+- Store managers see an admin notice on WooCommerce and Plugins screens while "Enable Subscriptions" is on. The order box and My Account show "Automatic Renewal: Paused" instead of a next billing date, and the setting description says that automatic renewal charges are paused.
+- Collect renewals manually or by payment link. Stored subscription data, the billing-attempt history and the `upay_process_subscriptions` hook are unchanged.
+
 ### Checkout: a long exact unit price no longer fails the payment (hardening A1-02)
 
 - UPayments caps `products[].price` at 7 characters. A checkout whose exact unit price is longer, for example `10499.99` AED, `1234.567` KWD, or a percentage coupon with quantity such as `1.640625`, used to fail with "Payment request could not be completed". It now sends the Charge without `products[]`, the same way it already handles any other line that cannot be described exactly.

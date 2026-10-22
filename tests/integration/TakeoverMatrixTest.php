@@ -404,7 +404,10 @@ if ($phase === 'rerun_verify') {
     $claims = supcheckout_matrix_claims('supcheckout_billing_attempts', (int) $manifest['roles']['subscription_parent']);
     supcheckout_cert_assert(count($claims) === 1 && $claims[0]['state'] === 'held', 'the held cycle was copied back to supcheckout_billing_attempts');
     $outcome = supcheckout_matrix_renew((int) $manifest['roles']['subscription_parent']);
-    supcheckout_cert_assert($outcome !== 'held' && $outcome !== 'dispatching_or_ambiguous' && supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === 1, 'the held cycle is never charged again after rollback and run');
+    supcheckout_cert_assert($outcome === 'not_eligible' && supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === 1, 'automatic renewal charges stay blocked after rollback and run: no auto-deduct request');
+    // Fix A1-01: the engine behind the gate, forced open, still refuses the held cycle.
+    $outcome = supcheckout_matrix_renew_gate_open((int) $manifest['roles']['subscription_parent']);
+    supcheckout_cert_assert($outcome !== 'held' && $outcome !== 'dispatching_or_ambiguous' && supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === 1, 'gate forced open: the held cycle is never charged again after rollback and run');
     return;
 }
 
@@ -614,10 +617,18 @@ if ($phase === 'pre0b_switch' || $phase === 'pre0b_rerun') {
     supcheckout_matrix_renewal_fixtures((string) $manifest['token'], SUPCHECKOUT_MATRIX_CARD_TOKEN, wc_format_decimal($parent->get_total(), 3), 'matrix-h12-ref');
     if ($phase === 'pre0b_switch') {
         supcheckout_cert_assert($states === array('held', 'resolved'), 'the billing history is copied to supcheckout_billing_attempts: ' . wp_json_encode($states));
-        // The due cycle claims in the new table, once, and is never charged twice.
+        // Fix A1-01: automatic renewal charges are blocked: the due cycle sends nothing and
+        // claims nothing.
         $calls_before = supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct');
-        supcheckout_cert_assert(supcheckout_matrix_renew($parent_id) === 'held', 'the renewal claims its cycle and is held (auto-deduct capture stays fail-closed)');
-        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'exactly one auto-deduct request');
+        supcheckout_cert_assert(supcheckout_matrix_renew($parent_id) === 'not_eligible', 'the due renewal is not charged while its success cannot be verified');
+        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'zero auto-deduct requests');
+        supcheckout_cert_assert(count(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)) === 2, 'no claim row is written for the due cycle');
+        supcheckout_cert_assert(supcheckout_matrix_paused_notes($parent_id) === 1, 'exactly one paused-renewal note on the parent');
+        // Review I1: the parent's billing history holds a held cycle (a possible earlier debit).
+        supcheckout_matrix_assert_paused_note_kind($parent_id, true);
+        // Gate forced open: the due cycle claims in the new table, once, and is never charged twice.
+        supcheckout_cert_assert(supcheckout_matrix_renew_gate_open($parent_id) === 'held', 'gate forced open: the renewal claims its cycle and is held (auto-deduct capture stays fail-closed)');
+        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'gate forced open: exactly one auto-deduct request');
         supcheckout_cert_assert(count(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)) === 3, 'the new cycle is claimed in supcheckout_billing_attempts');
         supcheckout_cert_assert(count(supcheckout_matrix_claims('upayments_billing_attempts', $parent_id)) === 2, 'the legacy table is not written while cut over');
         supcheckout_matrix_save('pre0b-first.json', array('claims' => supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)));
@@ -625,8 +636,10 @@ if ($phase === 'pre0b_switch' || $phase === 'pre0b_rerun') {
         $first = supcheckout_matrix_load('pre0b-first.json');
         supcheckout_cert_assert(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id) === $first['claims'], 'rollback and run again leave exactly the same billing rows in supcheckout_billing_attempts');
         $calls_before = supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct');
-        supcheckout_matrix_renew($parent_id);
-        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'the cycle held before the rollback is never charged again');
+        supcheckout_cert_assert(supcheckout_matrix_renew($parent_id) === 'not_eligible', 'automatic renewal charges stay blocked after rollback and run');
+        supcheckout_cert_assert(supcheckout_matrix_paused_notes($parent_id) === 1, 'still exactly one paused-renewal note on the parent');
+        supcheckout_matrix_renew_gate_open($parent_id);
+        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'gate forced open: the cycle held before the rollback is never charged again');
     }
     supcheckout_matrix_assert_no_denied_provider_call();
     return;

@@ -162,7 +162,7 @@ class Gateway extends \WC_Payment_Gateway {
         $this->icon = SUPCHECKOUT_PLUGIN_URL . "assets/images/upayment.png";
         $this->method_title       = __("UPayments", 'supcheckout');
         $this->method_description = __("UPayments payment integration for WooCommerce. Available payment methods depend on your UPayments account and provider configuration.
-            Supports Classic and Block Checkout. Subscription auto-deduction requires separately validated provider setup.", 'supcheckout');
+            Supports Classic and Block Checkout. Automatic subscription renewal charges are paused; collect renewals manually or by payment link.", 'supcheckout');
         $this->has_fields         = true; // Required for custom forms like Save Card/Design variations.
 
         // Load settings and hooks

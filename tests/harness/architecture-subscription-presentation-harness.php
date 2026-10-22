@@ -94,6 +94,10 @@ if (!defined('ABSPATH')) {
 
 require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
 require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
+// Presentation reads the automatic-charge gate (fix A1-01).
+require_once dirname(__DIR__, 2) . '/src/Subscription/AutoDeductResultVerifier.php';
+// The admin box mirrors the parent's paused note (review I1).
+require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/LifecycleScheduler.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Composition.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/ProductTypeHooks.php';
@@ -128,6 +132,8 @@ $expected_hooks = array(
     array('action', 'woocommerce_my_account_my_orders_column_order_type', array($p, 'render_account_order_type'), 10, 1),
     array('action', 'woocommerce_my_account_my_orders_column_order_status', array($p, 'render_account_subscription_status'), 10, 1),
     array('action', 'woocommerce_admin_order_data_after_billing_address', array($p, 'render_admin_order_summary'), 10, 1),
+    // Fix A1-01: the store-manager notice that automatic renewal charges are paused.
+    array('action', 'admin_notices', array($p, 'render_auto_renewal_paused_notice'), 10, 1),
 );
 a4_same($expected_hooks, $a4_hooks, 'complete product/account/admin presentation hook topology is frozen');
 
@@ -296,7 +302,7 @@ a4_assert(strpos($composition, 'register_presentation_hooks') !== false && strpo
 // earlier: #71 bfadff3). This harness exited silently before reaching these pins, so they
 // still named the #67 / pre-#71 blobs; they now match the pins in the H12, Q13, Q14, Q16
 // and Q17 harnesses.
-a4_same('843b28b6d7b79b55767ba444dc37dfc7612bc6d2', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
+a4_same('9a5994bbc27fc59983950ba42ef4330d9dd5f854', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
 a4_same('66b42899a97a6423bcd4d54ac8bf96554373d150', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
 
 echo "\nArchitecture Subscription Presentation: {$pass} PASS / {$fail} FAIL\n";

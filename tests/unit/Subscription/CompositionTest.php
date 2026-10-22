@@ -37,6 +37,8 @@ final class CompositionTest extends TestCase {
             array('action', 'woocommerce_my_account_my_orders_column_order_type', array($presentation, 'render_account_order_type'), 10, 1),
             array('action', 'woocommerce_my_account_my_orders_column_order_status', array($presentation, 'render_account_subscription_status'), 10, 1),
             array('action', 'woocommerce_admin_order_data_after_billing_address', array($presentation, 'render_admin_order_summary'), 10, 1),
+            // Fix A1-01: the store-manager notice that automatic renewal charges are paused.
+            array('action', 'admin_notices', array($presentation, 'render_auto_renewal_paused_notice'), 10, 1),
         ), $GLOBALS['supcheckout_test_hook_calls']);
     }
 
