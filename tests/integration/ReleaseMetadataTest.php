@@ -53,4 +53,28 @@ supcheckout_cert_assert(
     'HPOS custom_order_tables is not simultaneously declared incompatible'
 );
 
+// A4-01 (U7): with no `ar` language pack in WP_LANG_DIR, WordPress's own just-in-time loader
+// and load_script_textdomain() find the bundled Arabic files through `lang_dir_for_domain`.
+$domain_path = get_file_data($plugin_file, array('domain_path' => 'Domain Path'));
+supcheckout_cert_assert('/languages' === $domain_path['domain_path'], 'plugin header names the bundled languages directory');
+supcheckout_cert_assert(!is_readable(WP_LANG_DIR . '/plugins/supcheckout-ar.mo'), 'fixture: no Arabic language pack is installed, so only the bundled file exists');
+$supcheckout_ar_locale = static function () {
+    return 'ar';
+};
+unload_textdomain('supcheckout', true);
+add_filter('pre_determine_locale', $supcheckout_ar_locale);
+$arabic = __('Pay securely with', 'supcheckout');
+wp_register_script('supcheckout-admin-i18n-cert', plugins_url('assets/admin/build/app.js', $plugin_file), array(), null, array('in_footer' => true));
+$admin_json = load_script_textdomain('supcheckout-admin-i18n-cert', 'supcheckout');
+remove_filter('pre_determine_locale', $supcheckout_ar_locale);
+unload_textdomain('supcheckout', true);
+wp_deregister_script('supcheckout-admin-i18n-cert');
+supcheckout_cert_assert('ادفع بأمان عبر' === $arabic, 'with the ar locale active, "Pay securely with" resolves to the bundled Arabic translation: ' . $arabic);
+$admin_translations = is_string($admin_json) ? json_decode($admin_json, true) : null;
+supcheckout_cert_assert(
+    is_array($admin_translations) && 'ar' === ($admin_translations['locale_data']['messages']['']['lang'] ?? null),
+    'the admin app script translations resolve to the bundled Arabic JSON'
+);
+supcheckout_cert_assert('Pay securely with' === __('Pay securely with', 'supcheckout'), 'the site locale is English again after the Arabic check');
+
 supcheckout_cert_note('release support metadata and feature compatibility certification complete');

@@ -28,6 +28,8 @@ state_fixture="${GITHUB_WORKSPACE}/tests/integration/RequestContextState.php"
 diagnostics_helper="${GITHUB_WORKSPACE}/tests/integration/lib/http-server-diagnostics.sh"
 http_stack="${GITHUB_WORKSPACE}/tests/integration/lib/start-ci-http-stack.sh"
 probe_dest="$wp_root/wp-content/mu-plugins/supcheckout-request-context-probe.php"
+i18n_early_source="${GITHUB_WORKSPACE}/tests/integration/fixtures/i18n-early-mu-plugin.php"
+i18n_early_dest="$wp_root/wp-content/mu-plugins/supcheckout-i18n-early.php"
 as_isolation_dest="$wp_root/wp-content/mu-plugins/supcheckout-request-context-as-isolation.php"
 port="${SUPCHECKOUT_CONTEXT_PORT:-8080}"
 base_url="http://127.0.0.1:${port}"
@@ -36,7 +38,7 @@ HTTP_STACK_PID=''
 PHP_FPM_PID=''
 
 cleanup() {
-  rm -f "$probe_dest" "$as_isolation_dest" "$wp_root/supcheckout-fpm-probe.php"
+  rm -f "$probe_dest" "$as_isolation_dest" "$i18n_early_dest" "$wp_root/supcheckout-fpm-probe.php"
   # Only tear down a stack we started. Reused stacks are owned by the caller.
   if [[ "${SUPCHECKOUT_HTTP_STACK_STARTED:-0}" != "1" ]]; then
     if [[ -n "$HTTP_STACK_PID" ]]; then
@@ -54,6 +56,7 @@ trap cleanup EXIT
 [[ -x "$wp_cli" ]] || { echo "WP-CLI not executable: $wp_cli" >&2; exit 65; }
 [[ -f "$probe_source" ]] || { echo "Request-context probe missing: $probe_source" >&2; exit 66; }
 [[ -f "$as_isolation_source" ]] || { echo "AS isolation fixture missing: $as_isolation_source" >&2; exit 66; }
+[[ -f "$i18n_early_source" ]] || { echo "i18n early-loading fixture missing: $i18n_early_source" >&2; exit 66; }
 [[ -f "$state_fixture" ]] || { echo "Request-context state fixture missing: $state_fixture" >&2; exit 67; }
 [[ -f "$wp_root/wp-load.php" ]] || { echo "WordPress runtime missing: $wp_root" >&2; exit 68; }
 [[ -f "$diagnostics_helper" ]] || { echo "HTTP diagnostics helper missing: $diagnostics_helper" >&2; exit 71; }
@@ -80,6 +83,8 @@ cp "$probe_source" "$probe_dest"
 # + R4/R6 jobs). This is NOT described as the proven root cause of the historical
 # php -S segfault.
 cp "$as_isolation_source" "$as_isolation_dest"
+# A4-01 (U7): inert unless a request carries supcheckout_i18n_early=1.
+cp "$i18n_early_source" "$i18n_early_dest"
 
 # Keep all generated WordPress URLs on the disposable loopback HTTP origin so
 # canonical redirects cannot turn a certification request into a DNS/network
@@ -191,6 +196,32 @@ assert_store_api() {
   echo "PASS: $label"
 }
 
+# A4-01 (U7): a real storefront request under the ar locale (bundled translation only) must
+# translate no supcheckout string before after_setup_theme. The fixture reports the count of
+# WordPress's `_load_textdomain_just_in_time` notices for supcheckout in a response header.
+assert_no_early_translation() {
+  local label="$1"
+  local url="$2"
+  local headers="${RUNNER_TEMP:-/tmp}/supcheckout-i18n-early.headers"
+
+  supcheckout_curl_once_or_diagnose \
+    "$label" \
+    "$HTTP_STACK_PID" \
+    "$server_log" \
+    -fsS --max-time 20 -D "$headers" -o /dev/null "$url"
+  if ! grep -qi '^X-SUPCheckout-I18n-Locale: ar' "$headers"; then
+    echo "$label: the request did not run under the ar locale" >&2
+    cat "$headers" >&2
+    exit 1
+  fi
+  if ! grep -qi '^X-SUPCheckout-I18n-Early: 0' "$headers"; then
+    echo "$label: supcheckout translations loaded before after_setup_theme" >&2
+    cat "$headers" >&2
+    exit 1
+  fi
+  echo "PASS: $label"
+}
+
 run_context_matrix() {
   local state_label="$1"
   local expect_gateway="$2"
@@ -213,6 +244,10 @@ run_context_matrix() {
 # Valid configuration must expose SUPCheckout consistently, including when the
 # generic REST evaluation deliberately has no WooCommerce session object.
 run_context_matrix 'eligible KWD configuration' 1
+assert_no_early_translation 'Arabic storefront / Classic checkout: no early supcheckout translation' \
+  "$base_url/index.php?page_id=${checkout_page_id}&supcheckout_i18n_early=1"
+assert_no_early_translation 'Arabic storefront / front page: no early supcheckout translation' \
+  "$base_url/index.php?supcheckout_i18n_early=1"
 assert_probe 'eligible KWD configuration / sessionless REST' \
   "$base_url/index.php?rest_route=/supcheckout-cert/v1/context&sessionless=1" \
   0 0 0 0 1 0 1

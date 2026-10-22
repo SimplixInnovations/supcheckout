@@ -8,6 +8,7 @@ use Simplixi\SUPCheckout\Account\SubscriptionActions;
 use Simplixi\SUPCheckout\Blocks\PaymentMethodRegistration;
 use Simplixi\SUPCheckout\Bootstrap\Deactivation;
 use Simplixi\SUPCheckout\Bootstrap\Requirements;
+use Simplixi\SUPCheckout\Bootstrap\Translations;
 use Simplixi\SUPCheckout\Bootstrap\WooCommerceDeclarations;
 use Simplixi\SUPCheckout\Gateway\GatewayRegistration;
 use Simplixi\SUPCheckout\Release\Identity;
@@ -39,6 +40,8 @@ final class Plugin {
             return;
         }
         self::$main_file = (string) $main_file;
+        // A4-01 (U7): first, so the bundled translations resolve for every later string.
+        Translations::register(self::$main_file);
         GatewayRegistration::register();
         Requirements::register();
         WooCommerceDeclarations::register();

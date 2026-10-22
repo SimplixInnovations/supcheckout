@@ -170,6 +170,39 @@ Each migrating path asserts that `supcheckout/supcheckout.php` is active once, t
 
 Pre-rename installs: update by zip upload ("Replace current with uploaded"), WP-CLI, or the Plugins-screen / Updates-screen one-click and bulk updates (`bulk_upgrade()`). These keep the stored `supcheckout/UPayments.php` entry, and the shim moves it on the next request. The classic single-plugin Update-now flow (`wp-admin/update.php?action=upgrade-plugin`, `Plugin_Upgrader::upgrade()`, used without JavaScript) deactivates the plugin before installing and then reactivates it by the old basename. Validation rejects the header-less shim, so the install ends **deactivated**: no SUPCheckout code runs, merchant data is unchanged, and one activation of `supcheckout/supcheckout.php` recovers it. Any future update channel must key updates to `supcheckout/supcheckout.php`.
 
+## Bundled translations (hardening A4-01)
+
+The package ships `languages/` (header `Domain Path: /languages`):
+
+- `supcheckout.pot`;
+- the Arabic `supcheckout-ar.po` and `supcheckout-ar.mo`;
+- one `supcheckout-ar-<md5 of the script path>.json` per admin script with strings.
+
+`Bootstrap\Translations` points WordPress at `languages/` through `lang_dir_for_domain` only when no language pack exists for the locale. The verifier accepts only flat `supcheckout*` files ending in `.pot`, `.po`, `.mo`, `.json` or `.l10n.php` there.
+
+`tests/unit/Bootstrap/TranslationFilesConsistencyTest.php` fails when the files drift from each other or from the source. To regenerate them with WP-CLI 2.12.0 from the repository root (`$TMP` is any scratch directory outside the repository):
+
+```bash
+EXCLUDE=tests,vendor,docs,scripts,tools,node_modules,assets/admin/src,.cache,.github,languages
+# 1. Template from the packaged PHP and the committed admin build.
+wp i18n make-pot . languages/supcheckout.pot --slug=supcheckout --domain=supcheckout \
+  --exclude="$EXCLUDE" --skip-audit \
+  --headers='{"Report-Msgid-Bugs-To":"https://github.com/SimplixInnovations/supcheckout/issues"}'
+# 2. Merge the template into the Arabic catalogue, then translate the new or changed entries.
+wp i18n update-po languages/supcheckout.pot languages/supcheckout-ar.po
+# 3. Admin script JSON. The shipped .po must keep its script strings, so never purge it.
+#    Current WP-CLI purges by default and needs --no-purge; WP-CLI 2.12.0 never purges and rejects the flag.
+wp i18n make-json languages/supcheckout-ar.po languages/ --no-purge
+# 4. The .mo holds only the entries used from PHP: compile it from a copy merged with a PHP-only template.
+wp i18n make-pot . "$TMP/supcheckout-php.pot" --slug=supcheckout --domain=supcheckout \
+  --exclude="$EXCLUDE,assets/admin/build" --skip-audit
+cp languages/supcheckout-ar.po "$TMP/supcheckout-ar.po"
+wp i18n update-po "$TMP/supcheckout-php.pot" "$TMP/supcheckout-ar.po"
+wp i18n make-mo "$TMP/supcheckout-ar.po" languages/supcheckout-ar.mo
+```
+
+A rebuild of the admin app changes the chunk file names, and so the JSON names. Rerun step 3 and delete the stale JSON files. The files are committed, so the release build stays byte-for-byte deterministic.
+
 ## Deterministic artifact contract
 
 Build and verify:

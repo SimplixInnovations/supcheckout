@@ -1081,7 +1081,10 @@ arch2_assert($gateway !== '', 'supcheckout.php is readable');
 arch2_assert(!arch2_has_namespace_declaration($gatewayTokens), 'legacy main file remains in the global namespace');
 arch2_assert(
     $pluginBoot['found']
-        && $compactBody($pluginBoot['body']) === 'if(self::$main_file!==null){return;}self::$main_file=(string)$main_file;GatewayRegistration::register();'
+        && $compactBody($pluginBoot['body']) === 'if(self::$main_file!==null){return;}self::$main_file=(string)$main_file;'
+            // A4-01 (U7): the bundled-translation fallback, first so every later string resolves.
+            . 'Translations::register(self::$main_file);'
+            . 'GatewayRegistration::register();'
             . 'Requirements::register();WooCommerceDeclarations::register();PaymentMethodRegistration::register();'
             . 'SubscriptionComposition::register_presentation_hooks();SchedulerBootstrap::register();SubscriptionActions::register();'
             // 0b Task 6: the takeover copy runner, registered only while copying.
@@ -1097,7 +1100,7 @@ arch2_assert(
             // A3-08 (U8): the deactivation cleanup, named by ::class so it loads only on deactivation.
             . 'register_deactivation_hook(self::$main_file,array(Deactivation::class,deactivate));'
             . 'self::load_runtime(self::$main_file);',
-    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner, the onboarding driver, the admin REST routes and CLI, then the official-reactivation guard, then the deactivation cleanup, then loads the former main-file runtime'
+    'Plugin::boot is the idempotent composition root that first registers the bundled-translation fallback, then the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner, the onboarding driver, the admin REST routes and CLI, then the official-reactivation guard, then the deactivation cleanup, then loads the former main-file runtime'
 );
 // The former main-file runtime block (constants, ordered loads, release constants) is pinned
 // exactly: before Task 5 the main-file byte ratchet guarded it, so a dropped or reordered

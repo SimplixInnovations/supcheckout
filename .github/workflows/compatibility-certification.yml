@@ -156,6 +156,19 @@ jobs:
       - name: Verify release support metadata
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/ReleaseMetadataTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: Verify no early supcheckout translation loading (Arabic boot)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wordpress/wp-content/mu-plugins"
+          cp tests/integration/fixtures/i18n-early-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-i18n-early.php"
+          trap 'rm -f "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-i18n-early.php"' EXIT
+          # The canary proves the recorder catches an early load; the verify run requires none.
+          SUPCHECKOUT_I18N_EARLY_PROBE=1 SUPCHECKOUT_I18N_EARLY_CANARY=1 SUPCHECKOUT_CERT_PHASE=canary \
+            /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/I18nEarlyLoadingTest.php" --path="$RUNNER_TEMP/wordpress"
+          SUPCHECKOUT_I18N_EARLY_PROBE=1 SUPCHECKOUT_CERT_PHASE=verify \
+            /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/I18nEarlyLoadingTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Verify Blocks registration and availability
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/CheckoutRegistrationTest.php" --path="$RUNNER_TEMP/wordpress"
 

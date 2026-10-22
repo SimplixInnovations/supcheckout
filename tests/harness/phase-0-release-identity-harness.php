@@ -75,7 +75,9 @@ p0_assert(p0_header_value($bootstrap, 'Version') === Identity::VERSION, 'header 
 p0_assert(p0_header_value($bootstrap, 'Author') === 'Simplix Innovations', 'plugin author is Simplix Innovations');
 p0_assert(p0_header_value($bootstrap, 'Author URI') === 'https://simplixi.com', 'author URI is Simplix');
 p0_assert(p0_header_value($bootstrap, 'License') === 'MIT', 'plugin header keeps MIT license');
-p0_assert(p0_header_value($bootstrap, 'Domain Path') === null, 'plugin header does not advertise a non-packaged languages directory');
+// A4-01 (U7): the header now names the packaged languages/ directory (it ships the .pot and Arabic).
+p0_assert(p0_header_value($bootstrap, 'Domain Path') === '/languages', 'plugin header names the packaged languages directory');
+p0_assert(is_file($root . '/languages/supcheckout.pot'), 'the packaged languages directory ships the translation template');
 
 p0_assert(p0_header_value($bootstrap, 'Text Domain') === Identity::TARGET_TEXT_DOMAIN, 'public text domain is the canonical SUPCheckout domain');
 p0_assert(Identity::TARGET_TEXT_DOMAIN === 'supcheckout', 'target text domain remains frozen');
