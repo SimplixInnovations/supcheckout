@@ -1406,6 +1406,9 @@ final class PaymentLifecycle {
             'callback_rate_limited',
             'empty_response',
             'invalid_status_response',
+            // The stored order total could not be read (R-1): possibly a passing
+            // database error, never proof of a mismatch.
+            'binding_persisted_total_unreadable',
         ), true)) {
             return true;
         }

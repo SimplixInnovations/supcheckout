@@ -240,9 +240,15 @@ final class StatusVerifier {
         // made at higher precision (12.34 charged, edited to 12.344) still reads 12.34
         // here. Every bind therefore also needs the provider amount to equal the
         // persisted order total exactly. This is the only persisted read per bind
-        // attempt; an unreadable total fails closed.
+        // attempt. An unreadable total fails closed with its own reason: it may be a
+        // passing database error rather than a mismatch, so the lifecycle keeps
+        // its bounded re-check instead of treating it as final like binding_amount.
         $persisted = self::persisted_order_total($order->get_id());
-        if ($persisted === null || !hash_equals($persisted, $verified_canonical)) {
+        if ($persisted === null) {
+            $result['reason'] = 'binding_persisted_total_unreadable';
+            return $result;
+        }
+        if (!hash_equals($persisted, $verified_canonical)) {
             $result['reason'] = 'binding_amount';
             return $result;
         }

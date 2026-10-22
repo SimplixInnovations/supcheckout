@@ -296,6 +296,7 @@ namespace {
     // StatusVerifier reads the stored order total on every bind (R-1). The stored order
     // is the one in the fake order store, which a test may change under the lock.
     function get_post_meta($id, $key = '', $single = false) {
+        if (!empty(\Simplixi\SUPCheckout\Payment\state()['persisted_total_unreadable'])) { return ''; }
         $orders = \Simplixi\SUPCheckout\Payment\state()['orders'];
         return ($key === '_order_total' && isset($orders[(int) $id])) ? (string) $orders[(int) $id]->total : '';
     }
@@ -1592,6 +1593,26 @@ namespace {
     same((int) $order->get_meta('_simplixpay_upayments_reconcile_attempt_v1'), 1, 'A6-05 C17 status_rate_limited consumes the first attempt');
     same($order->get_meta('_simplixpay_upayments_reconcile_reason_v1'), 'status_rate_limited', 'A6-05 C17 status_rate_limited is recorded as the reconciliation reason');
     same($order->get_meta('_simplixpay_upayments_unverified_track_v1'), 'track-abc', 'A6-05 C17 status_rate_limited keeps the unverified cursor');
+
+    // R-1 review round 1: a stored total that cannot be read (a passing DB error) is
+    // not an amount mismatch. It stays retryable, so the bounded reconcile schedule of
+    // an order the provider captured is kept, and the order is never marked paid.
+    list($gateway, $order) = reset_fixture(722);
+    private_call(PaymentLifecycle::class, 'remember_unverified_cursor', array($order, 'track-abc', 'merchant-order-722'));
+    set_provider_transaction(transaction_for($order));
+    \Simplixi\SUPCheckout\Payment\state()['persisted_total_unreadable'] = true;
+    $out = PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
+    same($out, array('state' => 'unchanged', 'reason' => 'binding_persisted_total_unreadable'), 'R-1 an unreadable stored total reports its own reason');
+    ok($c_reconcile_scheduled(722), 'R-1 an unreadable stored total keeps the reconcile schedule');
+    same($order->get_meta('_simplixpay_upayments_reconcile_reason_v1'), 'binding_persisted_total_unreadable', 'R-1 the reconcile reason names the unreadable total');
+    same($order->get_meta('_simplixpay_upayments_unverified_track_v1'), 'track-abc', 'R-1 an unreadable stored total keeps the unverified cursor');
+    same($order->payment_complete_calls, 0, 'R-1 an unreadable stored total never completes the order');
+    same($order->status, 'pending', 'R-1 an unreadable stored total leaves the order unpaid');
+    same((string) $order->get_meta('_upay_verified_capture'), '', 'R-1 an unreadable stored total sets no verified-capture barrier');
+    \Simplixi\SUPCheckout\Payment\state()['persisted_total_unreadable'] = false;
+    \Simplixi\SUPCheckout\Payment\clear_scheduled_for_order(722);
+    PaymentLifecycle::reconcile_order(722);
+    same($order->status, 'processing', 'R-1 once the stored total reads again, reconciliation completes the captured order');
 
     // C18 characterizes A1-04: an authenticated amount or currency mismatch on the
     // current attempt leaves the order pending with no note and no re-check.

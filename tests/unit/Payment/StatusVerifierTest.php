@@ -345,11 +345,11 @@ final class StatusVerifierTest extends TestCase {
                 $persisted
             );
         }
-        // Unreadable or not a plain decimal: fail closed.
+        // Unreadable or not a plain decimal: fail closed, as a retryable reason.
         foreach (array(null, '', 'abc', '-12.341', '1.2341e1', array('12.341')) as $persisted) {
             $this->persist_order_total(42, $persisted);
             self::assertSame(
-                'binding_amount',
+                'binding_persisted_total_unreadable',
                 StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason'],
                 var_export($persisted, true)
             );
@@ -375,7 +375,7 @@ final class StatusVerifierTest extends TestCase {
 
         // Unreadable: fail closed.
         $this->persist_order_total(42, null);
-        self::assertSame('binding_amount', StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason']);
+        self::assertSame('binding_persisted_total_unreadable', StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason']);
     }
 
     public function test_r1_a_two_decimal_charge_edited_at_three_decimals_does_not_bind_with_a_snapshot(): void {
@@ -428,7 +428,8 @@ final class StatusVerifierTest extends TestCase {
 
         self::assertTrue($result['authenticated']);
         self::assertFalse($result['bound']);
-        self::assertSame('binding_amount', $result['reason']);
+        // Review round 1: not binding_amount, which is final and clears the re-check.
+        self::assertSame('binding_persisted_total_unreadable', $result['reason']);
         self::assertNotSame(ProviderResult::CAPTURED, $result['classification']);
     }
 
@@ -476,6 +477,8 @@ final class StatusVerifierTest extends TestCase {
         $order = new StatusVerifierOrder(42, 'merchant-42');
         $order->total = '12.35';
         $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+        // Unedited, so only the snapshot comparison can reject (review round 1).
+        $this->persist_order_total(42, '12.345');
 
         // The request-rounded total is not what was charged, so it cannot bind either.
         foreach (array('12.35', '12.34', '12.3449', '12.3451') as $provider_amount) {
@@ -494,6 +497,8 @@ final class StatusVerifierTest extends TestCase {
         // The snapshot rounded to this request's precision (12.35) is not the order total.
         $order->total = '12.40';
         $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+        // The stored total is the edited one, read consistently (review round 1).
+        $this->persist_order_total(42, '12.40');
         $transaction = $this->transaction($order);
         $transaction['total_price'] = '12.345';
 
@@ -505,6 +510,7 @@ final class StatusVerifierTest extends TestCase {
         // In a request with the order's own precision the edit is an exact mismatch too.
         $GLOBALS['supcheckout_test_price_decimals'] = 3;
         $order->total = '12.350';
+        $this->persist_order_total(42, '12.350');
         $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
         self::assertSame('binding_amount', $result['reason']);
     }
@@ -572,6 +578,8 @@ final class StatusVerifierTest extends TestCase {
         $order = new StatusVerifierOrder(42, 'merchant-42');
         $order->total = '12.35';
         $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+        // Unedited, so only the attempt binding can reject (review round 1).
+        $this->persist_order_total(42, '12.35');
         $transaction = $this->transaction($order);
         $transaction['merchant_requested_order_id'] = 'merchant-41';
         $transaction['total_price'] = '12.345';

@@ -73,7 +73,7 @@ namespace Simplixi\SUPCheckout\Payment {
 
     $GLOBALS['amount_binding_persisted_total'] = '';
     $unreadable = StatusVerifier::bind_transaction($gateway, $order, 'track-exact', $base);
-    $check(empty($unreadable['bound']) && $unreadable['reason'] === 'binding_amount', 'an unreadable persisted total fails closed');
+    $check(empty($unreadable['bound']) && $unreadable['reason'] === 'binding_persisted_total_unreadable', 'an unreadable persisted total fails closed with its own retryable reason');
 
     $GLOBALS['amount_binding_persisted_total'] = '10.00000000';
     $hpos_form = StatusVerifier::bind_transaction($gateway, $order, 'track-exact', $base);

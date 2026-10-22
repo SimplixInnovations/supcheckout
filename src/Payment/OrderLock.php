@@ -68,8 +68,9 @@ final class OrderLock {
     }
 
     /**
-     * @param string $name   One lock option name.
-     * @param string $record This worker's encoded record.
+     * @param string       $name     One lock option name.
+     * @param string       $record   This worker's encoded record.
+     * @param positive-int $order_id Order the lock belongs to, already validated by acquire(); used only for the recovery log.
      * @return bool True when this worker now owns the name.
      */
     private static function acquire_name($name, $record, $order_id) {
@@ -131,10 +132,12 @@ final class OrderLock {
     }
 
     /**
-     * Record a recovered lock for the already-validated order ID. The record value
-     * is never logged.
+     * Record that this worker replaced a stale, unparseable or implausible lock record
+     * with its own lease (the compare-and-swap succeeded). The replaced record's value
+     * and token are never logged.
      *
-     * @param string $reason Reason code from stale_reason().
+     * @param string       $reason   Reason code from stale_reason().
+     * @param positive-int $order_id Order whose lock record was replaced, already validated by acquire().
      * @return void
      */
     private static function log_recovery($reason, $order_id) {
