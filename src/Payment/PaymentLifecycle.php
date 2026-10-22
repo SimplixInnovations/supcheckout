@@ -48,7 +48,11 @@ final class PaymentLifecycle {
     private const SECONDARY_ATTEMPT_META = '_simplixpay_upayments_secondary_attempt_v1';
     private const SECONDARY_NOTED_META = '_simplixpay_upayments_secondary_noted_v1';
     private const SECONDARY_SCHEDULE_FAILED_META = '_supcheckout_secondary_schedule_failed_v1';
+    // Tracks that already got an exhaustion/eviction note (once per track).
+    private const SECONDARY_EXHAUSTED_NOTED_META = '_supcheckout_secondary_exhausted_noted_v1';
     private const MAX_SECONDARY_PENDING = 3;
+    // Each queued track gets MAX_RECONCILE_ATTEMPTS runs; a cycle stops at twice that.
+    private const MAX_SECONDARY_CYCLE_RUNS = 2 * self::MAX_RECONCILE_ATTEMPTS;
     private const MAX_SECONDARY_NOTED = 10;
     // Historical public status-poll value read by PublicOrderStatus.
     private const PUBLIC_STATUS_META = 'UPayments_WHS';
@@ -662,9 +666,20 @@ final class PaymentLifecycle {
         // Webhooks are always acknowledged with HTTP 200, so the provider will
         // not resend. A deferred or transiently failed lookup is retried here.
         if ($source !== 'reconcile' && self::is_secondary_retryable($outcome)) {
-            self::enqueue_secondary($order, $track_id, $requested_order_id);
+            self::enqueue_secondary($order, $track_id, $requested_order_id, self::secondary_kind($outcome));
         }
         return $outcome;
+    }
+
+    /**
+     * Why a queued secondary track is retried: 'pending' when the provider bound it
+     * as not yet completed, 'retry' when its state is unknown (transport, lock or
+     * apply failure, or never looked up). Drives eviction order and the exhaustion note.
+     */
+    private static function secondary_kind($outcome) {
+        return is_array($outcome) && isset($outcome['reason']) && $outcome['reason'] === 'secondary_pending'
+            ? 'pending'
+            : 'retry';
     }
 
     /**
@@ -686,12 +701,22 @@ final class PaymentLifecycle {
             return;
         }
 
+        // $attempt counts this cycle's runs (order level, hard cap); each entry
+        // counts its own runs, so a track queued late still gets its full window.
         $attempt = (int) Keys::read_order_meta($order, self::SECONDARY_ATTEMPT_META) + 1;
         $remaining = array();
+        $expired = array();
         foreach ($pending as $entry) {
             $current = wc_get_order($order_id);
             $outcome = self::attempt_secondary_capture($gateway, is_object($current) ? $current : $order, $entry['track'], $entry['requested'], 'reconcile');
-            if (self::is_secondary_retryable($outcome)) {
+            if (!self::is_secondary_retryable($outcome)) {
+                continue;
+            }
+            $entry['runs'] = $entry['runs'] + 1;
+            $entry['kind'] = self::secondary_kind($outcome);
+            if ($entry['runs'] >= self::MAX_RECONCILE_ATTEMPTS) {
+                $expired[] = $entry;
+            } else {
                 $remaining[] = $entry;
             }
         }
@@ -709,7 +734,7 @@ final class PaymentLifecycle {
                     $remaining[] = $fresh_entry;
                 }
             }
-            self::finish_secondary_run($order, $order_id, $remaining, $attempt);
+            self::finish_secondary_run($order, $order_id, $remaining, $expired, $attempt);
         } finally {
             if ($lock_token !== null) {
                 OrderLock::release($order_id, $lock_token);
@@ -726,20 +751,19 @@ final class PaymentLifecycle {
         return false;
     }
 
-    private static function finish_secondary_run($order, $order_id, array $remaining, $attempt) {
-        if (empty($remaining) || $attempt >= self::MAX_RECONCILE_ATTEMPTS) {
-            if (!empty($remaining) && method_exists($order, 'add_order_note')) {
-                // Tracks come from untrusted callbacks; WooCommerce renders notes through
-                // wp_kses_post, so they are escaped to stay inert text.
-                $tracks = implode(', ', array_map(function ($entry) { return esc_html($entry['track']); }, $remaining));
-                $order->add_order_note(
-                    sprintf(
-                        /* translators: %s: comma-separated UPayments track IDs. */
-                        __('SUPCheckout for UPayments could not verify a callback for another payment attempt on this order (track %s). Check the UPayments merchant dashboard for a captured payment.', 'supcheckout'),
-                        $tracks
-                    )
-                );
-            }
+    /**
+     * Runs under the order lock on a fresh read. Ends the cycle at the order-level
+     * hard cap, trims the queue to MAX_SECONDARY_PENDING, tells the merchant about
+     * every track that left the queue unresolved, then saves and reschedules.
+     */
+    private static function finish_secondary_run($order, $order_id, array $remaining, array $expired, $attempt) {
+        if ($attempt >= self::MAX_SECONDARY_CYCLE_RUNS) {
+            $expired = array_merge($expired, $remaining);
+            $remaining = array();
+        }
+        list($remaining, $evicted) = self::trim_secondary_queue($remaining);
+        self::notify_expired_secondary($order, array_merge($expired, $evicted));
+        if (empty($remaining)) {
             Keys::delete_order_meta($order, self::SECONDARY_PENDING_META);
             Keys::delete_order_meta($order, self::SECONDARY_ATTEMPT_META);
             $order->save();
@@ -749,6 +773,83 @@ final class PaymentLifecycle {
         Keys::update_order_meta($order, self::SECONDARY_ATTEMPT_META, $attempt);
         $order->save();
         self::schedule_secondary($order, $order_id, $attempt);
+    }
+
+    /**
+     * Hard queue cap. Evicts the oldest provider-pending entry first, then the
+     * oldest entry of unknown state.
+     *
+     * @return array{0: array, 1: array} [kept entries, evicted entries]
+     */
+    private static function trim_secondary_queue(array $entries) {
+        $entries = array_values($entries);
+        $evicted = array();
+        while (count($entries) > self::MAX_SECONDARY_PENDING) {
+            $victim = 0;
+            foreach ($entries as $index => $entry) {
+                if ($entry['kind'] === 'pending') {
+                    $victim = $index;
+                    break;
+                }
+            }
+            $evicted[] = $entries[$victim];
+            array_splice($entries, $victim, 1);
+        }
+        if (!empty($evicted)) {
+            self::log('secondary_evicted', 'warning');
+        }
+        return array($entries, $evicted);
+    }
+
+    /**
+     * Tracks that leave the secondary queue unresolved (window exhausted, cycle cap
+     * or eviction). Caller holds the order lock on a fresh read and saves. Each track
+     * is noted at most once:
+     * - state unknown: the merchant must check the dashboard for a capture;
+     * - provider still reports it not completed: a calmer note on an unpaid order,
+     *   and only a log entry on a paid one, where there is nothing to act on.
+     */
+    private static function notify_expired_secondary($order, array $entries) {
+        if (empty($entries) || !is_object($order)) {
+            return;
+        }
+        $paid = self::is_verified_capture($order) || (method_exists($order, 'is_paid') && $order->is_paid());
+        $unverified = array();
+        $not_completed = array();
+        foreach ($entries as $entry) {
+            if ($entry['kind'] === 'pending' && $paid) {
+                self::log('secondary_pending_exhausted');
+                continue;
+            }
+            if (!self::claim_track_once($order, self::SECONDARY_EXHAUSTED_NOTED_META, $entry['track'])) {
+                continue;
+            }
+            // Tracks come from untrusted callbacks; WooCommerce renders notes through
+            // wp_kses_post, so they are escaped to stay inert text.
+            if ($entry['kind'] === 'pending') {
+                $not_completed[] = esc_html($entry['track']);
+            } else {
+                $unverified[] = esc_html($entry['track']);
+            }
+        }
+        if (!empty($unverified)) {
+            $order->add_order_note(
+                sprintf(
+                    /* translators: %s: comma-separated UPayments track IDs. */
+                    __('SUPCheckout for UPayments could not verify a callback for another payment attempt on this order (track %s). Check the UPayments merchant dashboard for a captured payment.', 'supcheckout'),
+                    implode(', ', $unverified)
+                )
+            );
+        }
+        if (!empty($not_completed)) {
+            $order->add_order_note(
+                sprintf(
+                    /* translators: %s: comma-separated UPayments track IDs. */
+                    __('UPayments still reports another payment attempt on this order (track %s) as not completed. SUPCheckout stopped checking it automatically; if the UPayments dashboard later shows it captured, review this order.', 'supcheckout'),
+                    implode(', ', $not_completed)
+                )
+            );
+        }
     }
 
     private static function attempt_secondary_capture($gateway, $order, $track_id, $requested_order_id, $source) {
@@ -864,8 +965,9 @@ final class PaymentLifecycle {
         $reason = is_array($outcome) && isset($outcome['reason']) ? (string) $outcome['reason'] : '';
         // A verified capture that WooCommerce could not record (a failing or throwing
         // payment_complete hook) is retried like a transient lookup failure.
-        // A bound PENDING/NULL result is retried too; reconcile_secondary() caps every
-        // retryable reason at MAX_RECONCILE_ATTEMPTS runs and then notes the merchant.
+        // A bound PENDING/NULL result is retried too; reconcile_secondary() caps each
+        // queued track at MAX_RECONCILE_ATTEMPTS runs (and a cycle at
+        // MAX_SECONDARY_CYCLE_RUNS), then notes the merchant once per track.
         return $reason === 'order_lock_contention'
             || $reason === 'secondary_pending'
             || $reason === 'payment_complete_failed'
@@ -884,13 +986,20 @@ final class PaymentLifecycle {
                 && self::parse_track_id($entry['track']) !== null
                 && self::parse_generic_identifier($entry['requested'], 255) !== null
             ) {
-                $pending[] = array('track' => (string) $entry['track'], 'requested' => (string) $entry['requested']);
+                // Entries written before per-entry state existed start a fresh window.
+                $runs = isset($entry['runs']) && is_int($entry['runs']) ? $entry['runs'] : 0;
+                $pending[] = array(
+                    'track' => (string) $entry['track'],
+                    'requested' => (string) $entry['requested'],
+                    'runs' => max(0, min($runs, self::MAX_RECONCILE_ATTEMPTS)),
+                    'kind' => isset($entry['kind']) && $entry['kind'] === 'pending' ? 'pending' : 'retry',
+                );
             }
         }
         return $pending;
     }
 
-    private static function enqueue_secondary($order, $track_id, $requested_order_id) {
+    private static function enqueue_secondary($order, $track_id, $requested_order_id, $kind = 'retry') {
         $track_id = self::parse_track_id($track_id);
         $requested_order_id = self::parse_generic_identifier($requested_order_id, 255);
         if ($track_id === null || $requested_order_id === null
@@ -911,8 +1020,15 @@ final class PaymentLifecycle {
             if (self::secondary_entry_in(array('track' => $track_id, 'requested' => $requested_order_id), $pending)) {
                 return;
             }
-            $pending[] = array('track' => $track_id, 'requested' => $requested_order_id);
-            Keys::update_order_meta($order, self::SECONDARY_PENDING_META, array_slice($pending, -self::MAX_SECONDARY_PENDING));
+            $pending[] = array(
+                'track' => $track_id,
+                'requested' => $requested_order_id,
+                'runs' => 0,
+                'kind' => $kind === 'pending' ? 'pending' : 'retry',
+            );
+            list($pending, $evicted) = self::trim_secondary_queue($pending);
+            self::notify_expired_secondary($order, $evicted);
+            Keys::update_order_meta($order, self::SECONDARY_PENDING_META, $pending);
             $order->save();
             self::schedule_secondary($order, $order_id, (int) Keys::read_order_meta($order, self::SECONDARY_ATTEMPT_META));
         } finally {
@@ -939,58 +1055,87 @@ final class PaymentLifecycle {
     }
 
     /**
-     * Per-track idempotency for the unbound-transaction notes, shared by the
-     * primary (current attempt) and secondary (other attempt) paths.
+     * Claims $track_id in the per-track list $meta_key on $order. The caller writes
+     * the note only when the claim succeeds, so each track is noted once.
      *
      * @return bool True when this call claimed the track and must write the note.
      */
-    private static function claim_unbound_note($order, $track_id) {
-        if (!is_object($order) || !method_exists($order, 'update_meta_data') || !method_exists($order, 'add_order_note')) {
+    private static function claim_track_once($order, $meta_key, $track_id) {
+        if (!is_object($order) || !method_exists($order, 'get_meta') || !method_exists($order, 'update_meta_data') || !method_exists($order, 'add_order_note')) {
             return false;
         }
-        $noted = Keys::read_order_meta($order, self::SECONDARY_NOTED_META);
+        // _supcheckout_* names are already canonical; legacy names go through Keys.
+        $canonical = strpos($meta_key, '_supcheckout_') === 0;
+        $noted = $canonical ? $order->get_meta($meta_key) : Keys::read_order_meta($order, $meta_key);
         $noted = is_array($noted) ? array_values(array_filter($noted, 'is_string')) : array();
         if (in_array((string) $track_id, $noted, true)) {
             return false;
         }
         $noted[] = (string) $track_id;
-        Keys::update_order_meta($order, self::SECONDARY_NOTED_META, array_slice($noted, -self::MAX_SECONDARY_NOTED));
+        $noted = array_slice($noted, -self::MAX_SECONDARY_NOTED);
+        if ($canonical) {
+            $order->update_meta_data($meta_key, $noted);
+        } else {
+            Keys::update_order_meta($order, $meta_key, $noted);
+        }
         return true;
     }
 
-    private static function note_unbound_secondary($order, $track_id) {
-        if (!self::claim_unbound_note($order, $track_id)) {
+    /**
+     * Adds $message once per track. The claim is taken on a fresh read under the
+     * order lock (a fresh read without it when another worker holds the lock), so a
+     * webhook and a browser return holding stale order objects cannot both note it.
+     * Callers must not hold the order lock.
+     */
+    private static function note_track_once($order, $meta_key, $track_id, $message) {
+        if (!is_object($order) || !method_exists($order, 'get_id')) {
             return;
         }
-        $order->add_order_note(
+        $order_id = (int) $order->get_id();
+        $lock_token = OrderLock::acquire($order_id);
+        try {
+            $fresh = wc_get_order($order_id);
+            $target = is_object($fresh) ? $fresh : $order;
+            if (self::claim_track_once($target, $meta_key, $track_id)) {
+                $target->add_order_note($message);
+                $target->save();
+            }
+        } finally {
+            if ($lock_token !== null) {
+                OrderLock::release($order_id, $lock_token);
+            }
+        }
+    }
+
+    private static function note_unbound_secondary($order, $track_id) {
+        self::note_track_once(
+            $order,
+            self::SECONDARY_NOTED_META,
+            $track_id,
             sprintf(
                 /* translators: %s: UPayments track ID. */
                 __('UPayments reported a transaction for another payment attempt on this order (track %s) whose amount or currency no longer matches the order. SUPCheckout did not apply it. Review it in the UPayments merchant dashboard.', 'supcheckout'),
                 esc_html((string) $track_id)
             )
         );
-        $order->save();
     }
 
     /**
      * The current attempt's own transaction did not bind on amount or currency, so
-     * the order stays unpaid. Private note, once per track; names only the track and
-     * which value did not match (no amounts, secrets or customer data).
+     * the order stays unpaid. Private note, once per track (shared with the secondary
+     * path); names only the track and which value did not match (no amounts, secrets
+     * or customer data).
      */
     private static function note_unbound_current($order, $track_id, $reason) {
-        if (!self::claim_unbound_note($order, $track_id)) {
-            return;
-        }
         if ($reason === 'binding_currency') {
             /* translators: %s: UPayments track ID. */
-            $message = __('UPayments reported a transaction for this order (track %s) whose currency does not match the order currency. SUPCheckout did not mark the order paid. Review it in the UPayments merchant dashboard before fulfilling or refunding.', 'supcheckout');
+            $message = __('UPayments reported a transaction for this order (track %s) whose currency does not match the order currency. SUPCheckout did not mark the order paid. Check it in the UPayments merchant dashboard; if it shows as captured, review this order before fulfilling it or refunding the payment.', 'supcheckout');
         } else {
             /* translators: %s: UPayments track ID. */
-            $message = __('UPayments reported a transaction for this order (track %s) whose amount does not match the order total. SUPCheckout did not mark the order paid. Review it in the UPayments merchant dashboard before fulfilling or refunding.', 'supcheckout');
+            $message = __('UPayments reported a transaction for this order (track %s) whose amount does not match the order total. SUPCheckout did not mark the order paid. Check it in the UPayments merchant dashboard; if it shows as captured, review this order before fulfilling it or refunding the payment.', 'supcheckout');
         }
         // Tracks come from callbacks; escaped so the note stays inert text.
-        $order->add_order_note(sprintf($message, esc_html((string) $track_id)));
-        $order->save();
+        self::note_track_once($order, self::SECONDARY_NOTED_META, $track_id, sprintf($message, esc_html((string) $track_id)));
     }
 
     private static function outcome_captured($outcome) {
@@ -1335,9 +1480,17 @@ final class PaymentLifecycle {
             self::note_reconciliation_unschedulable($order);
             return false;
         }
-        Keys::update_order_meta($order, self::RECONCILE_ATTEMPT_META, $next_attempt);
-        Keys::update_order_meta($order, self::RECONCILE_REASON_META, self::safe_code($reason));
-        $order->save();
+        try {
+            Keys::update_order_meta($order, self::RECONCILE_ATTEMPT_META, $next_attempt);
+            Keys::update_order_meta($order, self::RECONCILE_REASON_META, self::safe_code($reason));
+            $order->save();
+        } catch (\Throwable $e) {
+            // An attempt that cannot be counted must not stay scheduled, or every run
+            // would schedule the next one without ever reaching MAX_RECONCILE_ATTEMPTS.
+            // No event existed before this call (checked above), so this removes only it.
+            self::unschedule_reconciliation($order);
+            throw $e;
+        }
         return true;
     }
 
