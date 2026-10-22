@@ -11,6 +11,16 @@ use Simplixi\SUPCheckout\Takeover\Keys;
  */
 final class StatusVerifier {
     /**
+     * Order meta holding the exact amount of the latest successful Charge:
+     * array{requested_order_id:string, amount:string, currency:string}.
+     *
+     * First-party only: it is born under its SUPCheckout name, has no legacy
+     * counterpart and is not in Takeover\Keys, so the takeover never copies,
+     * removes or finalizes it.
+     */
+    public const CHARGE_AMOUNT_META = '_supcheckout_charge_amount_v1';
+
+    /**
      * @param mixed $gateway  Defensive active-gateway boundary value.
      * @param mixed $order    Defensive WooCommerce order boundary value.
      * @param mixed $track_id Provider status cursor.
@@ -209,6 +219,16 @@ final class StatusVerifier {
         // This comparison never casts the validated decimal to float.
         $verified_canonical = self::canonical_decimal($verified_amount);
         $local_canonical = self::canonical_decimal($local_amount);
+        if ($local_canonical !== null) {
+            $charged = self::charged_amount($order, $local_upay_order_id, $expected_currency, $local_canonical);
+            if ($charged === false) {
+                $result['reason'] = 'binding_amount';
+                return $result;
+            }
+            if ($charged !== null) {
+                $local_canonical = $charged;
+            }
+        }
         if ($verified_canonical === null
             || $local_canonical === null
             || !hash_equals($local_canonical, $verified_canonical)
@@ -233,6 +253,66 @@ final class StatusVerifier {
         $result['transaction'] = $transaction;
         $result['reason'] = strtolower($classification);
         return $result;
+    }
+
+    /**
+     * The snapshot value for CHARGE_AMOUNT_META.
+     *
+     * @param string $requested_order_id Provider order identity of the Charge.
+     * @param string $amount             The exact amount token sent as order.amount.
+     * @param string $currency           The currency sent with it.
+     * @return array{requested_order_id:string, amount:string, currency:string}
+     */
+    public static function charge_amount_snapshot($requested_order_id, $amount, $currency) {
+        return array(
+            'requested_order_id' => (string) $requested_order_id,
+            'amount'             => (string) $amount,
+            'currency'           => (string) $currency,
+        );
+    }
+
+    /**
+     * The exact amount charged for the attempt being bound (A1-07).
+     *
+     * WooCommerce re-rounds the order total to the current request's
+     * wc_get_price_decimals() on every load, so a 3-decimal Charge reloaded in a
+     * 2-decimal request (a webhook or cron with no client currency) no longer
+     * equals what was charged. The snapshot recorded at Charge time is that exact
+     * amount. It is used only while the order is unedited: rounded the way
+     * WooCommerce rounds this request's total, it must equal get_total(). The
+     * rounding is a comparison only; the bound amount is the snapshot itself.
+     *
+     * @param object $order              Order.
+     * @param string $requested_order_id Provider order identity being bound.
+     * @param string $currency           Expected provider currency.
+     * @param string $local_canonical    Canonical get_total() of this request.
+     * @return string|false|null The canonical charged amount; false when the order
+     *                           changed since the Charge; null when no usable
+     *                           snapshot exists (orders charged before it), so the
+     *                           order total is compared exactly, as before.
+     */
+    private static function charged_amount($order, $requested_order_id, $currency, $local_canonical) {
+        $snapshot = $order->get_meta(self::CHARGE_AMOUNT_META);
+        if (!is_array($snapshot)
+            || !isset($snapshot['requested_order_id'], $snapshot['amount'], $snapshot['currency'])
+            || !is_string($snapshot['requested_order_id'])
+            || !is_string($snapshot['currency'])
+            || $snapshot['requested_order_id'] !== (string) $requested_order_id
+            || strtoupper(trim($snapshot['currency'])) !== $currency
+            || !function_exists('wc_format_decimal')
+            || !function_exists('wc_get_price_decimals')
+        ) {
+            return null;
+        }
+        $charged = self::canonical_decimal($snapshot['amount']);
+        if ($charged === null) {
+            return null;
+        }
+        $as_loaded = self::canonical_decimal((string) wc_format_decimal($charged, wc_get_price_decimals()));
+        if ($as_loaded === null || !hash_equals($local_canonical, $as_loaded)) {
+            return false;
+        }
+        return $charged;
     }
 
     private static function normalize_track_id($track_id) {

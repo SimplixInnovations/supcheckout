@@ -70,6 +70,7 @@ class WC_Order {
     public function get_billing_phone() { return $this->billing_phone; }
     public function get_meta($key) { return ''; }
     public function add_meta_data($key, $value, $unique = false) {}
+    public function update_meta_data($key, $value) {}
     public function delete_meta_data($key) {}
     public function save_meta_data() {}
     public $notes = array();

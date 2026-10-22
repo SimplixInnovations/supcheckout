@@ -23,6 +23,7 @@ use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
+use Simplixi\SUPCheckout\Payment\StatusVerifier;
 
 final class CheckoutOrchestratorGateway {
     public $domain = 'upayments';
@@ -163,6 +164,62 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertSame('', $fresh->get_meta('_simplixpay_upayments_prior_requested_v1'));
         self::assertSame('success', $result['result']);
         self::assertStringNotContainsString('sandbox.upayments.com', $result['redirect']);
+        self::assertSame('', $fresh->get_meta(StatusVerifier::CHARGE_AMOUNT_META));
+    }
+
+    public function test_a1_07_a_successful_charge_records_the_exact_charged_amount_for_its_attempt(): void {
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $sent = array();
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$sent) {
+                if ($route !== 'charge') {
+                    return array();
+                }
+                $sent[] = $body;
+                return array(
+                    'transport_ok' => true,
+                    'http_status' => 201,
+                    'curl_errno' => 0,
+                    'body' => json_encode(array('status' => true, 'data' => array('link' => 'https://sandbox.upayments.com/pay/attempt-a'))),
+                );
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('success', $result['result']);
+        self::assertCount(1, $sent);
+        self::assertStringContainsString('"amount":10.000', $sent[0]);
+        self::assertSame(
+            array(
+                'requested_order_id' => $order->get_meta('UPayments_order_id'),
+                'amount'             => '10.000',
+                'currency'           => 'KWD',
+            ),
+            $order->get_meta(StatusVerifier::CHARGE_AMOUNT_META)
+        );
+    }
+
+    public function test_a1_07_a_rejected_charge_records_no_amount_snapshot(): void {
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            static function () { return array(); },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame('', $order->get_meta(StatusVerifier::CHARGE_AMOUNT_META));
     }
     protected function setUp(): void {
         require_once dirname(__DIR__, 2) . '/support/wordpress-payment-runtime.php';

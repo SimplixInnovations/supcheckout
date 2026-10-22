@@ -15,4 +15,5 @@ require __DIR__ . '/support/wordpress-migration-core.php';
 require __DIR__ . '/support/wordpress-subscription-presentation.php';
 require __DIR__ . '/support/wordpress-plugin-registry.php';
 require __DIR__ . '/support/wordpress-slash.php';
+require __DIR__ . '/support/wordpress-price-decimals.php';
 require dirname(__DIR__) . '/vendor/autoload.php';

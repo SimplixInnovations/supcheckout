@@ -36,6 +36,8 @@ final class StatusVerifierOrder {
 
     public $currency = 'KWD';
     public $total = '10.000';
+    /** @var array<string,mixed> Other order meta (the Charge amount snapshot). */
+    public $meta = array();
 
     public function __construct($id, $requested_order_id) {
         $this->id = (int) $id;
@@ -55,7 +57,10 @@ final class StatusVerifierOrder {
     }
 
     public function get_meta($key) {
-        return $key === 'UPayments_order_id' ? $this->requested_order_id : '';
+        if ($key === 'UPayments_order_id') {
+            return $this->requested_order_id;
+        }
+        return array_key_exists($key, $this->meta) ? $this->meta[$key] : '';
     }
 }
 
@@ -63,6 +68,7 @@ final class StatusVerifierTest extends TestCase {
     protected function setUp(): void {
         \supcheckout_test_reset_wp_options();
         \supcheckout_test_reset_wp_http();
+        unset($GLOBALS['supcheckout_test_price_decimals']);
     }
 
     public function test_invalid_boundaries_fail_before_rate_or_http_mutation(): void {
@@ -276,6 +282,141 @@ final class StatusVerifierTest extends TestCase {
         self::assertSame(
             'amount_invalid',
             StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $exponent)['reason']
+        );
+    }
+
+    public function test_a1_07_three_decimal_charge_binds_when_the_request_context_has_two_decimals(): void {
+        // A KWD order charged at 12.345 is reloaded in a webhook/cron request whose
+        // store precision is 2, so WooCommerce's set_total() re-rounds it to 12.35.
+        // The provider reports the exact amount that was charged.
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.35';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.345';
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+
+        self::assertTrue($result['bound'], (string) $result['reason']);
+        self::assertSame(ProviderResult::CAPTURED, $result['classification']);
+    }
+
+    public function test_a1_07_snapshot_never_binds_a_provider_amount_other_than_the_charged_one(): void {
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.35';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+
+        // The request-rounded total is not what was charged, so it cannot bind either.
+        foreach (array('12.35', '12.34', '12.3449', '12.3451') as $provider_amount) {
+            $transaction = $this->transaction($order);
+            $transaction['total_price'] = $provider_amount;
+            $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+            self::assertFalse($result['bound'], $provider_amount);
+            self::assertSame('binding_amount', $result['reason'], $provider_amount);
+        }
+    }
+
+    public function test_a1_07_an_order_edited_after_the_charge_fails_binding(): void {
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        // The snapshot rounded to this request's precision (12.35) is not the order total.
+        $order->total = '12.40';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.345';
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+
+        self::assertFalse($result['bound']);
+        self::assertSame('binding_amount', $result['reason']);
+
+        // In a request with the order's own precision the edit is an exact mismatch too.
+        $GLOBALS['supcheckout_test_price_decimals'] = 3;
+        $order->total = '12.350';
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+        self::assertSame('binding_amount', $result['reason']);
+    }
+
+    public function test_a1_07_snapshot_in_the_charge_precision_context_matches_todays_exact_binding(): void {
+        $GLOBALS['supcheckout_test_price_decimals'] = 3;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.345';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.3450';
+        self::assertTrue(StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['bound']);
+
+        $transaction['total_price'] = '12.346';
+        self::assertSame(
+            'binding_amount',
+            StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason']
+        );
+    }
+
+    public function test_a1_07_unusable_snapshots_fall_back_to_the_order_total(): void {
+        // Orders charged before the snapshot existed, a snapshot of another attempt,
+        // another currency, or a malformed value: today's exact order-total binding.
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $unusable = array(
+            'missing'          => null,
+            'other attempt'    => $this->snapshot('merchant-41', '12.345'),
+            'other currency'   => $this->snapshot('merchant-42', '12.345', 'USD'),
+            'malformed amount' => $this->snapshot('merchant-42', '1.2e1'),
+            'not an array'     => '12.345',
+            'missing amount'   => array('requested_order_id' => 'merchant-42', 'currency' => 'KWD'),
+        );
+
+        foreach ($unusable as $label => $snapshot) {
+            $order = new StatusVerifierOrder(42, 'merchant-42');
+            $order->total = '12.35';
+            if ($snapshot !== null) {
+                $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $snapshot;
+            }
+            $transaction = $this->transaction($order);
+
+            $transaction['total_price'] = '12.345';
+            self::assertSame(
+                'binding_amount',
+                StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason'],
+                $label
+            );
+            $transaction['total_price'] = '12.35';
+            self::assertTrue(
+                StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['bound'],
+                $label
+            );
+        }
+    }
+
+    public function test_a1_07_snapshot_binds_only_the_attempt_it_was_recorded_for(): void {
+        // A late callback for an earlier attempt is bound with the order total, as today.
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.35';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+        $transaction = $this->transaction($order);
+        $transaction['merchant_requested_order_id'] = 'merchant-41';
+        $transaction['total_price'] = '12.345';
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction, 'merchant-41');
+
+        self::assertSame('binding_amount', $result['reason']);
+    }
+
+    private function snapshot($requested_order_id, $amount, $currency = 'KWD'): array {
+        return array(
+            'requested_order_id' => $requested_order_id,
+            'amount'             => $amount,
+            'currency'           => $currency,
         );
     }
 

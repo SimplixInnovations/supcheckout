@@ -1588,7 +1588,7 @@ class CheckoutOrchestrator {
                     // completing an earlier attempt) may have changed this order while the
                     // Charge was in flight, so the attempt rotation runs under the same
                     // per-order lock as callbacks, on a fresh read, and never on a paid order.
-                    return $this->record_new_attempt($order_id, $unique_order_id, $subscription_plan, $subscription_interval, $redirect_url);
+                    return $this->record_new_attempt($order_id, $unique_order_id, $subscription_plan, $subscription_interval, $redirect_url, $amount_str, $currency);
 
             } catch (\Throwable $e) {
                 // Fail-closed: catch TypeError (PHP 8+) and Exception (PHP 7.2+).
@@ -1608,9 +1608,11 @@ class CheckoutOrchestrator {
          * @param string|null $subscription_plan     Selected plan.
          * @param mixed       $subscription_interval Selected interval.
          * @param string      $redirect_url          Provider payment page.
+         * @param string      $amount_str            The exact amount token sent as order.amount.
+         * @param string      $currency              The currency sent with it.
          * @return array WooCommerce process_payment result.
          */
-        private function record_new_attempt($order_id, $unique_order_id, $subscription_plan, $subscription_interval, $redirect_url) {
+        private function record_new_attempt($order_id, $unique_order_id, $subscription_plan, $subscription_interval, $redirect_url, $amount_str, $currency) {
             $lock_token = null;
             for ($try = 0; $try < self::ATTEMPT_LOCK_TRIES && $lock_token === null; $try++) {
                 if ($try > 0) {
@@ -1663,6 +1665,12 @@ class CheckoutOrchestrator {
                 }
                 Keys::delete_order_meta($order, "UPayments_order_id");
                 Keys::add_order_meta($order, "UPayments_order_id", $unique_order_id);
+                // The exact charged amount, bound by StatusVerifier instead of a
+                // total that a later request may re-round to fewer decimals (A1-07).
+                $order->update_meta_data(
+                    StatusVerifier::CHARGE_AMOUNT_META,
+                    StatusVerifier::charge_amount_snapshot($unique_order_id, $amount_str, $currency)
+                );
                 $order->save_meta_data();
 
                 return ["result" => "success", "redirect" => $redirect_url];

@@ -937,4 +937,46 @@ $payload = supcheckout_e2_assert_charge($order, $calls, 'generic tax-exempt/reve
 supcheckout_cert_assert(isset($payload['products']) && 1 === count($payload['products']), 'generic exemption outcome leaves products[] descriptive');
 supcheckout_e2_delete_order_and_products($order, array($exempt_product));
 
+// A1-07: Woo re-rounds an order total to the current request's
+// wc_get_price_decimals() on every load. A 3-decimal KWD Charge verified in a
+// 2-decimal request (a webhook or cron with no client currency) must bind to the
+// exact charged amount recorded at Charge time, never to the re-rounded total.
+$a1_07_three_decimals = static function () {
+    return 3;
+};
+$a1_07_two_decimals = static function () {
+    return 2;
+};
+add_filter('wc_get_price_decimals', $a1_07_three_decimals, 999);
+$order = supcheckout_e2_order(array());
+$order->set_total('12.345');
+\Simplixi\SUPCheckout\Takeover\Keys::update_order_meta($order, 'UPayments_order_id', 'a1-07-attempt');
+$order->update_meta_data(
+    \Simplixi\SUPCheckout\Payment\StatusVerifier::CHARGE_AMOUNT_META,
+    \Simplixi\SUPCheckout\Payment\StatusVerifier::charge_amount_snapshot('a1-07-attempt', '12.345', 'KWD')
+);
+$order->save();
+$a1_07_order_id = $order->get_id();
+remove_filter('wc_get_price_decimals', $a1_07_three_decimals, 999);
+add_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+// A fresh read (not the factory cache) runs set_total() under the 2-decimal context.
+$order = new WC_Order($a1_07_order_id);
+supcheckout_cert_assert('12.35' === (string) $order->get_total(), 'A1-07 Woo re-rounds the 3-decimal total in a 2-decimal request');
+$a1_07_transaction = array(
+    'result' => 'CAPTURED',
+    'track_id' => 'a1-07-track',
+    'merchant_requested_order_id' => 'a1-07-attempt',
+    'total_price' => '12.345',
+    'currency_type' => 'KWD',
+    'reference' => (string) $a1_07_order_id,
+    'payment_id' => 'a1-07-payment',
+);
+$a1_07_bound = \Simplixi\SUPCheckout\Payment\StatusVerifier::bind_transaction(supcheckout_e2_gateway(), $order, 'a1-07-track', $a1_07_transaction);
+supcheckout_cert_assert(true === $a1_07_bound['bound'], 'A1-07 the exact charged amount binds in a 2-decimal request');
+$a1_07_transaction['total_price'] = '12.35';
+$a1_07_bound = \Simplixi\SUPCheckout\Payment\StatusVerifier::bind_transaction(supcheckout_e2_gateway(), $order, 'a1-07-track', $a1_07_transaction);
+supcheckout_cert_assert('binding_amount' === $a1_07_bound['reason'], 'A1-07 the request-rounded total never binds');
+remove_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+supcheckout_e2_delete_order_and_products(wc_get_order($a1_07_order_id), array());
+
 supcheckout_cert_note('real Woo order-economics certification complete');

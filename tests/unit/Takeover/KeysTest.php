@@ -62,7 +62,7 @@ final class KeysTest extends TestCase {
                 self::assertStringStartsNotWith($prefix, $legacy, "$legacy is ephemeral");
             }
         }
-        foreach (array('_supcheckout_reconcile_schedule_failed_v1', 'supcheckout_reconciliation_sweep',
+        foreach (array('_supcheckout_reconcile_schedule_failed_v1', '_supcheckout_charge_amount_v1', 'supcheckout_reconciliation_sweep',
             'supcheckout_process_due_parent') as $canonical) {
             self::assertNull(Keys::legacy_for($canonical), $canonical);
             self::assertNotContains($canonical, $copied);
