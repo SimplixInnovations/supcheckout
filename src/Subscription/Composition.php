@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription;
 
 use Simplixi\SUPCheckout\Subscription\Checkout\Fields;
 
+defined('ABSPATH') || exit;
+
 /**
  * Composition boundary for the inherited subscription presentation surfaces.
  *

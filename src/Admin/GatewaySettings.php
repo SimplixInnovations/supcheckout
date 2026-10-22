@@ -7,6 +7,8 @@ use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
+defined('ABSPATH') || exit;
+
 /**
  * Gateway settings schema, validation and admin presentation adapter.
  *

@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Subscription;
 
+defined('ABSPATH') || exit;
+
 /**
  * Auto-deduct response verifier.
  *

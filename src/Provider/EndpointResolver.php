@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Provider;
 
+defined('ABSPATH') || exit;
+
 /**
  * Pure resolver for the legacy UPayments API mode and endpoint contract.
  *

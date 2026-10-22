@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Payment;
 
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
 
+defined('ABSPATH') || exit;
+
 /**
  * Pure checkout request, decimal, payload, and redirect helpers.
  *

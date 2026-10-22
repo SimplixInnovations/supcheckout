@@ -6,6 +6,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Hardening: direct-access guard on every src/ file (hardening A2-03)
+
+- **The 13 class-only files that lacked it now open with `defined('ABSPATH') || exit;`**, placed after `namespace` and `use` like the other 104 `src/` files. They are `Admin/GatewaySettings`, `Gateway/OrderPresentation`, `Payment/{CheckoutPayload, SavedCardPresentation, SavedCardSelection}`, `Provider/{EndpointResolver, MultiMerchantContract, PaymentMethodAvailability}` and `Subscription/{AutoDeductResultVerifier, Composition, CycleEconomics, Presentation, RenewalCardAuthority}`. These files only declare classes, so a direct request already did nothing harmful; the guard is defence in depth and WordPress.org Plugin Check hygiene. Behaviour is unchanged.
+- **A permanent check protects it.** The security threat-model harness now fails if any `src/**/*.php` file lacks the guard ahead of its first declaration.
+- **Two harnesses now define `ABSPATH` before loading guarded files** (`architecture-checkout-orchestration`, `architecture-provider-endpoints`), so the guard can never make them exit silently with status 0.
+
 ### Payment safety: every bind confirms the stored total, and a corrupt order lock no longer blocks an order (hardening R-1, OL-1)
 
 - **Every status bind now also requires the stored order total.** WooCommerce rounds a loaded order total to the current request's price decimals. So an order charged at `12.34` in a 2-decimal context and then edited to `12.344` in a 3-decimal admin context loaded as `12.34` again in a 2-decimal webhook and bound. This happened through exact `get_total()` equality, with or without the Charge amount snapshot, and it predates the snapshot. Now, whenever a bind would succeed on amount, the provider amount must also equal the stored order total exactly: the HPOS `total_amount`, or the `_order_total` post meta on post storage, read without the request's decimals. A stored total that cannot be read fails closed with its own reason, `binding_persisted_total_unreadable`. That reason is retryable: a passing database error keeps the order's bounded reconciliation schedule instead of ending it the way an amount mismatch (`binding_amount`) does. Every real WooCommerce order has a stored total, so unedited orders, including those charged before the snapshot existed, bind as before. This widens the stored-total check in the A1-07 entry below, which applied only when the request had fewer decimals than the Charge.

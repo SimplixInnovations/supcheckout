@@ -10,6 +10,13 @@
 use Simplixi\SUPCheckout\Payment\CheckoutPayload;
 
 $root = dirname(__DIR__, 2);
+
+// The production services opened below begin with `defined('ABSPATH') || exit;`. Without this
+// definition the first require exits the process silently with status 0 and no assertion runs.
+if (!defined('ABSPATH')) {
+    define('ABSPATH', $root . '/');
+}
+
 $pass = 0;
 $fail = 0;
 

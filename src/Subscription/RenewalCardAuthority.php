@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription;
 
 use Simplixi\SUPCheckout\Takeover\Keys;
 
+defined('ABSPATH') || exit;
+
 /**
  * Explicit renewal card authority.
  *

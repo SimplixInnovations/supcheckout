@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Gateway;
 
 use Simplixi\SUPCheckout\Takeover\Keys;
 
+defined('ABSPATH') || exit;
+
 /**
  * Gateway-specific WooCommerce order-total presentation.
  *

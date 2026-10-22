@@ -256,6 +256,27 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__
 }
 sec_assert($echo_hits === 0, 'no source file echoes, prints, localizes or JSON-sends the API key');
 
+// A2-03: every src/ file is guarded against direct web access, ahead of any declaration.
+$unguarded_src_files = array();
+$guarded_src_count = 0;
+$repo_root_normalized = str_replace('\\', '/', dirname(__DIR__, 2));
+foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/src', FilesystemIterator::SKIP_DOTS)) as $guard_file) {
+    if ($guard_file->getExtension() !== 'php') {
+        continue;
+    }
+    $guard_source = (string) file_get_contents($guard_file->getPathname());
+    $guard_at = preg_match('/defined\(\s*\'ABSPATH\'\s*\)\s*\|\|\s*exit\s*;/', $guard_source, $guard_match, PREG_OFFSET_CAPTURE) === 1 ? $guard_match[0][1] : false;
+    $declaration_at = preg_match('/^\s*(?:(?:final|abstract|readonly)\s+)*(?:class|interface|trait|enum|function)\s/m', $guard_source, $declaration_match, PREG_OFFSET_CAPTURE) === 1 ? $declaration_match[0][1] : PHP_INT_MAX;
+    if ($guard_at !== false && $guard_at < $declaration_at) {
+        $guarded_src_count++;
+        continue;
+    }
+    $unguarded_src_files[] = substr(str_replace('\\', '/', $guard_file->getPathname()), strlen($repo_root_normalized) + 1);
+}
+sort($unguarded_src_files);
+sec_assert($guarded_src_count > 100, "the src/ scan found the guarded file set ({$guarded_src_count} files)");
+sec_assert($unguarded_src_files === array(), 'every src/**/*.php file opens with the defined(\'ABSPATH\') || exit; direct-access guard before any declaration' . ($unguarded_src_files === array() ? '' : ' (missing: ' . implode(', ', $unguarded_src_files) . ')'));
+
 printf("\n--- Security Threat-Model Report ---\nPASS: %d\nFAIL: %d\n", $pass, $fail);
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

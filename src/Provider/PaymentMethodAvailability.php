@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Provider;
 
 use Simplixi\SUPCheckout\Takeover\Keys;
 
+defined('ABSPATH') || exit;
+
 /**
  * UPayments payment-method availability client and cache coordinator.
  *
