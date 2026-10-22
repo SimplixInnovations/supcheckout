@@ -6,6 +6,10 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Performance: the takeover state is decoded once per request (hardening A3-07)
+
+- `TakeoverState::get()` used to JSON-decode the stored takeover state on every call, about 6 to 10 times per request once a takeover had started. It now memoises the decoded record for the request, keyed on the exact stored string: an unchanged record is decoded once and a changed one is decoded again. Every write, `flush_cache()` and `refresh()` drop the memo. Return shapes and the compare-and-swap semantics are unchanged: transitions and patches read the raw record fresh and swap against it, never against the memo. The state option stays non-autoloaded.
+
 ### Onboarding backend: services and the admin REST API (Sub-project 0c)
 
 - **Admin-only REST API `supcheckout/v1`** for the smart switch and the new-merchant checks: status, preflight, switch, rollback, abort, finalize (with a dry run), stale-claims release, self-test and setup checks. While the official UPayments plugin is active, only the 8 takeover routes are registered. There are no screens yet; the wizard comes in Sub-project 2.
