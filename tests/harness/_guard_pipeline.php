@@ -29,6 +29,7 @@ function upay_ledger_family_for($description) {
         // Most specific first.
         array('BLOCKS-SAN',       'BLOCKS-SAN'),
         array('CLASSIC-PAN',      'CLASSIC-PAN'),
+        array('U5-SCC',           'SC-VIEW-CACHE'),
         array('MALFORMED-CARD',   'MALFORMED-CARD'),
         array('MM-VALID-FIXED',   'MM'),
         array('MM-VALID-PERCENTAGE', 'MM'),

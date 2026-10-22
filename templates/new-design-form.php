@@ -101,32 +101,21 @@ defined( 'ABSPATH' ) || exit;
             ?>
                 <input id="save_card" type="hidden" name="save_card" value="0"/>
                 <?php
-                $savedCards = $gateway->getSavedCardsForCurrentUser($payment_data);
+                // Display-safe views only (opaque handle, last four, brand), reused for
+                // two minutes across order-review refreshes. Never a provider token.
+                $savedCardViews = $gateway->getSavedCardViewsForCurrentUser($payment_data);
 
-                if (is_array($savedCards) && isset($savedCards['result']) && $savedCards['result'] === 'success' && isset($savedCards['data']) && is_array($savedCards['data']))
+                if (is_array($savedCardViews))
                 {
-                    $cardList = $savedCards['data'];
                 ?>
                     <span class="payment-method-label"><?php esc_html_e('Saved Cards', 'supcheckout'); ?></span>
                     <?php
-                    foreach ($cardList as $cardkey => $cardValue) {
-                        if (!is_array($cardValue)) {
+                    foreach ($savedCardViews as $cardView) {
+                        if (!is_array($cardView) || !isset($cardView['selection'], $cardView['last4']) || !is_string($cardView['selection']) || !is_string($cardView['last4'])) {
                             continue;
                         }
-                        $provider_card_token = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::token($cardValue);
-                        if ($provider_card_token === null) {
-                            continue;
-                        }
-                        $card_selection = \Simplixi\SUPCheckout\Payment\SavedCardSelection::create(
-                            $provider_card_token,
-                            (int) $user_id,
-                            $api_key_classic,
-                            $is_test_mode_classic
-                        );
-                        if ($card_selection === null) {
-                            continue;
-                        }
-                        $card_display_label = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::label($cardValue, __('Saved card', 'supcheckout'));
+                        $card_selection = $cardView['selection'];
+                        $card_display_label = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::label(array('last4' => $cardView['last4']), __('Saved card', 'supcheckout'));
                     ?>
 
                         <button type="button" value="<?php echo esc_attr($card_selection); ?>" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitSavedCard==='function'){window.supCheckout.submitSavedCard(this);}else{window.supcheckoutPendingAction={type:'saved_card',value:this.value};}" class="upay-payment-method">

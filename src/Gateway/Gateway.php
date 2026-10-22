@@ -12,6 +12,7 @@ use Simplixi\SUPCheckout\Provider\EndpointResolver;
 use Simplixi\SUPCheckout\Provider\PaymentMethodAvailability;
 use Simplixi\SUPCheckout\Payment\CheckoutPayload;
 use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
+use Simplixi\SUPCheckout\Payment\SavedCardDisplayCache;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
 use Simplixi\SUPCheckout\Takeover\Keys;
@@ -43,6 +44,16 @@ class Gateway extends \WC_Payment_Gateway {
     public $saveCardEnabled;
     public $charge;
     public $autoDeduction;
+
+    /** Seconds any provider call may take (pinned by the HTTP transport harness). */
+    private const PROVIDER_REQUEST_TIMEOUT = 15;
+    /** Seconds a display-only provider read may hold up a shopper render (A3-01, A3-02). */
+    private const DISPLAY_REQUEST_TIMEOUT = 5;
+    /** The only routes that get the display budget: never Charge, token or status calls. */
+    private const DISPLAY_ROUTES = array('check-payment-button-status', 'retrieve-customer-cards');
+
+    /** @var int Nesting depth of read_for_display() calls in progress. */
+    private $display_reads = 0;
 
     /** Checkout payload compatibility delegates. */
     private static function field_present($source, $key) {
@@ -384,7 +395,8 @@ class Gateway extends \WC_Payment_Gateway {
      *   - redirects disabled (no redirect requirement is established;
      *     preserve endpoint identity; avoid method/body ambiguity on
      *     cross-host hops);
-     *   - finite 15-second request timeout;
+     *   - finite 15-second request timeout; inside read_for_display(), the
+     *     availability and saved-card listing routes get 5 seconds instead;
      *   - Bearer Authorization applied for the entire call.
      *
      * SECURITY: This helper does NOT log raw request bodies, raw response
@@ -411,9 +423,10 @@ class Gateway extends \WC_Payment_Gateway {
             return $outcome;
         }
 
+        $is_display_read = $this->display_reads > 0 && in_array($route, self::DISPLAY_ROUTES, true);
         $request_args = array(
             'method'      => $method,
-            'timeout'             => 15,
+            'timeout'             => $is_display_read ? self::DISPLAY_REQUEST_TIMEOUT : self::PROVIDER_REQUEST_TIMEOUT,
             'limit_response_size' => 1048576,
             'redirection'         => 0,
             'sslverify'   => true,
@@ -564,12 +577,38 @@ class Gateway extends \WC_Payment_Gateway {
         // Check setting for design toggle
         $use_new_design = ($this->get_option('use_new_design') === 'yes');
 
-        wc_get_template(
-            $use_new_design ? 'new-design-form.php' : 'old-design-form.php',
-            $template_args,
-            '', // Preserve WooCommerce's default theme template override path.
-            untrailingslashit( plugin_dir_path( Plugin::main_file() ) ) . '/templates/'
-        );
+        // The payment box renders on the checkout page and on every order-review
+        // refresh: its provider reads are display-only.
+        $this->read_for_display(function () use ($use_new_design, $template_args) {
+            wc_get_template(
+                $use_new_design ? 'new-design-form.php' : 'old-design-form.php',
+                $template_args,
+                '', // Preserve WooCommerce's default theme template override path.
+                untrailingslashit( plugin_dir_path( Plugin::main_file() ) ) . '/templates/'
+            );
+        });
+    }
+
+    /**
+     * Run $read as a display-only provider read: rendering the payment box, an
+     * order-review refresh or the Blocks payment data (A3-01, A3-02).
+     *
+     * Inside it, availability may be served from the recent display copy
+     * (PaymentMethodAvailability::fetch_for_display()), and the availability and
+     * saved-card listing calls wait at most 5 seconds instead of 15. Charge, token and
+     * status calls keep 15 seconds even here, and the place-order check and the Charge
+     * path never run inside it.
+     *
+     * @param callable $read Zero-argument callback.
+     * @return mixed What $read returns.
+     */
+    public function read_for_display(callable $read) {
+        ++$this->display_reads;
+        try {
+            return $read();
+        } finally {
+            --$this->display_reads;
+        }
     }
 
     /**
@@ -866,7 +905,7 @@ class Gateway extends \WC_Payment_Gateway {
                 return $this->execute_upayments_request('check-payment-button-status', 'GET');
             }
         );
-        $result = $availability->fetch();
+        $result = $this->display_reads > 0 ? $availability->fetch_for_display() : $availability->fetch();
 
         if (is_array($result)
             && isset($result['result'])
@@ -952,36 +991,7 @@ class Gateway extends \WC_Payment_Gateway {
     public function getSavedCardsForCurrentUser($payment_data)
     {
         $user_id = get_current_user_id();
-        if ($user_id <= 0) {
-            return null;
-        }
-
-        if ($this->saveCardEnabled !== 'yes') {
-            return null;
-        }
-
-        // Strict structural validation of the supplied normalized state.
-        // Must be array; whitelabled MUST be exactly boolean true;
-        // payment MUST be array; payment['cc'] MUST be present (CC enabled).
-        if (!is_array($payment_data)) {
-            return null;
-        }
-        if (!array_key_exists('whitelabled', $payment_data)
-            || $payment_data['whitelabled'] !== true
-        ) {
-            return null;
-        }
-        if (!array_key_exists('payment', $payment_data)
-            || !is_array($payment_data['payment'])
-        ) {
-            return null;
-        }
-        // CC must be EXPLICITLY enabled (key present, scalar non-empty).
-        if (!array_key_exists('cc', $payment_data['payment'])) {
-            return null;
-        }
-        $cc_value = $payment_data['payment']['cc'];
-        if (!is_string($cc_value) || $cc_value === '') {
+        if (!$this->may_list_saved_cards($user_id, $payment_data)) {
             return null;
         }
 
@@ -994,6 +1004,158 @@ class Gateway extends \WC_Payment_Gateway {
                 return $gateway->getSavedCards($token);
             }
         );
+    }
+
+    /**
+     * The current shopper's saved cards as display-safe views for the checkout page
+     * (A3-01): the opaque selection handle, the last four digits and the brand. Never
+     * a provider token.
+     *
+     * Same gates as getSavedCardsForCurrentUser(), plus valid token identity and
+     * provenance, checked on every call. The list is kept for two minutes in the
+     * WooCommerce session (SavedCardDisplayCache), so order-review refreshes and
+     * Blocks checkout loads stop calling UPayments each time; a miss lists the cards
+     * through getSavedCardsForCurrentUser() inside a display read (5-second budget).
+     * A failed listing is not cached. Paying with a saved card still verifies it
+     * against a fresh, uncached Retrieve.
+     *
+     * @param array|null $payment_data Already-normalized availability state.
+     * @return list<array{selection: string, last4: string, brand: string}>|null Null
+     *         when the shopper may not list saved cards or the listing failed.
+     */
+    public function getSavedCardViewsForCurrentUser($payment_data)
+    {
+        $user_id = get_current_user_id();
+        if (!$this->may_list_saved_cards($user_id, $payment_data)) {
+            return null;
+        }
+
+        $api_key = is_string($this->apiKey) ? $this->apiKey : '';
+        $is_test_mode = (bool) $this->getMode();
+        $ctx = CustomerTokenIdentity::read_existing_identity_context($api_key, $is_test_mode);
+        if (!is_array($ctx)
+            || ($ctx['state'] ?? null) !== CustomerTokenIdentity::SECRET_VALID
+            || !is_string($ctx['scope'] ?? null)
+            || !is_string($ctx['generation_id'] ?? null)
+        ) {
+            return null;
+        }
+        $provenance = CustomerTokenIdentity::read_provenance($user_id, $ctx['scope'], $ctx['generation_id']);
+        if (!is_array($provenance)
+            || ($provenance['state'] ?? null) !== CustomerTokenIdentity::STATE_VALID
+            || !isset($provenance['record']['token'])
+            || !is_string($provenance['record']['token'])
+        ) {
+            return null;
+        }
+
+        $cache = $this->saved_card_display_cache();
+        $key = SavedCardDisplayCache::key(
+            (int) $user_id,
+            $api_key,
+            $is_test_mode,
+            $ctx['scope'],
+            $ctx['generation_id'],
+            $provenance['record']['token']
+        );
+        if ($cache !== null && $key !== null) {
+            $cached = $cache->get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+
+        $saved_cards = $this->read_for_display(function () use ($payment_data) {
+            return $this->getSavedCardsForCurrentUser($payment_data);
+        });
+        if (!is_array($saved_cards)
+            || !isset($saved_cards['result'], $saved_cards['data'])
+            || $saved_cards['result'] !== 'success'
+            || !is_array($saved_cards['data'])
+        ) {
+            return null;
+        }
+
+        $views = SavedCardDisplayCache::views($saved_cards['data'], (int) $user_id, $api_key, $is_test_mode);
+        if ($cache !== null && $key !== null) {
+            $cache->put($key, $views);
+        }
+        return $views;
+    }
+
+    /**
+     * Drop the current shopper's cached saved-card list (after a save-card Charge).
+     *
+     * @return void
+     */
+    public function forget_saved_card_views()
+    {
+        $cache = $this->saved_card_display_cache();
+        if ($cache !== null) {
+            $cache->forget();
+        }
+    }
+
+    /**
+     * The saved-card display cache over the current WooCommerce session, or null
+     * when there is no session (nothing is cached then).
+     *
+     * @return SavedCardDisplayCache|null
+     */
+    private function saved_card_display_cache()
+    {
+        if (!function_exists('WC')) {
+            return null;
+        }
+        $woocommerce = WC();
+        $session = is_object($woocommerce) && isset($woocommerce->session) ? $woocommerce->session : null;
+        if (!is_object($session) || !method_exists($session, 'get') || !method_exists($session, 'set')) {
+            return null;
+        }
+        return new SavedCardDisplayCache($session);
+    }
+
+    /**
+     * Section AH gates for listing saved cards: logged in, Save Card on, and the
+     * caller's already-normalized availability says white-label with Credit Card.
+     * This helper NEVER makes availability calls itself.
+     *
+     * @param int        $user_id Current user ID.
+     * @param array|null $payment_data Already-normalized availability state.
+     * @return bool
+     */
+    private function may_list_saved_cards($user_id, $payment_data)
+    {
+        if ($user_id <= 0) {
+            return false;
+        }
+
+        if ($this->saveCardEnabled !== 'yes') {
+            return false;
+        }
+
+        // Strict structural validation of the supplied normalized state.
+        // Must be array; whitelabled MUST be exactly boolean true;
+        // payment MUST be array; payment['cc'] MUST be present (CC enabled).
+        if (!is_array($payment_data)) {
+            return false;
+        }
+        if (!array_key_exists('whitelabled', $payment_data)
+            || $payment_data['whitelabled'] !== true
+        ) {
+            return false;
+        }
+        if (!array_key_exists('payment', $payment_data)
+            || !is_array($payment_data['payment'])
+        ) {
+            return false;
+        }
+        // CC must be EXPLICITLY enabled (key present, scalar non-empty).
+        if (!array_key_exists('cc', $payment_data['payment'])) {
+            return false;
+        }
+        $cc_value = $payment_data['payment']['cc'];
+        return is_string($cc_value) && $cc_value !== '';
     }
 
     /**

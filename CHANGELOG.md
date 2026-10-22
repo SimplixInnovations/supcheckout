@@ -6,6 +6,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Performance: checkout renders call UPayments less often and wait less (hardening A3-01, A3-02)
+
+- **Saved cards.** The saved-card list on the checkout page used to be fetched from UPayments on every Classic order-review refresh and every Blocks checkout load, with up to 15 seconds of waiting each time. It is now kept for two minutes in the shopper's WooCommerce session, so a checkout session with several refreshes makes one listing call. Only display-safe fields are kept: the opaque selection handle the page already carries, the last four digits and the brand. Provider card tokens, card numbers and the customer token are never cached. An entry is bound to the user, the API key and mode, the token identity and the customer token. It is dropped after a save-card Charge, and WooCommerce clears it at logout. A failed listing is not cached. Paying with a saved card still checks it against a fresh, uncached listing, so a card removed meanwhile fails closed.
+- **Payment-method availability.** The availability cache stays at 65 seconds, because UPayments allows one availability request a minute, but shopper renders (the checkout page, order-review refreshes and the Blocks payment data) now show the last successful result for up to ten minutes without asking UPayments. Only the place-order check and the Charge path keep the 65-second view. They never use the ten-minute copy while the rate gate allows a request.
+- **Shorter waits.** Inside a render, the availability and saved-card listing calls wait at most 5 seconds. Every other provider call keeps the 15-second timeout, including Charge, token creation, status lookups, the place-order availability check and the saved-card verification at payment.
+
 ### Subscriptions: automatic renewal charges are blocked (hardening fix A1-01)
 
 - **SUPCheckout no longer sends an automatic renewal charge** (UPayments auto-deduct) while it cannot verify that the charge succeeded (owner decision 2026-10-22). Before, a due renewal charged the customer's saved card and was then held with no renewal order and no note.

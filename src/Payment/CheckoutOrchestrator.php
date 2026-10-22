@@ -1490,6 +1490,12 @@ class CheckoutOrchestrator {
             // === PHASE E: CHARGE ===
             $transport = $this->execute_request('charge', 'POST', $params);
 
+            // A save-card Charge may add a card: the cached checkout list (A3-01) is
+            // dropped whatever the Charge outcome, so the next render lists afresh.
+            if ($isSaveCard && method_exists($gateway, 'forget_saved_card_views')) {
+                $gateway->forget_saved_card_views();
+            }
+
             // Section S: Strict HTTP 201 check for Charge.
             if (!is_array($transport)
                 || !isset($transport['transport_ok']) || !$transport['transport_ok']

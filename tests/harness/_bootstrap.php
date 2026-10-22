@@ -904,6 +904,18 @@ function WC() {
             $this->session = new class {
                 public function set($k, $v) {
                     if ($k === 'refresh_totals') upay_test_state()['session_refresh_totals']++;
+                    // Opt-in WooCommerce session store: inert unless a case sets
+                    // $state['wc_session_store'] to an array.
+                    $state =& upay_test_state();
+                    if (isset($state['wc_session_store']) && is_array($state['wc_session_store'])) {
+                        $state['wc_session_store'][$k] = $v;
+                    }
+                }
+                public function get($k, $default = null) {
+                    $state = upay_test_state();
+                    return isset($state['wc_session_store']) && is_array($state['wc_session_store']) && array_key_exists($k, $state['wc_session_store'])
+                        ? $state['wc_session_store'][$k]
+                        : $default;
                 }
             };
         }

@@ -567,6 +567,10 @@ try {
     $debug_is_store_api = 'reflection-error: ' . $e->getMessage();
 }
 
+// U5: seed a saved-card display entry so the parent can prove a save-card Charge
+// forgets it and every other path leaves it alone.
+$GLOBALS['__upay_test_state']['wc_session_store'] = ['supcheckout_saved_card_views_v1' => 'seeded-display-entry'];
+
 // --- Execute real process_payment() -------------------------------------
 $result = null;
 $process_exception = null;
@@ -699,6 +703,9 @@ $out = [
     'provenance_scope'               => $provenance_scope,
     'provenance_generation'          => $provenance_generation,
     'notices'                        => $final['notices'],
+    'saved_card_view_entry_after'    => isset($final['wc_session_store']) && is_array($final['wc_session_store']) && array_key_exists('supcheckout_saved_card_views_v1', $final['wc_session_store'])
+        ? $final['wc_session_store']['supcheckout_saved_card_views_v1']
+        : 'absent',
     'pid'                            => getmypid(),
     'wc_loaded'                      => class_exists('Simplixi\SUPCheckout\Gateway\Gateway'),
 ];
