@@ -94,11 +94,11 @@ final class CopyRemoval {
             case self::PHASE_CRON:
                 return self::cron($system);
             case self::PHASE_ORDERS:
-                return self::orders($store, (int) $cursor);
+                return self::flush_after_batch($store, $phase, self::orders($store, (int) $cursor));
             case self::PHASE_USERS:
-                return self::users($store, (int) $cursor);
+                return self::flush_after_batch($store, $phase, self::users($store, (int) $cursor));
             case self::PHASE_PRODUCTS:
-                return self::products($store, (int) $cursor);
+                return self::flush_after_batch($store, $phase, self::products($store, (int) $cursor));
             case self::PHASE_OPTIONS:
                 return self::options($keep);
             case self::PHASE_TABLE:
@@ -106,6 +106,25 @@ final class CopyRemoval {
             default:
                 return self::result(self::DONE, self::PHASE_DONE, 0);
         }
+    }
+
+    /**
+     * A5-02: the removal walks every candidate within one request, and a rescan (pass 2 and
+     * later) loads every order still on the gateway without saving it, so nothing else would
+     * evict it. After each batch of an object phase, this request's object cache is flushed
+     * (CopyStore::flush_runtime_cache()). A batch keeps its phase in the result; an empty
+     * selection moves on to the next phase and holds nothing to drop.
+     *
+     * @param RollbackStore $store Store.
+     * @param string        $phase The object phase that ran.
+     * @param array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int} $out Its result.
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, conflicts:list<array{seq:int, target:string, path:string}>, restored:int, removed:int} $out, unchanged.
+     */
+    private static function flush_after_batch(RollbackStore $store, $phase, array $out) {
+        if ($out['progress']['phase'] === $phase) {
+            $store->flush_runtime_cache();
+        }
+        return $out;
     }
 
     /**

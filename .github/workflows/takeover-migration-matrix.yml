@@ -354,9 +354,93 @@ jobs:
       SUPCHECKOUT_MATRIX_LARGE_ORDERS: '10000'
       # Seconds for copy + verify + cutover of the 10,000 orders.
       SUPCHECKOUT_MATRIX_COPY_BUDGET: '1800'
-      # A5-02: the switch, the finalize dry run and a budgeted rollback each run in one
-      # request at the Action Scheduler web limit (WP_MAX_MEMORY_LIMIT, 256M by default),
-      # and each walk's peak-memory growth stays within the bound.
+      # A5-02: the web-memory walks (the finalize dry run and a budgeted rollback here; the
+      # switch in large-store-web) each run in one request at the Action Scheduler web limit
+      # (WP_MAX_MEMORY_LIMIT, 256M by default), and each walk's peak-memory growth stays
+      # within the bound.
+      SUPCHECKOUT_MATRIX_WEB_MEMORY_LIMIT: '256M'
+      SUPCHECKOUT_MATRIX_WALK_GROWTH_MB: '64'
+      WP_CLI_BIN: /tmp/wp-cli.phar
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.MATRIX_SOURCE_SHA }}
+          persist-credentials: false
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          extensions: curl, mbstring, mysqli, zip, posix
+          coverage: none
+          tools: none
+
+      - name: Install pinned WP-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 \
+            https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar -o /tmp/wp-cli.phar
+          echo 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /tmp/wp-cli.phar' | sha256sum -c -
+          chmod +x /tmp/wp-cli.phar
+
+      - name: Install WordPress, WooCommerce and the official plugin 3.1.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install-wp-test-environment.sh "$WP_VERSION" "$WC_VERSION" "$RUNNER_TEMP/wordpress"
+          wp() { /tmp/wp-cli.phar "$@" --path="$RUNNER_TEMP/wordpress"; }
+          wp config set DISABLE_WP_CRON true --raw
+          wp option update woocommerce_coming_soon no
+          wp option update woocommerce_custom_orders_table_enabled no
+          wp option update woocommerce_custom_orders_table_data_sync_enabled no
+          bash tests/integration/takeover-matrix.sh sinkhole "$RUNNER_TEMP/wordpress"
+          mkdir -p "$RUNNER_TEMP/wordpress/wp-content/mu-plugins" "$RUNNER_TEMP/matrix"
+          cp tests/integration/fixtures/takeover-matrix-mu-plugin.php "$RUNNER_TEMP/wordpress/wp-content/mu-plugins/supcheckout-takeover-matrix.php"
+          echo "SUPCHECKOUT_MATRIX_DIR=$RUNNER_TEMP/matrix" >> "$GITHUB_ENV"
+          bash tests/integration/takeover-matrix.sh install-official "$RUNNER_TEMP/wordpress" 0916b6d8b7adcbf02983e534db1c89bf6029f143 75cb86737e84f7a81a43b774bc976f0d0bddcc5081eda26deae2b032e810b1d1 3.1.1
+          wp plugin activate upayments
+          bash tests/integration/takeover-matrix.sh start-server "$RUNNER_TEMP/wordpress"
+
+      - name: Seed 10,000 official orders
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_seed
+
+      - name: Activate SUPCheckout (paused) and take over within budget, at most 50 orders per batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
+          bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_run
+
+      - name: Finalize dry run and budgeted rollback at 256M with bounded peak memory
+        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_walks
+
+  large-store-web:
+    name: Official 3.1.1 / legacy / 10,000 orders / web switch at 256M
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      SUPCHECKOUT_MATRIX_OFFICIAL_VERSION: '3.1.1'
+      SUPCHECKOUT_MATRIX_STORAGE: legacy
+      SUPCHECKOUT_MATRIX_LARGE_ORDERS: '10000'
+      # Seconds for copy + verify + cutover of the 10,000 orders.
+      SUPCHECKOUT_MATRIX_COPY_BUDGET: '1800'
+      # A5-02: the switch runs in one request at the Action Scheduler web limit
+      # (WP_MAX_MEMORY_LIMIT, 256M by default), and its peak-memory growth stays within the
+      # bound (large-store keeps the WP-CLI end-to-end switch).
       SUPCHECKOUT_MATRIX_WEB_MEMORY_LIMIT: '256M'
       SUPCHECKOUT_MATRIX_WALK_GROWTH_MB: '64'
       WP_CLI_BIN: /tmp/wp-cli.phar
@@ -409,7 +493,7 @@ jobs:
         run: |
           set -euo pipefail
           /tmp/wp-cli.phar plugin activate supcheckout --path="$RUNNER_TEMP/wordpress"
-          bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_run
+          bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_copy
 
       - name: Retire the official plugin in its own process
         run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_retire
@@ -417,13 +501,10 @@ jobs:
       - name: Cut over in one request at 256M with bounded peak memory
         run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_cutover
 
-      - name: Finalize dry run and budgeted rollback at 256M with bounded peak memory
-        run: bash tests/integration/takeover-matrix.sh phase "$RUNNER_TEMP/wordpress" large_walks
-
   takeover-matrix-gate:
     name: Takeover Migration Matrix Gate
     if: ${{ always() }}
-    needs: [official-matrix, pre-0b-lane, large-store]
+    needs: [official-matrix, pre-0b-lane, large-store, large-store-web]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -432,9 +513,11 @@ jobs:
           OFFICIAL_RESULT: ${{ needs.official-matrix.result }}
           PRE_0B_RESULT: ${{ needs.pre-0b-lane.result }}
           LARGE_RESULT: ${{ needs.large-store.result }}
+          LARGE_WEB_RESULT: ${{ needs.large-store-web.result }}
         shell: bash
         run: |
           set -euo pipefail
           test "$OFFICIAL_RESULT" = "success"
           test "$PRE_0B_RESULT" = "success"
           test "$LARGE_RESULT" = "success"
+          test "$LARGE_WEB_RESULT" = "success"

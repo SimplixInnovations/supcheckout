@@ -21,9 +21,13 @@
  *                 finalize forced after review, with one legacy value made to differ;
  *   finalized     legacy names removed only where they verified equal.
  * Pre-0b SUPCheckout lane: pre0b_seed, pre0b_switch, pre0b_rollback, pre0b_rerun.
- * Large-store cell: large_seed, large_run (the copy), large_retire, large_cutover and
- * large_walks (the switch, the finalize dry run and a budgeted rollback, each in one
- * request at a web memory limit with bounded peak-memory growth, A5-02).
+ * Large-store cells (A5-02 adds the web-memory walks; the WP-CLI end-to-end switch is kept):
+ *   large-store      large_seed, large_run (WP-CLI copy + verify + cutover end to end, within
+ *                    budget), then large_walks: the finalize dry run and a budgeted rollback,
+ *                    each in one request at a web memory limit with bounded peak-memory growth;
+ *   large-store-web  large_seed, large_copy (WP-CLI copy and verify only), large_retire, then
+ *                    large_cutover: the switch in one request at a web memory limit with
+ *                    bounded peak-memory growth, copy + cutover within the same budget.
  *
  * Provider traffic: none. tests/integration/fixtures/takeover-matrix-mu-plugin.php answers
  * every UPayments request from a fixture this test stores, refuses anything else, and the
@@ -36,13 +40,13 @@ require_once __DIR__ . '/fixtures/official-plugin-seed.php';
 
 use Simplixi\SUPCheckout\Takeover\CliCommands;
 use Simplixi\SUPCheckout\Takeover\Finalize;
+use Simplixi\SUPCheckout\Takeover\Journal;
+use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\Onboarding\BudgetedWordPressSystem;
 use Simplixi\SUPCheckout\Takeover\Onboarding\DriverStep;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Onboarding;
-use Simplixi\SUPCheckout\Takeover\Rollback;
-use Simplixi\SUPCheckout\Takeover\Journal;
-use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\OrderCopier;
+use Simplixi\SUPCheckout\Takeover\Rollback;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 use Simplixi\SUPCheckout\Takeover\WordPressCopyStore;
 use Simplixi\SUPCheckout\Takeover\WordPressCutoverSystem;
@@ -726,8 +730,32 @@ if ($phase === 'large_run') {
     $manifest = supcheckout_matrix_manifest();
     $budget = (int) getenv('SUPCHECKOUT_MATRIX_COPY_BUDGET');
     $started = microtime(true);
-    // A5-02: WP-CLI copies (its CLI memory_limit is -1); the switch itself runs in the
-    // large_cutover phase at a web memory limit. With the official plugin still active,
+    $run = supcheckout_matrix_wp('supcheckout takeover run --yes --deactivate-official');
+    $elapsed = microtime(true) - $started;
+    supcheckout_cert_assert($run->return_code === CliCommands::OK, 'the large store cuts over: ' . substr($run->stdout, -2000) . $run->stderr);
+    supcheckout_cert_note(sprintf('copy + verify + cutover of %d orders: %.1f s (budget %d s)', $manifest['orders_count'], $elapsed, $budget));
+    supcheckout_cert_assert($elapsed <= $budget, 'the copy completes within the CI budget');
+    preg_match_all('/takeover copy: phase=orders cursor=[0-9]+ orders=([0-9]+)/', $run->stdout, $matches);
+    $totals = array_map('intval', $matches[1]);
+    supcheckout_cert_assert(count($totals) >= (int) ceil($manifest['orders_count'] / 50), 'one progress line per batch: ' . count($totals));
+    $previous = 0;
+    $largest = 0;
+    foreach ($totals as $total) {
+        $largest = max($largest, $total - $previous);
+        $previous = $total;
+    }
+    supcheckout_cert_assert($largest <= 50, 'no copy batch processed more than 50 orders (largest ' . $largest . ')');
+    $status = supcheckout_matrix_wp_json('supcheckout takeover status --format=json');
+    supcheckout_cert_assert($status['status'] === 'cut_over' && supcheckout_matrix_copied_orders($status) === (int) $manifest['orders_count'], 'every order was copied and verified: ' . wp_json_encode($status['totals']));
+    return;
+}
+
+if ($phase === 'large_copy') {
+    $manifest = supcheckout_matrix_manifest();
+    $budget = (int) getenv('SUPCHECKOUT_MATRIX_COPY_BUDGET');
+    $started = microtime(true);
+    // A5-02 web lane: WP-CLI copies (its CLI memory_limit is -1); the switch itself runs in
+    // the large_cutover phase at a web memory limit. With the official plugin still active,
     // `run` copies and verifies every order, then stops before the switch.
     $run = supcheckout_matrix_wp('supcheckout takeover run --yes');
     $elapsed = microtime(true) - $started;
@@ -788,10 +816,11 @@ if ($phase === 'large_walks') {
     supcheckout_matrix_assert_growth('Finalize dry run', $growth, $manifest);
     supcheckout_matrix_flush();
     supcheckout_cert_assert(TakeoverState::get()['status'] === TakeoverState::CUT_OVER, 'the dry run changed no state');
-    // A rollback as the REST / Action Scheduler driver runs it: a BudgetedSystem that yields
-    // once its budget is spent (the back-sync of every order runs before the transition).
+    // A rollback as the REST / Action Scheduler driver runs it (AsyncDriver: a long tick,
+    // real waits): a BudgetedSystem that yields once its budget is spent (the back-sync of
+    // every order runs before the transition).
     list($rollback, $growth) = supcheckout_matrix_peak_growth(static function () {
-        $system = new BudgetedWordPressSystem(new WordPressCutoverSystem(), time() + DriverStep::TICK_BUDGET, 'time');
+        $system = new BudgetedWordPressSystem(new WordPressCutoverSystem(), time() + DriverStep::TICK_BUDGET, 'time', true);
         return (new Rollback(new WordPressCopyStore(), $system))->run(false);
     });
     supcheckout_cert_assert(in_array('orders_synced', $rollback['steps'], true) && in_array('rolled_back', $rollback['steps'], true) && ($rollback['ok'] || $rollback['error'] === 'yielded'), 'the budgeted rollback back-syncs every order and transitions: ' . wp_json_encode(array('error' => $rollback['error'], 'steps' => $rollback['steps'])));
