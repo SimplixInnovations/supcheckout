@@ -6,6 +6,11 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Admin: saving the settings with Subscriptions on and the old design no longer risks a fatal (hardening A6-02)
+
+- With the old design selected, the settings screen disables the Save Card checkbox, so a save with Subscriptions on never posts it. SUPCheckout forces Save Card on in that case and reported it with the storefront notice API, which needs a WooCommerce session that wp-admin does not have: the save could end in a critical error with nothing stored, and the message was never shown in any case.
+- The change is now reported as a WooCommerce settings message next to "Your settings have been saved": "Save Card must be enabled when Subscriptions are enabled, so it was turned on." Save Card is still forced on, as before. The settings screen script is unchanged.
+
 ### Checkout: a UPayments outage no longer puts an error banner on every checkout render (hardening A6-01)
 
 - The payment-method availability getter used to queue a WooCommerce error notice ("Payment methods could not be loaded. Please try again.") whenever availability failed with no last-known-good copy. It runs on render paths (the payment box, every Classic order-review refresh and the Blocks payment data), so every shopper saw an error banner during an outage, whichever gateway they chose, and a Classic place-order queued the message more than once. The getter now queues no notice and keeps its legacy failure shape (`result: failure` with the checkout URL).

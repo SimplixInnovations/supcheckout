@@ -253,18 +253,8 @@ class Gateway extends \WC_Payment_Gateway {
                 WC()->session->set('chosen_payment_method', null);
             }
         }, 5);
-        // Save Card & Subscriptions validation
-        add_filter('woocommerce_settings_api_sanitized_fields_' . $this->id, function ($settings) {
-            $normalized = GatewaySettings::normalize_dependencies($settings);
-            if ($normalized['forced_save_card']) {
-                wc_add_notice(
-                    __('Save Card must be enabled when Subscriptions are enabled.', 'supcheckout'),
-                    'error'
-                );
-            }
-
-            return $normalized['settings'];
-        });
+        // Save Card & Subscriptions validation (an admin settings message, never a storefront notice: A6-02)
+        add_filter('woocommerce_settings_api_sanitized_fields_' . $this->id, array(GatewaySettings::class, 'sanitize_saved_settings'));
 
         add_filter('woocommerce_default_gateway', function ($default) {
             if ($this->get_option('make_default_gateway') === 'yes') {

@@ -91,6 +91,45 @@ supcheckout_cert_assert($configured->saveCardEnabled === 'no', 'Configured gatew
 supcheckout_cert_assert($configured->autoDeduction === 'no', 'Configured gateway cached subscription setting is preserved');
 supcheckout_cert_assert($configured->apiKey === 'constructor-certification-key', 'Configured gateway cached API credential is preserved');
 
+// Hardening T6 (A6-02): an admin save with Subscriptions on and Save Card absent (the old
+// design's admin script disables, and so never posts, the Save Card checkbox) runs with no
+// WooCommerce session. Save Card is still forced on, and the merchant is told through the
+// admin settings messages; nothing reaches wc_add_notice() and its null session.
+if (!class_exists('WC_Admin_Settings', false)) {
+    require_once WC()->plugin_path() . '/includes/admin/class-wc-admin-settings.php';
+}
+supcheckout_cert_store_option_raw($option_name, array(
+    'enabled'              => 'yes',
+    'api_key'              => 'admin-save-certification-key',
+    'use_new_design'       => 'no',
+    'enable_save_card'     => 'no',
+    'enable_subscriptions' => 'no',
+));
+$admin_save_gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
+$admin_save_gateway->set_post_data(array(
+    'woocommerce_upayments_enabled'              => '1',
+    'woocommerce_upayments_api_key'              => 'admin-save-certification-key',
+    'woocommerce_upayments_enable_subscriptions' => '1',
+));
+$admin_save_session = WC()->session;
+WC()->session = null;
+$admin_save_thrown = 'none';
+try {
+    $admin_save_gateway->process_admin_options();
+} catch (\Throwable $admin_save_error) {
+    $admin_save_thrown = get_class($admin_save_error) . ': ' . $admin_save_error->getMessage();
+}
+WC()->session = $admin_save_session;
+wp_cache_delete($option_name, 'options');
+$admin_saved = get_option($option_name);
+ob_start();
+\WC_Admin_Settings::show_messages();
+$admin_save_messages = (string) ob_get_clean();
+
+supcheckout_cert_assert($admin_save_thrown === 'none', 'Admin save with Subscriptions on and Save Card absent completes with no WooCommerce session (no fatal): ' . $admin_save_thrown);
+supcheckout_cert_assert(is_array($admin_saved) && isset($admin_saved['enable_save_card']) && $admin_saved['enable_save_card'] === 'yes', 'Admin save still forces Save Card on while Subscriptions are enabled');
+supcheckout_cert_assert(strpos($admin_save_messages, 'Save Card must be enabled when Subscriptions are enabled, so it was turned on.') !== false, 'Admin save tells the merchant through the WooCommerce settings messages that Save Card was turned on');
+
 if ($original === $missing) {
     delete_option($option_name);
 } else {

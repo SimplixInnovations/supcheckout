@@ -248,6 +248,29 @@ final class GatewaySettings {
     }
 
     /**
+     * `woocommerce_settings_api_sanitized_fields_{id}`: apply the Save Card dependency to
+     * the settings being saved and tell the merchant when Save Card was turned on.
+     *
+     * The save runs in wp-admin, where WooCommerce has no session, so the change is
+     * reported as a WooCommerce admin settings message (shown with "Your settings have
+     * been saved"). The storefront notice API is never used here (A6-02): wc_add_notice()
+     * would dereference the null session, and wp-admin never prints storefront notices.
+     *
+     * @param mixed $settings Sanitized WooCommerce settings.
+     * @return mixed The settings to store.
+     */
+    public static function sanitize_saved_settings($settings) {
+        if (!is_array($settings)) {
+            return $settings;
+        }
+        $normalized = self::normalize_dependencies($settings);
+        if ($normalized['forced_save_card'] && class_exists('WC_Admin_Settings')) {
+            \WC_Admin_Settings::add_message(__('Save Card must be enabled when Subscriptions are enabled, so it was turned on.', 'supcheckout'));
+        }
+        return $normalized['settings'];
+    }
+
+    /**
      * Validate/normalize the gateway post data before Woo field processing.
      *
      * The raw WooCommerce checkbox contract is intentionally strict here: an
