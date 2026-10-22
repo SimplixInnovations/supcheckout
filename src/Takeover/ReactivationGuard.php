@@ -240,16 +240,21 @@ final class ReactivationGuard {
         if (!defined('WP_PLUGIN_DIR') || !is_object($registry) || !isset($registry->callbacks) || !is_array($registry->callbacks)) {
             return;
         }
-        $directories = array(str_replace('\\', '/', constant('WP_PLUGIN_DIR') . '/' . dirname($plugin)) . '/');
-        $real = realpath(constant('WP_PLUGIN_DIR') . '/' . dirname($plugin));
+        // A plugin in its own directory owns that directory. One installed at the plugins root
+        // (dirname '.') owns only its main file: a directory prefix there would be the whole
+        // plugins directory, so the file is compared for equality instead.
+        $root_level = dirname($plugin) === '.';
+        $owned = $root_level ? constant('WP_PLUGIN_DIR') . '/' . $plugin : constant('WP_PLUGIN_DIR') . '/' . dirname($plugin);
+        $paths = array(str_replace('\\', '/', $owned));
+        $real = realpath($owned);
         if (is_string($real)) {
-            $directories[] = str_replace('\\', '/', $real) . '/';
+            $paths[] = str_replace('\\', '/', $real);
         }
         foreach ($registry->callbacks as $priority => $callbacks) {
             foreach ((array) $callbacks as $callback) {
                 $function = is_array($callback) && isset($callback['function']) ? $callback['function'] : null;
                 $file = self::defining_file($function);
-                if ($file !== null && self::starts_with_any($file, $directories)) {
+                if ($file !== null && self::is_owned($file, $paths, $root_level)) {
                     remove_action($hook, $function, $priority);
                 }
             }
@@ -282,13 +287,14 @@ final class ReactivationGuard {
     }
 
     /**
-     * @param string       $file        Normalised file path.
-     * @param list<string> $directories Normalised directories with a trailing slash.
+     * @param string       $file       Normalised file path.
+     * @param list<string> $paths      Normalised owned directory (or, root level, main file) paths.
+     * @param bool         $root_level Whether the paths are files to compare for equality.
      * @return bool
      */
-    private static function starts_with_any($file, array $directories) {
-        foreach ($directories as $directory) {
-            if (strpos($file, $directory) === 0) {
+    private static function is_owned($file, array $paths, $root_level) {
+        foreach ($paths as $path) {
+            if ($root_level ? $file === $path : strpos($file, $path . '/') === 0) {
                 return true;
             }
         }

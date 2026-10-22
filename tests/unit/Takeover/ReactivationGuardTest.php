@@ -230,6 +230,32 @@ final class ReactivationGuardTest extends TestCase {
     }
 
     /**
+     * Review round 2 #1: an official main file installed at the plugins root (`UPayments.php`,
+     * dirname '.') must not turn "its own directory" into the whole plugins directory. Only
+     * callbacks defined in that one file are removed; another plugin's survive.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a_root_level_official_file_removes_only_its_own_activated_plugin_callbacks(): void {
+        self::boot(TakeoverState::CUT_OVER);
+        self::arm_official_hooks();
+        file_put_contents(WP_PLUGIN_DIR . '/UPayments.php', "<?php\nfunction supcheckout_test_root_official_activated(\$plugin) { \$GLOBALS['supcheckout_test_official_calls'][] = 'root-activated'; }\n");
+        file_put_contents(WP_PLUGIN_DIR . '/woocommerce/woocommerce.php', "<?php\nfunction supcheckout_test_other_plugin_activated(\$plugin) {}\n");
+        require_once WP_PLUGIN_DIR . '/UPayments.php';
+        require_once WP_PLUGIN_DIR . '/woocommerce/woocommerce.php';
+        $GLOBALS['wp_filter']['activated_plugin']->callbacks[10]['root_official'] = array('function' => 'supcheckout_test_root_official_activated', 'accepted_args' => 1);
+        $GLOBALS['wp_filter']['activated_plugin']->callbacks[10]['other_plugin'] = array('function' => 'supcheckout_test_other_plugin_activated', 'accepted_args' => 1);
+
+        ReactivationGuard::before_activation('UPayments.php', false);
+
+        self::assertSame(
+            array('official', 'foreign', 'other_plugin'),
+            self::activated_plugin_callbacks(),
+            "only the root-level official file's callback is removed; upayments/, woocommerce/ and this test file keep theirs"
+        );
+    }
+
+    /**
      * The official main file defines the spies (WordPress includes it before the activation
      * hooks run); a foreign closure from this test file shares activated_plugin.
      */

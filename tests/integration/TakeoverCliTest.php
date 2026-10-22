@@ -294,6 +294,21 @@ if ($phase === 'verify') {
     supcheckout_cert_assert($status->return_code === 0 && is_array($status_json) && $status_json['status'] === 'cut_over' && !in_array('official_still_active', $status_json['warnings'], true), 'status reports cut_over with no official_still_active warning');
     $again = supcheckout_takeover_cert_wp('supcheckout takeover run --yes');
     supcheckout_cert_assert($again->return_code === 0, 'run is rerunnable after cutover (nothing to do)');
+
+    // A5-01 review round 2: on the cut-over store, with SUPCheckout booted in this process,
+    // WordPress's own activate_plugin() includes the stand-in and would run its activation
+    // hook before writing active_plugins. ReactivationGuard removes the hook first and the
+    // option filter refuses the entry: the hook's option is never written and the stand-in
+    // stays inactive.
+    delete_option('supcheckout_cert_official_activation_ran');
+    $activation = activate_plugin(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL);
+    wp_cache_delete('alloptions', 'options');
+    wp_cache_delete('active_plugins', 'options');
+    supcheckout_cert_note('activate_plugin() on the cut-over store returned: ' . (is_wp_error($activation) ? $activation->get_error_code() : wp_json_encode($activation)));
+    supcheckout_cert_assert(get_option('supcheckout_cert_official_activation_ran', 'absent') === 'absent', 'activate_plugin() on the cut-over store never runs the official activation hook');
+    supcheckout_cert_assert(!in_array(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL, (array) get_option('active_plugins', array()), true) && !is_plugin_active(SUPCHECKOUT_TAKEOVER_CERT_OFFICIAL), 'activate_plugin() on the cut-over store leaves the official stand-in inactive');
+    supcheckout_cert_assert(TakeoverState::get()['status'] === TakeoverState::CUT_OVER, 'the refused activation leaves the store cut_over');
+    delete_transient(\Simplixi\SUPCheckout\Takeover\ReactivationGuard::NOTICE_TRANSIENT);
     return;
 }
 

@@ -31,3 +31,10 @@ foreach (array('woocommerce_api_wc_upayments', 'upay_process_subscriptions', 'wo
     });
 }
 unset($supcheckout_cert_hook);
+
+// The official plugin's activation hook (the real one can create or overwrite the checkout
+// page). TakeoverCliTest's verify phase activates this stand-in on the cut-over store with
+// activate_plugin() and asserts that this callback never runs (A5-01 review round 2).
+register_activation_hook(__FILE__, static function () {
+    update_option('supcheckout_cert_official_activation_ran', time(), false);
+});
