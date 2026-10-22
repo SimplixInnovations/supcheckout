@@ -96,8 +96,52 @@ final class RollbackTest extends TestCase {
         return $paid;
     }
 
+    /**
+     * Make TakeoverState compare-and-swaps lose: before an UPDATE of the state option,
+     * another process rewrites the record (same status, another field).
+     *
+     * @param int $times Lost swaps; PHP_INT_MAX for every one.
+     */
+    private static function lose_state_swaps(int $times): void {
+        $left = $times;
+        $GLOBALS['wpdb']->before_query = static function (array $statement) use (&$left) {
+            if ($left <= 0 || strpos($statement['query'], 'UPDATE ') !== 0 || $statement['args'][1] !== TakeoverState::OPTION) {
+                return;
+            }
+            --$left;
+            $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+            $state['noise'] = isset($state['noise']) ? $state['noise'] + 1 : 1;
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+        };
+    }
+
     private function rollback(): Rollback {
         return new Rollback($this->store, $this->system);
+    }
+
+    /**
+     * A5-07: a concurrent state patch (the cache-purge marker, a CLI command) made the single
+     * compare-and-swap lose and the deactivation record was dropped silently, so a consented
+     * reactivation later reported not_deactivated_by_takeover.
+     */
+    public function test_a5_07_the_official_deactivation_record_survives_a_lost_compare_and_swap(): void {
+        self::lose_state_swaps(2);
+
+        self::assertTrue(Rollback::record_official_deactivated('upayments/UPayments.php'));
+
+        TakeoverState::refresh();
+        $state = TakeoverState::get();
+        self::assertSame('upayments/UPayments.php', $state[Rollback::OFFICIAL_RECORD]);
+        self::assertSame(2, $state['noise'], 'the concurrent writes are kept');
+    }
+
+    public function test_a5_07_an_official_deactivation_record_that_cannot_be_stored_is_reported(): void {
+        self::lose_state_swaps(PHP_INT_MAX);
+
+        self::assertFalse(Rollback::record_official_deactivated('upayments/UPayments.php'));
+
+        TakeoverState::refresh();
+        self::assertArrayNotHasKey(Rollback::OFFICIAL_RECORD, TakeoverState::get());
     }
 
     public function test_a5_02_the_back_sync_flushes_the_runtime_cache_once_per_order_batch(): void {
@@ -339,6 +383,14 @@ final class RollbackTest extends TestCase {
         self::assertSame($legacy_edit, get_option('woocommerce_upayments_settings'), 'legacy kept');
         self::assertSame($merchant_settings, get_option(Keys::SETTINGS_OPTION), 'the merchant edit is kept for the owner to reconcile');
         self::assertStringNotContainsString('test-api-key-123', (string) json_encode(array($result, Journal::entries())));
+        // A5-04: the kept option blocks the next switch's preflight; the result says how to resolve it.
+        self::assertSame(array(
+            'kept' => array(Keys::SETTINGS_OPTION),
+            'legacy' => 'woocommerce_upayments_settings',
+            'hint' => Rollback::SETTINGS_DIVERGED_HINT,
+        ), $result['report']['settings_diverged']);
+        self::assertStringContainsString(Keys::SETTINGS_OPTION, Rollback::SETTINGS_DIVERGED_HINT);
+        self::assertStringContainsString('delete', Rollback::SETTINGS_DIVERGED_HINT);
     }
 
     public function test_back_sync_never_regresses_a_legacy_value_written_outside_supcheckout(): void {

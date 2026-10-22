@@ -333,30 +333,49 @@ final class OnboardingControllerTest extends RestTestCase {
         self::assertSame(array('preflight_at' => 1700000100, 'self_test_at' => 1700000000, 'setup_checks_at' => null), $data['last']);
     }
 
+    /**
+     * Review Focus 1: WP-Cron disabled and only REST polling. A5-06 retargets this test
+     * deliberately: it used to fake the stall with an unavailable Action Scheduler, which now
+     * finishes the operation `scheduler_unavailable` (see below). The real stall is a drive
+     * action that is queued while nothing runs the queue.
+     */
     public function test_status_reports_a_stalled_runner_with_a_hint(): void {
-        // Review Focus 1: WP-Cron disabled and only REST polling.
-        \Action_Scheduler::$initialized = false;
-        Operation::start(Operation::KIND_PREFLIGHT, array(), 1, time() - 120);
+        $op = Operation::start(Operation::KIND_PREFLIGHT, array(), 1, time() - 120);
+        self::assertTrue(AsyncDriver::enqueue($op['id']), 'queued; WP-Cron never runs it');
 
-        $runner = self::body(self::serve('GET', '/onboarding/status'))['data']['runner'];
+        $data = self::body(self::serve('GET', '/onboarding/status'))['data'];
 
-        self::assertTrue($runner['stalled']);
-        self::assertGreaterThan(60, $runner['past_due_seconds']);
-        self::assertNotSame('', $runner['hint']);
+        self::assertTrue($data['runner']['stalled']);
+        self::assertGreaterThan(60, $data['runner']['past_due_seconds']);
+        self::assertNotSame('', $data['runner']['hint']);
+        self::assertSame('running', $data['operation']['outcome']);
     }
 
     public function test_the_stalled_hint_asks_for_a_lasting_runner_and_names_the_status_command(): void {
         // One `wp action-scheduler run` advances a single tick; a switch needs many, so the
         // hint asks for WP-Cron (or a system cron for wp-cron.php) and names the status command.
-        \Action_Scheduler::$initialized = false;
-        Operation::start(Operation::KIND_SWITCH, array(), 1, time() - 120);
+        $op = Operation::start(Operation::KIND_SWITCH, array(), 1, time() - 120);
+        self::assertTrue(AsyncDriver::enqueue($op['id']));
 
         $hint = (string) self::body(self::serve('GET', '/onboarding/status'))['data']['runner']['hint'];
 
+        self::assertStringContainsString('open any wp-admin page', $hint, 'A5-06: an admin page view dispatches the Action Scheduler runner');
         self::assertStringContainsString('enable WP-Cron', $hint);
         self::assertStringContainsString('wp-cron.php', $hint);
         self::assertStringContainsString('wp supcheckout takeover status', $hint);
         self::assertStringNotContainsString('wp action-scheduler run', $hint, 'one queue run does not complete an operation');
+    }
+
+    public function test_a5_06_status_finishes_an_overdue_operation_when_action_scheduler_is_gone(): void {
+        $op = Operation::start(Operation::KIND_SWITCH, array(), 1, time() - 120);
+        \Action_Scheduler::$initialized = false;
+
+        $data = self::body(self::serve('GET', '/onboarding/status'))['data'];
+
+        self::assertSame(array('failed', 'scheduler_unavailable'), array($data['operation']['outcome'], $data['operation']['error']), (string) json_encode($data));
+        self::assertSame($op['id'], $data['operation']['id']);
+        self::assertFalse($data['runner']['stalled'], 'finished, not stalled');
+        self::assertFalse(Operation::is_running(Operation::current()), 'a new start is no longer answered 409');
     }
 
     public function test_status_never_contains_the_api_key(): void {

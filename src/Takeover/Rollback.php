@@ -94,9 +94,16 @@ final class Rollback {
     public const OFFICIAL_RECORD = 'official_deactivated';
     /** State field: the purge after reactivating the official plugin has not finished yet. */
     public const REACTIVATION_PURGE_PENDING = 'reactivation_purge_pending';
+    /**
+     * A5-04: how to clear a `settings_diverged` conflict. The kept new settings block the next
+     * switch's preflight (settings_target_foreign) until they are reconciled and deleted.
+     */
+    public const SETTINGS_DIVERGED_HINT = 'the gateway settings changed under both names since the switch, so both were kept; reconcile the UPayments gateway settings (they are what the next switch copies), then delete the kept copy with "wp option delete woocommerce_supcheckout_settings" before switching again';
 
     /** Attempts on an order whose lock a payment request holds. */
     private const LOCK_ATTEMPTS = 3;
+    /** Compare-and-swap attempts for the official deactivation record (A5-07). */
+    private const RECORD_ATTEMPTS = 5;
 
     /** @var RollbackStore */
     private $store;
@@ -724,13 +731,22 @@ final class Rollback {
 
     /**
      * Record which official install the takeover deactivated, so a rollback or abort
-     * reactivates exactly that one.
+     * reactivates exactly that one. A concurrent state write (the cache-purge marker, a CLI
+     * command) makes a compare-and-swap lose: patch() re-reads the record on every attempt,
+     * at most RECORD_ATTEMPTS times (A5-07).
      *
      * @param string $basename Plugin basename.
-     * @return void
+     * @return bool True once the record is stored; false when it could not be (the caller warns).
      */
     public static function record_official_deactivated($basename) {
-        TakeoverState::patch(array(self::OFFICIAL_RECORD => (string) $basename));
+        $basename = (string) $basename;
+        for ($attempt = 0; $attempt < self::RECORD_ATTEMPTS; $attempt++) {
+            if (TakeoverState::patch(array(self::OFFICIAL_RECORD => $basename))) {
+                TakeoverState::refresh();
+                return self::recorded_official(TakeoverState::get()) === $basename;
+            }
+        }
+        return false;
     }
 
     /**
@@ -896,6 +912,12 @@ final class Rollback {
      * @return array{ok:bool, restored:int, conflicts:list<array{seq:int, target:string, path:string}>, error:string|null, steps:list<string>, warnings:list<string>, report:array<string, mixed>}
      */
     private function result($error) {
+        $report = $this->report;
+        foreach ($this->conflicts as $conflict) {
+            if ($conflict['target'] === BackSync::SETTINGS_DIVERGED) {
+                $report['settings_diverged'] = array('kept' => array(Keys::SETTINGS_OPTION), 'legacy' => $conflict['path'], 'hint' => self::SETTINGS_DIVERGED_HINT);
+            }
+        }
         return array(
             'ok' => $error === null && $this->conflicts === array() && $this->warnings === array(),
             'restored' => $this->restored,
@@ -903,7 +925,7 @@ final class Rollback {
             'error' => $error,
             'steps' => $this->steps,
             'warnings' => $this->warnings,
-            'report' => $this->report,
+            'report' => $report,
         );
     }
 }

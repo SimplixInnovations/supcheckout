@@ -102,6 +102,39 @@ final class SettingsCopierTest extends TestCase {
         self::assertSame(array(), Journal::entries());
     }
 
+    public function test_a5_04_foreign_targets_reports_what_copy_would_refuse_without_writing(): void {
+        self::seed('woocommerce_upayments_settings', array('enabled' => 'yes'));
+        self::seed(Keys::SETTINGS_OPTION, array('enabled' => 'no'));
+        self::seed('upayments_token_identity_secret_v2', self::secret());
+        self::seed('supcheckout_token_identity_secret_v2', hash('sha256', 'other'));
+        $before = $GLOBALS['supcheckout_test_options'];
+
+        $targets = SettingsCopier::foreign_targets();
+
+        self::assertSame(array(Keys::SETTINGS_OPTION, 'supcheckout_token_identity_secret_v2'), $targets);
+        self::assertSame($before, $GLOBALS['supcheckout_test_options'], 'read-only');
+        self::assertSame(array(), Journal::entries());
+
+        // Through an injected reader (Preflight's Environment), with the same verdict as copy().
+        $values = array('woocommerce_upayments_settings' => array('enabled' => 'yes'));
+        $reader = static function ($name, $default) use ($values) {
+            return array_key_exists($name, $values) ? $values[$name] : $default;
+        };
+        self::assertSame(array(), SettingsCopier::foreign_targets($reader), 'absent targets are created, never foreign');
+        self::assertSame(array(), SettingsCopier::foreign_targets(static function ($name, $default) {
+            return $default;
+        }), 'no settings source is credential_unverified\'s finding, not a foreign target');
+    }
+
+    public function test_a5_04_an_own_stale_copy_is_not_a_foreign_target(): void {
+        self::seed('woocommerce_upayments_settings', array('enabled' => 'yes', 'title' => 'A'));
+        self::assertTrue(SettingsCopier::copy()['ok']);
+        self::seed('woocommerce_upayments_settings', array('enabled' => 'yes', 'title' => 'B'));
+
+        self::assertSame(array(), SettingsCopier::foreign_targets());
+        self::assertTrue(SettingsCopier::copy()['ok'], 'the verdict matches copy()');
+    }
+
     /**
      * @param mixed $value
      */
