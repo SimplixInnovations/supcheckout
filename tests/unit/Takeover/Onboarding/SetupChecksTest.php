@@ -69,7 +69,7 @@ final class SetupChecksTest extends TestCase {
     public function test_setup_checks_list_their_checks_in_order(): void {
         $report = self::run_checks(self::env());
 
-        self::assertSame(array('credential', 'account_mode', 'currency', 'callback_reachable', 'cache_exclusion', 'cache_layers', 'multilingual', 'test_payment'), array_column($report['checks'], 'id'));
+        self::assertSame(array('credential', 'account_mode', 'currency', 'currency_decimals', 'callback_reachable', 'cache_exclusion', 'cache_layers', 'multilingual', 'test_payment'), array_column($report['checks'], 'id'));
         self::assertTrue($report['ok']);
         self::assertSame(PreflightFixtures::NOW, $report['ran_at']);
         foreach ($report['checks'] as $check) {
@@ -137,6 +137,106 @@ final class SetupChecksTest extends TestCase {
         $options = array('_wcml_settings' => array('enable_multi_currency' => 1, 'currency_options' => array('XYZ' => array('rate' => 3))));
 
         self::assertSame('pass', self::check(self::run_checks(self::env($options)), 'currency')['result']);
+    }
+
+    public function test_store_price_decimals_within_the_currency_minor_units_pass(): void {
+        foreach (array(array('KWD', '3'), array('KWD', 2), array('AED', '2'), array('USD', '0')) as $case) {
+            $env = self::env(array('woocommerce_price_num_decimals' => $case[1]), array('currency' => $case[0]));
+
+            $check = self::check(self::run_checks($env), 'currency_decimals');
+
+            self::assertSame(array('pass', null), array($check['result'], $check['code']), $case[0] . ' ' . $case[1]);
+        }
+    }
+
+    public function test_a_store_without_a_price_decimals_option_uses_the_woocommerce_default(): void {
+        $check = self::check(self::run_checks(self::env(array(), array('currency' => 'AED'))), 'currency_decimals');
+
+        self::assertSame('pass', $check['result']);
+    }
+
+    public function test_store_price_decimals_beyond_the_currency_minor_units_warn(): void {
+        $env = self::env(array('woocommerce_price_num_decimals' => '3'), array('currency' => 'AED'));
+
+        $report = self::run_checks($env);
+        $check = self::check($report, 'currency_decimals');
+
+        self::assertSame(array('warn', 'currency_decimals_exceed_minor_units'), array($check['result'], $check['code']));
+        self::assertSame(array('currency' => 'AED', 'decimals' => 3, 'allowed' => 2), array_intersect_key($check['data'], array('currency' => 1, 'decimals' => 1, 'allowed' => 1)));
+        self::assertStringContainsString('AED', $check['message']);
+        self::assertTrue($report['ok'], 'report-only: a warning never fails the report');
+    }
+
+    public function test_a_wcml_currency_with_more_decimals_than_its_minor_units_warns(): void {
+        $options = array(
+            'woocommerce_price_num_decimals' => '3',
+            '_wcml_settings' => array(
+                'enable_multi_currency' => 2,
+                'currency_options' => array(
+                    'KWD' => array('rate' => 1, 'num_decimals' => '3'),
+                    'SAR' => array('rate' => 12.2, 'num_decimals' => 2),
+                    'AED' => array('rate' => 12, 'num_decimals' => '3'),
+                ),
+            ),
+        );
+
+        $report = self::run_checks(self::env($options));
+        $check = self::check($report, 'currency_decimals');
+
+        self::assertSame(array('warn', 'currency_decimals_exceed_minor_units'), array($check['result'], $check['code']));
+        self::assertSame(array('AED', 3, 2), array($check['data']['currency'], $check['data']['decimals'], $check['data']['allowed']));
+        self::assertSame(array(array('currency' => 'AED', 'decimals' => 3, 'allowed' => 2)), $check['data']['mismatches']);
+        self::assertTrue($report['ok']);
+    }
+
+    public function test_every_mismatched_currency_is_listed(): void {
+        $options = array(
+            'woocommerce_price_num_decimals' => '3',
+            '_wcml_settings' => array(
+                'enable_multi_currency' => 2,
+                'currency_options' => array(
+                    'USD' => array('num_decimals' => '4'),
+                    'KWD' => array('num_decimals' => '4'),
+                ),
+            ),
+        );
+
+        $check = self::check(self::run_checks(self::env($options, array('currency' => 'AED'))), 'currency_decimals');
+
+        self::assertSame('warn', $check['result']);
+        self::assertSame(array('AED', 3, 2), array($check['data']['currency'], $check['data']['decimals'], $check['data']['allowed']));
+        self::assertSame(array(
+            array('currency' => 'AED', 'decimals' => 3, 'allowed' => 2),
+            array('currency' => 'USD', 'decimals' => 4, 'allowed' => 2),
+            array('currency' => 'KWD', 'decimals' => 4, 'allowed' => 3),
+        ), $check['data']['mismatches']);
+    }
+
+    public function test_wcml_decimals_are_ignored_unless_multi_currency_is_enabled(): void {
+        $options = array('_wcml_settings' => array('enable_multi_currency' => 1, 'currency_options' => array('AED' => array('num_decimals' => '3'))));
+
+        self::assertSame('pass', self::check(self::run_checks(self::env($options)), 'currency_decimals')['result']);
+    }
+
+    public function test_unsupported_or_unreadable_currencies_are_left_to_the_other_checks(): void {
+        $options = array('_wcml_settings' => array(
+            'enable_multi_currency' => 2,
+            'currency_options' => array(
+                'XYZ' => array('num_decimals' => '5'),
+                'AED' => array('num_decimals' => 'three'),
+                'SAR' => array('num_decimals' => array(3)),
+                'USD' => 'garbage',
+            ),
+        ));
+
+        self::assertSame('pass', self::check(self::run_checks(self::env($options)), 'currency_decimals')['result']);
+        self::assertSame('pass', self::check(self::run_checks(self::env(array('woocommerce_price_num_decimals' => '5'), array('currency' => 'GBP'))), 'currency_decimals')['result']);
+    }
+
+    public function test_the_currency_decimals_check_never_writes(): void {
+        self::run_checks(self::env(array('woocommerce_price_num_decimals' => '3'), array('currency' => 'AED')));
+
+        self::assertSame(array(), $GLOBALS['supcheckout_test_options']);
     }
 
     public function test_wcml_per_currency_settings_naming_only_the_legacy_id_warn(): void {

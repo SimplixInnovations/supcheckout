@@ -110,6 +110,7 @@ Sub-project 0c adds an admin-only REST API, `supcheckout/v1`, that runs the take
   - **unit-verified only**: WP Rocket and WP Super Cache;
   - **manual**: the Cloudflare plugin has no public purge API, so the purge and the setup checks report it `manual` and the owner purges it by hand.
 - **WCML.** Per-currency gateway settings in WooCommerce Multilingual are **report-only**: the self-test's `multilingual` check reports them, and nothing changes them. Real WPML/WCML stays **External/manual**.
+- **Currency decimals.** Checkout refuses, before any UPayments call, an order total with more decimals than its currency's ISO 4217 minor units allow (3 for KWD, BHD and OMR; 2 for the other supported currencies), and never rounds it. The setup checks' `currency_decimals` check warns when the store or a WCML currency is set to more decimals than that.
 - **Multisite.** A network-activated official plugin blocks the switch (`official_network_active`). Nothing is ever activated or deactivated network-wide.
 
 The real-WordPress REST and driver certification runs in every Compatibility cell, and the purge step runs in the Ecosystem Certification E3 cells. Evidence: `docs/project/evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md`.
