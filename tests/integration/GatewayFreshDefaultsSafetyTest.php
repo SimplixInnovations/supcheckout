@@ -130,6 +130,49 @@ supcheckout_cert_assert($admin_save_thrown === 'none', 'Admin save with Subscrip
 supcheckout_cert_assert(is_array($admin_saved) && isset($admin_saved['enable_save_card']) && $admin_saved['enable_save_card'] === 'yes', 'Admin save still forces Save Card on while Subscriptions are enabled');
 supcheckout_cert_assert(strpos($admin_save_messages, 'Save Card must be enabled when Subscriptions are enabled, so it was turned on.') !== false, 'Admin save tells the merchant through the WooCommerce settings messages that Save Card was turned on');
 
+// Hardening T6 (A2-01): the stored API key is write-only. The settings screen renders the
+// field empty, the WooCommerce REST read is masked, and a blank submission keeps the key.
+$write_only_secret = 'A2-01-SENTINEL-KEY-' . wp_generate_password(12, false);
+supcheckout_cert_store_option_raw($option_name, array(
+    'enabled'              => 'yes',
+    'api_key'              => $write_only_secret,
+    'use_new_design'       => 'yes',
+    'enable_save_card'     => 'yes',
+    'enable_subscriptions' => 'no',
+));
+wp_cache_delete($option_name, 'options');
+$write_only_gateway = new \Simplixi\SUPCheckout\Gateway\Gateway();
+ob_start();
+$write_only_returned = $write_only_gateway->generate_settings_html($write_only_gateway->get_form_fields(), false);
+$write_only_html = (string) ob_get_clean() . (string) $write_only_returned;
+supcheckout_cert_assert(strpos($write_only_html, 'name="woocommerce_upayments_api_key"') !== false, 'Settings screen still renders the API key field');
+supcheckout_cert_assert(strpos($write_only_html, $write_only_secret) === false, 'Settings screen never renders the stored API key');
+supcheckout_cert_assert(strpos($write_only_html, 'A key is saved. For security it is never shown.') !== false, 'Settings screen says a key is saved');
+supcheckout_cert_assert($write_only_gateway->get_option('api_key') === $write_only_secret, 'Rendering the settings screen leaves the loaded API key in place');
+
+$write_only_response = apply_filters(
+    'woocommerce_rest_prepare_payment_gateway',
+    new \WP_REST_Response(array('id' => 'upayments', 'settings' => array('api_key' => array('id' => 'api_key', 'value' => $write_only_secret)))),
+    $write_only_gateway,
+    new \WP_REST_Request('GET', '/wc/v3/payment_gateways/upayments')
+);
+supcheckout_cert_assert(
+    $write_only_response instanceof \WP_REST_Response && strpos((string) wp_json_encode($write_only_response->get_data()), $write_only_secret) === false,
+    'WooCommerce REST read of the gateway never returns the stored API key'
+);
+
+$write_only_gateway->set_post_data(array(
+    'woocommerce_upayments_enabled'        => '1',
+    'woocommerce_upayments_api_key'        => '',
+    'woocommerce_upayments_use_new_design' => '1',
+    'woocommerce_upayments_enable_save_card' => '1',
+));
+$write_only_gateway->process_admin_options();
+wp_cache_delete($option_name, 'options');
+$write_only_saved = get_option($option_name);
+supcheckout_cert_assert(is_array($write_only_saved) && isset($write_only_saved['title']), 'Saving the settings with the API key field empty is not refused while a key is stored (the full field set is written)');
+supcheckout_cert_assert(is_array($write_only_saved) && isset($write_only_saved['api_key']) && $write_only_saved['api_key'] === $write_only_secret, 'Saving the settings with the API key field empty keeps the stored key');
+
 if ($original === $missing) {
     delete_option($option_name);
 } else {

@@ -212,6 +212,50 @@ sec_assert(strpos($public_status_source, "Keys::is_our_gateway((string) \$order-
 sec_assert(strpos($public_status_source, "method !== 'GET'") !== false, 'status boundary is read-only GET');
 sec_assert(strpos($public_status_source, 'ALLOWED_STATUSES') !== false, 'status boundary allowlists returned state');
 
+// Hardening T6 (A2-01): the stored UPayments API key (a live bearer credential) is
+// write-only. It never reaches the settings screen, the WooCommerce REST read or any echo,
+// and a blank submission keeps it (threat-model invariant: provider credentials never cross
+// to a browser).
+if (!function_exists('wp_slash')) {
+    function wp_slash($value) { return is_string($value) ? addslashes($value) : $value; }
+}
+if (!function_exists('esc_attr')) {
+    function esc_attr($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
+}
+if (!function_exists('esc_html__')) {
+    function esc_html__($text, $domain = 'default') { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
+}
+require_once dirname(__DIR__, 2) . '/src/Admin/GatewaySettings.php';
+$api_secret = 'SEC_SENTINEL_API_KEY_7f3a';
+$kept_post = \Simplixi\SUPCheckout\Admin\GatewaySettings::keep_saved_api_key(array('woocommerce_upayments_api_key' => ''), 'upayments', $api_secret);
+sec_assert(isset($kept_post['woocommerce_upayments_api_key']) && $kept_post['woocommerce_upayments_api_key'] === $api_secret, 'a blank API key submission keeps the stored key (write-only field)');
+$replaced_post = \Simplixi\SUPCheckout\Admin\GatewaySettings::keep_saved_api_key(array('woocommerce_upayments_api_key' => 'replacement'), 'upayments', $api_secret);
+sec_assert($replaced_post['woocommerce_upayments_api_key'] === 'replacement', 'a new API key submission replaces the stored key');
+$api_field = \Simplixi\SUPCheckout\Admin\GatewaySettings::api_key_field(array('title' => 'Api Key', 'description' => 'help'), 'woocommerce_upayments_api_key', true);
+sec_assert(strpos((string) json_encode($api_field), $api_secret) === false && $api_field['custom_attributes']['autocomplete'] === 'new-password', 'the API key field data carries no key and opts out of password-manager autofill');
+$rest_response = new class(array('settings' => array('api_key' => array('value' => $api_secret)))) {
+    private $data;
+    public function __construct($data) { $this->data = $data; }
+    public function get_data() { return $this->data; }
+    public function set_data($data) { $this->data = $data; }
+};
+foreach (array('upayments') as $rest_gateway_id) {
+    $masked = \Simplixi\SUPCheckout\Admin\GatewaySettings::mask_rest_api_key(clone $rest_response, (object) array('id' => $rest_gateway_id));
+    sec_assert(strpos((string) json_encode($masked->get_data()), $api_secret) === false, "the WooCommerce REST read of gateway {$rest_gateway_id} never returns the stored API key");
+}
+$gateway_source_a2 = sec_source('src/Gateway/Gateway.php');
+sec_assert(strpos($gateway_source_a2, 'public function generate_password_html($key, $data)') !== false && strpos($gateway_source_a2, "\$this->settings['api_key'] = '';") !== false && strpos($gateway_source_a2, '$this->settings = $loaded;') !== false, 'the settings screen renders the API key field with the loaded key blanked, then restores the settings');
+sec_assert(strpos($gateway_source_a2, "add_filter('woocommerce_rest_prepare_payment_gateway', array(GatewaySettings::class, 'mask_rest_api_key'), 10, 2);") !== false, 'the WooCommerce REST read of the gateway is masked');
+sec_assert(strpos($gateway_source_a2, "'_settings_values', array(GatewaySettings::class, 'keep_saved_api_key_on_rest_save'), 10, 2);") !== false, 'a WooCommerce REST write that sends the key back blank keeps the stored key');
+sec_assert(strpos($gateway_source_a2, 'GatewaySettings::keep_saved_api_key($this->get_post_data(), $this->id, $this->get_option(\'api_key\'))') !== false, 'the settings save keeps the stored key on a blank submission');
+$echo_hits = 0;
+foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/src', FilesystemIterator::SKIP_DOTS)) as $src_file) {
+    if ($src_file->getExtension() === 'php') {
+        $echo_hits += preg_match_all('/\b(echo|print|printf|wp_send_json\w*|wp_localize_script)\b[^;]*(apiKey|api_key)/', (string) file_get_contents($src_file->getPathname()));
+    }
+}
+sec_assert($echo_hits === 0, 'no source file echoes, prints, localizes or JSON-sends the API key');
+
 printf("\n--- Security Threat-Model Report ---\nPASS: %d\nFAIL: %d\n", $pass, $fail);
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

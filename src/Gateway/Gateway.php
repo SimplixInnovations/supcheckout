@@ -255,6 +255,10 @@ class Gateway extends \WC_Payment_Gateway {
         }, 5);
         // Save Card & Subscriptions validation (an admin settings message, never a storefront notice: A6-02)
         add_filter('woocommerce_settings_api_sanitized_fields_' . $this->id, array(GatewaySettings::class, 'sanitize_saved_settings'));
+        // The API key is write-only over the WooCommerce REST API too (A2-01).
+        add_filter('woocommerce_rest_prepare_payment_gateway', array(GatewaySettings::class, 'mask_rest_api_key'), 10, 2);
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce REST API defines this dynamic core hook name.
+        add_filter('woocommerce_gateway_' . $this->id . '_settings_values', array(GatewaySettings::class, 'keep_saved_api_key_on_rest_save'), 10, 2);
 
         add_filter('woocommerce_default_gateway', function ($default) {
             if ($this->get_option('make_default_gateway') === 'yes') {
@@ -713,12 +717,47 @@ class Gateway extends \WC_Payment_Gateway {
     }
 
     /**
+     * The settings screen never renders the stored API key (A2-01): the `api_key` field is
+     * drawn by WooCommerce's own password renderer with the loaded value blanked for that
+     * one call, then the loaded settings are restored. Every other password field renders
+     * as WooCommerce renders it.
+     *
+     * @param string $key  Field key.
+     * @param array  $data Field data.
+     * @return string
+     */
+    public function generate_password_html($key, $data) {
+        if ($key !== 'api_key') {
+            return parent::generate_password_html($key, $data);
+        }
+        if (empty($this->settings)) {
+            $this->init_settings();
+        }
+        $loaded = $this->settings;
+        $data = GatewaySettings::api_key_field(
+            (array) $data,
+            $this->get_field_key($key),
+            GatewaySettings::has_api_key(isset($loaded['api_key']) ? $loaded['api_key'] : null)
+        );
+        $this->settings['api_key'] = '';
+        try {
+            return parent::generate_password_html($key, $data);
+        } finally {
+            $this->settings = $loaded;
+        }
+    }
+
+    /**
      * Process Gateway Settings Form Fields.
      */
     public function process_admin_options()
     {
         $this->init_settings();
-        $prepared = GatewaySettings::prepare_post_data($this->get_post_data(), $this->id);
+        // The API key field is write-only (A2-01): a blank submission keeps the stored key.
+        $prepared = GatewaySettings::prepare_post_data(
+            GatewaySettings::keep_saved_api_key($this->get_post_data(), $this->id, $this->get_option('api_key')),
+            $this->id
+        );
         if ($prepared['api_key_missing'] || $prepared['multimerchant_missing']) {
             \WC_Admin_Settings::add_error($prepared['api_key_missing']
                 ? __('Please enter UPayments API Key', 'supcheckout')

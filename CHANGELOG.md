@@ -6,6 +6,13 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Security: the UPayments API key is write-only on the settings screen and over REST (hardening A2-01)
+
+- **Settings screen.** The stored API key, a live bearer credential, was sent back to the browser in the settings page source (`<input type="password" value="…">`), where browser extensions, saved pages, HAR exports, screen-shared page source and admin-side scripts could read it. The field is now always rendered empty. With a key saved, a statement under it, tied to the field for screen readers, says: "A key is saved. For security it is never shown. Leave this field empty to keep it, or enter a new key to replace it." The field's help moves to its tooltip, and the field opts out of password-manager autofill and spell checking.
+- **Saving.** A blank API key field keeps the stored key. "Please enter UPayments API Key" now appears only when no key is stored. Entering a new key replaces it, as before.
+- **WooCommerce REST API.** The `wc/v3/payment_gateways/<id>` read no longer returns the key's value, and a REST write that sends it back blank keeps the stored key.
+- The option `woocommerce_upayments_settings`, the field key `api_key` and the stored value are unchanged. No SUPCheckout code echoes, prints, localizes or JSON-sends the key; the threat-model harness checks this.
+
 ### Admin: saving the settings with Subscriptions on and the old design no longer risks a fatal (hardening A6-02)
 
 - With the old design selected, the settings screen disables the Save Card checkbox, so a save with Subscriptions on never posts it. SUPCheckout forces Save Card on in that case and reported it with the storefront notice API, which needs a WooCommerce session that wp-admin does not have: the save could end in a critical error with nothing stored, and the message was never shown in any case.

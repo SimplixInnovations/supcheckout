@@ -507,6 +507,14 @@
     },
     {
         "kind": "filter",
+        "hook": "woocommerce_gateway_upayments_settings_values",
+        "priority": 10,
+        "accepted_args": 2,
+        "registered_in": "gateway_constructor",
+        "contexts": "admin cli frontend"
+    },
+    {
+        "kind": "filter",
         "hook": "woocommerce_get_item_data",
         "priority": 10,
         "accepted_args": 2,
@@ -560,6 +568,14 @@
         "accepted_args": 1,
         "registered_in": "load",
         "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "filter",
+        "hook": "woocommerce_rest_prepare_payment_gateway",
+        "priority": 10,
+        "accepted_args": 2,
+        "registered_in": "gateway_constructor",
+        "contexts": "admin cli frontend"
     },
     {
         "kind": "filter",
@@ -1170,6 +1186,14 @@
     {
         "kind": "hook_reference",
         "type": "filter",
+        "hook": "<dynamic:'woocommerce_gateway_'.$this->id.'_settings_values'>",
+        "priority": 10,
+        "accepted_args": 2,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
         "hook": "<dynamic:'woocommerce_settings_api_sanitized_fields_'.$this->id>",
         "priority": 10,
         "accepted_args": 1,
@@ -1349,6 +1373,14 @@
         "hook": "woocommerce_product_data_tabs",
         "priority": 10,
         "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "woocommerce_rest_prepare_payment_gateway",
+        "priority": 10,
+        "accepted_args": 2,
         "contexts": "static"
     },
     {

@@ -248,6 +248,116 @@ final class GatewaySettings {
     }
 
     /**
+     * True when $api_key is a usable stored key: the same non-blank string boundary as
+     * is_runtime_eligible() and prepare_post_data().
+     *
+     * @param mixed $api_key Stored value.
+     * @return bool
+     */
+    public static function has_api_key($api_key) {
+        return is_string($api_key) && trim($api_key) !== '';
+    }
+
+    /**
+     * The `api_key` field for a settings screen that never shows the stored key (A2-01).
+     *
+     * The input is rendered empty (Gateway::generate_password_html()). With a key saved, a
+     * visible statement under the field, tied to it by aria-describedby, says that the key
+     * is saved and that leaving the field empty keeps it; the original help moves to the
+     * tooltip. Password managers and spell checking stay off the field.
+     *
+     * @param array  $data      WooCommerce field data.
+     * @param string $field_key The field's HTML id (WC_Settings_API::get_field_key()).
+     * @param bool   $has_saved Whether a key is stored.
+     * @return array
+     */
+    public static function api_key_field(array $data, $field_key, $has_saved) {
+        $attributes = isset($data['custom_attributes']) && is_array($data['custom_attributes']) ? $data['custom_attributes'] : array();
+        $attributes = array_merge($attributes, array(
+            'autocomplete' => 'new-password',
+            'autocapitalize' => 'off',
+            'spellcheck' => 'false',
+            'data-1p-ignore' => '',
+            'data-lpignore' => 'true',
+        ));
+        if (!$has_saved) {
+            return array_merge($data, array('custom_attributes' => $attributes));
+        }
+        $saved_id = $field_key . '-saved';
+        $attributes['aria-describedby'] = $saved_id;
+        return array_merge($data, array(
+            'custom_attributes' => $attributes,
+            'desc_tip' => isset($data['description']) && is_string($data['description']) && $data['description'] !== '' ? $data['description'] : false,
+            'description' => '<span id="' . esc_attr($saved_id) . '">'
+                . esc_html__('A key is saved. For security it is never shown. Leave this field empty to keep it, or enter a new key to replace it.', 'supcheckout')
+                . '</span>',
+        ));
+    }
+
+    /**
+     * A blank (or absent) submitted key keeps the stored key, so the settings screen can
+     * show the field empty (A2-01). The stored key is posted back slashed, as WordPress
+     * posts form data; `api_key_missing` then applies only when no key is stored.
+     *
+     * @param array  $post_data  WooCommerce gateway post data.
+     * @param string $gateway_id The current gateway id.
+     * @param mixed  $stored     The stored key.
+     * @return array
+     */
+    public static function keep_saved_api_key(array $post_data, $gateway_id, $stored) {
+        $field = 'woocommerce_' . $gateway_id . '_api_key';
+        $submitted = array_key_exists($field, $post_data) ? $post_data[$field] : null;
+        if (self::has_api_key($submitted) || !self::has_api_key($stored) || ($submitted !== null && !is_string($submitted))) {
+            return $post_data;
+        }
+        $post_data[$field] = wp_slash($stored);
+        return $post_data;
+    }
+
+    /**
+     * `woocommerce_rest_prepare_payment_gateway`: the WooCommerce REST read of this gateway
+     * never returns the stored key (A2-01).
+     *
+     * @param mixed $response The REST response.
+     * @param mixed $gateway  The gateway being read.
+     * @return mixed
+     */
+    public static function mask_rest_api_key($response, $gateway) {
+        if (!is_object($response) || !method_exists($response, 'get_data') || !method_exists($response, 'set_data')
+            || !is_object($gateway) || !isset($gateway->id) || !Keys::is_our_gateway((string) $gateway->id)
+        ) {
+            return $response;
+        }
+        $data = $response->get_data();
+        if (is_array($data) && isset($data['settings']['api_key']) && is_array($data['settings']['api_key'])) {
+            $data['settings']['api_key']['value'] = '';
+            $response->set_data($data);
+        }
+        return $response;
+    }
+
+    /**
+     * `woocommerce_gateway_{id}_settings_values` (the WooCommerce REST write): a key sent
+     * back blank, as the masked read returns it, keeps the stored key.
+     *
+     * @param mixed $settings Settings about to be stored.
+     * @param mixed $gateway  The gateway.
+     * @return mixed
+     */
+    public static function keep_saved_api_key_on_rest_save($settings, $gateway) {
+        if (!is_array($settings) || self::has_api_key(isset($settings['api_key']) ? $settings['api_key'] : null)
+            || !is_object($gateway) || !method_exists($gateway, 'get_option_key')
+        ) {
+            return $settings;
+        }
+        $stored = get_option($gateway->get_option_key(), array());
+        if (is_array($stored) && isset($stored['api_key']) && self::has_api_key($stored['api_key'])) {
+            $settings['api_key'] = $stored['api_key'];
+        }
+        return $settings;
+    }
+
+    /**
      * `woocommerce_settings_api_sanitized_fields_{id}`: apply the Save Card dependency to
      * the settings being saved and tell the merchant when Save Card was turned on.
      *
