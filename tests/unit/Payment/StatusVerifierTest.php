@@ -72,6 +72,8 @@ final class StatusVerifierTest extends TestCase {
         \supcheckout_test_reset_wp_http();
         unset($GLOBALS['supcheckout_test_price_decimals']);
         $GLOBALS['supcheckout_test_subscription_presentation']['meta'] = array();
+        // Every bind also reads the persisted total (R-1). The default order is unedited.
+        $this->persist_order_total(42, '10.000');
     }
 
     public function test_invalid_boundaries_fail_before_rate_or_http_mutation(): void {
@@ -354,18 +356,80 @@ final class StatusVerifierTest extends TestCase {
         }
     }
 
-    public function test_a1_07_an_exact_request_total_needs_no_persisted_read(): void {
-        // Same precision as the Charge: exact equality binds, as before the snapshot.
+    /**
+     * R-1. Formerly "a1_07 an exact request total needs no persisted read": an exact
+     * get_total() match bound without the persisted total, which let a 2-decimal
+     * request bind a capture after a 3-decimal edit inside the rounding bucket.
+     */
+    public function test_r1_an_exact_request_total_still_needs_the_persisted_total(): void {
         $GLOBALS['supcheckout_test_price_decimals'] = 3;
         $gateway = new StatusVerifierGateway();
         $order = new StatusVerifierOrder(42, 'merchant-42');
         $order->total = '12.341';
         $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.341');
-        $this->persist_order_total(42, null);
         $transaction = $this->transaction($order);
         $transaction['total_price'] = '12.341';
 
+        $this->persist_order_total(42, '12.341');
         self::assertTrue(StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['bound']);
+
+        // Unreadable: fail closed.
+        $this->persist_order_total(42, null);
+        self::assertSame('binding_amount', StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason']);
+    }
+
+    public function test_r1_a_two_decimal_charge_edited_at_three_decimals_does_not_bind_with_a_snapshot(): void {
+        // Charged 12.34 in a 2-decimal context (snapshot 12.34). An admin in a
+        // 3-decimal context edits the order to 12.344. A 2-decimal webhook reloads it
+        // as 12.34, equal to both the snapshot and the provider amount.
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.34';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.34');
+        $this->persist_order_total(42, '12.344');
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.34';
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+
+        self::assertFalse($result['bound']);
+        self::assertSame('binding_amount', $result['reason']);
+    }
+
+    public function test_r1_a_two_decimal_charge_edited_at_three_decimals_does_not_bind_without_a_snapshot(): void {
+        // The same edit on an order charged before the snapshot existed.
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.34';
+        $this->persist_order_total(42, '12.344');
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.34';
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+
+        self::assertFalse($result['bound']);
+        self::assertSame('binding_amount', $result['reason']);
+
+        // Unedited, it still binds exactly as before.
+        $this->persist_order_total(42, '12.34');
+        self::assertTrue(StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['bound']);
+        $this->persist_order_total(42, '12.34000000');
+        self::assertTrue(StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['bound']);
+    }
+
+    public function test_r1_a_missing_persisted_total_fails_closed_on_every_bind(): void {
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $this->persist_order_total(42, null);
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $this->transaction($order));
+
+        self::assertTrue($result['authenticated']);
+        self::assertFalse($result['bound']);
+        self::assertSame('binding_amount', $result['reason']);
+        self::assertNotSame(ProviderResult::CAPTURED, $result['classification']);
     }
 
     #[RunInSeparateProcess]
@@ -451,6 +515,7 @@ final class StatusVerifierTest extends TestCase {
         $order = new StatusVerifierOrder(42, 'merchant-42');
         $order->total = '12.345';
         $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+        $this->persist_order_total(42, '12.345');
 
         $transaction = $this->transaction($order);
         $transaction['total_price'] = '12.3450';
@@ -480,6 +545,7 @@ final class StatusVerifierTest extends TestCase {
         foreach ($unusable as $label => $snapshot) {
             $order = new StatusVerifierOrder(42, 'merchant-42');
             $order->total = '12.35';
+            $this->persist_order_total(42, '12.35');
             if ($snapshot !== null) {
                 $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $snapshot;
             }

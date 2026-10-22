@@ -293,6 +293,12 @@ namespace {
     // PaymentLifecycle::log() guards on the global function, so the namespaced fake
     // above is never reached without this. Records into state()['logs'] (A6-05).
     function wc_get_logger() { return new \Simplixi\SUPCheckout\Payment\FakeLogger(); }
+    // StatusVerifier reads the stored order total on every bind (R-1). The stored order
+    // is the one in the fake order store, which a test may change under the lock.
+    function get_post_meta($id, $key = '', $single = false) {
+        $orders = \Simplixi\SUPCheckout\Payment\state()['orders'];
+        return ($key === '_order_total' && isset($orders[(int) $id])) ? (string) $orders[(int) $id]->total : '';
+    }
     // Takeover\TakeoverState and Takeover\LegacyCallbackListener call the global WordPress
     // functions; both read and record through the same fake store as the payment code.
     function get_option($name, $default = false) { return \Simplixi\SUPCheckout\Payment\get_option($name, $default); }
@@ -709,11 +715,25 @@ namespace {
     same($out['state'], 'captured', 'new same-order Charge attempt can capture');
     same($order->get_transaction_id(), 'pay-new', 'new attempt payment ID becomes canonical Woo transaction ID');
 
-    // TOCTOU: provider binds original snapshot, fresh order changes under lock.
-    list($gateway, $order) = reset_fixture(550); set_provider_transaction(transaction_for($order));
+    // R-1: a stored total changed while the status request was in flight is caught by
+    // the first bind, which reads the persisted total after the provider response.
+    list($gateway, $order) = reset_fixture(549); set_provider_transaction(transaction_for($order));
     \Simplixi\SUPCheckout\Payment\state()['remote_mutator'] = function () use ($order) {
         $fresh = clone $order; $fresh->total = '11.000';
         \Simplixi\SUPCheckout\Payment\state()['orders'][$order->get_id()] = $fresh;
+    };
+    $out = PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
+    same($out['reason'], 'binding_amount', 'R-1 the first bind sees a stored total changed during the status request');
+    same($order->payment_complete_calls, 0, 'R-1 a stored-total change never completes the original order');
+
+    // TOCTOU: provider binds original snapshot, fresh order changes under lock (after
+    // the first bind, as the lock is taken).
+    list($gateway, $order) = reset_fixture(550); set_provider_transaction(transaction_for($order));
+    \Simplixi\SUPCheckout\Payment\state()['remote_mutator'] = function () use ($order) {
+        \Simplixi\SUPCheckout\Payment\state()['db_query_mutator'] = function () use ($order) {
+            $fresh = clone $order; $fresh->total = '11.000';
+            \Simplixi\SUPCheckout\Payment\state()['orders'][$order->get_id()] = $fresh;
+        };
     };
     $out = PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
     same($out['reason'], 'binding_changed_under_lock', 'fresh-order rebind catches TOCTOU total change');

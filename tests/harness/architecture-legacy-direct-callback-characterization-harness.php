@@ -52,6 +52,11 @@ function wc_get_order($id) {
     $order = $GLOBALS['t3_order'];
     return is_object($order) && (int) $order->get_id() === (int) $id ? $order : false;
 }
+// StatusVerifier reads the stored order total on every bind (R-1).
+function get_post_meta($id, $key = '', $single = false) {
+    $order = wc_get_order($id);
+    return ($key === '_order_total' && is_object($order)) ? (string) $order->total : '';
+}
 function WC() {
     static $wc = null;
     if ($wc === null) {

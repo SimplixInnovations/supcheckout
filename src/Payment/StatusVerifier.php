@@ -236,6 +236,16 @@ final class StatusVerifier {
             $result['reason'] = 'binding_amount';
             return $result;
         }
+        // R-1: get_total() is re-rounded to this request's price decimals, so an edit
+        // made at higher precision (12.34 charged, edited to 12.344) still reads 12.34
+        // here. Every bind therefore also needs the provider amount to equal the
+        // persisted order total exactly. This is the only persisted read per bind
+        // attempt; an unreadable total fails closed.
+        $persisted = self::persisted_order_total($order->get_id());
+        if ($persisted === null || !hash_equals($persisted, $verified_canonical)) {
+            $result['reason'] = 'binding_amount';
+            return $result;
+        }
 
         $classification = ProviderResult::classify($transaction['result']);
         if ($classification === ProviderResult::CAPTURED) {
@@ -316,13 +326,11 @@ final class StatusVerifier {
         // rounding is necessary but not enough: an edit inside the same rounding
         // bucket (12.341 -> 12.344, both 12.34 at 2 decimals) still matches. So the
         // snapshot must also equal the persisted order total exactly, read without
-        // the request's decimals. Anything unreadable fails closed.
+        // the request's decimals. bind_transaction() makes that check for every bind
+        // (R-1): the provider amount must equal both the snapshot returned here and
+        // the persisted total. Anything unreadable fails closed there.
         $as_loaded = self::canonical_decimal((string) wc_format_decimal($charged, wc_get_price_decimals()));
         if ($as_loaded === null || !hash_equals($local_canonical, $as_loaded)) {
-            return false;
-        }
-        $persisted = self::persisted_order_total($order->get_id());
-        if ($persisted === null || !hash_equals($persisted, $charged)) {
             return false;
         }
         return $charged;

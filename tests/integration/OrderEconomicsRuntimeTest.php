@@ -1024,4 +1024,59 @@ supcheckout_cert_assert(
 remove_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
 supcheckout_e2_delete_order_and_products(wc_get_order($a1_07_bucket_id), array());
 
+// R-1: every bind also requires the provider amount to equal the persisted order
+// total (HPOS total_amount / CPT _order_total). A 2-decimal Charge (12.34) later
+// edited to 12.344 in a 3-decimal admin context reads as 12.34 again in a 2-decimal
+// webhook, so exact get_total() equality alone would bind it. The matrix runs this
+// in both storage modes (SUPCHECKOUT_HPOS_MODE).
+$r1_storage = class_exists(\Automattic\WooCommerce\Utilities\OrderUtil::class)
+    && \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ? 'hpos' : 'legacy';
+foreach (array('with snapshot' => true, 'without snapshot' => false) as $r1_label => $r1_snapshot) {
+    $r1_label = 'R-1 [' . $r1_storage . ', ' . $r1_label . ']';
+    add_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+    $order = supcheckout_e2_order(array());
+    $order->set_total('12.34');
+    \Simplixi\SUPCheckout\Takeover\Keys::update_order_meta($order, 'UPayments_order_id', 'r1-attempt');
+    if ($r1_snapshot) {
+        $order->update_meta_data(
+            \Simplixi\SUPCheckout\Payment\StatusVerifier::CHARGE_AMOUNT_META,
+            \Simplixi\SUPCheckout\Payment\StatusVerifier::charge_amount_snapshot('r1-attempt', '12.34', 'KWD')
+        );
+    }
+    $order->save();
+    $r1_order_id = $order->get_id();
+    $r1_transaction = array(
+        'result' => 'CAPTURED',
+        'track_id' => 'r1-track',
+        'merchant_requested_order_id' => 'r1-attempt',
+        'total_price' => '12.34',
+        'currency_type' => 'KWD',
+        'reference' => (string) $r1_order_id,
+        'payment_id' => 'r1-payment',
+    );
+    // Unedited: the persisted total of a real order is always readable, so the bind
+    // succeeds exactly as before R-1 (orders charged before the snapshot included).
+    $order = new WC_Order($r1_order_id);
+    $r1_bound = \Simplixi\SUPCheckout\Payment\StatusVerifier::bind_transaction(supcheckout_e2_gateway(), $order, 'r1-track', $r1_transaction);
+    supcheckout_cert_assert(true === $r1_bound['bound'], $r1_label . ' the unedited 2-decimal order binds');
+    remove_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+
+    add_filter('wc_get_price_decimals', $a1_07_three_decimals, 999);
+    $order = new WC_Order($r1_order_id);
+    $order->set_total('12.344');
+    $order->save();
+    remove_filter('wc_get_price_decimals', $a1_07_three_decimals, 999);
+
+    add_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+    $order = new WC_Order($r1_order_id);
+    supcheckout_cert_assert('12.34' === (string) $order->get_total(), $r1_label . ' the edited 12.344 order reads as 12.34 in a 2-decimal request');
+    $r1_bound = \Simplixi\SUPCheckout\Payment\StatusVerifier::bind_transaction(supcheckout_e2_gateway(), $order, 'r1-track', $r1_transaction);
+    supcheckout_cert_assert(
+        false === $r1_bound['bound'] && 'binding_amount' === $r1_bound['reason'],
+        $r1_label . ' an edit at higher precision fails binding'
+    );
+    remove_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+    supcheckout_e2_delete_order_and_products(wc_get_order($r1_order_id), array());
+}
+
 supcheckout_cert_note('real Woo order-economics certification complete');
