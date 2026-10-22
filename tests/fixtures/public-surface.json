@@ -60,6 +60,14 @@
         "hook": "admin_notices",
         "priority": 10,
         "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
+        "hook": "admin_notices",
+        "priority": 10,
+        "accepted_args": 1,
         "registered_in": "plugins_loaded",
         "contexts": "no_woocommerce"
     },
@@ -82,6 +90,14 @@
     {
         "kind": "action",
         "hook": "init",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
+        "hook": "network_admin_notices",
         "priority": 10,
         "accepted_args": 1,
         "registered_in": "load",
@@ -416,6 +432,22 @@
         "hook": "supcheckout takeover",
         "registered_in": "load",
         "contexts": "cli"
+    },
+    {
+        "kind": "filter",
+        "hook": "pre_update_option_active_plugins",
+        "priority": 10,
+        "accepted_args": 2,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "filter",
+        "hook": "pre_update_site_option_active_sitewide_plugins",
+        "priority": 10,
+        "accepted_args": 2,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
     },
     {
         "kind": "filter",
@@ -818,6 +850,14 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "admin_notices",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "before_woocommerce_init",
         "priority": 10,
         "accepted_args": 1,
@@ -835,6 +875,14 @@
         "kind": "hook_reference",
         "type": "action",
         "hook": "init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "network_admin_notices",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"
@@ -1133,6 +1181,22 @@
         "hook": "admin_body_class",
         "priority": 10,
         "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "pre_update_option_active_plugins",
+        "priority": 10,
+        "accepted_args": 2,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "pre_update_site_option_active_sitewide_plugins",
+        "priority": 10,
+        "accepted_args": 2,
         "contexts": "static"
     },
     {

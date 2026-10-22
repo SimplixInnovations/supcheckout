@@ -6,6 +6,13 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Takeover: the official plugin cannot be reactivated on a switched store (hardening A5-01, non-money part)
+
+- **Activation guard.** While SUPCheckout runs on a store that has switched (`cut_over` or `finalized`), activating the official UPayments plugin is refused. The guard filters the `active_plugins` option and its network twin `active_sitewide_plugins`, so the Plugins screen, bulk activation, WP-CLI and direct option writes are all covered. It removes only the official `*/UPayments.php` entry that the write adds, keeps every other entry, and shows administrators one error notice (a WP-CLI warning under WP-CLI). Before, the reactivation paused SUPCheckout and every payment started after the switch lost its browser return and webhook until SUPCheckout ran again.
+- The guard never blocks before the switch or after a rollback: Rollback's and Abort's own reactivation (`--reactivate-official`) happens in `preflight_ok`, and `rolled_back` stays open. The supported way back to UPayments is Rollback.
+- **State-aware paused notice.** When the official plugin is active on a switched store anyway (for example through a database restore), the paused notice is now an error that says the store has switched, that payments started after the switch cannot complete while SUPCheckout is paused, and that UPayments lacks the settings changed after the switch. A cut-over store is told to deactivate UPayments and roll back to return to it; a finalized store is told the switch is final. The notice before a switch is unchanged.
+- The automatic-renewal money path stays closed by the A1-01 gate. The `can_verify_success()` docblock now records the divergence hold as a precondition for opening it.
+
 ### Checkout: the merchant's title, description and price format reach every checkout (hardening A4-03, A4-05, A4-06, A4-07)
 
 - **Block checkout title and description.** The Block checkout labelled the method "UPayments" in every language and never showed the description. It now uses the gateway title and description from the settings, including their WPML/WCML translations (`woocommerce_gateway_title` / `woocommerce_gateway_description`). Both are sent as plain text and shown as text, never as HTML. "UPayments" stays the label when no title is set. The Blocks script now depends on `wp-html-entities`.
