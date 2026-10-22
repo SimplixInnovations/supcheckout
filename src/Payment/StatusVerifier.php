@@ -308,11 +308,75 @@ final class StatusVerifier {
         if ($charged === null) {
             return null;
         }
+        // Same precision as the Charge: exact equality, exactly as without a snapshot.
+        if (hash_equals($local_canonical, $charged)) {
+            return $charged;
+        }
+        // This request has fewer decimals than the Charge. Matching the request's
+        // rounding is necessary but not enough: an edit inside the same rounding
+        // bucket (12.341 -> 12.344, both 12.34 at 2 decimals) still matches. So the
+        // snapshot must also equal the persisted order total exactly, read without
+        // the request's decimals. Anything unreadable fails closed.
         $as_loaded = self::canonical_decimal((string) wc_format_decimal($charged, wc_get_price_decimals()));
         if ($as_loaded === null || !hash_equals($local_canonical, $as_loaded)) {
             return false;
         }
+        $persisted = self::persisted_order_total($order->get_id());
+        if ($persisted === null || !hash_equals($persisted, $charged)) {
+            return false;
+        }
         return $charged;
+    }
+
+    /**
+     * The order total as stored, canonicalized, independent of the request's price
+     * decimals: HPOS `total_amount` (decimal(26,8)) in the orders table, or the CPT
+     * `_order_total` post meta, whichever store is authoritative.
+     *
+     * @param mixed $order_id Order ID.
+     * @return string|null Canonical decimal, or null when it cannot be read.
+     */
+    private static function persisted_order_total($order_id) {
+        $order_id = is_numeric($order_id) ? (int) $order_id : 0;
+        if ($order_id <= 0) {
+            return null;
+        }
+        if (class_exists(\Automattic\WooCommerce\Utilities\OrderUtil::class)
+            && \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled()
+        ) {
+            global $wpdb;
+            if (!is_object($wpdb) || !isset($wpdb->prefix) || !method_exists($wpdb, 'prepare') || !method_exists($wpdb, 'get_var')) {
+                return null;
+            }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The binding needs the stored row, not a cached or request-rounded copy.
+            $stored = $wpdb->get_var($wpdb->prepare(
+                'SELECT total_amount FROM %i WHERE id = %d LIMIT 1',
+                $wpdb->prefix . 'wc_orders',
+                $order_id
+            ));
+        } else {
+            if (!function_exists('get_post_meta')) {
+                return null;
+            }
+            $stored = get_post_meta($order_id, '_order_total', true);
+        }
+        if (!is_string($stored) && !is_int($stored)) {
+            return null;
+        }
+        $stored = trim((string) $stored);
+        if (!preg_match('/^[0-9]+(?:\.[0-9]+)?$/', $stored)) {
+            return null;
+        }
+        // Strip insignificant zeros before the length-bounded canonicalizer, so the
+        // HPOS form (12.34100000) compares like the CPT form (12.341).
+        $stored = ltrim($stored, '0');
+        if ($stored === '' || $stored[0] === '.') {
+            $stored = '0' . $stored;
+        }
+        if (strpos($stored, '.') !== false) {
+            $stored = rtrim(rtrim($stored, '0'), '.');
+        }
+        return self::canonical_decimal($stored);
     }
 
     private static function normalize_track_id($track_id) {

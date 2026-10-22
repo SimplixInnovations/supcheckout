@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Tests\Payment;
 
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Payment\ProviderResult;
 use Simplixi\SUPCheckout\Payment\StatusVerifier;
@@ -69,6 +71,7 @@ final class StatusVerifierTest extends TestCase {
         \supcheckout_test_reset_wp_options();
         \supcheckout_test_reset_wp_http();
         unset($GLOBALS['supcheckout_test_price_decimals']);
+        $GLOBALS['supcheckout_test_subscription_presentation']['meta'] = array();
     }
 
     public function test_invalid_boundaries_fail_before_rate_or_http_mutation(): void {
@@ -294,6 +297,7 @@ final class StatusVerifierTest extends TestCase {
         $order = new StatusVerifierOrder(42, 'merchant-42');
         $order->total = '12.35';
         $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.345');
+        $this->persist_order_total(42, '12.345');
         $transaction = $this->transaction($order);
         $transaction['total_price'] = '12.345';
 
@@ -301,6 +305,105 @@ final class StatusVerifierTest extends TestCase {
 
         self::assertTrue($result['bound'], (string) $result['reason']);
         self::assertSame(ProviderResult::CAPTURED, $result['classification']);
+    }
+
+    public function test_a1_07_an_edit_inside_the_same_rounding_bucket_fails_binding(): void {
+        // Charged 12.341, then edited to 12.344. A 2-decimal request reads both as
+        // 12.34, so only the persisted total, read independently of the request's
+        // decimals, can show the edit.
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.34';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.341');
+        $this->persist_order_total(42, '12.344');
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.341';
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+
+        self::assertFalse($result['bound']);
+        self::assertSame('binding_amount', $result['reason']);
+    }
+
+    public function test_a1_07_the_snapshot_binds_only_when_it_equals_the_persisted_total_exactly(): void {
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.34';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.341');
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.341';
+
+        // Unedited: CPT '_order_total' and the HPOS decimal(26,8) form both bind.
+        foreach (array('12.341', '12.34100000') as $persisted) {
+            $this->persist_order_total(42, $persisted);
+            self::assertTrue(
+                StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['bound'],
+                $persisted
+            );
+        }
+        // Unreadable or not a plain decimal: fail closed.
+        foreach (array(null, '', 'abc', '-12.341', '1.2341e1', array('12.341')) as $persisted) {
+            $this->persist_order_total(42, $persisted);
+            self::assertSame(
+                'binding_amount',
+                StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason'],
+                var_export($persisted, true)
+            );
+        }
+    }
+
+    public function test_a1_07_an_exact_request_total_needs_no_persisted_read(): void {
+        // Same precision as the Charge: exact equality binds, as before the snapshot.
+        $GLOBALS['supcheckout_test_price_decimals'] = 3;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.341';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.341');
+        $this->persist_order_total(42, null);
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.341';
+
+        self::assertTrue(StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['bound']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a1_07_hpos_reads_total_amount_from_the_orders_table(): void {
+        eval('namespace Automattic\WooCommerce\Utilities;
+            final class OrderUtil {
+                public static function custom_orders_table_usage_is_enabled() { return true; }
+            }');
+        $wpdb = new class() {
+            public $prefix = 'wp_';
+            public $queries = array();
+            public function prepare($query, ...$args) {
+                return array($query, $args);
+            }
+            public function get_var($prepared) {
+                $this->queries[] = $prepared;
+                return '12.34100000';
+            }
+        };
+        $GLOBALS['wpdb'] = $wpdb;
+        // A CPT value that would bind must not be consulted under HPOS.
+        $this->persist_order_total(42, '12.344');
+        $GLOBALS['supcheckout_test_price_decimals'] = 2;
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->total = '12.34';
+        $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '12.341');
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.341';
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+
+        self::assertTrue($result['bound'], (string) $result['reason']);
+        self::assertSame(
+            array(array('SELECT total_amount FROM %i WHERE id = %d LIMIT 1', array('wp_wc_orders', 42))),
+            $wpdb->queries
+        );
     }
 
     public function test_a1_07_snapshot_never_binds_a_provider_amount_other_than_the_charged_one(): void {
@@ -410,6 +513,20 @@ final class StatusVerifierTest extends TestCase {
         $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction, 'merchant-41');
 
         self::assertSame('binding_amount', $result['reason']);
+    }
+
+    /**
+     * The CPT `_order_total` post meta, through the get_post_meta() test stub.
+     *
+     * @param int   $order_id Order ID.
+     * @param mixed $total    Stored value; null removes it.
+     */
+    private function persist_order_total($order_id, $total): void {
+        if ($total === null) {
+            unset($GLOBALS['supcheckout_test_subscription_presentation']['meta'][$order_id]['_order_total']);
+            return;
+        }
+        $GLOBALS['supcheckout_test_subscription_presentation']['meta'][$order_id]['_order_total'] = $total;
     }
 
     private function snapshot($requested_order_id, $amount, $currency = 'KWD'): array {

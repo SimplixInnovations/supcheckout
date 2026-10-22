@@ -979,4 +979,49 @@ supcheckout_cert_assert('binding_amount' === $a1_07_bound['reason'], 'A1-07 the 
 remove_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
 supcheckout_e2_delete_order_and_products(wc_get_order($a1_07_order_id), array());
 
+// A1-07 review C1: an edit inside the same rounding bucket must fail. Charged at
+// 12.341, edited to 12.344 at 3 decimals; a 2-decimal request reads both as 12.34,
+// so only the persisted total (HPOS total_amount or CPT _order_total) shows it.
+add_filter('wc_get_price_decimals', $a1_07_three_decimals, 999);
+$order = supcheckout_e2_order(array());
+$order->set_total('12.341');
+\Simplixi\SUPCheckout\Takeover\Keys::update_order_meta($order, 'UPayments_order_id', 'a1-07-bucket-attempt');
+$order->update_meta_data(
+    \Simplixi\SUPCheckout\Payment\StatusVerifier::CHARGE_AMOUNT_META,
+    \Simplixi\SUPCheckout\Payment\StatusVerifier::charge_amount_snapshot('a1-07-bucket-attempt', '12.341', 'KWD')
+);
+$order->save();
+$a1_07_bucket_id = $order->get_id();
+$a1_07_bucket_transaction = array(
+    'result' => 'CAPTURED',
+    'track_id' => 'a1-07-bucket-track',
+    'merchant_requested_order_id' => 'a1-07-bucket-attempt',
+    'total_price' => '12.341',
+    'currency_type' => 'KWD',
+    'reference' => (string) $a1_07_bucket_id,
+    'payment_id' => 'a1-07-bucket-payment',
+);
+remove_filter('wc_get_price_decimals', $a1_07_three_decimals, 999);
+add_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+$order = new WC_Order($a1_07_bucket_id);
+supcheckout_cert_assert('12.34' === (string) $order->get_total(), 'A1-07 C1 the unedited 12.341 order reads as 12.34 in a 2-decimal request');
+$a1_07_bound = \Simplixi\SUPCheckout\Payment\StatusVerifier::bind_transaction(supcheckout_e2_gateway(), $order, 'a1-07-bucket-track', $a1_07_bucket_transaction);
+supcheckout_cert_assert(true === $a1_07_bound['bound'], 'A1-07 C1 the unedited 3-decimal order binds in a 2-decimal request');
+remove_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+add_filter('wc_get_price_decimals', $a1_07_three_decimals, 999);
+$order = new WC_Order($a1_07_bucket_id);
+$order->set_total('12.344');
+$order->save();
+remove_filter('wc_get_price_decimals', $a1_07_three_decimals, 999);
+add_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+$order = new WC_Order($a1_07_bucket_id);
+supcheckout_cert_assert('12.34' === (string) $order->get_total(), 'A1-07 C1 the edited 12.344 order also reads as 12.34 in a 2-decimal request');
+$a1_07_bound = \Simplixi\SUPCheckout\Payment\StatusVerifier::bind_transaction(supcheckout_e2_gateway(), $order, 'a1-07-bucket-track', $a1_07_bucket_transaction);
+supcheckout_cert_assert(
+    false === $a1_07_bound['bound'] && 'binding_amount' === $a1_07_bound['reason'],
+    'A1-07 C1 an edit inside the same rounding bucket fails binding'
+);
+remove_filter('wc_get_price_decimals', $a1_07_two_decimals, 999);
+supcheckout_e2_delete_order_and_products(wc_get_order($a1_07_bucket_id), array());
+
 supcheckout_cert_note('real Woo order-economics certification complete');
