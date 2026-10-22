@@ -289,6 +289,18 @@ class CheckoutOrchestrator {
                     continue;
                 }
 
+                // The provider caps products[].price at a fixed token length. An
+                // exact unit price longer than that cap is inexpressible in the same
+                // way: omit products[] wholesale instead of letting the injector
+                // backstop veto the authoritative Woo order total.
+                if (strlen($unit_price) > CheckoutPayload::get_max_length_for_sentinel('__UPAY_PRODUCT_PRICE_SENTINEL__')) {
+                    $gateway->log('Product descriptors omitted: unit price exceeds the provider length cap.', 'warning');
+                    $productArrayNew = array();
+                    $product_price_tokens = array();
+                    $product_descriptors_available = false;
+                    continue;
+                }
+
                 // Section F: UTF-8 safe truncation.
                 $normalized_name = CheckoutPayload::truncate_provider_text($item->get_name(), 255);
                 $normalized_description = CheckoutPayload::truncate_provider_text($item->get_name(), 255);
