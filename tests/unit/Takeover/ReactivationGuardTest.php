@@ -54,6 +54,7 @@ final class ReactivationGuardTest extends TestCase {
             array(
                 array('filter', 'pre_update_option_active_plugins', array(ReactivationGuard::class, 'filter_site_plugins'), 10, 2),
                 array('filter', 'pre_update_site_option_active_sitewide_plugins', array(ReactivationGuard::class, 'filter_network_plugins'), 10, 2),
+                array('action', 'activate_plugin', array(ReactivationGuard::class, 'before_activation'), 0, 2),
                 array('action', 'admin_notices', array(ReactivationGuard::class, 'render_notice'), 10, 1),
                 array('action', 'network_admin_notices', array(ReactivationGuard::class, 'render_notice'), 10, 1),
             ),
@@ -70,7 +71,7 @@ final class ReactivationGuardTest extends TestCase {
         $kept = ReactivationGuard::filter_site_plugins(array(self::OFFICIAL, self::OWN), array(self::OWN));
 
         self::assertSame(array(self::OWN), $kept, 'the official entry is stripped from the new value');
-        self::assertSame(array(self::OFFICIAL), get_transient(ReactivationGuard::NOTICE_TRANSIENT), 'one admin error is queued');
+        self::assertSame(array('switched' => array(self::OFFICIAL)), get_transient(ReactivationGuard::NOTICE_TRANSIENT), 'one admin error is queued');
     }
 
     #[RunInSeparateProcess]
@@ -82,7 +83,7 @@ final class ReactivationGuardTest extends TestCase {
         $kept = ReactivationGuard::filter_network_plugins(array(self::OWN => 1, self::OFFICIAL => 2), array(self::OWN => 1));
 
         self::assertSame(array(self::OWN => 1), $kept);
-        self::assertSame(array(self::OFFICIAL), get_transient(ReactivationGuard::NOTICE_TRANSIENT));
+        self::assertSame(array('switched' => array(self::OFFICIAL)), get_transient(ReactivationGuard::NOTICE_TRANSIENT));
     }
 
     #[RunInSeparateProcess]
@@ -127,6 +128,141 @@ final class ReactivationGuardTest extends TestCase {
         self::assertStringContainsString('already switched to SUPCheckout', $html);
         self::assertStringContainsString('upayments/UPayments.php', $html);
         self::assertSame('', self::render(), 'the notice is shown once');
+    }
+
+    /**
+     * Review round 1 #2: on multisite a network activation is refused in every state (fail
+     * closed: Preflight treats a network-activated official plugin as unsupported, and the
+     * state read in a network-admin request is the main site's). Site activations keep the
+     * per-site state rule.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    #[DataProvider('open_states')]
+    public function test_on_multisite_a_network_activation_is_refused_in_every_state(string $status): void {
+        self::boot($status);
+        $GLOBALS['supcheckout_test_multisite'] = true;
+
+        self::assertSame(array(self::OWN => 1), ReactivationGuard::filter_network_plugins(array(self::OWN => 1, self::OFFICIAL => 2), array(self::OWN => 1)));
+        self::assertSame(array('network' => array(self::OFFICIAL)), get_transient(ReactivationGuard::NOTICE_TRANSIENT));
+        $value = array(self::OFFICIAL, self::OWN);
+        self::assertSame($value, ReactivationGuard::filter_site_plugins($value, array(self::OWN)), 'a site activation before the switch still passes');
+    }
+
+    /**
+     * Review round 1 #1: WordPress runs the plugin's activation hooks before it writes the
+     * option, so the option filter alone would still let the official plugin's activation
+     * code run (creating or overwriting the checkout page, for example). A refused activation
+     * runs neither `activate_{plugin}` nor the official plugin's own `activated_plugin`
+     * callbacks; other plugins' callbacks stay.
+     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    #[DataProvider('guarded_states')]
+    public function test_a_refused_activation_never_runs_the_official_activation_hooks(string $status): void {
+        self::boot($status);
+        self::arm_official_hooks();
+
+        ReactivationGuard::before_activation(self::OFFICIAL, false);
+        do_action('activate_' . self::OFFICIAL, false);
+
+        self::assertSame(array(), $GLOBALS['supcheckout_test_official_calls'], 'the official activation hook never runs');
+        self::assertSame(array('foreign'), self::activated_plugin_callbacks(), "only the official plugin's activated_plugin callback is removed");
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    #[DataProvider('open_states')]
+    public function test_an_allowed_activation_runs_the_official_activation_hooks(string $status): void {
+        self::boot($status);
+        self::arm_official_hooks();
+
+        ReactivationGuard::before_activation(self::OFFICIAL, false);
+        ReactivationGuard::before_activation('woocommerce/woocommerce.php', false);
+        do_action('activate_' . self::OFFICIAL, false);
+
+        self::assertSame(array('activate'), $GLOBALS['supcheckout_test_official_calls']);
+        self::assertSame(array('official', 'foreign'), self::activated_plugin_callbacks());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_on_multisite_a_refused_network_activation_runs_no_official_hook_in_any_state(): void {
+        self::boot(TakeoverState::IDLE);
+        $GLOBALS['supcheckout_test_multisite'] = true;
+        self::arm_official_hooks();
+
+        ReactivationGuard::before_activation(self::OFFICIAL, true);
+        do_action('activate_' . self::OFFICIAL, true);
+
+        self::assertSame(array(), $GLOBALS['supcheckout_test_official_calls']);
+        self::assertSame(array('foreign'), self::activated_plugin_callbacks());
+    }
+
+    /** Review round 1 #3: a finalized store is never told to roll back. */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_the_notice_points_a_cut_over_store_to_rollback_and_tells_a_finalized_store_the_switch_is_final(): void {
+        self::boot(TakeoverState::CUT_OVER);
+        ReactivationGuard::filter_site_plugins(array(self::OFFICIAL), array());
+        self::assertStringContainsString('roll back the switch in SUPCheckout', self::render());
+
+        $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode(array('status' => TakeoverState::FINALIZED, 'cut_over_at' => 1, 'cursor' => 0, 'totals' => array()));
+        TakeoverState::flush_cache();
+        ReactivationGuard::filter_site_plugins(array(self::OFFICIAL), array());
+        $finalized = self::render();
+        self::assertStringContainsString('The switch is final', $finalized);
+        self::assertStringNotContainsString('roll back', $finalized);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a_refused_network_activation_explains_that_network_activation_is_unsupported(): void {
+        self::boot(TakeoverState::IDLE);
+        $GLOBALS['supcheckout_test_multisite'] = true;
+        ReactivationGuard::filter_network_plugins(array(self::OFFICIAL => 2), array());
+
+        $html = self::render();
+
+        self::assertStringContainsString('SUPCheckout kept the UPayments plugin switched off for the network.', $html);
+        self::assertStringContainsString('Activate UPayments on individual sites instead.', $html);
+        self::assertStringNotContainsString('already switched', $html);
+    }
+
+    /**
+     * The official main file defines the spies (WordPress includes it before the activation
+     * hooks run); a foreign closure from this test file shares activated_plugin.
+     */
+    private static function arm_official_hooks(): void {
+        require_once dirname(__DIR__, 2) . '/support/cache-purge-wp-stubs.php';
+        if (!function_exists('remove_all_actions')) {
+            eval('function remove_all_actions($hook_name, $priority = false) {
+                $GLOBALS["supcheckout_test_hook_calls"] = array_values(array_filter($GLOBALS["supcheckout_test_hook_calls"], function ($call) use ($hook_name) { return $call[1] !== $hook_name; }));
+                return true;
+            }');
+        }
+        if (!function_exists('remove_action')) {
+            eval('function remove_action($hook_name, $callback, $priority = 10) {
+                $removed = false;
+                foreach ($GLOBALS["wp_filter"][$hook_name]->callbacks[$priority] as $id => $entry) {
+                    if ($entry["function"] === $callback) { unset($GLOBALS["wp_filter"][$hook_name]->callbacks[$priority][$id]); $removed = true; }
+                }
+                return $removed;
+            }');
+        }
+        $GLOBALS['supcheckout_test_official_calls'] = array();
+        file_put_contents(WP_PLUGIN_DIR . '/upayments/UPayments.php', "<?php\nfunction supcheckout_test_official_activate() { \$GLOBALS['supcheckout_test_official_calls'][] = 'activate'; }\nfunction supcheckout_test_official_activated(\$plugin) { \$GLOBALS['supcheckout_test_official_calls'][] = 'activated'; }\n");
+        require_once WP_PLUGIN_DIR . '/upayments/UPayments.php';
+        add_action('activate_' . self::OFFICIAL, 'supcheckout_test_official_activate');
+        $GLOBALS['wp_filter']['activated_plugin'] = (object) array('callbacks' => array(10 => array(
+            'official' => array('function' => 'supcheckout_test_official_activated', 'accepted_args' => 1),
+            'foreign' => array('function' => static function () {}, 'accepted_args' => 1),
+        )));
+    }
+
+    /** @return list<string> */
+    private static function activated_plugin_callbacks(): array {
+        return array_map('strval', array_keys($GLOBALS['wp_filter']['activated_plugin']->callbacks[10]));
     }
 
     private static function render(): string {

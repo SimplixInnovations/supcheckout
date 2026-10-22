@@ -9,6 +9,14 @@
     },
     {
         "kind": "action",
+        "hook": "activate_plugin",
+        "priority": 0,
+        "accepted_args": 2,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
         "hook": "added_post_meta",
         "priority": 10,
         "accepted_args": 4,
@@ -789,6 +797,14 @@
         "hook": "action_scheduler_init",
         "priority": 10,
         "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "activate_plugin",
+        "priority": 0,
+        "accepted_args": 2,
         "contexts": "static"
     },
     {

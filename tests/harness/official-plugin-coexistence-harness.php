@@ -105,14 +105,14 @@ coexistence_assert(strpos($alone['out'], 'NOTICES:0') !== false, 'SUPCheckout al
 // Fix A1-01 review M3: the paused-renewal notice is counted on its own: one registration on
 // a booted SUPCheckout, none while it is paused next to the official plugin.
 coexistence_assert(strpos($alone['out'], 'PAUSED_RENEWAL_NOTICES:1') !== false, 'SUPCheckout alone registers the paused-renewal notice once');
-// Hardening T2 (A5-01): the official-reactivation guard (two option filters and its notice
+// Hardening T2 (A5-01): the official-reactivation guard (two option filters, the activate_plugin hook neutraliser and its notice
 // on admin_notices and network_admin_notices) is a booted SUPCheckout's own and is counted
 // on its own, never as a conflict notice; a paused SUPCheckout registers none of it.
-coexistence_assert(strpos($alone['out'], 'REACTIVATION_GUARD_HOOKS:4') !== false, 'SUPCheckout alone registers the official-reactivation guard once');
+coexistence_assert(strpos($alone['out'], 'REACTIVATION_GUARD_HOOKS:5') !== false, 'SUPCheckout alone registers the official-reactivation guard once');
 foreach (array('stale', 'unrelated', 'shim') as $booted_scenario) {
     $booted = coexistence_run($root, $booted_scenario, $official_stub);
     coexistence_assert(strpos($booted['out'], 'PAUSED_RENEWAL_NOTICES:1') !== false, "booted ({$booted_scenario}): the paused-renewal notice is registered once");
-    coexistence_assert(strpos($booted['out'], 'REACTIVATION_GUARD_HOOKS:4') !== false, "booted ({$booted_scenario}): the official-reactivation guard is registered once");
+    coexistence_assert(strpos($booted['out'], 'REACTIVATION_GUARD_HOOKS:5') !== false, "booted ({$booted_scenario}): the official-reactivation guard is registered once");
 }
 
 $official_first = coexistence_run($root, 'official_first', $official_stub);
