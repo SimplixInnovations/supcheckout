@@ -88,6 +88,10 @@ if (!function_exists('as_unschedule_action')) {
 if (!function_exists('as_unschedule_all_actions')) {
     function as_unschedule_all_actions($hook, $args = null, $group = '')
     {
+        if (!empty($GLOBALS['supcheckout_test_as_unschedule_throws'])) {
+            // Real Action Scheduler throws when its store cannot cancel the action.
+            throw new RuntimeException('Error canceling action');
+        }
         $GLOBALS['supcheckout_as_calls']['unscheduled_all'][] = array($hook, $args, $group);
         $GLOBALS['supcheckout_as_calls']['scheduled'] = array_values(array_filter(
             $GLOBALS['supcheckout_as_calls']['scheduled'],

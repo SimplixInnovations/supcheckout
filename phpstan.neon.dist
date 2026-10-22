@@ -41,6 +41,7 @@ parameters:
         - src/Autoloader.php
         - src/Plugin.php
         - src/Bootstrap/BasenameMigration.php
+        - src/Bootstrap/Deactivation.php
         - src/Bootstrap/Requirements.php
         - src/Bootstrap/WooCommerceDeclarations.php
         - src/Blocks/PaymentMethodRegistration.php

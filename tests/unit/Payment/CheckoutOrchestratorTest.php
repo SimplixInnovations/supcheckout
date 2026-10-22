@@ -123,6 +123,29 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertSame(array('attempt-p0', 'attempt-b'), $fresh->get_meta('_simplixpay_upayments_prior_requested_v1'));
     }
 
+    public function test_a_new_charge_attempt_unparks_the_order_for_the_hourly_sweep(): void {
+        // U2 review M-2: an order parked out of the sweep (its trusted transaction did
+        // not bind) is unparked by the next Charge, under the attempt lock.
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order(array(
+            'UPayments_order_id' => 'attempt-p0',
+            '_supcheckout_sweep_parked_v1' => 'track-t',
+        ));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            $this->charge_success_executor(static function () {}),
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('success', $result['result']);
+        self::assertSame('', $order->get_meta('_supcheckout_sweep_parked_v1'));
+        self::assertSame(array('attempt-p0'), $order->get_meta('_simplixpay_upayments_prior_requested_v1'));
+    }
+
     public function test_a_busy_order_lock_fails_closed_without_touching_the_order(): void {
         \supcheckout_test_reset_wp_options();
         $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));

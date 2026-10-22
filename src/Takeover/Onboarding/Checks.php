@@ -34,6 +34,12 @@ final class Checks {
     /** WooCommerce's price decimals option and its default (wc_get_price_decimals()). */
     private const PRICE_DECIMALS_OPTION = 'woocommerce_price_num_decimals';
     private const PRICE_DECIMALS_DEFAULT = 2;
+    /** WCML's WPML String Translation context for gateway texts (WCML_WC_Gateways::STRINGS_CONTEXT). */
+    private const WPML_GATEWAY_CONTEXT = 'admin_texts_woocommerce_gateways';
+    /** WPML's ICL_TM_COMPLETE string translation status. */
+    private const WPML_STATUS_COMPLETE = 10;
+    /** Rows read from WPML String Translation at most: 3 texts x 2 IDs x 33 languages. */
+    private const WPML_ROWS_LIMIT = 200;
 
     /**
      * @param string               $id      Check ID.
@@ -167,8 +173,9 @@ final class Checks {
     }
 
     /**
-     * Secondary WooCommerce Multilingual currencies outside UPayments' list, reported only
-     * when multi-currency is on and the store currency itself passed.
+     * Secondary WooCommerce Multilingual currencies outside UPayments' list, and (A4-10) a
+     * fixed multi-merchant charge while multi-currency is on, reported only when the store
+     * currency itself passed. Report-only: it never fails and never writes.
      *
      * @param Environment $env Environment.
      * @return array{id:string, result:string, code:string|null, message:string, data:array<string,mixed>}
@@ -179,25 +186,76 @@ final class Checks {
             return $store;
         }
         $wcml = self::wcml($env);
-        $unsupported = array();
+        $others = array();
         if ($wcml['multi_currency']) {
-            $supported = GatewaySettings::supported_currencies();
             foreach ($wcml['currencies'] as $currency) {
-                if ($currency['code'] !== $env->currency() && !in_array($currency['code'], $supported, true)) {
-                    $unsupported[] = $currency['code'];
+                if ($currency['code'] !== $env->currency()) {
+                    $others[] = $currency['code'];
                 }
             }
         }
-        if ($unsupported === array()) {
-            return $store;
+        $unsupported = array_values(array_diff($others, GatewaySettings::supported_currencies()));
+
+        $warnings = array();
+        if ($unsupported !== array()) {
+            $warnings[] = self::check('currency', self::WARN, 'wcml_currency_unsupported',
+                __('A WooCommerce Multilingual secondary currency is not supported by UPayments. Orders in it cannot be paid with SUPCheckout; SUPCheckout does not change the multicurrency settings.', 'supcheckout'),
+                array(
+                    'currency' => $env->currency(),
+                    'unsupported' => array_slice($unsupported, 0, Bounded::LIST_LIMIT),
+                    'truncated' => count($unsupported) > Bounded::LIST_LIMIT,
+                ));
         }
-        return self::check('currency', self::WARN, 'wcml_currency_unsupported',
-            __('A WooCommerce Multilingual secondary currency is not supported by UPayments. Orders in it cannot be paid with SUPCheckout; SUPCheckout does not change the multicurrency settings.', 'supcheckout'),
-            array(
-                'currency' => $env->currency(),
-                'unsupported' => array_slice($unsupported, 0, Bounded::LIST_LIMIT),
-                'truncated' => count($unsupported) > Bounded::LIST_LIMIT,
-            ));
+        $fixed = $others === array() ? array() : self::fixed_multimerchant_charges(self::settings($env));
+        if ($fixed !== array()) {
+            $warnings[] = self::check('currency', self::WARN, 'multimerchant_fixed_charge_multicurrency',
+                __('A multi-merchant charge is a fixed amount and WooCommerce Multilingual multi-currency is on. The fixed amount is sent in the currency of each order, without conversion, so the commission differs by the exchange rate in another currency. Use a percentage charge, or check the amounts for each currency; SUPCheckout does not change the settings.', 'supcheckout'),
+                array(
+                    'currency' => $env->currency(),
+                    'fixed_charges' => $fixed,
+                    'other_currencies' => array_slice($others, 0, Bounded::LIST_LIMIT),
+                    'other_currencies_truncated' => count($others) > Bounded::LIST_LIMIT,
+                ));
+        }
+        return $warnings === array() ? $store : self::combined($warnings);
+    }
+
+    /**
+     * @param array<string, mixed> $settings Gateway settings.
+     * @return list<string> The multi-merchant charges ('knet', 'cc') set to a non-zero fixed amount.
+     */
+    private static function fixed_multimerchant_charges(array $settings) {
+        if (!isset($settings['enable_multimerchant']) || $settings['enable_multimerchant'] !== 'yes') {
+            return array();
+        }
+        $fixed = array();
+        foreach (array('knet', 'cc') as $charge) {
+            $type = isset($settings[$charge . '_charge_type']) ? $settings[$charge . '_charge_type'] : null;
+            $amount = isset($settings[$charge . '_charge']) ? $settings[$charge . '_charge'] : null;
+            if ($type === 'fixed' && is_string($amount) && is_numeric($amount) && (float) $amount > 0) {
+                $fixed[] = $charge;
+            }
+        }
+        return $fixed;
+    }
+
+    /**
+     * One check from one or more warnings of the same check: the first warning's code,
+     * message and data lead; `codes` and `messages` list every warning's code and full message,
+     * so none is hidden. Each message stays a separate string, so the report bounding
+     * (Bounded::STRING_LIMIT per string) never cuts one off.
+     *
+     * @param non-empty-list<array{id:string, result:string, code:string|null, message:string, data:array<string,mixed>}> $warnings Warnings.
+     * @return array{id:string, result:string, code:string|null, message:string, data:array<string,mixed>}
+     */
+    private static function combined(array $warnings) {
+        $data = array();
+        foreach ($warnings as $warning) {
+            $data += $warning['data'];
+        }
+        $data['codes'] = array_column($warnings, 'code');
+        $data['messages'] = array_column($warnings, 'message');
+        return self::check($warnings[0]['id'], self::WARN, $warnings[0]['code'], $warnings[0]['message'], $data);
     }
 
     /**
@@ -275,8 +333,9 @@ final class Checks {
 
     /**
      * Report-only look at WPML / WooCommerce Multilingual gateway settings: per-currency
-     * `gateways_settings` and the location rule. Reads two options through Environment and
-     * never writes.
+     * `gateways_settings`, the location rule and (A4-04) the WPML String Translation
+     * translations of the gateway title, description and instructions. Reads two options and
+     * at most two SHOW TABLES plus one bounded SELECT through Environment, and never writes.
      *
      * @param Environment $env Environment.
      * @return array{id:string, result:string, code:string|null, message:string, data:array<string,mixed>}
@@ -295,15 +354,95 @@ final class Checks {
             return self::check('multilingual', self::WARN, 'unknown_shape',
                 __('The WooCommerce Multilingual gateway settings do not have the shape SUPCheckout knows, so they were not checked. Review the payment gateway settings for each currency by hand.', 'supcheckout'), $data);
         }
+        $strings = self::gateway_strings($env);
+        $data['gateway_strings'] = $strings;
+
+        $warnings = array();
         $legacy_only = $wcml['location_rule']['legacy'] && !$wcml['location_rule']['new'];
         foreach ($wcml['currencies'] as $currency) {
             $legacy_only = $legacy_only || ($currency['legacy_id'] && !$currency['new_id']);
         }
         if ($legacy_only) {
-            return self::check('multilingual', self::WARN, 'wcml_gateway_settings_legacy_only',
+            $warnings[] = self::check('multilingual', self::WARN, 'wcml_gateway_settings_legacy_only',
                 __('WooCommerce Multilingual gateway settings name only the previous UPayments gateway ID. Review the per-currency and location settings and add SUPCheckout; SUPCheckout does not change them.', 'supcheckout'), $data);
         }
+        if ($strings['untranslated'] !== array()) {
+            $first = $strings['untranslated'][0];
+            $warnings[] = self::check('multilingual', self::WARN, 'wpml_gateway_strings_legacy_only',
+                sprintf(
+                    /* translators: 1: a WPML string name such as supcheckout_gateway_description, 2: a language code, 3: the WPML string domain admin_texts_woocommerce_gateways. */
+                    __('WPML String Translation has translations of the previous UPayments gateway text that the SUPCheckout gateway text lacks, for example %1$s in %2$s. Once the gateway uses the SUPCheckout ID, shoppers in those languages see the untranslated text. Translate each listed string in WPML > String Translation, domain %3$s; SUPCheckout does not copy translations.', 'supcheckout'),
+                    $first['string'],
+                    $first['language'],
+                    self::WPML_GATEWAY_CONTEXT
+                ), $data);
+        }
+        if ($warnings !== array()) {
+            return self::combined($warnings);
+        }
         return self::check('multilingual', self::PASS, null, __('No multilingual gateway setting needs attention.', 'supcheckout'), $data);
+    }
+
+    /**
+     * A4-04: WCML registers each gateway's title, description and instructions in WPML String
+     * Translation as `{gateway id}_gateway_{key}` in context admin_texts_woocommerce_gateways,
+     * so the switch to the SUPCheckout ID leaves earlier translations under the previous
+     * names. Lists each (new string, language) with a completed translation under the previous
+     * name only. Skipped, with `checked` false and no query, unless WPML String Translation is
+     * active (WPML_ST_VERSION) and both of its tables exist: tables a removed WPML left behind
+     * are never read.
+     *
+     * @param Environment $env Environment.
+     * @return array{checked:bool, untranslated:list<array{string:string, language:string}>, truncated:bool}
+     */
+    private static function gateway_strings(Environment $env) {
+        $result = array('checked' => false, 'untranslated' => array(), 'truncated' => false);
+        $strings = $env->table('icl_strings');
+        $translations = $env->table('icl_string_translations');
+        if (!defined('WPML_ST_VERSION') || !$env->has_db() || !self::table_exists($env, $strings) || !self::table_exists($env, $translations)) {
+            return $result;
+        }
+        $rows = $env->select_col(
+            'SELECT CONCAT(s.name, %s, t.language) FROM %i s INNER JOIN %i t ON t.string_id = s.id'
+                . ' WHERE s.context = %s AND (s.name LIKE %s OR s.name LIKE %s) AND t.status = %d'
+                . ' AND t.value IS NOT NULL AND t.value <> %s ORDER BY s.name, t.language LIMIT ' . self::WPML_ROWS_LIMIT,
+            array(
+                '|', $strings, $translations, self::WPML_GATEWAY_CONTEXT,
+                $env->esc_like(Keys::GATEWAY_LEGACY . '_gateway_') . '%',
+                $env->esc_like(Keys::GATEWAY . '_gateway_') . '%',
+                self::WPML_STATUS_COMPLETE, '',
+            )
+        );
+        $translated = array();
+        foreach ($rows as $row) {
+            if (preg_match('/^(' . Keys::GATEWAY_LEGACY . '|' . Keys::GATEWAY . ')_gateway_(title|description|instructions)\|([A-Za-z0-9_-]{1,10})$/D', $row, $m) === 1) {
+                $translated[$m[1]][$m[2] . '|' . $m[3]] = true;
+            }
+        }
+        $missing = array();
+        foreach (array_keys(isset($translated[Keys::GATEWAY_LEGACY]) ? $translated[Keys::GATEWAY_LEGACY] : array()) as $key) {
+            if (!isset($translated[Keys::GATEWAY][$key])) {
+                list($text, $language) = explode('|', $key, 2);
+                $missing[] = array('string' => Keys::GATEWAY . '_gateway_' . $text, 'language' => $language);
+            }
+        }
+        usort($missing, static function ($a, $b) {
+            return strcmp($a['string'] . '|' . $a['language'], $b['string'] . '|' . $b['language']);
+        });
+        return array(
+            'checked' => true,
+            'untranslated' => array_slice($missing, 0, Bounded::LIST_LIMIT),
+            'truncated' => count($missing) > Bounded::LIST_LIMIT || count($rows) >= self::WPML_ROWS_LIMIT,
+        );
+    }
+
+    /**
+     * @param Environment $env   Environment.
+     * @param string      $table Full table name.
+     * @return bool
+     */
+    private static function table_exists(Environment $env, $table) {
+        return $table !== '' && $env->select_var('SHOW TABLES LIKE %s', array($env->esc_like($table))) === $table;
     }
 
     /**

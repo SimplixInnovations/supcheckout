@@ -6,6 +6,7 @@ defined('ABSPATH') || exit;
 
 use Simplixi\SUPCheckout\Account\SubscriptionActions;
 use Simplixi\SUPCheckout\Blocks\PaymentMethodRegistration;
+use Simplixi\SUPCheckout\Bootstrap\Deactivation;
 use Simplixi\SUPCheckout\Bootstrap\Requirements;
 use Simplixi\SUPCheckout\Bootstrap\WooCommerceDeclarations;
 use Simplixi\SUPCheckout\Gateway\GatewayRegistration;
@@ -51,6 +52,9 @@ final class Plugin {
         RestRoutes::register();
         TakeoverCli::register();
         ReactivationGuard::register(self::$main_file);
+        // A3-08: SUPCheckout's own schedules stop on deactivation. A file hook, not a
+        // runtime hook, so the callbacks above keep their order; ::class loads no file.
+        register_deactivation_hook(self::$main_file, array(Deactivation::class, 'deactivate'));
         self::load_runtime(self::$main_file);
     }
 

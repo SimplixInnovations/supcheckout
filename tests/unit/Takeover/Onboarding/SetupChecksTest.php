@@ -2,10 +2,14 @@
 
 namespace Simplixi\SUPCheckout\Tests\Takeover\Onboarding;
 
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Takeover\Onboarding\Bounded;
 use Simplixi\SUPCheckout\Takeover\Environment;
 use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\Onboarding\SetupChecks;
+use Simplixi\SUPCheckout\Tests\Takeover\PreflightFakeDb;
 use Simplixi\SUPCheckout\Tests\Takeover\PreflightFixtures;
 
 /** 0c Task 5: the new-merchant setup checks (spec section 5.5). */
@@ -296,6 +300,220 @@ final class SetupChecksTest extends TestCase {
         self::run_checks(self::env(self::wcml_seed()));
 
         self::assertSame(array(), $GLOBALS['supcheckout_test_options']);
+    }
+
+    /**
+     * A database whose WPML String Translation tables hold $rows ("name|language" of each
+     * completed translation in the admin_texts_woocommerce_gateways context).
+     *
+     * @param list<string>|null $rows Null: the WPML String Translation tables do not exist.
+     */
+    private static function wpml_db(?array $rows): PreflightFakeDb {
+        return PreflightFixtures::db(array(
+            'SHOW TABLES LIKE' => static function (array $args) use ($rows) {
+                $table = stripslashes((string) $args[0]);
+                return $rows !== null && in_array($table, array('wp_icl_strings', 'wp_icl_string_translations'), true) ? $table : null;
+            },
+            't.string_id = s.id' => $rows === null ? array() : $rows,
+        ));
+    }
+
+    /** WPML String Translation is active: only in a separate process, the constant stays. */
+    private static function with_wpml_st(): void {
+        if (!defined('WPML_ST_VERSION')) {
+            define('WPML_ST_VERSION', '3.2.19');
+        }
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_wpml_translations_only_under_the_legacy_gateway_strings_warn(): void {
+        self::with_wpml_st();
+        $db = self::wpml_db(array(
+            'supcheckout_gateway_title|ar',
+            'upayments_gateway_description|ar',
+            'upayments_gateway_title|ar',
+            'upayments_gateway_title|fr',
+        ));
+
+        $report = self::run_checks(self::env(array(), array('db' => $db)));
+        $check = self::check($report, 'multilingual');
+
+        self::assertSame(array('warn', 'wpml_gateway_strings_legacy_only'), array($check['result'], $check['code']));
+        self::assertSame(array(
+            array('string' => 'supcheckout_gateway_description', 'language' => 'ar'),
+            array('string' => 'supcheckout_gateway_title', 'language' => 'fr'),
+        ), $check['data']['gateway_strings']['untranslated']);
+        self::assertTrue($check['data']['gateway_strings']['checked']);
+        self::assertSame(array('wpml_gateway_strings_legacy_only'), $check['data']['codes'], 'codes is always a list');
+        self::assertSame(array($check['message']), $check['data']['messages']);
+        self::assertStringContainsString('supcheckout_gateway_description', $check['message']);
+        self::assertStringContainsString('admin_texts_woocommerce_gateways', $check['message']);
+        self::assertTrue($report['ok'], 'report-only: a warning never fails the report');
+        $lookup = $db->executed_matching('t.string_id = s.id');
+        self::assertCount(1, $lookup, 'one bounded read');
+        self::assertStringStartsWith('SELECT ', $lookup[0]['query']);
+        self::assertStringContainsString(' LIMIT ', $lookup[0]['query']);
+        self::assertContains('admin_texts_woocommerce_gateways', $lookup[0]['args']);
+        self::assertContains('wp_icl_string_translations', $lookup[0]['args'], 'the table names are placeholders');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_wpml_gateway_strings_translated_under_both_ids_pass(): void {
+        self::with_wpml_st();
+        $db = self::wpml_db(array(
+            'supcheckout_gateway_description|ar',
+            'supcheckout_gateway_title|ar',
+            'upayments_gateway_description|ar',
+            'upayments_gateway_title|ar',
+        ));
+
+        $check = self::check(self::run_checks(self::env(array(), array('db' => $db))), 'multilingual');
+
+        self::assertSame(array('pass', null, array()), array($check['result'], $check['code'], $check['data']['gateway_strings']['untranslated']));
+    }
+
+    public function test_a_store_without_wpml_string_translation_reads_no_string_table(): void {
+        $db = self::wpml_db(null);
+
+        $check = self::check(self::run_checks(self::env(array(), array('db' => $db))), 'multilingual');
+
+        self::assertSame('pass', $check['result']);
+        self::assertFalse($check['data']['gateway_strings']['checked']);
+        self::assertSame(array(), $db->executed_matching('t.string_id = s.id'));
+    }
+
+    public function test_string_tables_left_by_a_removed_wpml_string_translation_are_not_read(): void {
+        // No WPML_ST_VERSION in this process: the plugin is not active, its tables may remain.
+        $db = self::wpml_db(array('upayments_gateway_description|ar'));
+
+        $check = self::check(self::run_checks(self::env(array(), array('db' => $db))), 'multilingual');
+
+        self::assertSame(array('pass', false), array($check['result'], $check['data']['gateway_strings']['checked']));
+        self::assertSame(array(), $db->executed_matching('SHOW TABLES LIKE'));
+        self::assertSame(array(), $db->executed_matching('t.string_id = s.id'));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_unknown_string_names_and_languages_are_ignored(): void {
+        self::with_wpml_st();
+        $db = self::wpml_db(array('upayments_gateway_other|ar', 'upayments_gateway_title|a r;', 'garbage', 'upayments_gateway_title|'));
+
+        self::assertSame('pass', self::check(self::run_checks(self::env(array(), array('db' => $db))), 'multilingual')['result']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_legacy_only_wcml_settings_and_wpml_strings_are_both_reported(): void {
+        self::with_wpml_st();
+        $db = self::wpml_db(array('upayments_gateway_description|ar'));
+
+        $check = self::check(self::run_checks(self::env(self::wcml_seed(), array('db' => $db))), 'multilingual');
+
+        self::assertSame(array('warn', 'wcml_gateway_settings_legacy_only'), array($check['result'], $check['code']));
+        self::assertSame(array('wcml_gateway_settings_legacy_only', 'wpml_gateway_strings_legacy_only'), $check['data']['codes']);
+        self::assertStringContainsString('WooCommerce Multilingual gateway settings', $check['message']);
+        self::assertStringNotContainsString('supcheckout_gateway_description', $check['message'], 'the lead message only');
+        self::assertCount(2, $check['data']['messages']);
+        self::assertSame($check['message'], $check['data']['messages'][0]);
+        self::assertStringContainsString('supcheckout_gateway_description', $check['data']['messages'][1]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_every_combined_message_survives_the_report_bounding_whole(): void {
+        self::with_wpml_st();
+        $multilingual = self::run_checks(self::env(self::wcml_seed(), array('db' => self::wpml_db(array('upayments_gateway_description|ar')))));
+        $currency = self::run_checks(self::env(
+            array('_wcml_settings' => array('enable_multi_currency' => 2, 'currency_options' => array('KWD' => array('rate' => 1), 'XYZ' => array('rate' => 3)))),
+            array(),
+            self::multimerchant('fixed', 'fixed')
+        ));
+
+        foreach (array('multilingual' => $multilingual, 'currency' => $currency) as $id => $report) {
+            $raw = self::check($report, $id);
+            $bounded = self::check(Bounded::document($report), $id);
+
+            self::assertCount(2, $raw['data']['messages'], $id);
+            self::assertSame($raw['data']['messages'], $bounded['data']['messages'], $id . ': no message is cut');
+            self::assertSame($raw['message'], $bounded['message'], $id);
+            foreach ($bounded['data']['messages'] as $message) {
+                self::assertLessThanOrEqual(Bounded::STRING_LIMIT, strlen($message), $id);
+            }
+        }
+        self::assertStringContainsString('admin_texts_woocommerce_gateways', self::check(Bounded::document($multilingual), 'multilingual')['data']['messages'][1]);
+        self::assertStringEndsWith('SUPCheckout does not change the settings.', self::check(Bounded::document($currency), 'currency')['data']['messages'][1]);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_the_wpml_string_check_never_writes(): void {
+        self::with_wpml_st();
+        self::run_checks(self::env(array(), array('db' => self::wpml_db(array('upayments_gateway_description|ar')))));
+
+        self::assertSame(array(), $GLOBALS['supcheckout_test_options']);
+    }
+
+    /** @return array<string, mixed> Multi-merchant gateway settings with the given charge types. */
+    private static function multimerchant(string $knet_type, string $cc_type, string $knet = '0.250', string $cc = '1.5'): array {
+        return array('enable_multimerchant' => 'yes', 'knet_charge' => $knet, 'knet_charge_type' => $knet_type, 'cc_charge' => $cc, 'cc_charge_type' => $cc_type);
+    }
+
+    /** @return array<string, mixed> WooCommerce Multilingual with the store currency and SAR. */
+    private static function multicurrency(int $mode = 2): array {
+        return array('_wcml_settings' => array('enable_multi_currency' => $mode, 'currency_options' => array('KWD' => array('rate' => 1), 'SAR' => array('rate' => 12.2))));
+    }
+
+    public function test_a_fixed_multimerchant_charge_under_multicurrency_warns(): void {
+        $report = self::run_checks(self::env(self::multicurrency(), array(), self::multimerchant('fixed', 'percentage')));
+        $check = self::check($report, 'currency');
+
+        self::assertSame(array('warn', 'multimerchant_fixed_charge_multicurrency'), array($check['result'], $check['code']));
+        self::assertSame(array('knet'), $check['data']['fixed_charges']);
+        self::assertSame(array('SAR'), $check['data']['other_currencies']);
+        self::assertSame(array('multimerchant_fixed_charge_multicurrency'), $check['data']['codes'], 'codes is always a list');
+        self::assertSame(array($check['message']), $check['data']['messages']);
+        self::assertStringContainsString('order', $check['message']);
+        self::assertTrue($report['ok'], 'report-only: a warning never fails the report');
+    }
+
+    public function test_fixed_multimerchant_charges_warn_only_with_multicurrency_and_a_charge_to_convert(): void {
+        $cases = array(
+            'percentage charges' => array(self::multicurrency(), self::multimerchant('percentage', 'percentage')),
+            'multi-merchant off' => array(self::multicurrency(), array('enable_multimerchant' => 'no') + self::multimerchant('fixed', 'fixed')),
+            'multi-currency off' => array(self::multicurrency(1), self::multimerchant('fixed', 'fixed')),
+            'zero fixed charges' => array(self::multicurrency(), self::multimerchant('fixed', 'fixed', '0.000', '0')),
+            'no other currency' => array(array('_wcml_settings' => array('enable_multi_currency' => 2, 'currency_options' => array('KWD' => array('rate' => 1)))), self::multimerchant('fixed', 'fixed')),
+        );
+        foreach ($cases as $label => $case) {
+            $check = self::check(self::run_checks(self::env($case[0], array(), $case[1])), 'currency');
+
+            self::assertSame(array('pass', null), array($check['result'], $check['code']), $label);
+        }
+    }
+
+    public function test_an_unsupported_secondary_currency_and_a_fixed_charge_are_both_reported(): void {
+        $options = array('_wcml_settings' => array('enable_multi_currency' => 2, 'currency_options' => array('KWD' => array('rate' => 1), 'XYZ' => array('rate' => 3))));
+
+        $check = self::check(self::run_checks(self::env($options, array(), self::multimerchant('fixed', 'fixed'))), 'currency');
+
+        self::assertSame(array('warn', 'wcml_currency_unsupported'), array($check['result'], $check['code']));
+        self::assertSame(array('wcml_currency_unsupported', 'multimerchant_fixed_charge_multicurrency'), $check['data']['codes']);
+        self::assertCount(2, $check['data']['messages']);
+        self::assertSame($check['message'], $check['data']['messages'][0], 'the lead message only');
+        self::assertSame(array('XYZ'), $check['data']['unsupported']);
+        self::assertSame(array('knet', 'cc'), $check['data']['fixed_charges']);
+    }
+
+    public function test_the_fixed_charge_check_never_writes_and_never_reports_the_charge_value(): void {
+        $report = self::run_checks(self::env(self::multicurrency(), array(), self::multimerchant('fixed', 'fixed', '0.737', '0.919')));
+
+        self::assertSame(array(), $GLOBALS['supcheckout_test_options']);
+        $json = (string) wp_json_encode(self::check($report, 'currency'));
+        self::assertStringNotContainsString('0.737', $json);
+        self::assertStringNotContainsString('0.919', $json);
     }
 
     public function test_cache_layers_report_plugins_and_a_cloudflare_proxy(): void {

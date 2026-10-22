@@ -1674,6 +1674,8 @@ class CheckoutOrchestrator {
                     StatusVerifier::CHARGE_AMOUNT_META,
                     StatusVerifier::charge_amount_snapshot($unique_order_id, $amount_str, $currency)
                 );
+                // A new attempt re-enters the hourly reconciliation sweep (PaymentLifecycle).
+                $order->delete_meta_data('_supcheckout_sweep_parked_v1');
                 $order->save_meta_data();
 
                 return ["result" => "success", "redirect" => $redirect_url];

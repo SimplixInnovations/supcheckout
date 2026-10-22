@@ -9,6 +9,14 @@
     },
     {
         "kind": "action",
+        "hook": "action_scheduler_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
         "hook": "activate_plugin",
         "priority": 0,
         "accepted_args": 2,
@@ -442,6 +450,12 @@
         "contexts": "cli"
     },
     {
+        "kind": "deactivation",
+        "hook": "main_plugin_file",
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
         "kind": "filter",
         "hook": "pre_update_option_active_plugins",
         "priority": 10,
@@ -787,6 +801,14 @@
         "kind": "hook_reference",
         "type": "action",
         "hook": "action_scheduler_before_process_queue",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "action_scheduler_init",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"
@@ -1514,6 +1536,22 @@
     {
         "kind": "schedule_reference",
         "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_onboarding_watchdog",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
         "hook": "supcheckout_onboarding_watchdog",
         "group": "supcheckout-onboarding",
         "args": "<dynamic:null>",
@@ -1525,6 +1563,22 @@
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
         "args": "[parent_order_id:int,cycle_due_gmt:int,retry_attempt:int]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_reconciliation_sweep",
+        "group": "supcheckout",
+        "args": "[]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_takeover_copy_batch",
+        "group": "supcheckout",
+        "args": "[]",
         "contexts": "static"
     },
     {
@@ -1623,6 +1677,12 @@
         "function": "wp_unschedule_event",
         "hook": "<dynamic:(string)$hook>",
         "args": "<param:array $args>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "wp_unschedule_hook",
+        "hook": "<dynamic:$twins[self::LEGACY_SUBSCRIPTION_HOOK]>",
         "contexts": "static"
     },
     {

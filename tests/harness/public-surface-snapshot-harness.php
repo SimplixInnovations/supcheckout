@@ -91,8 +91,10 @@ if ($violations !== array()) {
 // The takeover copy runner (0b Task 6) registers its Action Scheduler hook and its watchdog
 // (action_scheduler_init) only while the takeover is copying: every other state boots
 // without them, so idle stores add nothing at runtime. These boots are checked, never recorded.
+// ReconciliationSweep also hooks action_scheduler_init in every state (U2 review I-1: its
+// background ensure must wait for Action Scheduler), so that one entry is discounted.
 foreach (array('idle' => 0, 'preflight_ok' => 0, 'copying' => 2, 'verified' => 0, 'cut_over' => 0) as $takeover_status => $expected) {
-    $registered = 0;
+    $registered = -1;
     foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
         if ($entry['kind'] === 'action' && in_array($entry['hook'], array('supcheckout_takeover_copy_batch', 'action_scheduler_init'), true)) {
             $registered++;
@@ -586,6 +588,8 @@ function get_option($name, $default = false) {
     // Boot a store with subscriptions enabled so the conditional hourly tick is part of the frozen surface.
     return $name === 'woocommerce_upayments_settings' ? array('enable_subscriptions' => 'yes') : $default;
 }
+// The sweep's ensure throttle marker (ReconciliationSweep::ensure_scheduled) is a write, not surface.
+function update_option($name, $value, $autoload = null) { return true; }
 function is_multisite() { return false; }
 function is_admin() { return $GLOBALS['surface']['context'] === 'admin'; }
 function wp_doing_ajax() { return false; }
