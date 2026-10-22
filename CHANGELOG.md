@@ -12,6 +12,11 @@ The project is still in pre-release engineering hardening. Entries below are eng
 - The flush is `wp_cache_flush_runtime()`, used whenever the object cache supports it, Redis and Memcached drop-ins included. It never calls `wp_cache_flush()`, so the persistent cache is left alone. Copies, verifications, failure codes, locks and compare-and-swaps are unchanged.
 - The migration matrix keeps its 10,000-order WP-CLI end-to-end switch and adds the web-memory walks. After the WP-CLI switch, the same lane runs the finalize dry run and a budgeted rollback, each in one request at `memory_limit=256M`. A new parallel 10,000-order lane copies through WP-CLI, then runs the switch itself in one request at 256M. Each walk's peak-memory growth must stay within 64 MB, and the new lane is part of the matrix gate.
 
+### Checkout: a long exact unit price no longer fails the payment (hardening A1-02)
+
+- UPayments caps `products[].price` at 7 characters. A checkout whose exact unit price is longer, for example `10499.99` AED, `1234.567` KWD, or a percentage coupon with quantity such as `1.640625`, used to fail with "Payment request could not be completed". It now sends the Charge without `products[]`, the same way it already handles any other line that cannot be described exactly.
+- `order.amount` stays exactly the WooCommerce order total. Unit prices within the cap, such as `10499.90` (sent as `10499.9`), keep `products[]`. The final injection check stays as a backstop. Multi-merchant behaviour is unchanged.
+
 ### Onboarding backend: services and the admin REST API (Sub-project 0c)
 
 - **Admin-only REST API `supcheckout/v1`** for the smart switch and the new-merchant checks: status, preflight, switch, rollback, abort, finalize (with a dry run), stale-claims release, self-test and setup checks. While the official UPayments plugin is active, only the 8 takeover routes are registered. There are no screens yet; the wizard comes in Sub-project 2.
