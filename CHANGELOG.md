@@ -6,6 +6,11 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Checkout: a UPayments outage no longer puts an error banner on every checkout render (hardening A6-01)
+
+- The payment-method availability getter used to queue a WooCommerce error notice ("Payment methods could not be loaded. Please try again.") whenever availability failed with no last-known-good copy. It runs on render paths (the payment box, every Classic order-review refresh and the Blocks payment data), so every shopper saw an error banner during an outage, whichever gateway they chose, and a Classic place-order queued the message more than once. The getter now queues no notice and keeps its legacy failure shape (`result: failure` with the checkout URL).
+- Place order still reports the failure exactly once, before any Charge. The new design's payment box still shows its own inline "could not be loaded" message. Notices queued by other plugins are untouched.
+
 ### Takeover: the official plugin cannot be reactivated on a switched store (hardening A5-01, non-money part)
 
 - **Activation guard.** While SUPCheckout runs on a store that has switched (`cut_over` or `finalized`), activating the official UPayments plugin is refused. The guard filters the `active_plugins` option and its network twin `active_sitewide_plugins`, so the Plugins screen, bulk activation, WP-CLI and direct option writes are all covered. It removes only the official `*/UPayments.php` entry that the write adds, keeps every other entry, and shows administrators one error notice (a WP-CLI warning under WP-CLI). Before, the reactivation paused SUPCheckout and every payment started after the switch lost its browser return and webhook until SUPCheckout ran again.

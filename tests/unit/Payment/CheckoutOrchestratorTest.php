@@ -471,6 +471,37 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertNotSame($provider_order_ids[0], $provider_order_ids[1]);
     }
 
+    /**
+     * Hardening T5 (A6-01): the availability getter no longer queues a notice, so place
+     * order is the one place an outage is reported, exactly once, before any Charge.
+     */
+    public function test_place_order_during_an_availability_outage_reports_the_failure_exactly_once(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $gateway->paymentData = null;
+        $order = new \WC_Order(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('simple'))));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $provider_requests = array();
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$provider_requests) {
+                $provider_requests[] = $route;
+                return array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame(array(), $provider_requests, 'no Charge is sent');
+        self::assertSame(
+            array(array('Payment methods could not be loaded. Please try again.', 'error')),
+            $GLOBALS['supcheckout_test_subscription_presentation']['notices']
+        );
+    }
+
     public function test_rejected_charge_leaves_a_private_order_note_with_the_sanitized_provider_reason(): void {
         $gateway = new CheckoutOrchestratorGateway();
         $order = new \WC_Order(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('simple'))));

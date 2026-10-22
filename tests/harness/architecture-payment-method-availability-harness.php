@@ -405,7 +405,12 @@ a2_assert(substr_count($gateway_source, 'function get_payment_methods_transient_
 a2_assert(substr_count($gateway_source, 'SELECT GET_LOCK(%s, 0)') === 0, 'monolith no longer owns availability advisory lock implementation');
 a2_assert(substr_count($gateway_source, "'upay_pm_v3_'") === 0, 'monolith no longer owns availability transient prefix');
 a2_assert(substr_count($gateway_source, 'RATE_GATE_COOLDOWN') === 0, 'monolith no longer owns availability cooldown constant');
-a2_assert(strpos($gateway_source, 'Payment methods could not be loaded. Please try again.') !== false, 'gateway preserves legacy failure notice text');
+// Hardening T5 (A6-01), retargeted on purpose: the availability getter runs on render paths,
+// so it no longer queues the failure notice. The legacy text is reported once by the
+// place-order path (CheckoutOrchestrator); the getter keeps the legacy failure shape.
+$orchestrator_source = file_get_contents(dirname(__DIR__, 2) . '/src/Payment/CheckoutOrchestrator.php');
+a2_assert(is_string($orchestrator_source) && substr_count($orchestrator_source, 'Payment methods could not be loaded. Please try again.') === 1, 'place order (CheckoutOrchestrator) reports the legacy availability failure notice text exactly once');
+a2_assert(strpos($gateway_source, 'Payment methods could not be loaded. Please try again.') === false, 'the availability getter queues no failure notice (it runs on render paths)');
 a2_assert(strpos($gateway_source, "array('result' => 'failure', 'redirect' => wc_get_checkout_url())") !== false, 'gateway preserves legacy failure redirect shape');
 
 echo "\nArchitecture Payment-Method Availability: {$pass} PASS / {$fail} FAIL\n";

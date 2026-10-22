@@ -912,11 +912,14 @@ class Gateway extends \WC_Payment_Gateway {
         );
         $result = $this->display_reads > 0 ? $availability->fetch_for_display() : $availability->fetch();
 
+        // A failure keeps the legacy shape but queues no notice (A6-01): this getter runs on
+        // render paths (the payment box, every order-review refresh, the Blocks payment data),
+        // where a storefront notice became an error banner for every shopper. Place order
+        // reports the failure once (CheckoutOrchestrator).
         if (is_array($result)
             && isset($result['result'])
             && $result['result'] === 'failure'
         ) {
-            wc_add_notice(__("Payment methods could not be loaded. Please try again.", 'supcheckout'), "error");
             return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
         }
 

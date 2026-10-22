@@ -225,6 +225,27 @@ $availability_gateway->read_for_display(function () use ($availability_gateway) 
 sut_assert(count($transport_calls) === 1, 'a render past the display window refreshes availability once');
 sut_assert(isset($transport_calls[0]['args']['timeout']) && (int) $transport_calls[0]['args']['timeout'] === 15, 'a render-triggered availability refresh uses the default 15-second timeout, never 5');
 
+// Hardening T5 (A6-01): the availability getter runs on render paths (the payment box, every
+// order-review refresh, the Blocks payment data), so a failure must not queue a storefront
+// notice there. It keeps the legacy failure shape; the place-order path reports the error
+// once (CheckoutOrchestrator).
+$state['transients'] = array();
+$state['notices'] = array();
+$state['options']['upayments_payment_methods_rate_gate_live'] = time() + 65;
+unset($state['options'][$lkg_name]);
+$transport_calls = array();
+$failed_display = $availability_gateway->read_for_display(function () use ($availability_gateway) {
+    return $availability_gateway->getUpayPaymentMethods();
+});
+$failed_authoritative = $availability_gateway->getUpayPaymentMethods();
+sut_assert(count($transport_calls) === 0, 'a closed rate gate with no last-known-good copy makes no availability call');
+sut_assert(
+    $failed_display === array('result' => 'failure', 'redirect' => 'https://example.test/checkout/')
+        && $failed_authoritative === array('result' => 'failure', 'redirect' => 'https://example.test/checkout/'),
+    'an availability failure keeps the legacy failure shape on render and authoritative reads'
+);
+sut_assert($state['notices'] === array(), 'an availability failure queues no WooCommerce notice from the getter');
+
 echo "\nSUPCheckout Production HTTP Transport: {$pass} PASS / {$fail} FAIL\n";
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);
