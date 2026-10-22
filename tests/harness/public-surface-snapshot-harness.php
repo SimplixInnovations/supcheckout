@@ -586,6 +586,8 @@ function get_option($name, $default = false) {
     // Boot a store with subscriptions enabled so the conditional hourly tick is part of the frozen surface.
     return $name === 'woocommerce_upayments_settings' ? array('enable_subscriptions' => 'yes') : $default;
 }
+// The sweep's ensure throttle marker (ReconciliationSweep::ensure_scheduled) is a write, not surface.
+function update_option($name, $value, $autoload = null) { return true; }
 function is_multisite() { return false; }
 function is_admin() { return $GLOBALS['surface']['context'] === 'admin'; }
 function wp_doing_ajax() { return false; }

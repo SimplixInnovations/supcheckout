@@ -63,7 +63,9 @@ final class KeysTest extends TestCase {
             }
         }
         foreach (array('_supcheckout_reconcile_schedule_failed_v1', '_supcheckout_secondary_schedule_failed_v1',
-            '_supcheckout_secondary_exhausted_noted_v1', 'supcheckout_reconciliation_sweep',
+            '_supcheckout_secondary_exhausted_noted_v1', '_supcheckout_secondary_evicted_noted_v1',
+            '_supcheckout_sweep_checked_at_v1', '_supcheckout_sweep_parked_v1', '_supcheckout_no_callback_noted_v1',
+            'supcheckout_sweep_ensured_at', 'supcheckout_reconciliation_sweep',
             'supcheckout_process_due_parent') as $canonical) {
             self::assertNull(Keys::legacy_for($canonical), $canonical);
             self::assertNotContains($canonical, $copied);

@@ -7,6 +7,7 @@ defined('ABSPATH') || exit;
 use Simplixi\SUPCheckout\Security\PublicOrderStatus;
 use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\LegacyCallbackListener;
+use Simplixi\SUPCheckout\Takeover\TakeoverState;
 
 require_once dirname(__DIR__) . '/Security/PublicOrderStatus.php';
 require_once dirname(__DIR__) . '/Takeover/LegacyCallbackListener.php';
@@ -48,14 +49,27 @@ final class PaymentLifecycle {
     private const SECONDARY_ATTEMPT_META = '_simplixpay_upayments_secondary_attempt_v1';
     private const SECONDARY_NOTED_META = '_simplixpay_upayments_secondary_noted_v1';
     private const SECONDARY_SCHEDULE_FAILED_META = '_supcheckout_secondary_schedule_failed_v1';
-    // Tracks that already got an exhaustion/eviction note (once per track).
+    // Tracks that already got a window-exhaustion note (once per track).
     private const SECONDARY_EXHAUSTED_NOTED_META = '_supcheckout_secondary_exhausted_noted_v1';
+    // Evictions can happen at callback rate with caller-chosen tracks: one note per order.
+    private const SECONDARY_EVICTED_NOTED_META = '_supcheckout_secondary_evicted_noted_v1';
     private const MAX_SECONDARY_PENDING = 3;
     // Each queued track gets MAX_RECONCILE_ATTEMPTS runs; a cycle stops at twice that.
     private const MAX_SECONDARY_CYCLE_RUNS = 2 * self::MAX_RECONCILE_ATTEMPTS;
     private const MAX_SECONDARY_NOTED = 10;
     // Historical public status-poll value read by PublicOrderStatus.
     private const PUBLIC_STATUS_META = 'UPayments_WHS';
+    // Hourly sweep (ReconciliationSweep): when an order was last swept, the trusted
+    // track whose transaction cannot bind (noted once, never re-swept), and the
+    // once-per-order missing-callback note.
+    private const SWEEP_CHECKED_META = '_supcheckout_sweep_checked_at_v1';
+    private const SWEEP_PARKED_META = '_supcheckout_sweep_parked_v1';
+    private const NO_CALLBACK_NOTED_META = '_supcheckout_no_callback_noted_v1';
+    // Stored provider results that ProviderResult::classify() treats as terminal
+    // (CAPTURED, FAILED, CANCELLED); ReconciliationSweepTest pins the two together.
+    private const TERMINAL_PROVIDER_RESULTS = array(
+        'CAPTURED', 'NOT CAPTURED', 'FAILED', 'FAILURE', 'ERROR', 'CANCELED', 'CANCELLED',
+    );
 
     /** @var bool */
     private static $bootstrapped = false;
@@ -90,6 +104,161 @@ final class PaymentLifecycle {
             Keys::meta_clause_any(array('key' => self::UNVERIFIED_TRACK_META, 'compare' => 'EXISTS')),
             Keys::meta_clause_any(array('key' => self::TRUSTED_TRACK_META, 'compare' => 'EXISTS')),
         );
+    }
+
+    /**
+     * Hourly-sweep candidates of one status (ReconciliationSweep).
+     *
+     * A pending order qualifies with any cursor. A failed order qualifies only with an
+     * unverified cursor or a trusted cursor whose stored result is not terminal: a
+     * declined payment keeps its trusted cursor and must not be re-swept. Orders whose
+     * trusted transaction cannot bind are parked. $checked_before null selects orders
+     * never swept; otherwise orders last swept before that time.
+     *
+     * @param string   $status         'pending' or 'failed'.
+     * @param int|null $checked_before Unix time, or null.
+     * @return array wc_get_orders() meta_query.
+     */
+    public static function sweep_candidate_meta_query($status, $checked_before = null) {
+        $cursor = self::sweep_cursor_meta_query();
+        if ($status === 'failed') {
+            $cursor = array(
+                'relation' => 'OR',
+                Keys::meta_clause_any(array('key' => self::UNVERIFIED_TRACK_META, 'compare' => 'EXISTS')),
+                array(
+                    'relation' => 'AND',
+                    Keys::meta_clause_any(array('key' => self::TRUSTED_TRACK_META, 'compare' => 'EXISTS')),
+                    Keys::meta_clause_any(array('key' => self::PROVIDER_RESULT_META, 'value' => self::TERMINAL_PROVIDER_RESULTS, 'compare' => 'NOT IN')),
+                ),
+            );
+        }
+        return array(
+            'relation' => 'AND',
+            $cursor,
+            array('key' => self::SWEEP_PARKED_META, 'compare' => 'NOT EXISTS'),
+            $checked_before === null
+                ? array('key' => self::SWEEP_CHECKED_META, 'compare' => 'NOT EXISTS')
+                : array('key' => self::SWEEP_CHECKED_META, 'value' => (int) $checked_before, 'compare' => '<', 'type' => 'NUMERIC'),
+        );
+    }
+
+    /**
+     * Charged orders with no cursor at all (no callback ever arrived) that have not
+     * had the missing-callback note yet.
+     *
+     * @return array wc_get_orders() meta_query.
+     */
+    public static function missing_callback_meta_query() {
+        return array(
+            'relation' => 'AND',
+            Keys::meta_clause_any(array('key' => 'UPayments_order_id', 'compare' => 'EXISTS')),
+            self::meta_absent_clause(self::UNVERIFIED_TRACK_META),
+            self::meta_absent_clause(self::TRUSTED_TRACK_META),
+            array('key' => self::NO_CALLBACK_NOTED_META, 'compare' => 'NOT EXISTS'),
+        );
+    }
+
+    /**
+     * NOT EXISTS under every current name of a mapped meta key (both after cutover).
+     * Keys::meta_clause_any() is for positive clauses only.
+     */
+    private static function meta_absent_clause($legacy) {
+        $absent = array('key' => $legacy, 'compare' => 'NOT EXISTS');
+        if (!TakeoverState::is_cut_over()) {
+            return $absent;
+        }
+        list($new_key) = Keys::meta_names($legacy);
+        return array('relation' => 'AND', $absent, array('key' => $new_key, 'compare' => 'NOT EXISTS'));
+    }
+
+    /**
+     * One hourly-sweep candidate. The sweep time is recorded first, so a candidate
+     * that keeps failing still rotates out of the batch, and any failure is isolated
+     * so one order cannot abort the run (A6-04).
+     *
+     * @param int $order_id WooCommerce order ID.
+     * @return void
+     */
+    public static function sweep_order($order_id) {
+        $order_id = self::parse_order_id($order_id);
+        if ($order_id === null || self::has_scheduled_reconciliation($order_id)) {
+            return;
+        }
+        try {
+            $order = wc_get_order($order_id);
+            if (!is_object($order) || !method_exists($order, 'update_meta_data') || !method_exists($order, 'save')) {
+                return;
+            }
+            $order->update_meta_data(self::SWEEP_CHECKED_META, time());
+            $order->save();
+            if (method_exists($order, 'get_status') && (string) $order->get_status() === 'failed'
+                && !self::failed_order_sweepable($order)
+            ) {
+                return;
+            }
+            self::reconcile_order($order_id);
+        } catch (\Throwable $e) {
+            self::log('sweep_order_exception', 'warning');
+        }
+    }
+
+    /**
+     * A failed order is re-checked only for an unverified cursor or for this attempt's
+     * trusted cursor with a non-terminal result (verify-P, A1-06(b)).
+     */
+    private static function failed_order_sweepable($order) {
+        if (self::parse_track_id(Keys::read_order_meta($order, self::UNVERIFIED_TRACK_META)) !== null) {
+            return true;
+        }
+        $current = self::parse_generic_identifier(Keys::read_order_meta($order, 'UPayments_order_id'), 255);
+        $trusted_requested = self::parse_generic_identifier(Keys::read_order_meta($order, self::TRUSTED_REQUESTED_META), 255);
+        $result = Keys::read_order_meta($order, self::PROVIDER_RESULT_META);
+        return self::trusted_cursor_present($order)
+            && $current !== null
+            && $trusted_requested !== null
+            && hash_equals($current, $trusted_requested)
+            && is_string($result) && $result !== ''
+            && !in_array($result, self::TERMINAL_PROVIDER_RESULTS, true);
+    }
+
+    /**
+     * A1-09: a charged pending order that never received a callback has no cursor, so
+     * nothing can look it up. One neutral private note; no provider call. Most such
+     * orders are abandoned payment sessions.
+     *
+     * @param int $order_id WooCommerce order ID.
+     * @return void
+     */
+    public static function note_missing_callback($order_id) {
+        $order_id = self::parse_order_id($order_id);
+        if ($order_id === null) {
+            return;
+        }
+        try {
+            $order = wc_get_order($order_id);
+            if (!is_object($order)
+                || !method_exists($order, 'get_status')
+                || !method_exists($order, 'get_meta')
+                || !method_exists($order, 'update_meta_data')
+                || !method_exists($order, 'add_order_note')
+                || !method_exists($order, 'save')
+                || !self::basic_order_preflight($order, self::gateway())
+                || (string) $order->get_status() !== 'pending'
+                || self::is_verified_capture($order)
+                || self::trusted_cursor_present($order)
+                || self::parse_track_id(Keys::read_order_meta($order, self::UNVERIFIED_TRACK_META)) !== null
+                || (string) $order->get_meta(self::NO_CALLBACK_NOTED_META) !== ''
+            ) {
+                return;
+            }
+            $order->update_meta_data(self::NO_CALLBACK_NOTED_META, 1);
+            $order->add_order_note(
+                __('SUPCheckout has not received a UPayments callback for this order. This is usual for an abandoned payment; if the customer reports paying, check the UPayments merchant dashboard before fulfilling the order.', 'supcheckout')
+            );
+            $order->save();
+        } catch (\Throwable $e) {
+            self::log('missing_callback_note_exception', 'warning');
+        }
     }
 
     /**
@@ -220,9 +389,21 @@ final class PaymentLifecycle {
 
     /**
      * Routes one locally parsed callback to the path that owns it. Never
-     * terminates the request; the caller decides the response.
+     * terminates the request and never throws; the caller decides the response.
+     * A failure (for example a third-party order-save hook that throws) becomes
+     * lifecycle_exception, so the customer still gets the neutral page and the
+     * webhook a normal answer (A6-04). Mutation semantics are unchanged.
      */
     public static function route_callback($gateway, $order, $track_id, $requested_order_id, $source) {
+        try {
+            return self::route_callback_unguarded($gateway, $order, $track_id, $requested_order_id, $source);
+        } catch (\Throwable $e) {
+            self::log('callback_exception', 'warning');
+            return self::outcome('unchanged', 'lifecycle_exception');
+        }
+    }
+
+    private static function route_callback_unguarded($gateway, $order, $track_id, $requested_order_id, $source) {
         if (!self::order_gateway_preflight($order, $gateway, $requested_order_id)) {
             // A late callback for an earlier Charge attempt on this order still
             // carries real money; route it to the capture-only secondary path.
@@ -370,6 +551,11 @@ final class PaymentLifecycle {
             ) {
                 self::log('current_attempt_unbound_' . $reason, 'warning');
                 self::note_unbound_current($order, $track_id, $reason);
+                if (self::trusted_cursor_present($order)) {
+                    // The trusted cursor stays (it cannot be replaced), but the hourly
+                    // sweep would get the same answer every run for 48 h.
+                    self::park_from_sweep($order, $track_id);
+                }
             }
 
             if (self::is_retryable_verification_reason($reason)
@@ -762,7 +948,8 @@ final class PaymentLifecycle {
             $remaining = array();
         }
         list($remaining, $evicted) = self::trim_secondary_queue($remaining);
-        self::notify_expired_secondary($order, array_merge($expired, $evicted));
+        self::notify_expired_secondary($order, $expired);
+        self::notify_evicted_secondary($order, $evicted);
         if (empty($remaining)) {
             Keys::delete_order_meta($order, self::SECONDARY_PENDING_META);
             Keys::delete_order_meta($order, self::SECONDARY_ATTEMPT_META);
@@ -793,18 +980,41 @@ final class PaymentLifecycle {
                 }
             }
             $evicted[] = $entries[$victim];
+            // Tracks come from callbacks; log() reduces them to a safe code.
+            self::log('secondary_evicted_' . $entries[$victim]['track'], 'warning');
             array_splice($entries, $victim, 1);
-        }
-        if (!empty($evicted)) {
-            self::log('secondary_evicted', 'warning');
         }
         return array($entries, $evicted);
     }
 
     /**
-     * Tracks that leave the secondary queue unresolved (window exhausted, cycle cap
-     * or eviction). Caller holds the order lock on a fresh read and saves. Each track
-     * is noted at most once:
+     * Tracks evicted by the queue cap. Evictions can be driven at callback rate with
+     * caller-chosen tracks, so each track is only logged (trim_secondary_queue) and
+     * the order gets one generic note, ever. Caller holds the order lock on a fresh
+     * read and saves. A paid order whose evicted tracks were all still pending at the
+     * provider has nothing to act on.
+     */
+    private static function notify_evicted_secondary($order, array $entries) {
+        if (empty($entries) || !is_object($order) || !method_exists($order, 'add_order_note')) {
+            return;
+        }
+        $paid = self::is_verified_capture($order) || (method_exists($order, 'is_paid') && $order->is_paid());
+        if ($paid && count(array_filter($entries, function ($entry) { return $entry['kind'] !== 'pending'; })) === 0) {
+            return;
+        }
+        if ((string) $order->get_meta(self::SECONDARY_EVICTED_NOTED_META) !== '') {
+            return;
+        }
+        $order->update_meta_data(self::SECONDARY_EVICTED_NOTED_META, 1);
+        $order->add_order_note(
+            __('SUPCheckout dropped some queued UPayments payment checks for this order; review the UPayments merchant dashboard.', 'supcheckout')
+        );
+    }
+
+    /**
+     * Tracks that leave the secondary queue unresolved because their window or the
+     * cycle cap ran out (evictions: notify_evicted_secondary). Caller holds the order
+     * lock on a fresh read and saves. Each track is noted at most once:
      * - state unknown: the merchant must check the dashboard for a capture;
      * - provider still reports it not completed: a calmer note on an unpaid order,
      *   and only a log entry on a paid one, where there is nothing to act on.
@@ -1027,7 +1237,7 @@ final class PaymentLifecycle {
                 'kind' => $kind === 'pending' ? 'pending' : 'retry',
             );
             list($pending, $evicted) = self::trim_secondary_queue($pending);
-            self::notify_expired_secondary($order, $evicted);
+            self::notify_evicted_secondary($order, $evicted);
             Keys::update_order_meta($order, self::SECONDARY_PENDING_META, $pending);
             $order->save();
             self::schedule_secondary($order, $order_id, (int) Keys::read_order_meta($order, self::SECONDARY_ATTEMPT_META));
@@ -1487,7 +1697,8 @@ final class PaymentLifecycle {
         } catch (\Throwable $e) {
             // An attempt that cannot be counted must not stay scheduled, or every run
             // would schedule the next one without ever reaching MAX_RECONCILE_ATTEMPTS.
-            // No event existed before this call (checked above), so this removes only it.
+            // This removes every reconcile event of this order; none existed before this
+            // call (checked above), so normally that is only the one just scheduled.
             self::unschedule_reconciliation($order);
             throw $e;
         }
@@ -1553,6 +1764,19 @@ final class PaymentLifecycle {
         Keys::delete_order_meta($order, self::RECONCILE_ATTEMPT_META);
         Keys::delete_order_meta($order, self::RECONCILE_REASON_META);
         Keys::delete_order_meta($order, self::RECONCILE_EXHAUSTED_META);
+        $order->delete_meta_data(self::SWEEP_PARKED_META);
+        $order->save();
+    }
+
+    /**
+     * Takes an order out of the hourly sweep until its next payment attempt
+     * (reset_attempt_cursor_state() unparks it).
+     */
+    private static function park_from_sweep($order, $track_id) {
+        if (!is_object($order) || !method_exists($order, 'update_meta_data') || !method_exists($order, 'save')) {
+            return;
+        }
+        $order->update_meta_data(self::SWEEP_PARKED_META, (string) $track_id);
         $order->save();
     }
 

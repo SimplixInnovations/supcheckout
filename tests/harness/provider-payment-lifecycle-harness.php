@@ -121,20 +121,49 @@ namespace Simplixi\SUPCheckout\Payment {
         return isset(state()['orders'][$id]) ? state()['orders'][$id] : false;
     }
 
-    // Minimal wc_get_orders() for the reconciliation sweep: honours status,
-    // payment_method, limit and an OR of meta EXISTS clauses over in-memory orders.
+    // Minimal wc_get_orders() for the reconciliation sweep over in-memory orders, in
+    // insertion order (models 'date ASC'): honours status, payment_method, limit,
+    // date_created ('>ts' or 'ts...ts', only for orders with a $created time) and a
+    // nested meta_query (relation AND/OR; EXISTS, NOT EXISTS, IN, NOT IN, <).
+    // 'wc_get_orders_calls' counts queries.
+    function fake_meta_clause_matches($order, array $clause) {
+        if (isset($clause['key'])) {
+            $exists = array_key_exists($clause['key'], $order->meta);
+            $value = $exists ? $order->meta[$clause['key']] : null;
+            $compare = isset($clause['compare']) ? $clause['compare'] : '=';
+            switch ($compare) {
+                case 'EXISTS': return $exists;
+                case 'NOT EXISTS': return !$exists;
+                case 'IN': return $exists && in_array((string) $value, array_map('strval', (array) $clause['value']), true);
+                case 'NOT IN': return $exists && !in_array((string) $value, array_map('strval', (array) $clause['value']), true);
+                case '<': return $exists && (float) $value < (float) $clause['value'];
+                default: return $exists && (string) $value === (string) $clause['value'];
+            }
+        }
+        $relation = isset($clause['relation']) ? strtoupper($clause['relation']) : 'AND';
+        $children = array_filter($clause, 'is_array');
+        foreach ($children as $child) {
+            $matched = fake_meta_clause_matches($order, $child);
+            if ($relation === 'OR' && $matched) { return true; }
+            if ($relation !== 'OR' && !$matched) { return false; }
+        }
+        return $relation !== 'OR';
+    }
     function wc_get_orders($args = array()) {
+        state()['wc_get_orders_calls'] = (isset(state()['wc_get_orders_calls']) ? state()['wc_get_orders_calls'] : 0) + 1;
         $ids = array();
         foreach (state()['orders'] as $id => $order) {
             if (isset($args['status']) && !in_array($order->status, (array) $args['status'], true)) { continue; }
-            if (isset($args['payment_method']) && $order->get_payment_method() !== $args['payment_method']) { continue; }
-            if (isset($args['meta_query'])) {
-                $matched = false;
-                foreach ($args['meta_query'] as $clause) {
-                    if (is_array($clause) && isset($clause['key']) && (string) $order->get_meta($clause['key']) !== '') { $matched = true; }
+            if (isset($args['payment_method']) && !in_array($order->get_payment_method(), (array) $args['payment_method'], true)) { continue; }
+            if (isset($args['date_created']) && $order->created !== null) {
+                $range = (string) $args['date_created'];
+                if ($range[0] === '>' && !($order->created > (int) substr($range, 1))) { continue; }
+                if (strpos($range, '...') !== false) {
+                    list($from, $to) = array_map('intval', explode('...', $range));
+                    if ($order->created < $from || $order->created > $to) { continue; }
                 }
-                if (!$matched) { continue; }
             }
+            if (isset($args['meta_query']) && !fake_meta_clause_matches($order, $args['meta_query'])) { continue; }
             $ids[] = $id;
         }
         return array_slice($ids, 0, isset($args['limit']) ? (int) $args['limit'] : 10);
@@ -246,6 +275,8 @@ namespace Simplixi\SUPCheckout\Payment {
         public $update_status_calls = 0;
         public $save_calls = 0;
         public $notes = array();
+        // Creation time for the sweep's date_created filter; null matches any range.
+        public $created = null;
         public function __construct($id, $upay_order_id) {
             $this->id = (int) $id;
             $this->meta['UPayments_order_id'] = $upay_order_id;
@@ -1441,7 +1472,8 @@ namespace {
     \Simplixi\SUPCheckout\Payment\state()['remote_responder'] = null;
 
     // C1j (U1 review M-2): a full queue evicts a provider-pending entry before one
-    // whose state is unknown, and the eviction is noted, never silent.
+    // whose state is unknown, and the eviction is noted, never silent. Since U2 (N-1)
+    // the note is one generic per-order note and each evicted track is logged.
     list($gateway, $order) = reset_fixture(731);
     $rotate($order, 'merchant-order-731-b');
     $order->meta['_simplixpay_upayments_secondary_pending_v1'] = array(
@@ -1452,7 +1484,8 @@ namespace {
     $order->meta['_simplixpay_upayments_callback_lookups_v1'] = gmdate('YmdHi') . ':3';
     PaymentLifecycle::route_callback($gateway, $order, 'track-n', 'merchant-order-731', 'webhook');
     same(array_column((array) $order->get_meta('_simplixpay_upayments_secondary_pending_v1'), 'track'), array('track-r1', 'track-p2', 'track-n'), 'U1 review M-2 C1j the oldest provider-pending entry is evicted first');
-    ok(count($order->notes) === 1 && strpos($order->notes[0], 'track-p1') !== false, 'U1 review M-2 C1j the evicted track is noted');
+    same($order->notes, array('SUPCheckout dropped some queued UPayments payment checks for this order; review the UPayments merchant dashboard.'), 'U2 N-1 C1j the eviction leaves one generic per-order note naming no caller-chosen track (named track-p1 before U2)');
+    ok($c_logged('secondary_evicted_track-p1'), 'U2 N-1 C1j the evicted track is logged');
 
     // C1k (U1 review M-2): the 3-track cap also holds when a webhook queues a track
     // while a secondary run is in flight (the run's final merge is trimmed too).
@@ -1472,7 +1505,8 @@ namespace {
     $tracks732 = array_column((array) $order->get_meta('_simplixpay_upayments_secondary_pending_v1'), 'track');
     same(count($tracks732), 3, 'U1 review M-2 C1k the queue stays within MAX_SECONDARY_PENDING after a concurrent enqueue');
     ok(in_array('track-d', $tracks732, true), 'U1 review M-2 C1k the newly queued track survives the trim');
-    ok(count($order->notes) === 1 && strpos($order->notes[0], 'track-a') !== false, 'U1 review M-2 C1k the evicted oldest track is noted once');
+    same($order->notes, array('SUPCheckout dropped some queued UPayments payment checks for this order; review the UPayments merchant dashboard.'), 'U2 N-1 C1k the eviction after a concurrent enqueue leaves one generic per-order note (named track-a before U2)');
+    ok($c_logged('secondary_evicted_track-a'), 'U2 N-1 C1k the evicted oldest track is logged');
 
     // C1e (U1 A1-05 control): a bound FAILED or CANCELLED secondary result is
     // terminal for that track and is still dropped without a retry.
@@ -1547,7 +1581,7 @@ namespace {
     same($order->get_meta('_simplixpay_upayments_status_track_v1'), 'track-1', 'A6-05 C4 the trusted cursor stays on the first track');
     $calls_before = $c_state()['remote_get_calls'];
     \Simplixi\SUPCheckout\Payment\ReconciliationSweep::run();
-    same($c_state()['remote_get_calls'] - $calls_before, 0, 'A6-05 C4 characterizes A1-06(b): the sweep never looks at the failed order (to be changed by U2)');
+    same($c_state()['remote_get_calls'] - $calls_before, 0, 'U2 A1-06(b) C4 the sweep does not select this failed order because its trusted cursor is terminal (NOT CAPTURED); the queued second track is owned by the bounded secondary check (verify-P correction; was the A1-06(b) defect pin before U2, which excluded every failed order)');
     set_provider_transaction(transaction_for($order, 'CAPTURED', 'track-2', 'pay-2'));
     $c_run_secondary(706);
     same(array($order->payment_complete_calls, $order->get_transaction_id(), (string) $order->get_meta('_upay_verified_capture')), array(1, 'pay-2', '1'), 'U1 A1-05 C4 a later capture of the second track is applied exactly once (was never seen before U1)');
@@ -1871,6 +1905,205 @@ namespace {
     PaymentLifecycle::process_order_status($gateway, $stale, 'track-abc', 'reconcile');
     same(array(count($order->notes), count($stale->notes)), array(1, 0), 'U1 review I-2 C18e a busy lock falls back to a fresh read for the note');
     same($c_state()['options']['simplixpay_upay_order_lock_v1_728'], $held728, 'U1 review I-2 C18e the other worker\'s lock is untouched');
+    \Simplixi\SUPCheckout\Payment\reset_state();
+
+    // ---- U2: sweep rotation, failed orders, missing callbacks, isolation, evictions ----
+    // A provider responder keyed by track; every lookup is recorded in 'u2_lookups'.
+    $u2_provider = function (array $by_track) {
+        \Simplixi\SUPCheckout\Payment\state()['u2_lookups'] = array();
+        \Simplixi\SUPCheckout\Payment\state()['remote_responder'] = function ($url) use ($by_track) {
+            $track = rawurldecode((string) substr((string) $url, strrpos((string) $url, '/') + 1));
+            \Simplixi\SUPCheckout\Payment\state()['u2_lookups'][] = $track;
+            $tx = isset($by_track[$track]) ? $by_track[$track] : null;
+            return $tx === null
+                ? array('code' => 500, 'body' => '')
+                : array('code' => 201, 'body' => json_encode(array('status' => true, 'data' => array('transaction' => $tx))));
+        };
+    };
+    $u2_sweep = function () {
+        \Simplixi\SUPCheckout\Payment\state()['u2_lookups'] = array();
+        \Simplixi\SUPCheckout\Payment\ReconciliationSweep::run();
+        return \Simplixi\SUPCheckout\Payment\state()['u2_lookups'];
+    };
+    $u2_order = function ($id, $status = 'pending') {
+        $order = new FakeOrder($id, 'merchant-order-' . $id);
+        $order->status = $status;
+        \Simplixi\SUPCheckout\Payment\state()['orders'][$id] = $order;
+        return $order;
+    };
+    $u2_unverified = function (FakeOrder $order, $track, $requested = null) {
+        $order->meta['_simplixpay_upayments_unverified_track_v1'] = $track;
+        $order->meta['_simplixpay_upayments_unverified_requested_v1'] = $requested === null ? $order->get_meta('UPayments_order_id') : $requested;
+    };
+    $u2_reset = function () {
+        \Simplixi\SUPCheckout\Payment\reset_state();
+        \Simplixi\SUPCheckout\Takeover\TakeoverState::flush_cache();
+        $gateway = new FakeGateway();
+        \Simplixi\SUPCheckout\Payment\state()['gateway'] = $gateway;
+        return $gateway;
+    };
+    $u2_checked = '_supcheckout_sweep_checked_at_v1';
+
+    // S2 (A1-06(a) = A3-03): ten older orders stuck at an INDETERMINATE result with an
+    // exhausted per-order schedule, and one newer order whose check was lost. The
+    // sweep rotates: the newer order is reached by the second run and no order is
+    // looked up in two consecutive runs. Before U2 both runs looked up the same ten.
+    $gateway = $u2_reset();
+    $s2_tx = array();
+    for ($id = 800; $id < 810; $id++) {
+        $stuck = $u2_order($id);
+        $u2_unverified($stuck, 'track-s' . $id);
+        $stuck->meta['_simplixpay_upayments_reconcile_attempt_v1'] = 4;
+        $stuck->meta['_simplixpay_upayments_reconcile_exhausted_v1'] = 1;
+        $s2_tx['track-s' . $id] = transaction_for($stuck, null, 'track-s' . $id, null);
+    }
+    $newer = $u2_order(810);
+    $u2_unverified($newer, 'track-new');
+    $s2_tx['track-new'] = transaction_for($newer, 'CAPTURED', 'track-new', 'pay-new');
+    $u2_provider($s2_tx);
+    $run1 = $u2_sweep();
+    $run2 = $u2_sweep();
+    ok(count($run1) <= 10 && count($run2) <= 10, 'U2 A3-03 S2 each sweep run stays within the batch of 10 provider lookups');
+    ok(in_array('track-new', array_merge($run1, $run2), true), 'U2 A3-03 S2 the newer order with a lost check is looked up within two runs (starved before U2)');
+    same(array_values(array_intersect($run1, $run2)), array(), 'U2 A3-03 S2 no order is looked up in two consecutive runs (the same ten were before U2)');
+    same(array($newer->get_status(), $newer->payment_complete_calls), array('processing', 1), 'U2 A3-03 S2 the newer order is completed once by the sweep');
+    $s2_marked = 0;
+    for ($id = 800; $id < 810; $id++) {
+        if ((int) \Simplixi\SUPCheckout\Payment\state()['orders'][$id]->get_meta($u2_checked) > 0) { $s2_marked++; }
+    }
+    same($s2_marked, 10, 'U2 A3-03 S2 every swept order records when it was swept');
+    for ($id = 800; $id < 810; $id++) {
+        \Simplixi\SUPCheckout\Payment\state()['orders'][$id]->meta[$u2_checked] = time() - 7 * 3600;
+    }
+    same(count($u2_sweep()), 10, 'U2 A3-03 S2 a stuck order is re-checked once its recheck window has passed (a late capture is still seen)');
+    same(count($u2_sweep()), 0, 'U2 A3-03 S2 re-checked orders wait out the window again');
+    ok(\Simplixi\SUPCheckout\Payment\state()['wc_get_orders_calls'] <= 4 * 5, 'U2 A3-03 S2 each run makes a bounded number of order queries');
+
+    // S3 (A1-06(b), verify-P correction): a failed order is swept only with an
+    // unverified cursor or a current-attempt trusted cursor whose result is not
+    // terminal. A failed order with a terminal or stale-attempt trusted cursor is not.
+    $gateway = $u2_reset();
+    $f1 = $u2_order(820, 'failed');
+    $u2_unverified($f1, 'track-f1');
+    $f2 = $u2_order(821, 'failed');
+    $f2->meta['_simplixpay_upayments_status_track_v1'] = 'track-f2';
+    $f2->meta['_simplixpay_upayments_status_requested_v1'] = 'merchant-order-821';
+    $f2->meta['_simplixpay_upayments_provider_result_v1'] = 'NULL';
+    $f3 = $u2_order(822, 'failed');
+    $f3->meta['_simplixpay_upayments_status_track_v1'] = 'track-f3';
+    $f3->meta['_simplixpay_upayments_status_requested_v1'] = 'merchant-order-822';
+    $f3->meta['_simplixpay_upayments_provider_result_v1'] = 'NOT CAPTURED';
+    $f4 = $u2_order(823, 'failed');
+    $f4->meta['_simplixpay_upayments_status_track_v1'] = 'track-f4';
+    $f4->meta['_simplixpay_upayments_status_requested_v1'] = 'merchant-order-823-old';
+    $f4->meta['_simplixpay_upayments_provider_result_v1'] = 'NULL';
+    $f5 = $u2_order(824, 'failed');
+    $f5->created = time() - 7200;
+    $u2_provider(array(
+        'track-f1' => transaction_for($f1, 'CAPTURED', 'track-f1', 'pay-f1'),
+        'track-f2' => transaction_for($f2, null, 'track-f2', null),
+    ));
+    $s3 = $u2_sweep();
+    sort($s3);
+    same($s3, array('track-f1', 'track-f2'), 'U2 A1-06(b) S3 the sweep looks up a failed order with an unverified or a non-terminal current-attempt cursor, and no other failed order');
+    same(array($f1->get_status(), $f1->payment_complete_calls, $f1->get_transaction_id()), array('processing', 1, 'pay-f1'), 'U2 A1-06(b) S3 a retried failed order whose capture was missed is completed once');
+    same(array($f3->get_status(), $f3->get_meta($u2_checked)), array('failed', ''), 'U2 A1-06(b) S3 a failed order with a terminal trusted cursor is not selected (control)');
+    same(array($f4->get_meta('_simplixpay_upayments_status_track_v1'), $f4->get_meta('_simplixpay_upayments_secondary_pending_v1')), array('track-f4', ''), 'U2 A1-06(b) S3 a failed order whose trusted cursor is for an earlier attempt is left alone');
+    same(count($f5->notes), 0, 'U2 A1-06(b) S3 a failed order without a cursor gets no sweep note');
+
+    // S4 (A1-04 trusted-cursor path, now noted once by U1): an order whose trusted
+    // cursor's authenticated transaction does not bind on amount is parked out of the
+    // sweep instead of being re-checked every run for 48 h. A new attempt unparks it.
+    $gateway = $u2_reset();
+    $parked = $u2_order(825);
+    set_provider_transaction(transaction_for($parked, 'PENDING', 'track-t', null));
+    PaymentLifecycle::route_callback($gateway, $parked, 'track-t', 'merchant-order-825', 'webhook');
+    \Simplixi\SUPCheckout\Payment\clear_scheduled_for_order(825);
+    $tx = transaction_for($parked, 'CAPTURED', 'track-t', 'pay-t');
+    $tx['total_price'] = '10.001';
+    $u2_provider(array('track-t' => $tx));
+    PaymentLifecycle::reconcile_order(825);
+    same(count($parked->notes), 1, 'U2 A1-04 S4 the trusted-cursor mismatch is noted once (U1)');
+    same($u2_sweep(), array(), 'U2 A1-04 S4 a trusted-cursor mismatch is not swept again (re-swept every run before U2)');
+    same(array($parked->get_status(), $parked->payment_complete_calls, count($parked->notes)), array('pending', 0, 1), 'U2 A1-04 S4 the parked order stays fail-closed with its single note');
+    $rotate($parked, 'merchant-order-825-b');
+    $u2_provider(array('track-n2' => transaction_for($parked, 'PENDING', 'track-n2', null)));
+    PaymentLifecycle::route_callback($gateway, $parked, 'track-n2', 'merchant-order-825-b', 'webhook');
+    same($parked->get_meta('_supcheckout_sweep_parked_v1'), '', 'U2 A1-04 S4 a new payment attempt clears the park');
+
+    // S5 (A1-09): a pending order charged at UPayments that never got a callback has
+    // no cursor; the sweep leaves one neutral note after 30 minutes, makes no provider
+    // call, and never repeats it.
+    $gateway = $u2_reset();
+    $quiet = $u2_order(830);
+    $quiet->created = time() - 7200;
+    $fresh = $u2_order(831);
+    $fresh->created = time() - 300;
+    $old = $u2_order(832);
+    $old->created = time() - 3 * 86400;
+    $cursor = $u2_order(833);
+    $cursor->created = time() - 7200;
+    $u2_unverified($cursor, 'track-c');
+    \Simplixi\SUPCheckout\Payment\state()['scheduled']['simplixpay_upayments_reconcile_order|[833]'] = time() + 60;
+    $uncharged = $u2_order(834);
+    $uncharged->created = time() - 7200;
+    unset($uncharged->meta['UPayments_order_id']);
+    $failed_quiet = $u2_order(835, 'failed');
+    $failed_quiet->created = time() - 7200;
+    $u2_provider(array());
+    $s5 = array_merge($u2_sweep(), $u2_sweep());
+    same($s5, array(), 'U2 A1-09 S5 the missing-callback check makes no provider call');
+    same(count($quiet->notes), 1, 'U2 A1-09 S5 a quiet charged order gets exactly one note across two runs');
+    ok(isset($quiet->notes[0]) && strpos($quiet->notes[0], 'callback') !== false && strpos($quiet->notes[0], 'if the customer reports paying') !== false, 'U2 A1-09 S5 the note is neutral: no callback was received; check the dashboard if the customer reports paying');
+    same($quiet->status, 'pending', 'U2 A1-09 S5 the note changes nothing else');
+    same(array(count($fresh->notes), count($old->notes), count($cursor->notes), count($uncharged->notes), count($failed_quiet->notes)), array(0, 0, 0, 0, 0), 'U2 A1-09 S5 no note before 30 minutes, after 48 hours, with a cursor, without a Charge, or on a failed order');
+
+    // S6 (A6-04): one order whose save() throws (for example an ERP-sync hook) no
+    // longer aborts the sweep, and a throwing callback still returns an outcome.
+    $gateway = $u2_reset();
+    $thrower = new class(840, 'merchant-order-840-b') extends FakeOrder {
+        public function save() { throw new \RuntimeException('synthetic order save failure'); }
+    };
+    $thrower->meta[$prior_meta] = array('merchant-order-840');
+    $u2_unverified($thrower, 'track-x', 'merchant-order-840');
+    \Simplixi\SUPCheckout\Payment\state()['orders'][840] = $thrower;
+    $after = $u2_order(841);
+    $u2_unverified($after, 'track-y');
+    $u2_provider(array('track-y' => transaction_for($after, 'CAPTURED', 'track-y', 'pay-y')));
+    $escaped = null;
+    try { \Simplixi\SUPCheckout\Payment\ReconciliationSweep::run(); } catch (\Throwable $e) { $escaped = get_class($e); }
+    same($escaped, null, 'U2 A6-04 S6 a throwing order does not abort the sweep run');
+    same(array($after->get_status(), $after->payment_complete_calls), array('processing', 1), 'U2 A6-04 S6 the next order in the batch is still reconciled');
+    ok($c_logged('sweep_order_exception'), 'U2 A6-04 S6 the isolated failure is logged');
+    $cb_thrower = new class(845, 'merchant-order-845') extends FakeOrder {
+        public function save() { throw new \RuntimeException('synthetic order save failure'); }
+    };
+    \Simplixi\SUPCheckout\Payment\state()['orders'][845] = $cb_thrower;
+    $escaped = null;
+    $out = null;
+    try { $out = PaymentLifecycle::route_callback($gateway, $cb_thrower, 'track-z', 'merchant-order-845', 'webhook'); } catch (\Throwable $e) { $escaped = get_class($e); }
+    same(array($escaped, $out), array(null, array('state' => 'unchanged', 'reason' => 'lifecycle_exception')), 'U2 A6-04 S6 a throwing callback returns lifecycle_exception instead of a fatal error');
+    same(array($cb_thrower->get_status(), $cb_thrower->payment_complete_calls), array('pending', 0), 'U2 A6-04 S6 the throwing callback changes no payment state');
+    ok($c_logged('callback_exception'), 'U2 A6-04 S6 the callback failure is logged');
+
+    // S7 (U1 re-review N-1): evictions from the secondary queue can happen at callback
+    // rate with caller-chosen tracks, so each evicted track is logged and the order
+    // gets one generic eviction note, ever. Window exhaustion keeps its per-track notes.
+    $gateway = $u2_reset();
+    $evict = $u2_order(850);
+    $rotate($evict, 'merchant-order-850-b');
+    $evict->meta['_simplixpay_upayments_secondary_pending_v1'] = array(
+        array('track' => 'track-q1', 'requested' => 'merchant-order-850', 'runs' => 1, 'kind' => 'retry'),
+        array('track' => 'track-q2', 'requested' => 'merchant-order-850', 'runs' => 1, 'kind' => 'retry'),
+        array('track' => 'track-q3', 'requested' => 'merchant-order-850', 'runs' => 1, 'kind' => 'retry'),
+    );
+    foreach (array('track-e1', 'track-e2', 'track-e3', 'track-e4') as $evicting_track) {
+        $evict->meta['_simplixpay_upayments_callback_lookups_v1'] = gmdate('YmdHi') . ':3';
+        PaymentLifecycle::route_callback($gateway, $evict, $evicting_track, 'merchant-order-850', 'webhook');
+    }
+    same($evict->notes, array('SUPCheckout dropped some queued UPayments payment checks for this order; review the UPayments merchant dashboard.'), 'U2 N-1 S7 four evictions at callback rate leave one generic eviction note naming no track');
+    same($evict->get_meta('_supcheckout_secondary_evicted_noted_v1'), 1, 'U2 N-1 S7 the per-order eviction note is guarded by its own flag');
+    same(count(array_filter($c_state()['logs'], function ($entry) { return strpos($entry[1], 'secondary_evicted') !== false; })), 4, 'U2 N-1 S7 every evicted track is logged');
     \Simplixi\SUPCheckout\Payment\reset_state();
 
     // Static architecture/safety guards.
