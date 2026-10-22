@@ -10,6 +10,11 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 - `TakeoverState::get()` used to JSON-decode the stored takeover state on every call, about 6 to 10 times per request once a takeover had started. It now memoises the decoded record for the request, keyed on the exact stored string: an unchanged record is decoded once and a changed one is decoded again. Every write, `flush_cache()` and `refresh()` drop the memo. Return shapes and the compare-and-swap semantics are unchanged: transitions and patches read the raw record fresh and swap against it, never against the memo. The state option stays non-autoloaded.
 
+### Checkout: a long exact unit price no longer fails the payment (hardening A1-02)
+
+- UPayments caps `products[].price` at 7 characters. A checkout whose exact unit price is longer, for example `10499.99` AED, `1234.567` KWD, or a percentage coupon with quantity such as `1.640625`, used to fail with "Payment request could not be completed". It now sends the Charge without `products[]`, the same way it already handles any other line that cannot be described exactly.
+- `order.amount` stays exactly the WooCommerce order total. Unit prices within the cap, such as `10499.90` (sent as `10499.9`), keep `products[]`. The final injection check stays as a backstop. Multi-merchant behaviour is unchanged.
+
 ### Onboarding backend: services and the admin REST API (Sub-project 0c)
 
 - **Admin-only REST API `supcheckout/v1`** for the smart switch and the new-merchant checks: status, preflight, switch, rollback, abort, finalize (with a dry run), stale-claims release, self-test and setup checks. While the official UPayments plugin is active, only the 8 takeover routes are registered. There are no screens yet; the wizard comes in Sub-project 2.
