@@ -296,7 +296,7 @@ final class Presentation {
      * @return string
      */
     public static function auto_renewal_paused_message() {
-        return __('SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. Collect renewals manually or by payment link.', 'supcheckout');
+        return __('SUPCheckout does not send automatic renewal charges until a verified UPayments capture contract is approved. Collect renewals manually or by payment link.', 'supcheckout');
     }
 
     /** @return mixed */

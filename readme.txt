@@ -28,7 +28,7 @@ SUPCheckout is developed and maintained by Simplix Innovations. UPayments is the
 
 Payment-method and wallet availability depends on the merchant's UPayments account, provider configuration, plugin settings, checkout context and device/account eligibility.
 
-Automatic WooCommerce refunds and arbitrary marketplace multi-split routing are not supported by the current feature boundary. Automatic subscription renewal charges are paused: SUPCheckout sends no automatic renewal charge until UPayments confirms how to verify it. Collect renewals manually or by payment link.
+Automatic WooCommerce refunds and arbitrary marketplace multi-split routing are not supported by the current feature boundary. Automatic subscription renewal charges are paused: SUPCheckout sends no automatic renewal charge until a verified UPayments capture contract is approved. Collect renewals manually or by payment link.
 
 = External service =
 
@@ -77,7 +77,7 @@ The current verified boundary supports one additional merchant allocation. Arbit
 
 = Does SUPCheckout support subscription auto-deduction? =
 
-Not at the moment. Automatic subscription renewal charges are paused: SUPCheckout sends no automatic renewal charge until UPayments confirms how to verify it. Collect renewals manually or by payment link. Subscription checkout eligibility is covered by repository tests.
+Not at the moment. Automatic subscription renewal charges are paused: SUPCheckout sends no automatic renewal charge until a verified UPayments capture contract is approved. Collect renewals manually or by payment link. Subscription checkout eligibility is covered by repository tests.
 
 = Is WPML, WCML, multicurrency or RTL certified? =
 

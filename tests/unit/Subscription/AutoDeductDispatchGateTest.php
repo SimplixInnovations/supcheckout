@@ -49,6 +49,8 @@ final class AutoDeductDispatchGateTest extends TestCase {
         $GLOBALS['supcheckout_test_saved_card_lookups'] = array();
         $GLOBALS['supcheckout_test_unconfirmed_rows'] = '0';
         $GLOBALS['supcheckout_test_gateway_subscriptions'] = 'yes';
+        $GLOBALS['supcheckout_test_show_tables_error'] = false;
+        $GLOBALS['supcheckout_test_no_billing_table'] = false;
         $GLOBALS['supcheckout_test_subscription_presentation']['wc'] = self::woocommerce_with_gateway();
         if (!function_exists('wc_get_logger')) {
             eval('function wc_get_logger() { return new class() {
@@ -70,9 +72,12 @@ final class AutoDeductDispatchGateTest extends TestCase {
         self::assertSame(array(), $GLOBALS['supcheckout_test_saved_card_lookups'], 'the gate stops before the renewal-card lookup');
         self::assertSame(array(), $GLOBALS['supcheckout_test_http_calls'], 'no retrieve-customer-cards and no auto-deduct request');
         foreach ($GLOBALS['supcheckout_test_wpdb_queries'] as $statement) {
-            // Only the read-only unconfirmed-charge lookup behind the note (review I1).
-            self::assertStringStartsWith('get_var ', $statement, 'no cycle-claim write and no claim row');
-            self::assertMatchesRegularExpression('/"query":"(SHOW TABLES|SELECT COUNT)/', $statement);
+            // Only the read-only unconfirmed-charge lookup behind the note (review I1) and the
+            // note's option-row lock (review round 2 M1): no cycle-claim write, no claim row.
+            self::assertMatchesRegularExpression(
+                '/^(get_var \{"query":"(SHOW TABLES|SELECT COUNT)|query \{"query":"(INSERT IGNORE INTO|UPDATE) wp_options )/',
+                $statement
+            );
         }
     }
 
@@ -142,6 +147,64 @@ final class AutoDeductDispatchGateTest extends TestCase {
         self::assertSame(array(), $stale->notes);
         self::assertSame(array(), $fresh->notes);
         self::assertFalse(\get_option(LifecycleScheduler::NOTE_LOCK_PREFIX . self::PARENT_ID));
+    }
+
+    // --- Review round 2 M1: the lock is an atomic option-row CAS. ---
+
+    public function test_a_second_acquirer_of_the_note_lock_loses(): void {
+        self::assertTrue(self::acquire_note_lock(self::PARENT_ID), 'the first acquirer inserts the lock row');
+        self::assertFalse(self::acquire_note_lock(self::PARENT_ID), 'the second acquirer finds the fresh row and loses');
+    }
+
+    public function test_two_stealers_of_the_same_stale_lock_value_yield_exactly_one_winner(): void {
+        $lock = LifecycleScheduler::NOTE_LOCK_PREFIX . self::PARENT_ID;
+        $stale = (string) (time() - LifecycleScheduler::NOTE_LOCK_TTL - 1) . ':crashed';
+        $GLOBALS['supcheckout_test_options'][$lock] = $stale;
+        $rival = array('ran' => false, 'won' => null);
+        // The rival reads the same stale value and swaps first, while this stealer's own
+        // compare-and-swap is already on its way to the database.
+        $GLOBALS['wpdb']->store->before_query = static function ($statement) use (&$rival) {
+            if ($rival['ran'] || strpos($statement['query'], 'UPDATE ') !== 0) {
+                return;
+            }
+            $rival['ran'] = true;
+            $rival['won'] = AutoDeductDispatchGateTest::acquire_note_lock(70);
+        };
+
+        $won = self::acquire_note_lock(self::PARENT_ID);
+
+        self::assertTrue($rival['ran']);
+        self::assertTrue($rival['won'], 'the rival swapped the stale value first');
+        self::assertFalse($won, 'this stealer expected the stale value, which is gone: it loses');
+        self::assertNotSame($stale, $GLOBALS['supcheckout_test_options'][$lock]);
+    }
+
+    // --- Review round 2 N1: a failing table probe is unreadable, not "no history". ---
+
+    public function test_a_billing_table_probe_error_fails_closed_to_the_check_the_dashboard_note(): void {
+        $GLOBALS['supcheckout_test_show_tables_error'] = true;
+        $parent = self::parent(self::PARENT_ID, self::legacy_meta());
+
+        self::assertTrue(LifecycleScheduler::has_unconfirmed_charge($parent));
+        Scheduler::process_parent_order($parent);
+
+        self::assertSame(array(self::UNCONFIRMED_NOTE), $parent->notes);
+    }
+
+    public function test_no_billing_table_and_no_error_means_no_history(): void {
+        $GLOBALS['supcheckout_test_no_billing_table'] = true;
+        $parent = self::parent(self::PARENT_ID, self::legacy_meta());
+
+        self::assertFalse(LifecycleScheduler::has_unconfirmed_charge($parent), 'a new install never creates the table while the gate is closed');
+    }
+
+    /** Calls the private lock primitive. Public so the race closure can reach it. */
+    public static function acquire_note_lock(int $parent_id): bool {
+        $method = new \ReflectionMethod(LifecycleScheduler::class, 'acquire_note_lock');
+        if (PHP_VERSION_ID < 80100) {
+            $method->setAccessible(true);
+        }
+        return (bool) $method->invoke(null, $parent_id);
     }
 
     // --- Review M4: outcome first, note only when subscriptions are on, note isolated. ---
@@ -311,38 +374,64 @@ final class AutoDeductDispatchGateTest extends TestCase {
             public $prefix = 'wp_';
             /** @var string */
             public $options = 'wp_options';
+            /** @var string */
+            public $last_error = '';
+            /** @var \SUPCheckout_Test_WPDB The option-row store behind OrderLock's atomic CAS. */
+            public $store;
+
+            public function __construct() {
+                $this->store = new \SUPCheckout_Test_WPDB();
+            }
 
             public function esc_like($text) {
                 return addcslashes((string) $text, '_%\\');
             }
 
-            /** @return array{query:string,args:list<mixed>} */
+            /** @return string Serialized like the option-store fixture, so its query() can run it. */
             public function prepare($query, ...$args) {
-                return array('query' => (string) $query, 'args' => $args);
+                return serialize(array('query' => (string) $query, 'args' => $args));
             }
 
             /** @return mixed */
             public function get_var($prepared) {
-                $this->record('get_var', $prepared);
-                if (is_array($prepared) && strpos($prepared['query'], 'SELECT COUNT') === 0) {
+                $statement = $this->record('get_var', $prepared);
+                $this->last_error = '';
+                if (strpos($statement['query'], 'SHOW TABLES') === 0 && !empty($GLOBALS['supcheckout_test_show_tables_error'])) {
+                    // Review round 2 N1: the probe itself fails.
+                    $this->last_error = 'MySQL server has gone away';
+                    return null;
+                }
+                if (strpos($statement['query'], 'SHOW TABLES') === 0 && !empty($GLOBALS['supcheckout_test_no_billing_table'])) {
+                    return null;
+                }
+                if (strpos($statement['query'], 'SELECT COUNT') === 0) {
                     // Held or dispatching rows of the parent (null: the read failed).
                     return $GLOBALS['supcheckout_test_unconfirmed_rows'];
                 }
-                if (is_array($prepared) && $prepared['args'] !== array()) {
-                    return stripslashes((string) end($prepared['args']));
+                if ($statement['args'] !== array()) {
+                    return stripslashes((string) end($statement['args']));
                 }
                 return null;
             }
 
             /** @return mixed */
+            public function query($prepared) {
+                $this->record('query', $prepared);
+                return $this->store->query($prepared);
+            }
+
+            /** @return mixed */
             public function __call($method, $arguments) {
-                $this->record($method, $arguments);
+                $GLOBALS['supcheckout_test_wpdb_queries'][] = $method . ' ' . (string) json_encode($arguments);
                 return false;
             }
 
-            /** @param mixed $statement */
-            private function record($method, $statement): void {
+            /** @return array{query:string,args:list<mixed>} */
+            private function record($method, $prepared): array {
+                $statement = @unserialize((string) $prepared);
+                $statement = is_array($statement) ? $statement : array('query' => '', 'args' => array());
                 $GLOBALS['supcheckout_test_wpdb_queries'][] = $method . ' ' . (string) json_encode($statement);
+                return $statement;
             }
         };
     }

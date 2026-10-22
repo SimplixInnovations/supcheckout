@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Subscription\Scheduling;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Payment\OrderLock;
 use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Subscription\Cron\CycleClaim;
 use Simplixi\SUPCheckout\Takeover\Keys;
@@ -107,7 +108,8 @@ final class LifecycleScheduler
      * billing cycle, or a legacy unresolved attempt), the note says to check the UPayments
      * dashboard before collecting, so the customer is not charged twice.
      *
-     * Idempotent under concurrency: an atomic add_option() lock per parent, the flag re-read
+     * Idempotent under concurrency: a per-parent option-row lock taken with the plugin's
+     * atomic option CAS (acquire_note_lock(); add_option() is not atomic), the flag re-read
      * on a freshly loaded order under that lock, and the lock released in `finally`. The
      * flag is saved before the note: a later pass finds it and adds no second note, and a
      * note that fails after the flag is never retried into a duplicate. Never throws.
@@ -164,7 +166,9 @@ final class LifecycleScheduler
         }
         try {
             if (!CycleClaim::table_exists()) {
-                return false;
+                // No table and no error: no billing history (with the gate closed a new
+                // install never creates it). A failing probe is unreadable: fail closed.
+                return isset($wpdb->last_error) && is_string($wpdb->last_error) && $wpdb->last_error !== '';
             }
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One read-only count on the plugin-owned billing-attempt journal; a cached answer could hide a possible earlier debit.
             $count = $wpdb->get_var(
@@ -198,19 +202,34 @@ final class LifecycleScheduler
         return is_string($plan) && $plan !== '' && $plan !== 'one_time';
     }
 
-    /** Atomic per-parent lock; a lock older than NOTE_LOCK_TTL (a crashed pass) is replaced. */
+    /**
+     * Atomic per-parent lock on an option row, through the plugin's option CAS
+     * (OrderLock::insert_if_absent() / replace_if_current(), as TakeoverState and
+     * CopyRunner use it). The record is "<acquired_at>:<token>". A lock older than
+     * NOTE_LOCK_TTL (a crashed pass) is stolen only by a compare-and-swap of the exact
+     * stale value read, so two stealers of the same stale lock never both win.
+     */
     private static function acquire_note_lock(int $parent_id): bool
     {
         $lock = self::NOTE_LOCK_PREFIX . $parent_id;
-        if (add_option($lock, (string) time(), '', 'no')) {
-            return true;
-        }
-        $since = (int) get_option($lock, 0);
-        if ($since > time() - self::NOTE_LOCK_TTL) {
+        $now = time();
+        try {
+            $record = $now . ':' . bin2hex(random_bytes(8));
+        } catch (\Throwable $e) {
             return false;
         }
-        delete_option($lock);
-        return (bool) add_option($lock, (string) time(), '', 'no');
+        if (OrderLock::insert_if_absent($lock, $record)) {
+            return true;
+        }
+        OrderLock::flush_option_cache($lock);
+        $existing = get_option($lock, null);
+        if (!is_string($existing)
+            || preg_match('/^([0-9]{1,12})(?::[a-z0-9]+)?$/D', $existing, $matches) !== 1
+            || (int) $matches[1] > $now - self::NOTE_LOCK_TTL
+        ) {
+            return false;
+        }
+        return OrderLock::replace_if_current($lock, $existing, $record);
     }
 
     /**

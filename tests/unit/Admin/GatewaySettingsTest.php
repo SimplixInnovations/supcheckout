@@ -53,7 +53,7 @@ final class GatewaySettingsTest extends TestCase {
 
         self::assertSame(
             'Only Subscription Products are allowed at checkout If Subscription is enabled. '
-            . 'Automatic renewal charges are paused. SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. '
+            . 'Automatic renewal charges are paused. SUPCheckout does not send automatic renewal charges until a verified UPayments capture contract is approved. '
             . 'Collect renewals manually or by payment link.',
             $fields['enable_subscriptions']['description']
         );

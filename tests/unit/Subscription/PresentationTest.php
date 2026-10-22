@@ -377,7 +377,7 @@ final class PresentationTest extends TestCase {
     /** Review M5: one shared paused statement for the notice and the setting. */
     public function test_the_paused_statement_is_one_shared_string(): void {
         self::assertSame(
-            'SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. Collect renewals manually or by payment link.',
+            'SUPCheckout does not send automatic renewal charges until a verified UPayments capture contract is approved. Collect renewals manually or by payment link.',
             Presentation::auto_renewal_paused_message()
         );
     }
