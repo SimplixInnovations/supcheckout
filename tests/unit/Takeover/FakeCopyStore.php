@@ -54,6 +54,8 @@ final class FakeCopyStore implements FinalizeStore {
     public $fail_replace = false;
     /** @var list<array{0:string,1:string|null}> Orphan deletions: [after, upto]. */
     public $orphan_deletes = array();
+    /** @var int flush_runtime_cache() calls (A5-02: one after each bounded batch of a walk). */
+    public $runtime_flushes = 0;
 
     public function order_ids_after($after_id, $limit) {
         $this->selections[] = array('orders', $limit);
@@ -142,6 +144,11 @@ final class FakeCopyStore implements FinalizeStore {
             call_user_func($this->on_load_product, $product_id);
         }
         return isset($this->products[$product_id]) ? $this->products[$product_id] : null;
+    }
+
+    public function flush_runtime_cache() {
+        ++$this->runtime_flushes;
+        return true;
     }
 
     public function table_exists($which) {

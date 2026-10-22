@@ -6,6 +6,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Hardening: large stores can switch, roll back and dry-run finalize from the browser (A5-02)
+
+- The takeover walks over every order now flush the in-request object cache after each batch of at most 50: the Cutover final verify, the Rollback back-sync, the Finalize dry run and removal, and every copy loop (the onboarding driver's tick, the Action Scheduler batch action and `wp supcheckout takeover run`). Before, each walked order stayed in memory for the whole request, so on a store of roughly 5,000 to 6,000 orders or more a switch, rollback or finalize dry run started from the REST API or Action Scheduler (256M) ran out of memory. Shell access was needed to finish.
+- The flush is `wp_cache_flush_runtime()`, used whenever the object cache supports it, Redis and Memcached drop-ins included. It never calls `wp_cache_flush()`, so the persistent cache is left alone. Copies, verifications, failure codes, locks and compare-and-swaps are unchanged.
+- The migration matrix's 10,000-order lane now runs the switch, the finalize dry run and a budgeted rollback each in one request at `memory_limit=256M`, and asserts that each walk's peak-memory growth stays within 64 MB.
+
 ### Onboarding backend: services and the admin REST API (Sub-project 0c)
 
 - **Admin-only REST API `supcheckout/v1`** for the smart switch and the new-merchant checks: status, preflight, switch, rollback, abort, finalize (with a dry run), stale-claims release, self-test and setup checks. While the official UPayments plugin is active, only the 8 takeover routes are registered. There are no screens yet; the wizard comes in Sub-project 2.

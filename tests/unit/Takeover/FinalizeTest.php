@@ -879,6 +879,24 @@ final class FinalizeTest extends TestCase {
         self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
     }
 
+    public function test_a5_02_the_dry_run_flushes_the_runtime_cache_once_per_batch(): void {
+        // 119 more legacy orders before the switch: with order 7, the dry run walks 120 orders
+        // in three batches (50, 50, 20), then user 3 and product 40 in one batch each.
+        for ($id = 100; $id < 219; $id++) {
+            $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)), 'completed');
+        }
+        $this->seed_cut_over();
+        $options = $GLOBALS['supcheckout_test_options'];
+        $before = $this->store->runtime_flushes;
+
+        $plan = $this->finalize()->plan();
+
+        self::assertSame(3 + 1 + 1, $this->store->runtime_flushes - $before, 'one runtime-cache flush after each order, user and product batch');
+        self::assertSame(119 + 2, $plan['removed']['order_meta'], 'every order is still counted: one key on each added order, two on order 7');
+        self::assertSame(array('pay-218'), $GLOBALS['supcheckout_test_status_orders'][218]->persisted_values('UPayments_PaymentID'), 'and nothing is removed');
+        self::assertSame($options, $GLOBALS['supcheckout_test_options'], 'still read-only');
+    }
+
     public function test_the_dry_run_writes_nothing_and_predicts_the_removal(): void {
         $order = $this->seed_cut_over();
         $this->seed_leftovers();

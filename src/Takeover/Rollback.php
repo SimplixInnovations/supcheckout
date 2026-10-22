@@ -734,7 +734,9 @@ final class Rollback {
     }
 
     /**
-     * Step 4 for one kind of object, over every candidate.
+     * Step 4 for one kind of object, over every candidate. The walk spans the whole store in
+     * one request and most objects are already equal (never saved, so never evicted), so this
+     * request's object cache is flushed after every batch (A5-02, CopyStore::flush_runtime_cache()).
      *
      * @param string $kind orders, users or products.
      * @return string|null Error code.
@@ -759,6 +761,9 @@ final class Rollback {
                 if (!$this->lease->maybe_renew()) {
                     return 'lease_lost';
                 }
+            }
+            if ($ids !== array()) {
+                $this->store->flush_runtime_cache();
             }
         } while (count($ids) === $batch);
         if ($mismatches > 0) {

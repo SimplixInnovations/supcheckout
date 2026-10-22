@@ -89,6 +89,18 @@ interface CopyStore {
     public function load_product($product_id);
 
     /**
+     * Drop this request's in-memory object cache after a bounded batch of a takeover walk
+     * (A5-02): wp_cache_flush_runtime() whenever the object cache supports `flush_runtime`,
+     * including Redis and Memcached drop-ins, which keep an in-process copy of every key they
+     * fetch. Never wp_cache_flush(): the persistent cache is left alone. Only memory is
+     * cleared, so nothing a walk reads afterwards can differ: the lease, lock and state reads
+     * already bypass the cache.
+     *
+     * @return bool True when the runtime cache was flushed.
+     */
+    public function flush_runtime_cache();
+
+    /**
      * @phpstan-impure
      * @param string $which TABLE_LEGACY or TABLE_NEW.
      * @return bool

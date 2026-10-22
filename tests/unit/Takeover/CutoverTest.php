@@ -488,6 +488,53 @@ final class CutoverTest extends TestCase {
         self::assertArrayNotHasKey('cache_purge', $result['report']);
     }
 
+    /** A5-02: a verified store of $count orders and nothing else (no user, product or table row). */
+    private function seed_orders(int $count): void {
+        $GLOBALS['supcheckout_test_options']['woocommerce_upayments_settings'] = array('enabled' => 'yes', 'api_key' => 'test-api-key-123');
+        $GLOBALS['supcheckout_test_options']['upayments_token_identity_secret_v2'] = self::secret();
+        $this->store->new_table_exists = true;
+        for ($id = 1; $id <= $count; $id++) {
+            $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)));
+        }
+    }
+
+    /**
+     * Flushes counted while the final verify ran (between `drained` and `verified_objects`).
+     *
+     * @return array{0:array<string, mixed>, 1:int}
+     */
+    private function run_counting_verify_flushes(): array {
+        $at = array();
+        $this->system->on_step = function ($step) use (&$at) {
+            $at[$step] = $this->store->runtime_flushes;
+        };
+        $result = $this->cutover()->run(false);
+        self::assertArrayHasKey('verified_objects', $at, (string) json_encode($result));
+        return array($result, $at['verified_objects'] - $at['drained']);
+    }
+
+    public function test_a5_02_the_final_verify_flushes_the_runtime_cache_once_per_order_batch(): void {
+        // 120 orders walk in three batches of at most CopyRunner::ORDER_BATCH (50, 50, 20).
+        $this->seed_orders(120);
+
+        list($result, $flushes) = $this->run_counting_verify_flushes();
+
+        self::assertSame(3, $flushes, 'one runtime-cache flush after each order batch, so the walk never holds every order in memory');
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status'], 'the same cutover as without the flush');
+        self::assertSame(array('pay-120'), $GLOBALS['supcheckout_test_status_orders'][120]->persisted_values('_supcheckout_payment_id'), 'every order is still copied and verified');
+    }
+
+    public function test_a5_02_an_empty_closing_selection_is_not_flushed(): void {
+        // Exactly two full batches: the closing empty selection holds nothing to drop.
+        $this->seed_orders(100);
+
+        list($result, $flushes) = $this->run_counting_verify_flushes();
+
+        self::assertSame(2, $flushes);
+        self::assertTrue($result['ok'], (string) json_encode($result));
+    }
+
     private function cutover(): Cutover {
         return new Cutover($this->store, $this->system);
     }
