@@ -7,6 +7,7 @@ use Simplixi\SUPCheckout\Takeover\Cutover;
 use Simplixi\SUPCheckout\Takeover\Journal;
 use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Checks;
+use Simplixi\SUPCheckout\Takeover\Onboarding\DriverHints;
 use Simplixi\SUPCheckout\Takeover\Onboarding\DriverStep;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Onboarding;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Operation;
@@ -185,6 +186,18 @@ final class DriverStepTest extends TestCase {
 
         self::assertSame(array('blocked', 'preflight_blocking', null), array($result['outcome'], $result['error'], $result['next_delay']));
         self::assertSame('callback_unreachable', $result['report']['blocking'][0]['code']);
+        self::assertSame(TakeoverState::IDLE, self::takeover_status(), 'nothing changed');
+    }
+
+    public function test_a5_04_a_foreign_settings_target_blocks_the_switch_with_the_settings_hint(): void {
+        $this->preflight = array(self::blocking('settings_target_foreign', array('targets' => array(Keys::SETTINGS_OPTION), 'journal_unreadable' => false)));
+        $this->start(Operation::KIND_SWITCH, array('deactivate_official' => true));
+        $this->system->official = self::OFFICIAL;
+
+        $result = $this->tick();
+
+        self::assertSame(array('blocked', 'preflight_blocking', DriverHints::SETTINGS_KEPT), array($result['outcome'], $result['error'], $result['hint']));
+        self::assertSame(array(), $this->system->deactivated, 'blocked before the copy and before the official plugin is touched');
         self::assertSame(TakeoverState::IDLE, self::takeover_status(), 'nothing changed');
     }
 
@@ -635,6 +648,7 @@ final class DriverStepTest extends TestCase {
         self::assertSame(array('done', null), array($result['outcome'], $result['next_delay']), (string) json_encode($result));
         self::assertSame(array('conflicts'), $result['report']['warnings']);
         self::assertSame('settings_diverged', $result['report']['conflicts'][0]['target']);
+        self::assertSame(DriverHints::SETTINGS_KEPT, $result['hint'], 'A5-04: how to clear the kept settings before the next switch');
         self::assertStringNotContainsString('test-api-key-123', (string) json_encode($result));
     }
 

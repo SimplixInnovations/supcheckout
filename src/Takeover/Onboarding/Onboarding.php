@@ -420,6 +420,10 @@ final class Onboarding {
         foreach ($result['conflicts'] as $conflict) {
             $lines[] = 'conflict: seq ' . $conflict['seq'] . ' ' . $conflict['target'] . ' ' . $conflict['path'] . ' (kept; the owner decides)';
         }
+        if (isset($result['report']['settings_diverged']['hint'])) {
+            // A5-04: the kept settings block the next switch's preflight until cleared.
+            $lines[] = 'next: ' . (string) $result['report']['settings_diverged']['hint'];
+        }
         $not_reactivated = in_array('official_not_reactivated', $result['warnings'], true);
         if ($not_reactivated) {
             $lines[] = 'warning: official_not_reactivated';

@@ -339,6 +339,14 @@ final class RollbackTest extends TestCase {
         self::assertSame($legacy_edit, get_option('woocommerce_upayments_settings'), 'legacy kept');
         self::assertSame($merchant_settings, get_option(Keys::SETTINGS_OPTION), 'the merchant edit is kept for the owner to reconcile');
         self::assertStringNotContainsString('test-api-key-123', (string) json_encode(array($result, Journal::entries())));
+        // A5-04: the kept option blocks the next switch's preflight; the result says how to resolve it.
+        self::assertSame(array(
+            'kept' => array(Keys::SETTINGS_OPTION),
+            'legacy' => 'woocommerce_upayments_settings',
+            'hint' => Rollback::SETTINGS_DIVERGED_HINT,
+        ), $result['report']['settings_diverged']);
+        self::assertStringContainsString(Keys::SETTINGS_OPTION, Rollback::SETTINGS_DIVERGED_HINT);
+        self::assertStringContainsString('delete', Rollback::SETTINGS_DIVERGED_HINT);
     }
 
     public function test_back_sync_never_regresses_a_legacy_value_written_outside_supcheckout(): void {

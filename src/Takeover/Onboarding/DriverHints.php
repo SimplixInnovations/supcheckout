@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Takeover\Onboarding;
 
+use Simplixi\SUPCheckout\Takeover\Rollback;
+
 defined('ABSPATH') || exit;
 
 /**
@@ -15,6 +17,21 @@ final class DriverHints {
     public const PREFLIGHT = 'fix the blocking preflight findings, then start again';
     public const OFFICIAL = 'deactivate the official UPayments plugin, or start again with deactivate_official';
     public const MISMATCH = 'review the mismatches; the store was not switched';
+    /** A5-04: a kept SUPCheckout option blocks the switch (preflight) or was kept by a rollback. */
+    public const SETTINGS_KEPT = Rollback::SETTINGS_DIVERGED_HINT;
+
+    /**
+     * @param array<string, mixed> $report Preflight report with a blocking finding.
+     * @return string SETTINGS_KEPT when a kept option blocks, otherwise PREFLIGHT.
+     */
+    public static function preflight(array $report) {
+        foreach (isset($report['blocking']) && is_array($report['blocking']) ? $report['blocking'] : array() as $finding) {
+            if (is_array($finding) && isset($finding['code']) && $finding['code'] === 'settings_target_foreign') {
+                return self::SETTINGS_KEPT;
+            }
+        }
+        return self::PREFLIGHT;
+    }
 
     /**
      * @param string $kind  Operation kind.

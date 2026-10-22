@@ -186,6 +186,17 @@ final class OnboardingTest extends TestCase {
         self::assertSame(array('takeover finalize steps: finalized', $expected, 'removed: orders=2'), array_slice($finalize->lines(), 0, 3));
     }
 
+    public function test_a5_04_a_settings_diverged_rollback_prints_how_to_clear_the_kept_settings(): void {
+        $outcome = Onboarding::rewind_outcome(Rollback::MODE_ROLLBACK, array(
+            'ok' => false, 'restored' => 0, 'error' => null, 'steps' => array('rolled_back'), 'warnings' => array(),
+            'conflicts' => array(array('seq' => -1, 'target' => 'settings_diverged', 'path' => 'woocommerce_upayments_settings')),
+            'report' => array('settings_diverged' => array('kept' => array('woocommerce_supcheckout_settings'), 'legacy' => 'woocommerce_upayments_settings', 'hint' => Rollback::SETTINGS_DIVERGED_HINT)),
+        ));
+
+        self::assertSame(Outcome::CONFLICTS, $outcome->code());
+        self::assertContains('next: ' . Rollback::SETTINGS_DIVERGED_HINT, $outcome->lines());
+    }
+
     public function test_a_failed_purge_is_listed_by_name_and_no_purge_means_no_line(): void {
         $purge = array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array('w3tc', 'system'));
         $with = Onboarding::cutover_outcome(array('ok' => true, 'error' => null, 'steps' => array('cut_over'), 'warnings' => array(), 'report' => array('cache_purge' => $purge)));

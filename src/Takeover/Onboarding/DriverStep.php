@@ -328,7 +328,7 @@ final class DriverStep {
                 $this->next('preflight', self::COOLDOWN_RETRY_DELAY, $report);
                 return;
             }
-            $this->end(Operation::BLOCKED, 'preflight_blocking', DriverHints::PREFLIGHT, $report);
+            $this->end(Operation::BLOCKED, 'preflight_blocking', DriverHints::preflight($report), $report);
             return;
         }
         $copy = $this->onboarding->start_copy();
@@ -558,7 +558,8 @@ final class DriverStep {
         } elseif ($outcome->code() === Outcome::CONFLICTS) {
             $list = $conflict_as === 'kept' ? 'kept' : 'conflicts';
             $report[$conflict_as] = isset($engine[$list]) && is_array($engine[$list]) ? $engine[$list] : array();
-            $this->end(Operation::DONE, null, null, $report + array('warnings' => array_merge(array($conflict_as), $warnings)));
+            $hint = isset($engine['report']['settings_diverged']) ? DriverHints::SETTINGS_KEPT : null;
+            $this->end(Operation::DONE, null, $hint, $report + array('warnings' => array_merge(array($conflict_as), $warnings)));
         } elseif ($outcome->code() === Outcome::OFFICIAL_NOT_REACTIVATED) {
             $this->end(Operation::DONE, null, null, $report + array('warnings' => array('official_not_reactivated')));
         } elseif ($outcome->code() === Outcome::BLOCKED) {

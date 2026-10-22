@@ -94,6 +94,11 @@ final class Rollback {
     public const OFFICIAL_RECORD = 'official_deactivated';
     /** State field: the purge after reactivating the official plugin has not finished yet. */
     public const REACTIVATION_PURGE_PENDING = 'reactivation_purge_pending';
+    /**
+     * A5-04: how to clear a `settings_diverged` conflict. The kept new settings block the next
+     * switch's preflight (settings_target_foreign) until they are reconciled and deleted.
+     */
+    public const SETTINGS_DIVERGED_HINT = 'the gateway settings changed under both names since the switch, so both were kept; reconcile the UPayments gateway settings (they are what the next switch copies), then delete the kept copy with "wp option delete woocommerce_supcheckout_settings" before switching again';
 
     /** Attempts on an order whose lock a payment request holds. */
     private const LOCK_ATTEMPTS = 3;
@@ -896,6 +901,12 @@ final class Rollback {
      * @return array{ok:bool, restored:int, conflicts:list<array{seq:int, target:string, path:string}>, error:string|null, steps:list<string>, warnings:list<string>, report:array<string, mixed>}
      */
     private function result($error) {
+        $report = $this->report;
+        foreach ($this->conflicts as $conflict) {
+            if ($conflict['target'] === BackSync::SETTINGS_DIVERGED) {
+                $report['settings_diverged'] = array('kept' => array(Keys::SETTINGS_OPTION), 'legacy' => $conflict['path'], 'hint' => self::SETTINGS_DIVERGED_HINT);
+            }
+        }
         return array(
             'ok' => $error === null && $this->conflicts === array() && $this->warnings === array(),
             'restored' => $this->restored,
@@ -903,7 +914,7 @@ final class Rollback {
             'error' => $error,
             'steps' => $this->steps,
             'warnings' => $this->warnings,
-            'report' => $this->report,
+            'report' => $report,
         );
     }
 }

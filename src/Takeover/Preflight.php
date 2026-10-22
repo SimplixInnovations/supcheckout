@@ -35,6 +35,16 @@ defined('ABSPATH') || exit;
  * maintenance or login page, a host answering every request), so a callback
  * UPayments sent there could still be lost. WooCommerce answers a WC-API route that
  * has no listener with `status_header(400)` and "-1" and runs no handler.
+ *
+ * settings_target_foreign (A5-04) is SettingsCopier's own plan, run read-only: a target
+ * Cutover would refuse (a gateway-settings copy kept by a `settings_diverged` rollback,
+ * or a copied option that differs from the takeover's last write) blocks here, before
+ * the copy and before the official plugin is deactivated. The option values come from
+ * Environment, the journal from Journal::entries() (a read); it is not checked once the
+ * store is cut over, when the new names are authoritative and edits to them are expected.
+ * orders_to_copy (A5-03) discloses that each UPayments order is saved once by the copy
+ * (and again by a rollback or Finalize), and that WooCommerce reports each save as an
+ * order update.
  */
 final class Preflight {
     public const OFFICIAL_PLUGIN_ACTIVE = 'official_plugin_active';
@@ -54,6 +64,8 @@ final class Preflight {
     public const OFFICIAL_ONLY_NAMES = 'official_only_names';
     public const UPAY_SUBSCRIPTIONS_TABLE_PRESENT = 'upay_subscriptions_table_present';
     public const LEFTOVERS = 'leftovers';
+    public const SETTINGS_TARGET_FOREIGN = 'settings_target_foreign';
+    public const ORDERS_TO_COPY = 'orders_to_copy';
 
     public const BLOCKING = 'blocking';
     public const WARNING = 'warning';
@@ -123,6 +135,8 @@ final class Preflight {
             self::OFFICIAL_ONLY_NAMES => self::FACT,
             self::UPAY_SUBSCRIPTIONS_TABLE_PRESENT => self::FACT,
             self::LEFTOVERS => self::FACT,
+            self::SETTINGS_TARGET_FOREIGN => self::BLOCKING,
+            self::ORDERS_TO_COPY => self::FACT,
         );
     }
 
@@ -149,6 +163,7 @@ final class Preflight {
                 self::official_plugin_active($official_plugins),
                 self::official_network_active($official_plugins, $env),
                 $settings_finding,
+                self::settings_target_foreign($env),
             ),
             $credential,
             array(
@@ -157,6 +172,7 @@ final class Preflight {
                 self::hpos_meta_disagreement($env),
                 self::whs_multi_valued($env),
                 self::duplicate_renewals($env),
+                self::orders_to_copy($env),
                 self::official_debug_log_present($official_plugins),
             ),
             self::reference_findings($env),
@@ -298,6 +314,74 @@ final class Preflight {
                 'target_present' => is_array($target) && $target !== array(),
             ));
         return array($finding, $settings);
+    }
+
+    /**
+     * A5-04: the targets Cutover's SettingsCopier would refuse, before anything changes.
+     *
+     * @param Environment $env Environment.
+     * @return array{severity:string, code:string, message:string, data:array<string,mixed>}|null
+     */
+    private static function settings_target_foreign(Environment $env) {
+        $status = TakeoverState::get()['status'];
+        if ($status === TakeoverState::CUT_OVER || $status === TakeoverState::FINALIZED) {
+            return null;
+        }
+        $unreadable = false;
+        try {
+            $targets = SettingsCopier::foreign_targets(array($env, 'option'));
+        } catch (\RuntimeException $e) {
+            // Cutover could not read the journal either: fail closed.
+            $targets = array();
+            $unreadable = true;
+        }
+        if ($targets === array() && !$unreadable) {
+            return null;
+        }
+        $message = $unreadable
+            ? __('The takeover journal cannot be read, so the switch cannot tell its own earlier copies from other values. Nothing was changed. Restore the journal options (supcheckout_takeover_journal_v1*) from a backup before switching.', 'supcheckout')
+            : sprintf(
+                /* translators: %s: comma-separated option names. */
+                __('SUPCheckout options kept from an earlier switch differ from the UPayments values the switch would copy: %s. The switch would stop at the last step, after copying every order and deactivating the official plugin, so it is blocked now; nothing was changed. Before switching nothing reads these options: reconcile the UPayments gateway settings first if you want to keep a change made after the earlier switch, then delete each listed option (for example: wp option delete woocommerce_supcheckout_settings) and run the preflight again.', 'supcheckout'),
+                implode(', ', $targets)
+            );
+        return self::finding(self::BLOCKING, self::SETTINGS_TARGET_FOREIGN, $message,
+            array('targets' => $targets, 'journal_unreadable' => $unreadable));
+    }
+
+    /**
+     * A5-03 disclosure: the orders the copy walks (WordPressCopyStore::order_ids_after()),
+     * counted. Each order the copy changes is saved once with WC_Order::save(), which
+     * WooCommerce reports as an order update; a rollback's removal and Finalize save it again.
+     *
+     * @param Environment $env Environment.
+     * @return array{severity:string, code:string, message:string, data:array<string,mixed>}|null
+     */
+    private static function orders_to_copy(Environment $env) {
+        $gateways = Keys::gateway_ids();
+        $keys = array_keys(Keys::order_meta());
+        $gateway_list = implode(', ', array_fill(0, count($gateways), '%s'));
+        $key_list = implode(', ', array_fill(0, count($keys), '%s'));
+        if ($env->hpos()) {
+            $sql = 'SELECT COUNT(*) AS orders_to_copy FROM %i o WHERE o.type = %s AND (o.payment_method IN (' . $gateway_list . ')'
+                . ' OR EXISTS (SELECT 1 FROM %i m WHERE m.order_id = o.id AND m.meta_key IN (' . $key_list . ')))';
+            $args = array_merge(array($env->table('orders'), 'shop_order'), $gateways, array($env->table('orders_meta')), $keys);
+        } else {
+            $sql = 'SELECT COUNT(*) AS orders_to_copy FROM %i p WHERE p.post_type = %s AND EXISTS (SELECT 1 FROM %i m WHERE m.post_id = p.ID'
+                . " AND ((m.meta_key = '_payment_method' AND m.meta_value IN (" . $gateway_list . ')) OR m.meta_key IN (' . $key_list . ')))';
+            $args = array_merge(array($env->table('posts'), 'shop_order', $env->table('postmeta')), $gateways, $keys);
+        }
+        $count = (int) $env->select_var($sql, $args);
+        if ($count <= 0) {
+            return null;
+        }
+        return self::finding(self::FACT, self::ORDERS_TO_COPY,
+            sprintf(
+                /* translators: %d: number of orders. */
+                __('The switch copies the UPayments data of up to %d orders and saves each changed order once; a rollback or Finalize saves them again. WooCommerce reports every save as an order update, so order.updated webhooks, analytics imports and other order-update automations run for these orders. No payment data or order status changes.', 'supcheckout'),
+                $count
+            ),
+            array('count' => $count, 'updates_orders' => true));
     }
 
     /**
