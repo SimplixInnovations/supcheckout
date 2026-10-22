@@ -6,6 +6,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Checkout: the subscription script's localized state has a prefixed name; dead helpers are marked deprecated (hardening A6-09, A6-07, A6-06)
+
+- **Prefixed global.** The Classic subscription script's state (whether the shopper is logged in, and the interval labels) was localized as the generic global `wcUser`. Another plugin printing its own `wcUser` could replace it, forcing a logged-in shopper's plan back to one-time or blanking the interval labels. It is now `supCheckoutSubscription`, printed by both the checkout page and the embedded template paths. For one release the script still reads `wcUser` when `supCheckoutSubscription` is absent, so a page cached before the update keeps working. No code in the repository reads `wcUser` other than this script.
+- **Deprecated helpers (docblocks only).** Public helpers with no runtime caller now carry `@deprecated` with their replacement: `get_multimerchant_credentials()` and `get_default_credentials()` (they read options SUPCheckout never writes and do no routing; their misleading routing comments are corrected), `get_logged_in_user_phone_number()`, `get_payment_staus()`, `getCustomerUniqueToken()`, `render_subscription_summary()` and `CustomerTokenIdentity::verify_card_membership()` (use `SavedCardSelection::resolve_submission()`). Nothing is removed; removal is recorded for Sub-project 5.
+- **Docblock corrections.** `render_subscription_summary()` returns nothing and `restrictMixedCartProducts()` returns the filter value. `TakeoverState::get()` documents `updated_at`, `rolled_back_at` and `finalize_forced`.
+
 ### Security: the UPayments API key is write-only on the settings screen and over REST (hardening A2-01)
 
 - **Settings screen.** The stored API key, a live bearer credential, was sent back to the browser in the settings page source (`<input type="password" value="…">`), where browser extensions, saved pages, HAR exports, screen-shared page source and admin-side scripts could read it. The field is now always rendered empty. With a key saved, a statement under it, tied to the field for screen readers, says: "A key is saved. For security it is never shown. Leave this field empty to keep it, or enter a new key to replace it." The field's help moves to its tooltip, and the field opts out of password-manager autofill and spell checking.

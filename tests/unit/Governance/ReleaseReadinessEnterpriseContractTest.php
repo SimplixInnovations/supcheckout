@@ -72,7 +72,9 @@ final class ReleaseReadinessEnterpriseContractTest extends TestCase {
         self::assertStringNotContainsString("'intervalLabels'", $gateway);
 
         self::assertStringContainsString('supCheckoutI18n.loginRequired', $new_design);
-        self::assertStringContainsString('wcUser.i18n', $subscription);
+        // Hardening T9 (A6-09): the localized global is prefixed (supCheckoutSubscription).
+        self::assertStringContainsString('supCheckoutSubscription', $subscription);
+        self::assertStringContainsString('state.i18n', $subscription);
     }
 
     public function test_blocks_checkout_uses_server_localized_interaction_copy(): void {

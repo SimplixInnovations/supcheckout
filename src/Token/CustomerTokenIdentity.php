@@ -2361,6 +2361,18 @@ class CustomerTokenIdentity {
     // VERIFY CARD MEMBERSHIP
     // ────────────────────────────────────────────────────────
 
+    /**
+     * Legacy check that a card token is one of the customer's saved cards.
+     *
+     * @deprecated No runtime caller (A6-07). Checkout resolves a saved card through
+     *             Payment\SavedCardSelection::resolve_submission() (the HMAC selection-handle
+     *             resolver, compared with hash_equals()); this compares raw tokens with ===.
+     *             Kept for third-party callers; removal is recorded for Sub-project 5.
+     * @param mixed    $card_token             Provider card token.
+     * @param mixed    $customer_token         Provider customer token.
+     * @param callable $get_saved_cards_caller Saved-card listing.
+     * @return bool
+     */
     public static function verify_card_membership($card_token, $customer_token, callable $get_saved_cards_caller) {
         if (!is_string($card_token) || $card_token === '') {
             return false;

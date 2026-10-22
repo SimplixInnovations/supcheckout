@@ -84,7 +84,12 @@ final class TakeoverState {
      * Current state. Progress fields written with patch() (for example `cursors` or
      * `mismatches`) are returned alongside the documented ones.
      *
-     * @return array{status:string, cut_over_at:int, cursor:int, totals:array<mixed>}&array<string,mixed>
+     * Always present: `status`, `cut_over_at` (0 until cut_over), `cursor` and `totals`.
+     * Present once written (A6-06): `updated_at` (every transition), `rolled_back_at` (the
+     * rolled_back transition; StaleGatewayChoice's grace starts there) and `finalize_forced`
+     * (the finalized transition). Callers must check these with isset() and their type.
+     *
+     * @return array{status:string, cut_over_at:int, cursor:int, totals:array<mixed>, updated_at?:mixed, rolled_back_at?:mixed, finalize_forced?:mixed}&array<string,mixed>
      */
     public static function get() {
         $state = self::decode(self::read_raw());

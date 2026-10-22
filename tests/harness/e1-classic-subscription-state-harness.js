@@ -25,7 +25,8 @@ function baseEvent(eventName) {
     return String(eventName).split('.')[0];
 }
 
-// Mirrors the server-localized wcUser payload produced by
+// Mirrors the server-localized supCheckoutSubscription payload (wcUser before
+// hardening T9 / A6-09) produced by
 // Simplixi\SUPCheckout\Gateway\CheckoutAssets. The Classic subscription script
 // owns no customer-facing English of its own, so the harness must supply the
 // same translated strings WordPress would.
@@ -41,7 +42,10 @@ const LOCALIZED_I18N = {
     },
 };
 
-function createScene(loggedIn, i18n) {
+// options.global names the localized global (default supCheckoutSubscription);
+// options.extra adds other page globals, such as a foreign plugin's wcUser.
+function createScene(loggedIn, i18n, options) {
+    const sceneOptions = options || {};
     const state = {
         plan: 'monthly',
         interval: '',
@@ -139,13 +143,13 @@ function createScene(loggedIn, i18n) {
         };
     }
 
-    const sandbox = {
+    const sandbox = Object.assign({
         console,
         document: { body: {} },
-        wcUser: (arguments.length > 1 && i18n === null)
-            ? { isLoggedIn: !!loggedIn }
-            : { isLoggedIn: !!loggedIn, i18n: (i18n || LOCALIZED_I18N) },
-    };
+    }, sceneOptions.extra || {});
+    sandbox[sceneOptions.global || 'supCheckoutSubscription'] = (arguments.length > 1 && i18n === null)
+        ? { isLoggedIn: !!loggedIn }
+        : { isLoggedIn: !!loggedIn, i18n: (i18n || LOCALIZED_I18N) };
 
     function jquery(value) {
         if (typeof value === 'function') {
@@ -306,6 +310,31 @@ console.log('Running e1-classic-subscription-state-harness.js');
             && labels.indexOf('Every Month') !== -1
             && labels.indexOf('Every 2 Months') !== -1,
         'interval options render the server-localized labels rather than script-owned English'
+    );
+}
+
+// Hardening T9 (A6-09): another plugin's generic `wcUser` global can no longer replace
+// SUPCheckout's state, and a page cached before the rename (only `wcUser`) still works.
+{
+    const scene = createScene(true, undefined, { extra: { wcUser: {} } });
+    scene.state.interval = '2';
+    scene.trigger('updated_checkout');
+    const labels = scene.state.options.map(function (option) {
+        return option.label;
+    });
+    record(
+        scene.state.plan === 'monthly' && scene.state.interval === '2' && labels.indexOf('Every Month') !== -1,
+        'a foreign wcUser = {} on the page never forces a logged-in plan back to one-time or blanks the labels'
+    );
+}
+
+{
+    const scene = createScene(true, undefined, { global: 'wcUser' });
+    scene.state.interval = '2';
+    scene.trigger('updated_checkout');
+    record(
+        scene.state.plan === 'monthly' && scene.state.interval === '2',
+        'a page cached with the legacy wcUser global still keeps the selected plan (one-release fallback)'
     );
 }
 

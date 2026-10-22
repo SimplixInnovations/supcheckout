@@ -279,6 +279,15 @@ class Gateway extends \WC_Payment_Gateway {
         );
     }
 
+    /**
+     * The logged-in customer's billing phone (legacy helper).
+     *
+     * @deprecated No runtime caller (A6-07). The Charge payload's customer mobile comes from
+     *             the order's billing phone through CheckoutPayload::provider_mobile(), called by
+     *             CheckoutOrchestrator. Kept for third-party callers; removal is recorded for
+     *             Sub-project 5.
+     * @return mixed
+     */
     public function get_logged_in_user_phone_number() {
 
         // Check if the user is logged in
@@ -374,6 +383,12 @@ class Gateway extends \WC_Payment_Gateway {
             <?php
     }
 
+    /**
+     * @deprecated No runtime caller (A6-07). The public order-status endpoint is
+     *             Security\PublicOrderStatus::handle(), which this only forwards to. Kept for
+     *             third-party callers; removal is recorded for Sub-project 5.
+     * @return void
+     */
     public function get_payment_staus()
     {
         \Simplixi\SUPCheckout\Security\PublicOrderStatus::handle();
@@ -637,7 +652,7 @@ class Gateway extends \WC_Payment_Gateway {
                 && \Simplixi\SUPCheckout\Subscription\Helpers\Utils::cartHasCustomType()
             ) {
                 wp_enqueue_script('supcheckout-subscription-checkout', $plugin_url . 'assets/js/subscription-checkout.js', array('jquery'), SUPCHECKOUT_VERSION, true);
-                wp_localize_script('supcheckout-subscription-checkout', 'wcUser', array(
+                wp_localize_script('supcheckout-subscription-checkout', 'supCheckoutSubscription', array(
                     'isLoggedIn' => is_user_logged_in(),
                     'i18n' => CheckoutAssets::subscription_i18n(),
                 ));
@@ -774,6 +789,20 @@ class Gateway extends \WC_Payment_Gateway {
         return update_option($this->get_option_key(), apply_filters("woocommerce_settings_api_sanitized_fields_" . $this->id, $this->settings));
     }
 
+    /**
+     * Legacy credential lookup from rules this plugin never writes.
+     *
+     * @deprecated No runtime caller and not the routing authority (A6-07). It reads
+     *             `multimerchant_accounts` rules with `condition_type`, `merchant_id` and
+     *             `api_key` keys and the `default_merchant_id` / `default_api_key` options,
+     *             none of which SUPCheckout stores, and it does no currency or country
+     *             routing. Every Charge authenticates with the gateway `api_key`, and the one
+     *             additional merchant comes from the five scalar allocation settings in
+     *             CheckoutOrchestrator. Kept for third-party callers; removal is recorded for
+     *             Sub-project 5.
+     * @param mixed $order Unused.
+     * @return array{merchant_id:mixed, api_key:mixed}
+     */
     public function get_multimerchant_credentials( $order ) {
         // 1. Check if Multimerchant is enabled at all
         if ($this->get_option( 'enable_multimerchant' ) == 'no') {
@@ -805,13 +834,13 @@ class Gateway extends \WC_Payment_Gateway {
 
             switch ( $condition_type ) {
                 case 'fixed':
-                    // Check if the order currency matches the rule value (e.g., USD, EUR)
+                    // Matches only the literal value 'fixed'; no order currency is read.
                     if ($condition_value === 'fixed') {
                         $match_found = true;
                     }
                     break;
                 case 'percentage':
-                    // Check if the billing country matches the rule value (e.g., US, DE)
+                    // Matches only the literal value 'percentage'; no billing country is read.
                     if ($condition_value === 'percentage') {
                         $match_found = true;
                     }
@@ -834,8 +863,14 @@ class Gateway extends \WC_Payment_Gateway {
         return $this->get_default_credentials();
     }
 
+    /**
+     * @deprecated No runtime caller (A6-07). Reads `default_merchant_id` and
+     *             `default_api_key`, options SUPCheckout never writes; the gateway `api_key`
+     *             setting is the only credential. Removal is recorded for Sub-project 5.
+     * @return array{merchant_id:mixed, api_key:mixed}
+     */
     public function get_default_credentials() {
-        // Assuming your default credentials are stored as standard gateway options
+        // Reads options SUPCheckout never writes (see the @deprecated note).
         return [
             'merchant_id' => $this->get_option( 'default_merchant_id' ),
             'api_key'     => $this->get_option( 'default_api_key' ),
@@ -921,7 +956,7 @@ class Gateway extends \WC_Payment_Gateway {
      *
      * @deprecated Retained temporarily to avoid undefined-method breakage for
      *             third-party customizations. New code must use CustomerTokenIdentity.
-     *             Future code-quality/public-API phase will decide final removal.
+     *             No runtime caller (A6-07); removal is recorded for Sub-project 5.
      * @param string $phone Unused. Previously used as customer token.
      * @return string Empty string. Phone is no longer used as token identity.
      */
@@ -1348,8 +1383,10 @@ class Gateway extends \WC_Payment_Gateway {
     /**
      * Render subscription summary in admin order view
      *
+     * @deprecated No runtime caller (A6-07). Use SubscriptionPresentation::render_admin_summary().
+     *             Removal is recorded for Sub-project 5.
      * @param \WC_Order $order
-     * @return array
+     * @return void It echoes the summary and returns nothing (A6-06).
      */
     public function render_subscription_summary($order)
     {
@@ -1362,7 +1399,7 @@ class Gateway extends \WC_Payment_Gateway {
      * @param  mixed $passed
      * @param  mixed $product_id
      * @param  mixed $quantity
-     * @return void
+     * @return mixed The `woocommerce_add_to_cart_validation` value: $passed, or false to refuse (A6-06).
      */
     public function restrictMixedCartProducts($passed, $product_id, $quantity)
     {
