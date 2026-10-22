@@ -222,7 +222,7 @@ final class StatusVerifier {
         if ($local_canonical !== null) {
             $charged = self::charged_amount($order, $local_upay_order_id, $expected_currency, $local_canonical);
             if ($charged === false) {
-                $result['reason'] = 'binding_amount';
+                $result['reason'] = self::amount_mismatch_reason($order, $verified_canonical);
                 return $result;
             }
             if ($charged !== null) {
@@ -233,7 +233,7 @@ final class StatusVerifier {
             || $local_canonical === null
             || !hash_equals($local_canonical, $verified_canonical)
         ) {
-            $result['reason'] = 'binding_amount';
+            $result['reason'] = self::amount_mismatch_reason($order, $verified_canonical);
             return $result;
         }
         // R-1: get_total() is re-rounded to this request's price decimals, so an edit
@@ -249,7 +249,7 @@ final class StatusVerifier {
             return $result;
         }
         if (!hash_equals($persisted, $verified_canonical)) {
-            $result['reason'] = 'binding_amount';
+            $result['reason'] = self::amount_mismatch_reason($order, $verified_canonical, $persisted);
             return $result;
         }
 
@@ -269,6 +269,43 @@ final class StatusVerifier {
         $result['transaction'] = $transaction;
         $result['reason'] = strtolower($classification);
         return $result;
+    }
+
+    /**
+     * Why an authenticated amount did not bind (batch 2 final review M-2).
+     *
+     * A woocommerce_order_get_total filter makes get_total() report a total that differs
+     * from the order's own one. When the provider amount equals either the stored total
+     * or that filtered total, the order did not change: the filter makes the two totals
+     * disagree, so SUPCheckout cannot confirm which amount is owed. That is
+     * `binding_total_filtered`, which fails closed exactly like `binding_amount` but tells
+     * the merchant why. An amount that matches neither total, or any mismatch on an
+     * unfiltered order, stays `binding_amount`. At most one stored-total read per bind:
+     * it is read here only when the caller has not read it and a filter is active.
+     *
+     * @param object      $order              Order.
+     * @param string|null $verified_canonical Canonical provider amount.
+     * @param string|null $persisted          Canonical stored total when already read.
+     * @return string Binding reason.
+     */
+    private static function amount_mismatch_reason($order, $verified_canonical, $persisted = null) {
+        if ($verified_canonical === null) {
+            return 'binding_amount';
+        }
+        $reported = self::canonical_decimal($order->get_total());
+        $own = self::canonical_decimal($order->get_total('edit'));
+        if ($reported === null || $own === null || hash_equals($own, $reported)) {
+            return 'binding_amount';
+        }
+        if (hash_equals($reported, $verified_canonical)) {
+            return 'binding_total_filtered';
+        }
+        if ($persisted === null) {
+            $persisted = self::persisted_order_total($order->get_id());
+        }
+        return $persisted !== null && hash_equals($persisted, $verified_canonical)
+            ? 'binding_total_filtered'
+            : 'binding_amount';
     }
 
     /**

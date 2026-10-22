@@ -1829,7 +1829,8 @@ namespace {
     ok(!$c_secondary_scheduled(718), 'A6-05 C16 the refused secondary schedule leaves nothing scheduled');
     ok($c_logged('secondary_schedule_failed'), 'A6-05 C16 secondary_schedule_failed is logged');
     ok(count($order->notes) === 1 && strpos($order->notes[0], 'could not schedule') !== false, 'U1 A6-03 C16 a refused secondary schedule adds one merchant note (added none before U1)');
-    same((string) $order->get_meta('_supcheckout_secondary_schedule_failed_v1'), '1', 'U1 A6-03 C16 the refused secondary schedule is flagged on the order');
+    same((string) $order->get_meta('_supcheckout_reconcile_schedule_failed_v1'), '1', 'U1 A6-03 C16 the refused secondary schedule is flagged on the order (review M-4: the flag is shared with the primary path)');
+    same((string) $order->get_meta('_supcheckout_secondary_schedule_failed_v1'), '', 'review M-4 C16 the separate secondary flag is no longer written');
     $order->meta['_simplixpay_upayments_callback_lookups_v1'] = gmdate('YmdHi') . ':3';
     PaymentLifecycle::route_callback($gateway, $order, 'track-b', 'merchant-order-718', 'webhook');
     same(count($order->get_meta('_simplixpay_upayments_secondary_pending_v1')), 2, 'U1 A6-03 C16 a second deferred track is queued and its schedule refused again');
@@ -2192,6 +2193,168 @@ namespace {
     same($evict->notes, array('SUPCheckout dropped some queued UPayments payment checks for this order; review the UPayments merchant dashboard.'), 'U2 N-1 S7 four evictions at callback rate leave one generic eviction note naming no track');
     same($evict->get_meta('_supcheckout_secondary_evicted_noted_v1'), 1, 'U2 N-1 S7 the per-order eviction note is guarded by its own flag');
     same(count(array_filter($c_state()['logs'], function ($entry) { return strpos($entry[1], 'secondary_evicted') !== false; })), 4, 'U2 N-1 S7 every evicted track is logged');
+    \Simplixi\SUPCheckout\Payment\reset_state();
+
+    // ---- Batch 2 final whole-branch review ----
+    // S8 (I-1): the sweep's own stale-attempt reset used to leave the order with no
+    // cursor and no flag, so the same run then noted "no callback received" on an
+    // order whose earlier attempt did get one (and was just queued for a capture check).
+    foreach (array('unverified' => 860, 'trusted' => 861) as $i1_kind => $i1_id) {
+        $gateway = $u2_reset();
+        $i1 = $u2_order($i1_id);
+        $i1->created = time() - 7200;
+        if ($i1_kind === 'unverified') {
+            $u2_unverified($i1, 'track-a1');
+        } else {
+            $i1->meta['_simplixpay_upayments_status_track_v1'] = 'track-a1';
+            $i1->meta['_simplixpay_upayments_status_requested_v1'] = 'merchant-order-' . $i1_id;
+            $i1->meta['_simplixpay_upayments_provider_result_v1'] = 'NULL';
+        }
+        // The customer retried; the second attempt was abandoned (no callback).
+        $rotate($i1, 'merchant-order-' . $i1_id . '-b');
+        $u2_provider(array());
+        same($u2_sweep(), array(), 'review I-1 S8 ' . $i1_kind . ': the stale-attempt run makes no lookup');
+        same($c_queue_pairs($i1), array(array('track' => 'track-a1', 'requested' => 'merchant-order-' . $i1_id)), 'review I-1 S8 ' . $i1_kind . ': the earlier attempt\'s track is queued on the capture-only check');
+        ok($c_secondary_scheduled($i1_id), 'review I-1 S8 ' . $i1_kind . ': the bounded secondary check is scheduled');
+        same($i1->notes, array(), 'review I-1 S8 ' . $i1_kind . ': the same run adds no "no callback received" note (it did before the fix)');
+        same($i1->get_meta('_supcheckout_no_callback_noted_v1'), 1, 'review I-1 S8 ' . $i1_kind . ': the cursor reset records that a callback arrived');
+        $u2_sweep();
+        same($i1->notes, array(), 'review I-1 S8 ' . $i1_kind . ': a later run adds no note either');
+    }
+    // A cursor stored from a real callback records it at once.
+    $gateway = $u2_reset();
+    $i1c = $u2_order(862);
+    $u2_provider(array());
+    PaymentLifecycle::route_callback($gateway, $i1c, 'track-c1', 'merchant-order-862', 'webhook');
+    same($i1c->get_meta('_simplixpay_upayments_unverified_track_v1'), 'track-c1', 'review I-1 S8c the callback stored its unverified cursor');
+    same($i1c->get_meta('_supcheckout_no_callback_noted_v1'), 1, 'review I-1 S8c storing the first cursor records that a callback arrived');
+
+    // S9 (M-1): the under-lock rebind's stored-total read can fail too (a passing
+    // database error). It is now retried within the bounds, like the first read,
+    // instead of being reported as binding_changed_under_lock and dropped.
+    $m1_unreadable_under_lock = function () {
+        \Simplixi\SUPCheckout\Payment\state()['remote_mutator'] = function () {
+            \Simplixi\SUPCheckout\Payment\state()['db_query_mutator'] = function () {
+                \Simplixi\SUPCheckout\Payment\state()['persisted_total_unreadable'] = true;
+            };
+        };
+    };
+    list($gateway, $order) = reset_fixture(863);
+    private_call(PaymentLifecycle::class, 'remember_unverified_cursor', array($order, 'track-abc', 'merchant-order-863'));
+    set_provider_transaction(transaction_for($order));
+    $m1_unreadable_under_lock();
+    $out = PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
+    same($out, array('state' => 'unchanged', 'reason' => 'binding_persisted_total_unreadable'), 'review M-1 S9 primary: an unreadable stored total under the lock reports its own reason (was binding_changed_under_lock)');
+    ok($c_reconcile_scheduled(863), 'review M-1 S9 primary: the bounded reconcile check is scheduled');
+    same((int) $order->get_meta('_simplixpay_upayments_reconcile_attempt_v1'), 1, 'review M-1 S9 primary: the retry consumes one bounded attempt');
+    same(array($order->status, $order->payment_complete_calls, (string) $order->get_meta('_upay_verified_capture')), array('pending', 0, ''), 'review M-1 S9 primary: the order stays unpaid');
+    \Simplixi\SUPCheckout\Payment\state()['persisted_total_unreadable'] = false;
+    \Simplixi\SUPCheckout\Payment\clear_scheduled_for_order(863);
+    PaymentLifecycle::reconcile_order(863);
+    same(array($order->status, $order->payment_complete_calls), array('processing', 1), 'review M-1 S9 primary: the retry completes the captured order once the total reads again');
+
+    list($gateway, $order) = reset_fixture(864);
+    $rotate($order, 'merchant-order-864-b');
+    $order->meta['_simplixpay_upayments_secondary_pending_v1'] = array(
+        array('track' => 'track-a', 'requested' => 'merchant-order-864', 'runs' => 0, 'kind' => 'retry'),
+    );
+    set_provider_transaction($prior_tx($order, 'merchant-order-864', 'CAPTURED', 'track-a', 'pay-a'));
+    $m1_unreadable_under_lock();
+    PaymentLifecycle::reconcile_secondary(864);
+    same($order->get_meta('_simplixpay_upayments_secondary_pending_v1'), array(array('track' => 'track-a', 'requested' => 'merchant-order-864', 'runs' => 1, 'kind' => 'retry')), 'review M-1 S9 secondary: the captured track stays queued with one run used (it was dropped silently)');
+    ok($c_secondary_scheduled(864), 'review M-1 S9 secondary: the next bounded run is scheduled');
+    same(array($order->status, $order->payment_complete_calls, $order->notes), array('pending', 0, array()), 'review M-1 S9 secondary: the order stays unpaid and un-noted while the window runs');
+    \Simplixi\SUPCheckout\Payment\state()['persisted_total_unreadable'] = false;
+    unset(\Simplixi\SUPCheckout\Payment\state()['scheduled']['simplixpay_upayments_reconcile_secondary|[864]']);
+    PaymentLifecycle::reconcile_secondary(864);
+    same(array($order->status, $order->get_transaction_id()), array('processing', 'pay-a'), 'review M-1 S9 secondary: the next run completes the captured order');
+    // Bounded: a total that never reads again ends the track's window with the U1 note.
+    list($gateway, $order) = reset_fixture(865);
+    $rotate($order, 'merchant-order-865-b');
+    $order->meta['_simplixpay_upayments_secondary_pending_v1'] = array(
+        array('track' => 'track-a', 'requested' => 'merchant-order-865', 'runs' => 0, 'kind' => 'retry'),
+    );
+    set_provider_transaction($prior_tx($order, 'merchant-order-865', 'CAPTURED', 'track-a', 'pay-a'));
+    for ($m1_run = 0; $m1_run < 4; $m1_run++) {
+        $m1_unreadable_under_lock();
+        unset(\Simplixi\SUPCheckout\Payment\state()['scheduled']['simplixpay_upayments_reconcile_secondary|[865]']);
+        PaymentLifecycle::reconcile_secondary(865);
+        \Simplixi\SUPCheckout\Payment\state()['persisted_total_unreadable'] = false;
+    }
+    same($order->get_meta('_simplixpay_upayments_secondary_pending_v1'), '', 'review M-1 S9 secondary: the track leaves the queue after its bounded window');
+    ok(count($order->notes) === 1 && strpos($order->notes[0], 'could not verify a callback for another payment attempt') !== false, 'review M-1 S9 secondary: the track that left unresolved is noted once (U1)');
+    same(array($order->status, $order->payment_complete_calls), array('pending', 0), 'review M-1 S9 secondary: never marked paid');
+
+    // S10 (M-2): a woocommerce_order_get_total filter. The provider amount equals the
+    // stored total (or the filtered one), so "amount does not match the order total"
+    // would send the merchant after a mismatch they cannot see. Own reason, own note,
+    // still fail-closed; a trusted cursor is parked like any deterministic non-bind.
+    $m2_order = function ($id) {
+        $order = new class($id, 'merchant-order-' . $id) extends FakeOrder {
+            public $filtered_total = null;
+            public function get_total($context = 'view') {
+                return ($context === 'view' && $this->filtered_total !== null) ? $this->filtered_total : $this->total;
+            }
+        };
+        \Simplixi\SUPCheckout\Payment\state()['orders'][$id] = $order;
+        return $order;
+    };
+    $gateway = $u2_reset();
+    $m2 = $m2_order(866);
+    set_provider_transaction(transaction_for($m2, 'PENDING', 'track-f', null));
+    PaymentLifecycle::route_callback($gateway, $m2, 'track-f', 'merchant-order-866', 'webhook');
+    same($m2->get_meta('_simplixpay_upayments_status_track_v1'), 'track-f', 'review M-2 S10 trusted: the cursor was trusted before the filter was added');
+    \Simplixi\SUPCheckout\Payment\clear_scheduled_for_order(866);
+    $m2->filtered_total = '11.000';
+    $tx = transaction_for($m2, 'CAPTURED', 'track-f', 'pay-f');
+    $tx['total_price'] = '10.000';
+    set_provider_transaction($tx);
+    $out = PaymentLifecycle::process_order_status($gateway, $m2, 'track-f', 'reconcile');
+    same($out, array('state' => 'unchanged', 'reason' => 'binding_total_filtered'), 'review M-2 S10 trusted: a filtered total reports binding_total_filtered');
+    same(array($m2->status, $m2->payment_complete_calls, (string) $m2->get_meta('_upay_verified_capture')), array('pending', 0, ''), 'review M-2 S10 trusted: never marked paid');
+    ok(count($m2->notes) === 1 && strpos($m2->notes[0], 'a plugin changes the order total') !== false && strpos($m2->notes[0], 'does not match the order total') === false, 'review M-2 S10 trusted: one note names the filtered total, not an amount mismatch');
+    same($m2->get_meta('_supcheckout_sweep_parked_v1'), 'track-f', 'review M-2 S10 trusted: the trusted cursor is parked out of the sweep');
+    ok(!$c_reconcile_scheduled(866), 'review M-2 S10 trusted: no re-check is scheduled');
+    ok($c_logged('current_attempt_unbound_binding_total_filtered'), 'review M-2 S10 trusted: the reason is logged');
+    PaymentLifecycle::process_order_status($gateway, $m2, 'track-f', 'reconcile');
+    same(count($m2->notes), 1, 'review M-2 S10 trusted: a repeat check adds no second note');
+
+    $gateway = $u2_reset();
+    $m2u = $m2_order(867);
+    $m2u->filtered_total = '11.000';
+    set_provider_transaction(transaction_for($m2u, 'CAPTURED', 'track-g', 'pay-g'));
+    $out = PaymentLifecycle::route_callback($gateway, $m2u, 'track-g', 'merchant-order-867', 'webhook');
+    same($out['reason'], 'binding_total_filtered', 'review M-2 S10 first callback: a Charge of the filtered total reports binding_total_filtered');
+    same(array($m2u->status, $m2u->payment_complete_calls), array('pending', 0), 'review M-2 S10 first callback: never marked paid');
+    ok(count($m2u->notes) === 1 && strpos($m2u->notes[0], 'a plugin changes the order total') !== false, 'review M-2 S10 first callback: one filtered-total note');
+    same(array($m2u->get_meta('_simplixpay_upayments_unverified_track_v1'), $m2u->get_meta('_supcheckout_no_callback_noted_v1')), array('', 1), 'review M-2 S10 first callback: the cursor is cleared and the order is not later called "no callback"');
+
+    $gateway = $u2_reset();
+    $m2s = $m2_order(868);
+    $rotate($m2s, 'merchant-order-868-b');
+    $m2s->filtered_total = '11.000';
+    $tx = $prior_tx($m2s, 'merchant-order-868', 'CAPTURED', 'track-h', 'pay-h');
+    $tx['total_price'] = '10.000';
+    set_provider_transaction($tx);
+    $out = PaymentLifecycle::process_secondary_capture($gateway, $m2s, 'track-h', 'merchant-order-868', 'webhook');
+    same($out['reason'], 'binding_total_filtered', 'review M-2 S10 other attempt: binding_total_filtered');
+    ok(count($m2s->notes) === 1 && strpos($m2s->notes[0], 'a plugin changes the order total') !== false && strpos($m2s->notes[0], 'another payment attempt') !== false, 'review M-2 S10 other attempt: one filtered-total note for the other attempt');
+    same(array($m2s->status, $m2s->payment_complete_calls, $m2s->get_meta('_simplixpay_upayments_secondary_pending_v1')), array('pending', 0, ''), 'review M-2 S10 other attempt: never paid and not re-queued');
+
+    // S11 (M-4): the primary and the capture-only path share one "could not schedule"
+    // flag, so an order gets that note once, whichever path is refused first.
+    list($gateway, $order) = reset_fixture(869);
+    private_call(PaymentLifecycle::class, 'remember_unverified_cursor', array($order, 'track-abc', 'merchant-order-869'));
+    \Simplixi\SUPCheckout\Payment\state()['schedule_fails'] = true;
+    \Simplixi\SUPCheckout\Payment\state()['remote_response'] = array('code' => 503, 'body' => '');
+    PaymentLifecycle::process_order_status($gateway, $order, 'track-abc', 'webhook');
+    same(count($order->notes), 1, 'review M-4 S11 the refused primary check adds the note');
+    $rotate($order, 'merchant-order-869-b');
+    $order->meta['_simplixpay_upayments_callback_lookups_v1'] = gmdate('YmdHi') . ':3';
+    PaymentLifecycle::route_callback($gateway, $order, 'track-old', 'merchant-order-869', 'webhook');
+    same(count($order->get_meta('_simplixpay_upayments_secondary_pending_v1')), 1, 'review M-4 S11 the other attempt\'s track is queued and its schedule refused');
+    same(count($order->notes), 1, 'review M-4 S11 the refused capture-only check adds no second identical note');
+    \Simplixi\SUPCheckout\Payment\state()['schedule_fails'] = false;
     \Simplixi\SUPCheckout\Payment\reset_state();
 
     // Static architecture/safety guards.

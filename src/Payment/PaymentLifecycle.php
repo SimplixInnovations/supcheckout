@@ -48,7 +48,6 @@ final class PaymentLifecycle {
     private const SECONDARY_PENDING_META = '_simplixpay_upayments_secondary_pending_v1';
     private const SECONDARY_ATTEMPT_META = '_simplixpay_upayments_secondary_attempt_v1';
     private const SECONDARY_NOTED_META = '_simplixpay_upayments_secondary_noted_v1';
-    private const SECONDARY_SCHEDULE_FAILED_META = '_supcheckout_secondary_schedule_failed_v1';
     // Tracks that already got a window-exhaustion note (once per track).
     private const SECONDARY_EXHAUSTED_NOTED_META = '_supcheckout_secondary_exhausted_noted_v1';
     // Evictions can happen at callback rate with caller-chosen tracks: one note per order.
@@ -61,7 +60,8 @@ final class PaymentLifecycle {
     private const PUBLIC_STATUS_META = 'UPayments_WHS';
     // Hourly sweep (ReconciliationSweep): when an order was last swept, the trusted
     // track whose transaction cannot bind (noted once, never re-swept), and the
-    // once-per-order missing-callback note.
+    // once-per-order missing-callback note. NO_CALLBACK_NOTED_META is also set as soon
+    // as a callback stores or resets a cursor: such an order never gets that note.
     private const SWEEP_CHECKED_META = '_supcheckout_sweep_checked_at_v1';
     private const SWEEP_PARKED_META = '_supcheckout_sweep_parked_v1';
     private const NO_CALLBACK_NOTED_META = '_supcheckout_no_callback_noted_v1';
@@ -145,8 +145,9 @@ final class PaymentLifecycle {
     }
 
     /**
-     * Charged orders with no cursor at all (no callback ever arrived) that have not
-     * had the missing-callback note yet.
+     * Charged orders with no cursor at all that have not had the missing-callback note
+     * yet. A callback sets the flag when it first stores a cursor, and every cursor
+     * reset sets it too, so an order whose cursor is gone after a callback is excluded.
      *
      * @return array wc_get_orders() meta_query.
      */
@@ -554,8 +555,11 @@ final class PaymentLifecycle {
             // Track, provider order identity and Woo reference bind before economics,
             // so an authenticated amount/currency mismatch on this order's own cursor
             // is this attempt's transaction. It stays unpaid; the merchant is told once.
+            // A filtered order total (binding_total_filtered) is handled the same way:
+            // the answer cannot change while the filtering plugin is active, so the
+            // order leaves the sweep instead of repeating the lookup for 48 h.
             if (!empty($verification['authenticated'])
-                && ($reason === 'binding_amount' || $reason === 'binding_currency')
+                && self::is_economics_mismatch($reason)
                 && self::retry_cursor_matches($order, $track_id)
             ) {
                 self::log('current_attempt_unbound_' . $reason, 'warning');
@@ -634,6 +638,12 @@ final class PaymentLifecycle {
                 $verification['transaction']
             );
             if (empty($rebound['bound']) || !is_array($rebound['transaction'])) {
+                if (isset($rebound['reason']) && $rebound['reason'] === 'binding_persisted_total_unreadable') {
+                    // The rebind's own stored-total read failed (R-1): retried within
+                    // MAX_RECONCILE_ATTEMPTS like the first read, never treated as a change.
+                    self::schedule_reconciliation($fresh_order, 'binding_persisted_total_unreadable', $track_id);
+                    return self::outcome('unchanged', 'binding_persisted_total_unreadable');
+                }
                 return self::outcome('unchanged', 'binding_changed_under_lock');
             }
 
@@ -839,6 +849,9 @@ final class PaymentLifecycle {
         // never overwrite a trusted cursor for that same attempt.
         Keys::update_order_meta($order, self::UNVERIFIED_TRACK_META, $track_id);
         Keys::update_order_meta($order, self::UNVERIFIED_REQUESTED_META, $current_requested);
+        // A callback has arrived for this order: the sweep's "no callback received"
+        // note must never be added later, even after the cursor is reset or cleared.
+        $order->update_meta_data(self::NO_CALLBACK_NOTED_META, 1);
         $saved = $order->save();
         if ($saved === false || $saved === null || $saved === 0) {
             return false;
@@ -1102,8 +1115,8 @@ final class PaymentLifecycle {
             self::log('secondary_status_' . self::safe_code($reason), 'warning');
             // Track, provider order identity and Woo reference are checked before
             // economics, so a currency/amount mismatch is this order's transaction.
-            if (!empty($verification['authenticated']) && ($reason === 'binding_amount' || $reason === 'binding_currency')) {
-                self::note_unbound_secondary($order, $track_id);
+            if (!empty($verification['authenticated']) && self::is_economics_mismatch($reason)) {
+                self::note_unbound_secondary($order, $track_id, $reason);
             }
             return self::outcome('unchanged', $reason);
         }
@@ -1142,7 +1155,10 @@ final class PaymentLifecycle {
                 $requested_order_id
             );
             if (empty($rebound['bound']) || (string) $rebound['classification'] !== ProviderResult::CAPTURED) {
-                return self::outcome('unchanged', 'binding_changed_under_lock');
+                // An unreadable stored total (R-1) keeps its own, retryable reason, so the
+                // track stays in its bounded window and is noted if that window runs out.
+                $unreadable = isset($rebound['reason']) && $rebound['reason'] === 'binding_persisted_total_unreadable';
+                return self::outcome('unchanged', $unreadable ? 'binding_persisted_total_unreadable' : 'binding_changed_under_lock');
             }
             $transaction = $rebound['transaction'];
             $payment_id = (string) $transaction['payment_id'];
@@ -1273,7 +1289,7 @@ final class PaymentLifecycle {
             self::log('secondary_schedule_failed', 'warning');
             // Nothing re-checks the queued track now; tell the merchant once, like the primary path.
             if (is_object($order) && method_exists($order, 'get_meta') && method_exists($order, 'update_meta_data')) {
-                self::note_reconciliation_unschedulable($order, self::SECONDARY_SCHEDULE_FAILED_META);
+                self::note_reconciliation_unschedulable($order);
             }
         }
     }
@@ -1331,27 +1347,37 @@ final class PaymentLifecycle {
         }
     }
 
-    private static function note_unbound_secondary($order, $track_id) {
-        self::note_track_once(
-            $order,
-            self::SECONDARY_NOTED_META,
-            $track_id,
-            sprintf(
-                /* translators: %s: UPayments track ID. */
-                __('UPayments reported a transaction for another payment attempt on this order (track %s) whose amount or currency no longer matches the order. SUPCheckout did not apply it. Review it in the UPayments merchant dashboard.', 'supcheckout'),
-                esc_html((string) $track_id)
-            )
-        );
+    /**
+     * An authenticated transaction that bound on identity but not on amount or currency.
+     * binding_total_filtered (StatusVerifier, review M-2) is an amount the order total
+     * filter hides, not a changed order, so it gets its own wording.
+     */
+    private static function is_economics_mismatch($reason) {
+        return $reason === 'binding_amount' || $reason === 'binding_currency' || $reason === 'binding_total_filtered';
+    }
+
+    private static function note_unbound_secondary($order, $track_id, $reason) {
+        if ($reason === 'binding_total_filtered') {
+            /* translators: %s: UPayments track ID. */
+            $message = __('UPayments reported a transaction for another payment attempt on this order (track %s), but a plugin changes the order total WooCommerce reports, so SUPCheckout could not confirm the payment amount and did not apply it. Review the order against the UPayments merchant dashboard.', 'supcheckout');
+        } else {
+            /* translators: %s: UPayments track ID. */
+            $message = __('UPayments reported a transaction for another payment attempt on this order (track %s) whose amount or currency no longer matches the order. SUPCheckout did not apply it. Review it in the UPayments merchant dashboard.', 'supcheckout');
+        }
+        self::note_track_once($order, self::SECONDARY_NOTED_META, $track_id, sprintf($message, esc_html((string) $track_id)));
     }
 
     /**
      * The current attempt's own transaction did not bind on amount or currency, so
      * the order stays unpaid. Private note, once per track (shared with the secondary
-     * path); names only the track and which value did not match (no amounts, secrets
-     * or customer data).
+     * path); names only the track and which value did not match, or that a plugin
+     * filters the order total (no amounts, secrets or customer data).
      */
     private static function note_unbound_current($order, $track_id, $reason) {
-        if ($reason === 'binding_currency') {
+        if ($reason === 'binding_total_filtered') {
+            /* translators: %s: UPayments track ID. */
+            $message = __('UPayments reported a transaction for this order (track %s), but a plugin changes the order total WooCommerce reports, so SUPCheckout could not confirm the payment amount and did not mark the order paid. Review the order against the UPayments merchant dashboard before fulfilling it or refunding the payment.', 'supcheckout');
+        } elseif ($reason === 'binding_currency') {
             /* translators: %s: UPayments track ID. */
             $message = __('UPayments reported a transaction for this order (track %s) whose currency does not match the order currency. SUPCheckout did not mark the order paid. Check it in the UPayments merchant dashboard; if it shows as captured, review this order before fulfilling it or refunding the payment.', 'supcheckout');
         } else {
@@ -1722,12 +1748,14 @@ final class PaymentLifecycle {
     /**
      * WP-Cron refused the event (a pre_schedule_event filter or a failed cron option
      * write). Without it nothing re-checks the payment, so the merchant is told once.
+     * The primary and the capture-only check share the flag (review M-4): the note
+     * names neither path, so an order gets it once, whichever is refused first.
      */
-    private static function note_reconciliation_unschedulable($order, $flag_meta = self::RECONCILE_SCHEDULE_FAILED_META) {
-        if ((string) $order->get_meta($flag_meta) === '1') {
+    private static function note_reconciliation_unschedulable($order) {
+        if ((string) $order->get_meta(self::RECONCILE_SCHEDULE_FAILED_META) === '1') {
             return;
         }
-        $order->update_meta_data($flag_meta, 1);
+        $order->update_meta_data(self::RECONCILE_SCHEDULE_FAILED_META, 1);
         if (method_exists($order, 'add_order_note')) {
             $order->add_order_note(
                 __('SUPCheckout could not schedule the automatic UPayments payment check for this order. Verify the payment in the UPayments merchant dashboard before fulfilling it.', 'supcheckout')
@@ -1779,6 +1807,12 @@ final class PaymentLifecycle {
         Keys::delete_order_meta($order, self::RECONCILE_REASON_META);
         Keys::delete_order_meta($order, self::RECONCILE_EXHAUSTED_META);
         $order->delete_meta_data(self::SWEEP_PARKED_META);
+        // Every caller resets a cursor that a callback created. Without the flag the
+        // order would look like "no callback received" to the sweep's missing-callback
+        // query, possibly in the same run that just queued that callback's track.
+        if (method_exists($order, 'update_meta_data')) {
+            $order->update_meta_data(self::NO_CALLBACK_NOTED_META, 1);
+        }
         $order->save();
     }
 

@@ -38,6 +38,8 @@ final class StatusVerifierOrder {
 
     public $currency = 'KWD';
     public $total = '10.000';
+    /** @var string|null What a woocommerce_order_get_total filter reports (view context), or null for no filter. */
+    public $filtered_total = null;
     /** @var array<string,mixed> Other order meta (the Charge amount snapshot). */
     public $meta = array();
 
@@ -54,8 +56,8 @@ final class StatusVerifierOrder {
         return $this->currency;
     }
 
-    public function get_total() {
-        return $this->total;
+    public function get_total($context = 'view') {
+        return ($context === 'view' && $this->filtered_total !== null) ? $this->filtered_total : $this->total;
     }
 
     public function get_meta($key) {
@@ -431,6 +433,74 @@ final class StatusVerifierTest extends TestCase {
         // Review round 1: not binding_amount, which is final and clears the re-check.
         self::assertSame('binding_persisted_total_unreadable', $result['reason']);
         self::assertNotSame(ProviderResult::CAPTURED, $result['classification']);
+    }
+
+    /**
+     * Batch 2 final review M-2: a woocommerce_order_get_total filter makes the total
+     * WooCommerce reports differ from the stored one. When the provider amount equals
+     * the stored total, or the filtered total, the mismatch is the filter, not a
+     * changed order: it fails closed with its own reason, never binding_amount.
+     */
+    public function test_m2_a_filtered_total_that_hides_a_stored_match_has_its_own_reason(): void {
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->filtered_total = '11.000';
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '10.000';
+
+        $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+
+        self::assertTrue($result['authenticated']);
+        self::assertFalse($result['bound']);
+        self::assertSame('binding_total_filtered', $result['reason']);
+        self::assertNotSame(ProviderResult::CAPTURED, $result['classification']);
+    }
+
+    public function test_m2_a_charge_of_the_filtered_total_that_differs_from_the_stored_one_has_its_own_reason(): void {
+        // The Charge sent the filtered total; the stored total is still the unfiltered one.
+        foreach (array('no snapshot' => false, 'snapshot' => true) as $case => $with_snapshot) {
+            $gateway = new StatusVerifierGateway();
+            $order = new StatusVerifierOrder(42, 'merchant-42');
+            $order->filtered_total = '11.000';
+            if ($with_snapshot) {
+                $order->meta[StatusVerifier::CHARGE_AMOUNT_META] = $this->snapshot('merchant-42', '11.000');
+            }
+            $transaction = $this->transaction($order);
+            self::assertSame('11.000', $transaction['total_price'], $case);
+
+            $result = StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction);
+
+            self::assertFalse($result['bound'], $case);
+            self::assertSame('binding_total_filtered', $result['reason'], $case);
+        }
+    }
+
+    public function test_m2_a_filtered_order_whose_amount_matches_neither_total_is_still_binding_amount(): void {
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->filtered_total = '11.000';
+        $transaction = $this->transaction($order);
+        $transaction['total_price'] = '12.000';
+
+        self::assertSame('binding_amount', StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason']);
+
+        // An unreadable stored total on a filtered order cannot show a match either.
+        $this->persist_order_total(42, null);
+        $transaction['total_price'] = '10.000';
+        self::assertSame('binding_amount', StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason']);
+    }
+
+    public function test_m2_an_unfiltered_order_keeps_binding_amount_and_binds_as_before(): void {
+        $gateway = new StatusVerifierGateway();
+        $order = new StatusVerifierOrder(42, 'merchant-42');
+        $order->filtered_total = '10.000';
+        $transaction = $this->transaction($order);
+
+        self::assertTrue(StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['bound'], 'a filter that changes nothing binds');
+
+        // Stored total edited, no filter: still the plain amount mismatch.
+        $this->persist_order_total(42, '11.000');
+        self::assertSame('binding_amount', StatusVerifier::bind_transaction($gateway, $order, 'track-abc', $transaction)['reason']);
     }
 
     #[RunInSeparateProcess]

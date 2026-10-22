@@ -2,7 +2,10 @@
 
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Payment\ReconciliationSweep;
 use Simplixi\SUPCheckout\Takeover\BudgetedSystem;
 use Simplixi\SUPCheckout\Takeover\CopyRemoval;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
@@ -951,6 +954,76 @@ final class RollbackTest extends TestCase {
             self::assertSame(array('official_not_reactivated'), $result['warnings'], $case);
             self::assertSame(array(), $this->system->activated, $case);
             self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status'], $case . ': the rollback itself completed');
+        }
+    }
+
+    /**
+     * Batch 2 final review M-3: a reactivated official plugin pauses SUPCheckout, which then
+     * registers no sweep callback. The hourly sweep action used to stay pending and fail every
+     * hour, and its 12 h throttle marker kept a resumed SUPCheckout from re-ensuring it at once.
+     */
+    private static function seed_sweep(): void {
+        require_once dirname(__DIR__, 2) . '/support/action-scheduler-stubs.php';
+        $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
+        $GLOBALS['supcheckout_as_calls']['scheduled'][] = array('timestamp' => self::T0 + 300, 'hook' => ReconciliationSweep::HOOK, 'args' => array(), 'group' => 'supcheckout', 'unique' => false);
+        $GLOBALS['supcheckout_as_calls']['scheduled'][] = array('timestamp' => self::T0 + 300, 'hook' => 'woocommerce_cleanup_draft_orders', 'args' => array(), 'group' => 'woocommerce-db-updates', 'unique' => false);
+        $GLOBALS['supcheckout_test_options']['supcheckout_sweep_ensured_at'] = self::T0 - 60;
+    }
+
+    /** @return list<string> */
+    private static function pending_actions(): array {
+        return array_map(static function ($row) {
+            return $row['group'] . ':' . $row['hook'];
+        }, $GLOBALS['supcheckout_as_calls']['scheduled']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_m3_reactivating_the_official_plugin_stops_the_hourly_sweep(): void {
+        $this->seed_cut_over();
+        self::seed_sweep();
+
+        $result = $this->rollback()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(array('upayments/UPayments.php'), $this->system->activated);
+        self::assertSame(array('woocommerce-db-updates:woocommerce_cleanup_draft_orders'), self::pending_actions(), 'only the sweep is removed');
+        self::assertContains(array(ReconciliationSweep::HOOK, array(), 'supcheckout'), $GLOBALS['supcheckout_as_calls']['unscheduled_all'], 'exact hook, arguments and group');
+        self::assertArrayNotHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options'], 'a resumed SUPCheckout re-ensures the sweep at once');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_m3_an_abort_that_reactivates_the_official_plugin_stops_the_hourly_sweep(): void {
+        foreach (array('reactivated', 'already active') as $case) {
+            $this->setUp();
+            $this->seed_verified();
+            self::seed_sweep();
+            if ($case === 'already active') {
+                $this->system->official = 'upayments/UPayments.php';
+            }
+
+            $result = $this->rollback()->abort(true);
+
+            self::assertTrue($result['ok'], $case . ' ' . (string) json_encode($result));
+            self::assertSame(array('woocommerce-db-updates:woocommerce_cleanup_draft_orders'), self::pending_actions(), $case);
+            self::assertArrayNotHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options'], $case);
+        }
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_m3_the_sweep_keeps_running_while_supcheckout_stays_active(): void {
+        foreach (array('no consent', 'activation failed') as $case) {
+            $this->setUp();
+            $this->seed_cut_over();
+            self::seed_sweep();
+            $this->system->activate_fails = $case === 'activation failed';
+
+            $this->rollback()->run($case !== 'no consent');
+
+            self::assertContains('supcheckout:' . ReconciliationSweep::HOOK, self::pending_actions(), $case);
+            self::assertSame(self::T0 - 60, $GLOBALS['supcheckout_test_options']['supcheckout_sweep_ensured_at'], $case);
         }
     }
 

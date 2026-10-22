@@ -2,6 +2,7 @@
 
 namespace Simplixi\SUPCheckout\Takeover;
 
+use Simplixi\SUPCheckout\Payment\ReconciliationSweep;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 defined('ABSPATH') || exit;
@@ -49,7 +50,9 @@ defined('ABSPATH') || exit;
  * 10. record the journal floor (the removal complete only after a clean rescan) and
  *     transition rolled_back → preflight_ok;
  * 11. if consented, reactivate the official install the takeover recorded as deactivated
- *     (site only, without loading it in this process; see reactivate_official()).
+ *     (site only, without loading it in this process; see reactivate_official()). With the
+ *     official plugin active, SUPCheckout's hourly sweep action and its throttle marker
+ *     are removed (SUPCheckout is paused and runs no sweep; a resume re-ensures it at once).
  *
  * abort(): verified → preflight_ok, under the same lease. Only entries of a cutover that
  * died after its steps 5-7 can exist (options, cron twins, third-party): the third-party
@@ -665,6 +668,7 @@ final class Rollback {
     private function reactivate_official() {
         if ($this->system->official_plugin() !== null) {
             $this->report['official'] = 'already_active';
+            $this->stop_sweep();
             return;
         }
         $recorded = self::recorded_official(TakeoverState::get());
@@ -678,10 +682,29 @@ final class Rollback {
             // before it finishes still purges on the rerun (resume() calls it again).
             TakeoverState::patch(array(self::OFFICIAL_RECORD => null, self::REACTIVATION_PURGE_PENDING => true));
             $this->step('official_reactivated');
+            $this->stop_sweep();
             return;
         }
         $this->report['official'] = 'activation_failed';
         $this->warnings[] = 'official_not_reactivated';
+    }
+
+    /**
+     * Batch 2 final review M-3: with the official plugin active SUPCheckout boots paused
+     * (PausedBoot) and registers no sweep callback, so the hourly sweep action would fail
+     * every hour, and its 12 h throttle marker would keep a resumed SUPCheckout from
+     * re-ensuring it at once. The deactivation cleanup's own step (A3-08) removes both:
+     * SUPCheckout's exact action and its marker only, no payment hook and no data. A
+     * failure is reported and never fails the rollback, which already happened.
+     *
+     * @return void
+     */
+    private function stop_sweep() {
+        try {
+            ReconciliationSweep::unschedule();
+        } catch (\Throwable $e) {
+            $this->report['sweep_unschedule'] = 'failed';
+        }
     }
 
     /**

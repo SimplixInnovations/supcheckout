@@ -651,7 +651,7 @@ class Gateway extends \WC_Payment_Gateway {
             if ($this->autoDeduction === 'yes'
                 && \Simplixi\SUPCheckout\Subscription\Helpers\Utils::cartHasCustomType()
             ) {
-                wp_enqueue_script('supcheckout-subscription-checkout', $plugin_url . 'assets/js/subscription-checkout.js', array('jquery'), SUPCHECKOUT_VERSION, true);
+                wp_enqueue_script('supcheckout-subscription-checkout', $plugin_url . 'assets/js/subscription-checkout.js', array('jquery'), CheckoutAssets::asset_version('assets/js/subscription-checkout.js'), true);
                 wp_localize_script('supcheckout-subscription-checkout', 'supCheckoutSubscription', array(
                     'isLoggedIn' => is_user_logged_in(),
                     'i18n' => CheckoutAssets::subscription_i18n(),

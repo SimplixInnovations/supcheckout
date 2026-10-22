@@ -19,6 +19,39 @@ final class CheckoutAssets {
     /** @var bool */
     private static $bootstrapped = false;
 
+    /** @var array<string, string> Per-request cache of asset_version(). */
+    private static $versions = array();
+
+    /**
+     * Cache-busting version of a plugin asset that follows its content (batch 2 final
+     * review M-5): the plugin version plus the first 12 hex digits of the file's SHA-256.
+     * A browser or CDN copy of an older script is then never served against a newer
+     * localized contract. Deterministic: the same file always yields the same version.
+     * An unreadable file, or a path that leaves the plugin, falls back to the plugin
+     * version. Hashed once per request and path.
+     *
+     * @param string $relative_path Path under the plugin root, e.g. `assets/js/x.js`.
+     * @return string
+     */
+    public static function asset_version($relative_path) {
+        $relative_path = (string) $relative_path;
+        if (isset(self::$versions[$relative_path])) {
+            return self::$versions[$relative_path];
+        }
+        $version = Identity::VERSION;
+        if (preg_match('#^assets/[A-Za-z0-9_\-/]+\.(?:js|css)$#', $relative_path) === 1
+            && strpos($relative_path, '..') === false
+        ) {
+            $file = dirname(__DIR__, 2) . '/' . $relative_path;
+            $hash = is_readable($file) ? hash_file('sha256', $file) : false;
+            if (is_string($hash)) {
+                $version .= '-' . substr($hash, 0, 12);
+            }
+        }
+        self::$versions[$relative_path] = $version;
+        return $version;
+    }
+
     /** Register the render-scoped template observer exactly once. */
     public static function bootstrap() {
         if (self::$bootstrapped || ! function_exists('add_filter')) {
@@ -115,7 +148,7 @@ final class CheckoutAssets {
                 'supcheckout-subscription-checkout',
                 $plugin_url . 'assets/js/subscription-checkout.js',
                 array('jquery'),
-                Identity::VERSION,
+                self::asset_version('assets/js/subscription-checkout.js'),
                 true
             );
             wp_localize_script(
