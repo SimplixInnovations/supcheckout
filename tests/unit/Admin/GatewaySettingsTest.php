@@ -47,6 +47,25 @@ final class GatewaySettingsTest extends TestCase {
         self::assertSame('multimerchant_repeater', $fields['multimerchant_accounts']['type']);
     }
 
+    /** Fix A1-01: the merchant reads, where they enable subscriptions, that auto-charges are paused. */
+    public function test_enable_subscriptions_description_states_that_automatic_renewal_charges_are_paused(): void {
+        $fields = GatewaySettings::fields('upayments', 'UPayments', 'Provider description');
+
+        self::assertSame(
+            'Only Subscription Products are allowed at checkout If Subscription is enabled. '
+            . 'Automatic renewal charges are paused. SUPCheckout does not send automatic renewal charges until a verified UPayments capture contract is approved. '
+            . 'Collect renewals manually or by payment link.',
+            $fields['enable_subscriptions']['description']
+        );
+        self::assertStringEndsWith(
+            \Simplixi\SUPCheckout\Subscription\Presentation::auto_renewal_paused_message(),
+            $fields['enable_subscriptions']['description'],
+            'review M5: the setting and the admin notice share one paused statement'
+        );
+        self::assertFalse($fields['enable_subscriptions']['desc_tip'], 'review M5: the paused statement is visible, not hidden in a tooltip');
+        self::assertSame('no', $fields['enable_subscriptions']['default'], 'the toggle stays default-off');
+    }
+
     public function test_runtime_eligibility_requires_exact_enabled_credentials_and_supported_currency(): void {
         self::assertTrue(GatewaySettings::is_runtime_eligible(
             array('enabled' => 'yes', 'api_key' => 'cert-key'),

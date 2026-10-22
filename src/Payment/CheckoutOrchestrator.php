@@ -2,6 +2,7 @@
 
 namespace Simplixi\SUPCheckout\Payment;
 
+use Simplixi\SUPCheckout\Admin\GatewaySettings;
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
 use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
@@ -110,6 +111,49 @@ class CheckoutOrchestrator {
             $http_status,
             $detail !== '' ? $detail : __('no reason given', 'supcheckout')
         ));
+    }
+
+    /**
+     * Whether a validated plain-decimal amount fits the currency's ISO 4217
+     * minor units once trailing fractional zeros are ignored ("18.040" fits AED,
+     * "18.045" does not). On a refusal the merchant gets one private order note
+     * naming the currency, so the store's currency decimals can be fixed.
+     *
+     * @param mixed  $order      WooCommerce order.
+     * @param string $amount_str Amount already matching the plain-decimal grammar.
+     * @param string $currency   Upper-case ISO 4217 code.
+     * @return bool
+     */
+    private function amount_fits_currency_minor_units($order, $amount_str, $currency) {
+        $allowed = GatewaySettings::currency_minor_units($currency);
+        if ($allowed === null) {
+            $this->gateway->log('Charge refused: the order currency has no known minor units.', 'warning');
+            if (is_object($order) && method_exists($order, 'add_order_note')) {
+                $order->add_order_note(sprintf(
+                    /* translators: %s: ISO 4217 currency code. */
+                    __('SUPCheckout did not start this payment: UPayments does not support the order currency %s.', 'supcheckout'),
+                    $currency
+                ));
+            }
+            return false;
+        }
+
+        $dot = strpos($amount_str, '.');
+        $fraction = $dot === false ? '' : rtrim(substr($amount_str, $dot + 1), '0');
+        if (strlen($fraction) <= $allowed) {
+            return true;
+        }
+
+        $this->gateway->log('Charge refused: the order total has more decimals than its currency allows.', 'warning');
+        if (is_object($order) && method_exists($order, 'add_order_note')) {
+            $order->add_order_note(sprintf(
+                /* translators: 1: ISO 4217 currency code, 2: number of decimal places the currency allows. */
+                __('SUPCheckout did not start this payment: the order total has more decimal places than %1$s allows (%2$d). Set %1$s to %2$d decimals in the WooCommerce or WooCommerce Multilingual currency settings.', 'supcheckout'),
+                $currency,
+                $allowed
+            ));
+        }
+        return false;
     }
 
     /**
@@ -829,6 +873,17 @@ class CheckoutOrchestrator {
                 }
             }
             if (!$is_positive) {
+                wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
+                return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
+            }
+
+            // Currency precision: the amount must fit the currency's ISO 4217
+            // minor units. A provider that rounds the extra digit would then fail
+            // the exact amount binding and leave a paid order Pending, so fail
+            // closed before the Charge. Never round. This one amount token also
+            // carries extraMerchantData[0].amount, so the multi-merchant amount
+            // is held to the same rule.
+            if (!$this->amount_fits_currency_minor_units($order, $amount_str, $currency)) {
                 wc_add_notice(__('Payment request could not be completed. Please try again.', 'supcheckout'), 'error');
                 return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
             }

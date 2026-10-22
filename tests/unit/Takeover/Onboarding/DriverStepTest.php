@@ -15,6 +15,7 @@ use Simplixi\SUPCheckout\Takeover\TakeoverState;
 use Simplixi\SUPCheckout\Tests\Takeover\CutoverTest;
 use Simplixi\SUPCheckout\Tests\Takeover\FakeBudgetedSystem;
 use Simplixi\SUPCheckout\Tests\Takeover\FakeCopyStore;
+use Simplixi\SUPCheckout\Tests\Takeover\FakeCrudObject;
 use Simplixi\SUPCheckout\Tests\Takeover\FakeStaleClaimStore;
 
 /**
@@ -255,6 +256,25 @@ final class DriverStepTest extends TestCase {
 
         self::assertSame(array('running', 'copy', 0), array($result['outcome'], $result['phase'], $result['next_delay']));
         self::assertSame(TakeoverState::COPYING, self::takeover_status(), 'one copy step, then the budget was spent');
+    }
+
+    public function test_a5_02_the_time_boxed_copy_loop_flushes_the_runtime_cache_after_every_copy_step(): void {
+        for ($id = 1; $id <= 120; $id++) {
+            $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)));
+        }
+        $this->start(Operation::KIND_SWITCH);
+        $this->tick();
+        self::assertSame('copy', $this->last['phase']);
+        $before = $this->store->runtime_flushes;
+
+        // The clock never advances: the whole copy runs inside this one tick.
+        $result = $this->tick();
+
+        self::assertSame(TakeoverState::VERIFIED, self::takeover_status(), (string) json_encode($result));
+        // Each copy step is one bounded batch: three order batches (50, 50, 20), then one
+        // step each for the users, the products, the table, its verification and the finish.
+        self::assertSame(3 + 5, $this->store->runtime_flushes - $before, 'one runtime-cache flush after every copy step of the tick');
+        self::assertSame(array('pay-120'), $GLOBALS['supcheckout_test_status_orders'][120]->persisted_values('_supcheckout_payment_id'), 'every order is still copied');
     }
 
     public function test_a_copy_that_keeps_stopping_retries_every_60_seconds_17_times_then_fails_busy(): void {

@@ -376,9 +376,85 @@ function supcheckout_matrix_renewal_fixtures($customer_token, $card_token, $amou
 }
 
 /**
- * The renewal contract after the switch: exactly one claim in the new billing table,
- * exactly one auto-deduct request, never a second one, and no paid renewal order (automatic
- * recurring VERIFIED_SUCCESS is FAIL-CLOSED: the cycle is held for reconciliation).
+ * Run one renewal with the automatic-charge gate forced open: the renewal engine behind
+ * Scheduler::process_parent_order()'s gate (fix A1-01), reached by reflection the way the
+ * pre-dispatch revalidation tests reach Scheduler internals. It proves the post-dispatch
+ * safety engine (cycle claim, verifier, held handling, billing-table placement) still holds
+ * for the day an approved capture contract opens the gate. Production never takes this path
+ * while AutoDeductResultVerifier::can_verify_success() is false.
+ *
+ * @param int $parent_id Parent order.
+ * @return string Scheduler outcome.
+ */
+function supcheckout_matrix_renew_gate_open($parent_id) {
+    supcheckout_matrix_flush();
+    $parent = wc_get_order($parent_id);
+    supcheckout_cert_assert($parent instanceof WC_Order, 'the subscription parent loads');
+    supcheckout_cert_assert(\Simplixi\SUPCheckout\Subscription\Cron\CycleClaim::maybe_install(), 'the billing-attempts table in use is ready');
+    $scheduler = \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::class;
+    $outcome = new ReflectionProperty($scheduler, 'last_outcome');
+    $engine = new ReflectionMethod($scheduler, 'process_one_order');
+    if (PHP_VERSION_ID < 80100) {
+        $outcome->setAccessible(true);
+        $engine->setAccessible(true);
+    }
+    $outcome->setValue(null, \Simplixi\SUPCheckout\Subscription\Cron\Scheduler::OUTCOME_NOT_ELIGIBLE);
+    $engine->invoke(null, $parent, new DateTime('now', wp_timezone()), array('source' => 'upayments-cron'));
+    return (string) $outcome->getValue();
+}
+
+/**
+ * @param int $parent_id Parent order.
+ * @return int Order notes on the parent that say automatic renewal charges are paused.
+ */
+function supcheckout_matrix_paused_notes($parent_id) {
+    return count(supcheckout_matrix_paused_note_texts($parent_id));
+}
+
+/**
+ * @param int $parent_id Parent order.
+ * @return list<string> The paused-renewal notes on the parent.
+ */
+function supcheckout_matrix_paused_note_texts($parent_id) {
+    $texts = array();
+    foreach (wc_get_order_notes(array('order_id' => (int) $parent_id)) as $note) {
+        if (strpos((string) $note->content, 'Automatic renewal charges are paused') === 0) {
+            $texts[] = (string) $note->content;
+        }
+    }
+    return $texts;
+}
+
+/**
+ * Review I1: a parent with a held or dispatching cycle (a possible earlier debit) gets the
+ * "check the UPayments dashboard first" note; any other parent gets the plain one.
+ *
+ * @param int  $parent_id   Parent order.
+ * @param bool $unconfirmed Whether the parent has a possibly debited earlier cycle.
+ * @return void
+ */
+function supcheckout_matrix_assert_paused_note_kind($parent_id, $unconfirmed) {
+    $texts = supcheckout_matrix_paused_note_texts($parent_id);
+    supcheckout_cert_assert(count($texts) === 1, 'exactly one paused-renewal note: ' . wp_json_encode($texts));
+    $warns = strpos($texts[0], 'Check the UPayments dashboard') !== false;
+    supcheckout_cert_assert($warns === (bool) $unconfirmed, $unconfirmed
+        ? 'the parent with a held cycle is told to check the UPayments dashboard before collecting'
+        : 'a parent with no held or dispatching cycle gets the plain collect-manually note');
+}
+
+/**
+ * The renewal contract after the switch.
+ *
+ * Fix A1-01 (owner decision 2026-10-22, "Block auto-charges") tightened this pinned
+ * contract: with the bound-success fixture in place, SUPCheckout's renewal sends ZERO
+ * auto-deduct requests (it used to send exactly one, then hold the cycle), writes no claim
+ * row for the cycle, and adds exactly one parent note; a second pass adds none.
+ *
+ * The engine behind the gate is then exercised with the gate forced open, so the rest of
+ * the matrix (back-sync of the held cycle on rollback, its copy on the second run, never a
+ * second charge) still certifies it: exactly one claim in the new billing table, exactly one
+ * auto-deduct request, never a second one, and no paid renewal order (automatic recurring
+ * VERIFIED_SUCCESS is FAIL-CLOSED: the cycle is held for reconciliation).
  *
  * @param int $parent_id         Parent order.
  * @param int $renewals_before   Renewal orders of the parent before.
@@ -386,18 +462,37 @@ function supcheckout_matrix_renewal_fixtures($customer_token, $card_token, $amou
  */
 function supcheckout_matrix_assert_renewal_once($parent_id, $renewals_before) {
     $calls_before = supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct');
+    $cards_before = supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'retrieve-customer-cards');
+    $notes_before = supcheckout_matrix_paused_notes($parent_id);
     $outcome = supcheckout_matrix_renew($parent_id);
     supcheckout_cert_note('renewal outcome: ' . $outcome);
-    supcheckout_cert_assert($outcome === 'held', 'the pre-switch parent renewed through SUPCheckout: claimed, dispatched once and held (auto-deduct capture stays fail-closed)');
-    supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'exactly one auto-deduct request was sent');
-    $claims = supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id);
-    supcheckout_cert_assert(count($claims) === 1 && $claims[0]['state'] === 'held', 'exactly one claim for the cycle, in supcheckout_billing_attempts: ' . wp_json_encode($claims));
-    supcheckout_cert_assert(supcheckout_matrix_claims('upayments_billing_attempts', $parent_id) === array(), 'the legacy billing table holds no claim for it (single-written new table while cut over)');
+    supcheckout_cert_assert($outcome === 'not_eligible', 'the due pre-switch parent is not charged: automatic renewal charges are blocked while their success cannot be verified (not_eligible, never retried)');
+    supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'zero auto-deduct requests were sent');
+    supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'retrieve-customer-cards') === $cards_before, 'zero renewal-card lookups were sent');
+    supcheckout_cert_assert(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id) === array(), 'zero claim rows for the cycle in supcheckout_billing_attempts');
+    supcheckout_cert_assert(supcheckout_matrix_claims('upayments_billing_attempts', $parent_id) === array(), 'zero claim rows for the cycle in the legacy billing table');
+    supcheckout_cert_assert(supcheckout_matrix_paused_notes($parent_id) === $notes_before + 1, 'exactly one paused-renewal note was added to the parent');
+    supcheckout_matrix_assert_paused_note_kind($parent_id, false);
 
     $again = supcheckout_matrix_renew($parent_id);
-    supcheckout_cert_assert($again !== 'held' && $again !== 'dispatching_or_ambiguous', 'a second run for the same cycle claims nothing: ' . $again);
-    supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'the second run sent no auto-deduct request');
-    supcheckout_cert_assert(count(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)) === 1, 'still exactly one claim for the cycle');
+    supcheckout_cert_assert($again === 'not_eligible', 'a second pass is not charged either: ' . $again);
+    supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'the second pass sent no auto-deduct request');
+    supcheckout_cert_assert(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id) === array(), 'still zero claim rows for the cycle');
+    supcheckout_cert_assert(supcheckout_matrix_paused_notes($parent_id) === $notes_before + 1, 'the second pass added no second note');
+
+    // Gate forced open: the post-dispatch engine is intact.
+    $outcome = supcheckout_matrix_renew_gate_open($parent_id);
+    supcheckout_cert_note('gate-open renewal outcome: ' . $outcome);
+    supcheckout_cert_assert($outcome === 'held', 'gate forced open: the pre-switch parent renews through SUPCheckout: claimed, dispatched once and held (auto-deduct capture stays fail-closed)');
+    supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'gate forced open: exactly one auto-deduct request was sent');
+    $claims = supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id);
+    supcheckout_cert_assert(count($claims) === 1 && $claims[0]['state'] === 'held', 'gate forced open: exactly one claim for the cycle, in supcheckout_billing_attempts: ' . wp_json_encode($claims));
+    supcheckout_cert_assert(supcheckout_matrix_claims('upayments_billing_attempts', $parent_id) === array(), 'gate forced open: the legacy billing table holds no claim for it (single-written new table while cut over)');
+
+    $again = supcheckout_matrix_renew_gate_open($parent_id);
+    supcheckout_cert_assert($again !== 'held' && $again !== 'dispatching_or_ambiguous', 'gate forced open: a second run for the same cycle claims nothing: ' . $again);
+    supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'gate forced open: the second run sent no auto-deduct request');
+    supcheckout_cert_assert(count(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)) === 1, 'gate forced open: still exactly one claim for the cycle');
     supcheckout_cert_assert(supcheckout_matrix_renewal_count($parent_id) === $renewals_before, 'no renewal order was created');
 }
 

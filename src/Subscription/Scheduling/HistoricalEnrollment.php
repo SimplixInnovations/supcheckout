@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Subscription\Scheduling;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
@@ -98,6 +99,13 @@ final class HistoricalEnrollment
             $stats['scanned']++;
 
             if (!self::parent_qualifies($order)) {
+                $stats['skipped']++;
+                continue;
+            }
+            if (!AutoDeductResultVerifier::can_verify_success()) {
+                // Automatic renewal charges are blocked (fix A1-01): no due-parent action is
+                // queued; the merchant is told once on the parent.
+                LifecycleScheduler::note_auto_renewal_paused($order);
                 $stats['skipped']++;
                 continue;
             }

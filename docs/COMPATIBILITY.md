@@ -110,6 +110,7 @@ Sub-project 0c adds an admin-only REST API, `supcheckout/v1`, that runs the take
   - **unit-verified only**: WP Rocket and WP Super Cache;
   - **manual**: the Cloudflare plugin has no public purge API, so the purge and the setup checks report it `manual` and the owner purges it by hand.
 - **WCML.** Per-currency gateway settings in WooCommerce Multilingual are **report-only**: the self-test's `multilingual` check reports them, and nothing changes them. Real WPML/WCML stays **External/manual**.
+- **Currency decimals.** Checkout refuses, before any UPayments call, an order total with more decimals than its currency's ISO 4217 minor units allow (3 for KWD, BHD and OMR; 2 for the other supported currencies), and never rounds it. The setup checks' `currency_decimals` check warns when the store or a WCML currency is set to more decimals than that.
 - **Multisite.** A network-activated official plugin blocks the switch (`official_network_active`). Nothing is ever activated or deactivated network-wide.
 
 The real-WordPress REST and driver certification runs in every Compatibility cell, and the purge step runs in the Ecosystem Certification E3 cells. Evidence: `docs/project/evidence/SUBPROJECT-0C-ONBOARDING-BACKEND-2026-10-19.md`.
@@ -166,7 +167,7 @@ Historical package-root movement remains certified for both pre-stable `simplixp
 | Analytics return/replay | **Verified — characterization** | Replayed verified browser callbacks do not mutate payment state and repeat the same order-received navigation; SUPCheckout emits no tested GA/Meta/GTM purchase API itself. Downstream tracker deduplication is not owned by SUPCheckout. |
 | Automatic WooCommerce refunds | **Unsupported** | Withheld pending a durable idempotency/reconciliation design. |
 | Arbitrary marketplace multi-split | **Unsupported** | Current boundary is one additional merchant only. |
-| Live subscription auto-deduction | **External/manual** | Non-idempotent provider mutation is not executed merely for CI. |
+| Live subscription auto-deduction | **External/manual — automatic renewal charges blocked** | SUPCheckout sends no automatic renewal charge while its success cannot be verified (owner decision 2026-10-22); renewals are collected manually or by payment link. Non-idempotent provider mutation is not executed merely for CI. |
 | Wallet payment completion | **External/manual** | Requires eligible provider account/device evidence. |
 | WPML / WCML / multicurrency | **External/manual** | Requires dedicated real-environment qualification. |
 | RTL / Arabic | **External/manual** | Requires real admin/checkout/account/return UI validation. |

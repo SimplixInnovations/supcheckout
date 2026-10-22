@@ -14,6 +14,11 @@ final class CheckoutEconomicsPrecisionGateway {
     public $autoDeduction = 'no';
     public $saveCardEnabled = 'no';
     public $multiMerchant = 'no';
+    public $ibanNumber = 'KW81CBKU0000000000001234560101';
+    public $knetCharge = '1.000';
+    public $ccCharge = '1.000';
+    public $knetChargeType = 'fixed';
+    public $ccChargeType = 'fixed';
     public $apiKey = 'test-api-key';
 
     public function getPaymentIcons() {
@@ -65,7 +70,7 @@ final class CheckoutEconomicsPrecisionTest extends TestCase {
      * result proves the checkout itself succeeded rather than stopping at the
      * transport stub.
      */
-    private function executeAcceptedSingleLineOrder(string $currency, string $line_total, int $quantity): array {
+    private function executeAcceptedSingleLineOrder(string $currency, string $line_total, int $quantity, ?CheckoutEconomicsPrecisionGateway $gateway = null, string $request_body = ''): array {
         // The accepted-Charge path records the attempt under the real OrderLock
         // (option-store fake) and re-reads the order's paid state.
         \supcheckout_test_reset_wp_options();
@@ -81,8 +86,8 @@ final class CheckoutEconomicsPrecisionTest extends TestCase {
         $requests = array();
 
         $orchestrator = new CheckoutOrchestrator(
-            new CheckoutEconomicsPrecisionGateway(),
-            static function () { return ''; },
+            $gateway !== null ? $gateway : new CheckoutEconomicsPrecisionGateway(),
+            static function () use ($request_body) { return $request_body; },
             static function ($route, $method, $body) use (&$requests) {
                 $requests[] = array($route, $method, $body);
                 if ($route !== 'charge') {
@@ -99,7 +104,113 @@ final class CheckoutEconomicsPrecisionTest extends TestCase {
         );
 
         $result = $orchestrator->process(42);
-        return array($result, $requests);
+        return array($result, $requests, $order);
+    }
+
+    /**
+     * Amounts whose fraction, trailing zeros stripped, is longer than the
+     * currency's ISO 4217 minor units. Card networks settle AED in 2 minor
+     * units, so a non-zero third AED decimal is either rejected or rounded by
+     * the provider; rounding then fails the strict amount binding and leaves a
+     * paid order Pending. Failing closed before the Charge is strictly safer.
+     *
+     * @return array<string, array{string, string, int}>
+     */
+    public static function amountsBeyondCurrencyMinorUnits(): array {
+        return array(
+            'AED 18.045 (2 allowed)' => array('AED', '18.045', 2),
+            'KWD 1.5055 (3 allowed)' => array('KWD', '1.5055', 3),
+            'USD 10.999 (2 allowed)' => array('USD', '10.999', 2),
+        );
+    }
+
+    #[DataProvider('amountsBeyondCurrencyMinorUnits')]
+    public function test_amount_beyond_currency_minor_units_fails_before_the_charge(string $currency, string $amount, int $allowed): void {
+        list($result, $requests, $order) = $this->executeAcceptedSingleLineOrder($currency, $amount, 1);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame(array(), $requests, 'No provider call may be made for an amount the currency cannot carry.');
+        self::assertSame(
+            array(array('Payment request could not be completed. Please try again.', 'error')),
+            $GLOBALS['supcheckout_test_subscription_presentation']['notices'],
+            'The shopper keeps the generic failure notice.'
+        );
+        self::assertCount(1, $order->notes, 'Exactly one merchant note.');
+        self::assertStringContainsString($currency, $order->notes[0]);
+        self::assertStringContainsString((string) $allowed, $order->notes[0]);
+    }
+
+    /**
+     * Amounts within the currency's minor units, including a trailing zero
+     * beyond them. The existing amount encoding is unchanged.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function amountsWithinCurrencyMinorUnits(): array {
+        return array(
+            'AED 18.040 (trailing zero)' => array('AED', '18.040'),
+            'AED 18.04' => array('AED', '18.04'),
+            'KWD 1.505' => array('KWD', '1.505'),
+            'USD 10' => array('USD', '10'),
+        );
+    }
+
+    #[DataProvider('amountsWithinCurrencyMinorUnits')]
+    public function test_amount_within_currency_minor_units_still_charges(string $currency, string $amount): void {
+        list($result, $requests, $order) = $this->executeAcceptedSingleLineOrder($currency, $amount, 1);
+
+        self::assertSame('success', $result['result']);
+        self::assertCount(1, $requests, 'Exactly one Charge request.');
+        self::assertSame('charge', $requests[0][0]);
+        self::assertIsString($requests[0][2]);
+        self::assertMatchesRegularExpression('/"amount":' . preg_quote($amount, '/') . '[,}]/', $requests[0][2], 'The passing amount encoding is unchanged.');
+        self::assertSame(array(), $order->notes);
+    }
+
+    public function test_unknown_currency_fails_closed_before_the_charge(): void {
+        list($result, $requests) = $this->executeAcceptedSingleLineOrder('GBP', '10.00', 1);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame(array(), $requests, 'A currency without a known minor-unit count must not reach the provider.');
+    }
+
+    public function test_store_api_checkout_applies_the_same_minor_unit_guard(): void {
+        if (!defined('REST_REQUEST')) {
+            define('REST_REQUEST', true);
+        }
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = '/wp-json/wc/store/v1/checkout';
+        $body = (string) json_encode(array('extensions' => array()));
+
+        list($rejected, $rejected_requests, $order) = $this->executeAcceptedSingleLineOrder('AED', '18.045', 1, null, $body);
+        self::assertSame('failure', $rejected['result']);
+        self::assertSame(array(), $rejected_requests);
+        self::assertCount(1, $order->notes);
+        self::assertStringContainsString('AED', $order->notes[0]);
+
+        list($accepted, $accepted_requests) = $this->executeAcceptedSingleLineOrder('AED', '18.040', 1, null, $body);
+        self::assertSame('success', $accepted['result']);
+        self::assertCount(1, $accepted_requests);
+        self::assertMatchesRegularExpression('/"amount":18\.040[,}]/', (string) $accepted_requests[0][2]);
+    }
+
+    public function test_multi_merchant_amount_is_held_to_the_same_minor_unit_guard(): void {
+        $gateway = new CheckoutEconomicsPrecisionGateway();
+        $gateway->multiMerchant = 'yes';
+
+        list($rejected, $rejected_requests, $order) = $this->executeAcceptedSingleLineOrder('AED', '18.045', 1, $gateway);
+        self::assertSame('failure', $rejected['result']);
+        self::assertSame(array(), $rejected_requests);
+        self::assertCount(1, $order->notes);
+        self::assertStringContainsString('AED', $order->notes[0]);
+
+        list($accepted, $accepted_requests) = $this->executeAcceptedSingleLineOrder('AED', '18.040', 1, $gateway);
+        self::assertSame('success', $accepted['result']);
+        self::assertCount(1, $accepted_requests);
+        $payload = json_decode((string) $accepted_requests[0][2], true);
+        self::assertIsArray($payload);
+        self::assertMatchesRegularExpression('/"amount":18\.040[,}]/', (string) $accepted_requests[0][2]);
+        self::assertSame(18.04, $payload['extraMerchantData'][0]['amount']);
     }
 
     /**
@@ -155,7 +266,10 @@ final class CheckoutEconomicsPrecisionTest extends TestCase {
     }
 
     public function test_maximum_supported_plain_decimal_amount_reaches_charge_without_float_reformatting(): void {
-        $amount = '123456789012345.678901';
+        // KWD carries 3 minor units, so the longest exact amount the minor-unit
+        // guard lets through has a 3-digit fraction. It still fills the
+        // 22-character amount-token ceiling.
+        $amount = '123456789012345678.901';
         self::assertSame(22, strlen($amount), 'Fixture must exercise the orchestrator maximum amount-token length.');
 
         list($result, $requests) = $this->executeWithAmount($amount);

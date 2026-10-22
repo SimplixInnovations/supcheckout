@@ -3,8 +3,13 @@
  * R6 large-store HistoricalEnrollment benchmark (orchestration only).
  *
  * Disables LifecycleScheduler initial-scheduling hooks so the feeder is the
- * only creator of due actions. Proves every exact eligible parent receives
- * exactly one attempt-0 action. Never calls the provider.
+ * only creator of due actions. Never calls the provider.
+ *
+ * Fix A1-01 (owner decision 2026-10-22, "Block auto-charges"): while
+ * AutoDeductResultVerifier::can_verify_success() is false the feeder queues no
+ * due-parent action. It still reaches every exact eligible parent, which then
+ * carries exactly one paused-renewal note (flag + order note) and no action.
+ * Before the decision this proved exactly one attempt-0 action per eligible parent.
  *
  * Usage: wp eval-file tests/performance/r6-large-store-benchmark.php --path=<wp>
  * Env: SUPCHECKOUT_BENCH_ORDERS, SUPCHECKOUT_BENCH_STORAGE, SUPCHECKOUT_BENCH_SEED
@@ -231,10 +236,23 @@ if (!$complete_seen) {
     throw new RuntimeException('HARD FAIL: feeder incomplete');
 }
 
-// Exact per-eligible-parent identity proof.
+// Exact per-eligible-parent identity proof. Fix A1-01: every eligible parent is
+// reached (exactly one paused-renewal note) and none is queued.
+$paused_note_meta = LifecycleScheduler::PAUSED_NOTE_META;
+$paused_note_count = static function ($order_id) {
+    $count = 0;
+    foreach (wc_get_order_notes(array('order_id' => (int) $order_id)) as $note) {
+        if (strpos((string) $note->content, 'Automatic renewal charges are paused') === 0) {
+            $count++;
+        }
+    }
+    return $count;
+};
 $eligible_with_action = 0;
+$eligible_reached = 0;
 $missing_eligible = 0;
 $duplicate_actions = 0;
+$duplicate_notes = 0;
 foreach ($eligible_parent_ids as $pid) {
     $order = wc_get_order($pid);
     if (!$order instanceof WC_Order) {
@@ -252,21 +270,28 @@ foreach ($eligible_parent_ids as $pid) {
             $open++;
         }
     }
-    if ($open === 1) {
-        $eligible_with_action++;
-    } elseif ($open === 0) {
-        $missing_eligible++;
+    $eligible_with_action += $open > 0 ? 1 : 0;
+    $duplicate_actions += max(0, $open - 1);
+    $notes = $paused_note_count($pid);
+    if ((string) $order->get_meta($paused_note_meta) === '1' && $notes === 1) {
+        $eligible_reached++;
+    } elseif ($notes > 1) {
+        $duplicate_notes += $notes - 1;
     } else {
-        $duplicate_actions += ($open - 1);
+        $missing_eligible++;
     }
 }
 
-// Ineligible UPayments parents must not have feeder-created attempt-0 actions.
+// Ineligible UPayments parents get no feeder-created action and no paused note.
 $noise_with_action = 0;
+$noise_with_note = 0;
 foreach ($ineligible_upay_ids as $pid) {
     $order = wc_get_order($pid);
     if (!$order instanceof WC_Order) {
         continue;
+    }
+    if ((string) $order->get_meta($paused_note_meta) !== '') {
+        $noise_with_note++;
     }
     $run_at = HistoricalEnrollment::next_run_at($order);
     if ($run_at === null) {
@@ -277,14 +302,20 @@ foreach ($ineligible_upay_ids as $pid) {
     }
 }
 
+if ($total_scheduled !== 0 || $eligible_with_action !== 0 || $duplicate_actions !== 0) {
+    throw new RuntimeException('HARD FAIL: due-parent actions queued while automatic renewal charges are blocked: scheduled=' . $total_scheduled . ' parents=' . $eligible_with_action);
+}
 if ($missing_eligible > 0) {
-    throw new RuntimeException('HARD FAIL: missing eligible actions=' . $missing_eligible);
+    throw new RuntimeException('HARD FAIL: eligible parents not reached (no paused note)=' . $missing_eligible);
 }
-if ($duplicate_actions > 0) {
-    throw new RuntimeException('HARD FAIL: duplicate actions=' . $duplicate_actions);
+if ($duplicate_notes > 0) {
+    throw new RuntimeException('HARD FAIL: duplicate paused notes=' . $duplicate_notes);
 }
-if ($eligible_with_action !== $expected_eligible) {
-    throw new RuntimeException('HARD FAIL: eligible_with_action ' . $eligible_with_action . ' != expected ' . $expected_eligible);
+if ($eligible_reached !== $expected_eligible) {
+    throw new RuntimeException('HARD FAIL: eligible_reached ' . $eligible_reached . ' != expected ' . $expected_eligible);
+}
+if ($noise_with_action !== 0 || $noise_with_note !== 0) {
+    throw new RuntimeException('HARD FAIL: ineligible parents touched: actions=' . $noise_with_action . ' notes=' . $noise_with_note);
 }
 
 $total_feeder_queries = array_sum($query_deltas);
@@ -312,12 +343,15 @@ $result = array(
     'max_batch_wall_time' => round($max_batch_wall, 6),
     'average_batch_wall_time' => $avg_batch_wall,
     'total_feeder_wall_time' => round(array_sum($batch_walls), 6),
-    'actions_expected' => $expected_eligible,
+    'actions_expected' => 0,
     'actions_found' => $eligible_with_action,
-    'duplicates' => $duplicate_actions,
+    'paused_notes_expected' => $expected_eligible,
+    'paused_notes_found' => $eligible_reached,
+    'duplicates' => $duplicate_actions + $duplicate_notes,
     'missing' => $missing_eligible,
     'noise_with_action' => $noise_with_action,
-    'all_eligible_reached' => ($eligible_with_action === $expected_eligible && $missing_eligible === 0 && $duplicate_actions === 0),
+    'noise_with_note' => $noise_with_note,
+    'all_eligible_reached' => ($eligible_reached === $expected_eligible && $missing_eligible === 0 && $duplicate_notes === 0),
     'provider_egress_attempts' => 0,
 );
 

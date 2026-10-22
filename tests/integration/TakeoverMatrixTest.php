@@ -21,7 +21,13 @@
  *                 finalize forced after review, with one legacy value made to differ;
  *   finalized     legacy names removed only where they verified equal.
  * Pre-0b SUPCheckout lane: pre0b_seed, pre0b_switch, pre0b_rollback, pre0b_rerun.
- * Large-store cell: large_seed, large_run.
+ * Large-store cells (A5-02 adds the web-memory walks; the WP-CLI end-to-end switch is kept):
+ *   large-store      large_seed, large_run (WP-CLI copy + verify + cutover end to end, within
+ *                    budget), then large_walks: the finalize dry run and a budgeted rollback,
+ *                    each in one request at a web memory limit with bounded peak-memory growth;
+ *   large-store-web  large_seed, large_copy (WP-CLI copy and verify only), large_retire, then
+ *                    large_cutover: the switch in one request at a web memory limit with
+ *                    bounded peak-memory growth, copy + cutover within the same budget.
  *
  * Provider traffic: none. tests/integration/fixtures/takeover-matrix-mu-plugin.php answers
  * every UPayments request from a fixture this test stores, refuses anything else, and the
@@ -33,10 +39,17 @@ require_once __DIR__ . '/lib/takeover-matrix-lib.php';
 require_once __DIR__ . '/fixtures/official-plugin-seed.php';
 
 use Simplixi\SUPCheckout\Takeover\CliCommands;
+use Simplixi\SUPCheckout\Takeover\Finalize;
 use Simplixi\SUPCheckout\Takeover\Journal;
 use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\Onboarding\BudgetedWordPressSystem;
+use Simplixi\SUPCheckout\Takeover\Onboarding\DriverStep;
+use Simplixi\SUPCheckout\Takeover\Onboarding\Onboarding;
 use Simplixi\SUPCheckout\Takeover\OrderCopier;
+use Simplixi\SUPCheckout\Takeover\Rollback;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
+use Simplixi\SUPCheckout\Takeover\WordPressCopyStore;
+use Simplixi\SUPCheckout\Takeover\WordPressCutoverSystem;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
 
 $phase = (string) getenv('SUPCHECKOUT_MATRIX_PHASE');
@@ -67,6 +80,47 @@ function supcheckout_matrix_assert_storage($storage) {
  */
 function supcheckout_matrix_copied_orders(array $status) {
     return isset($status['totals']['orders']) ? (int) $status['totals']['orders'] : -1;
+}
+
+/**
+ * A5-02: the large-store walks run in one request at a web memory limit (the Action
+ * Scheduler queue runner raises PHP to WP_MAX_MEMORY_LIMIT, 256M by default), not WP-CLI's -1.
+ *
+ * @return string The limit now in force.
+ */
+function supcheckout_matrix_web_memory_limit() {
+    $limit = (string) getenv('SUPCHECKOUT_MATRIX_WEB_MEMORY_LIMIT');
+    supcheckout_cert_assert(preg_match('/^[0-9]+M$/', $limit) === 1 && ini_set('memory_limit', $limit) !== false && ini_get('memory_limit') === $limit, 'memory_limit is ' . $limit);
+    return $limit;
+}
+
+/**
+ * @param callable $walk function (): mixed.
+ * @return array{0:mixed, 1:int} The walk's result and its peak-memory growth in bytes.
+ */
+function supcheckout_matrix_peak_growth(callable $walk) {
+    supcheckout_cert_assert(function_exists('memory_reset_peak_usage'), 'PHP can reset the peak-memory mark');
+    supcheckout_matrix_flush();
+    memory_reset_peak_usage();
+    $base = memory_get_usage(true);
+    $result = $walk();
+    return array($result, memory_get_peak_usage(true) - $base);
+}
+
+/**
+ * Without the runtime-cache flush a walk grows by tens of KB per order: hundreds of MB at
+ * 10,000 orders, past the web memory limit. With it, the growth is bounded by one batch.
+ *
+ * @param string               $walk     What ran.
+ * @param int                  $growth   Peak growth in bytes.
+ * @param array<string, mixed> $manifest Manifest.
+ * @return void
+ */
+function supcheckout_matrix_assert_growth($walk, $growth, array $manifest) {
+    $bound = (int) getenv('SUPCHECKOUT_MATRIX_WALK_GROWTH_MB');
+    supcheckout_cert_assert($bound > 0, 'SUPCHECKOUT_MATRIX_WALK_GROWTH_MB is set');
+    supcheckout_cert_note(sprintf('%s of %d orders: peak memory growth %.1f MB (bound %d MB)', $walk, $manifest['orders_count'], $growth / 1048576, $bound));
+    supcheckout_cert_assert($growth <= $bound * 1048576, $walk . ': peak memory growth stays within ' . $bound . ' MB');
 }
 
 /**
@@ -404,7 +458,10 @@ if ($phase === 'rerun_verify') {
     $claims = supcheckout_matrix_claims('supcheckout_billing_attempts', (int) $manifest['roles']['subscription_parent']);
     supcheckout_cert_assert(count($claims) === 1 && $claims[0]['state'] === 'held', 'the held cycle was copied back to supcheckout_billing_attempts');
     $outcome = supcheckout_matrix_renew((int) $manifest['roles']['subscription_parent']);
-    supcheckout_cert_assert($outcome !== 'held' && $outcome !== 'dispatching_or_ambiguous' && supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === 1, 'the held cycle is never charged again after rollback and run');
+    supcheckout_cert_assert($outcome === 'not_eligible' && supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === 1, 'automatic renewal charges stay blocked after rollback and run: no auto-deduct request');
+    // Fix A1-01: the engine behind the gate, forced open, still refuses the held cycle.
+    $outcome = supcheckout_matrix_renew_gate_open((int) $manifest['roles']['subscription_parent']);
+    supcheckout_cert_assert($outcome !== 'held' && $outcome !== 'dispatching_or_ambiguous' && supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === 1, 'gate forced open: the held cycle is never charged again after rollback and run');
     return;
 }
 
@@ -614,10 +671,18 @@ if ($phase === 'pre0b_switch' || $phase === 'pre0b_rerun') {
     supcheckout_matrix_renewal_fixtures((string) $manifest['token'], SUPCHECKOUT_MATRIX_CARD_TOKEN, wc_format_decimal($parent->get_total(), 3), 'matrix-h12-ref');
     if ($phase === 'pre0b_switch') {
         supcheckout_cert_assert($states === array('held', 'resolved'), 'the billing history is copied to supcheckout_billing_attempts: ' . wp_json_encode($states));
-        // The due cycle claims in the new table, once, and is never charged twice.
+        // Fix A1-01: automatic renewal charges are blocked: the due cycle sends nothing and
+        // claims nothing.
         $calls_before = supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct');
-        supcheckout_cert_assert(supcheckout_matrix_renew($parent_id) === 'held', 'the renewal claims its cycle and is held (auto-deduct capture stays fail-closed)');
-        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'exactly one auto-deduct request');
+        supcheckout_cert_assert(supcheckout_matrix_renew($parent_id) === 'not_eligible', 'the due renewal is not charged while its success cannot be verified');
+        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'zero auto-deduct requests');
+        supcheckout_cert_assert(count(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)) === 2, 'no claim row is written for the due cycle');
+        supcheckout_cert_assert(supcheckout_matrix_paused_notes($parent_id) === 1, 'exactly one paused-renewal note on the parent');
+        // Review I1: the parent's billing history holds a held cycle (a possible earlier debit).
+        supcheckout_matrix_assert_paused_note_kind($parent_id, true);
+        // Gate forced open: the due cycle claims in the new table, once, and is never charged twice.
+        supcheckout_cert_assert(supcheckout_matrix_renew_gate_open($parent_id) === 'held', 'gate forced open: the renewal claims its cycle and is held (auto-deduct capture stays fail-closed)');
+        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'gate forced open: exactly one auto-deduct request');
         supcheckout_cert_assert(count(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)) === 3, 'the new cycle is claimed in supcheckout_billing_attempts');
         supcheckout_cert_assert(count(supcheckout_matrix_claims('upayments_billing_attempts', $parent_id)) === 2, 'the legacy table is not written while cut over');
         supcheckout_matrix_save('pre0b-first.json', array('claims' => supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)));
@@ -625,8 +690,10 @@ if ($phase === 'pre0b_switch' || $phase === 'pre0b_rerun') {
         $first = supcheckout_matrix_load('pre0b-first.json');
         supcheckout_cert_assert(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id) === $first['claims'], 'rollback and run again leave exactly the same billing rows in supcheckout_billing_attempts');
         $calls_before = supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct');
-        supcheckout_matrix_renew($parent_id);
-        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'the cycle held before the rollback is never charged again');
+        supcheckout_cert_assert(supcheckout_matrix_renew($parent_id) === 'not_eligible', 'automatic renewal charges stay blocked after rollback and run');
+        supcheckout_cert_assert(supcheckout_matrix_paused_notes($parent_id) === 1, 'still exactly one paused-renewal note on the parent');
+        supcheckout_matrix_renew_gate_open($parent_id);
+        supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'gate forced open: the cycle held before the rollback is never charged again');
     }
     supcheckout_matrix_assert_no_denied_provider_call();
     return;
@@ -693,6 +760,84 @@ if ($phase === 'large_run') {
     supcheckout_cert_assert($largest <= 50, 'no copy batch processed more than 50 orders (largest ' . $largest . ')');
     $status = supcheckout_matrix_wp_json('supcheckout takeover status --format=json');
     supcheckout_cert_assert($status['status'] === 'cut_over' && supcheckout_matrix_copied_orders($status) === (int) $manifest['orders_count'], 'every order was copied and verified: ' . wp_json_encode($status['totals']));
+    return;
+}
+
+if ($phase === 'large_copy') {
+    $manifest = supcheckout_matrix_manifest();
+    $budget = (int) getenv('SUPCHECKOUT_MATRIX_COPY_BUDGET');
+    $started = microtime(true);
+    // A5-02 web lane: WP-CLI copies (its CLI memory_limit is -1); the switch itself runs in
+    // the large_cutover phase at a web memory limit. With the official plugin still active,
+    // `run` copies and verifies every order, then stops before the switch.
+    $run = supcheckout_matrix_wp('supcheckout takeover run --yes');
+    $elapsed = microtime(true) - $started;
+    supcheckout_cert_assert($run->return_code === CliCommands::BLOCKED && strpos($run->stdout . $run->stderr, 'the copy is verified but the store was not switched') !== false, 'the large store copies and verifies, then waits for the official plugin to be retired: ' . substr($run->stdout, -2000) . $run->stderr);
+    supcheckout_cert_note(sprintf('copy + verify of %d orders: %.1f s (budget %d s)', $manifest['orders_count'], $elapsed, $budget));
+    supcheckout_cert_assert($elapsed <= $budget, 'the copy completes within the CI budget');
+    supcheckout_matrix_save('large-copy.json', array('elapsed' => $elapsed));
+    preg_match_all('/takeover copy: phase=orders cursor=[0-9]+ orders=([0-9]+)/', $run->stdout, $matches);
+    $totals = array_map('intval', $matches[1]);
+    supcheckout_cert_assert(count($totals) >= (int) ceil($manifest['orders_count'] / 50), 'one progress line per batch: ' . count($totals));
+    $previous = 0;
+    $largest = 0;
+    foreach ($totals as $total) {
+        $largest = max($largest, $total - $previous);
+        $previous = $total;
+    }
+    supcheckout_cert_assert($largest <= 50, 'no copy batch processed more than 50 orders (largest ' . $largest . ')');
+    $status = supcheckout_matrix_wp_json('supcheckout takeover status --format=json');
+    supcheckout_cert_assert($status['status'] === 'verified' && supcheckout_matrix_copied_orders($status) === (int) $manifest['orders_count'], 'every order was copied and verified: ' . wp_json_encode($status['totals']));
+    return;
+}
+
+if ($phase === 'large_retire') {
+    // The onboarding driver retires the official plugin in its own tick, so the switch runs
+    // in a fresh process where the official code is not loaded.
+    $retired = Onboarding::from_wordpress()->retire_official(true, 'switch');
+    supcheckout_cert_assert($retired->is_ok() && $retired->data()['deactivated'] === SUPCHECKOUT_MATRIX_OFFICIAL, 'the official plugin is retired with consent: ' . $retired->message());
+    return;
+}
+
+if ($phase === 'large_cutover') {
+    $manifest = supcheckout_matrix_manifest();
+    $limit = supcheckout_matrix_web_memory_limit();
+    $started = microtime(true);
+    list($outcome, $growth) = supcheckout_matrix_peak_growth(static function () {
+        return Onboarding::from_wordpress()->cutover(false);
+    });
+    $elapsed = microtime(true) - $started;
+    supcheckout_cert_assert($outcome->is_ok(), 'the large store cuts over in one request at memory_limit=' . $limit . ': ' . $outcome->message() . ' ' . wp_json_encode($outcome->data()));
+    supcheckout_matrix_assert_growth('Cutover (final verify of every order)', $growth, $manifest);
+    $copy = supcheckout_matrix_load('large-copy.json');
+    $budget = (int) getenv('SUPCHECKOUT_MATRIX_COPY_BUDGET');
+    supcheckout_cert_note(sprintf('cutover of %d orders: %.1f s; copy + verify + cutover %.1f s (budget %d s)', $manifest['orders_count'], $elapsed, $copy['elapsed'] + $elapsed, $budget));
+    supcheckout_cert_assert($copy['elapsed'] + $elapsed <= $budget, 'copy + verify + cutover complete within the CI budget');
+    $status = supcheckout_matrix_wp_json('supcheckout takeover status --format=json');
+    supcheckout_cert_assert($status['status'] === 'cut_over' && supcheckout_matrix_copied_orders($status) === (int) $manifest['orders_count'], 'every order was copied and verified: ' . wp_json_encode($status['totals']));
+    return;
+}
+
+if ($phase === 'large_walks') {
+    $manifest = supcheckout_matrix_manifest();
+    $limit = supcheckout_matrix_web_memory_limit();
+    supcheckout_cert_assert(TakeoverState::get()['status'] === TakeoverState::CUT_OVER, 'state is cut_over');
+    list($plan, $growth) = supcheckout_matrix_peak_growth(static function () {
+        return (new Finalize())->plan();
+    });
+    supcheckout_cert_assert($plan['status'] === TakeoverState::CUT_OVER && $plan['removed']['order_meta'] >= (int) $manifest['orders_count'], 'the finalize dry run walks every order at memory_limit=' . $limit . ': ' . wp_json_encode($plan['removed']));
+    supcheckout_matrix_assert_growth('Finalize dry run', $growth, $manifest);
+    supcheckout_matrix_flush();
+    supcheckout_cert_assert(TakeoverState::get()['status'] === TakeoverState::CUT_OVER, 'the dry run changed no state');
+    // A rollback as the REST / Action Scheduler driver runs it (AsyncDriver: a long tick,
+    // real waits): a BudgetedSystem that yields once its budget is spent (the back-sync of
+    // every order runs before the transition).
+    list($rollback, $growth) = supcheckout_matrix_peak_growth(static function () {
+        $system = new BudgetedWordPressSystem(new WordPressCutoverSystem(), time() + DriverStep::TICK_BUDGET, 'time', true);
+        return (new Rollback(new WordPressCopyStore(), $system))->run(false);
+    });
+    supcheckout_cert_assert(in_array('orders_synced', $rollback['steps'], true) && in_array('rolled_back', $rollback['steps'], true) && ($rollback['ok'] || $rollback['error'] === 'yielded'), 'the budgeted rollback back-syncs every order and transitions: ' . wp_json_encode(array('error' => $rollback['error'], 'steps' => $rollback['steps'])));
+    supcheckout_matrix_assert_growth('budgeted Rollback (back-sync of every order)', $growth, $manifest);
     return;
 }
 

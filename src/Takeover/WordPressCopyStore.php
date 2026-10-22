@@ -108,6 +108,14 @@ final class WordPressCopyStore implements FinalizeStore {
         };
     }
 
+    public function flush_runtime_cache() {
+        // wp_cache_flush_runtime() is WordPress 6.0+, wp_cache_supports() 6.1+.
+        if (!function_exists('wp_cache_flush_runtime') || !function_exists('wp_cache_supports') || !wp_cache_supports('flush_runtime')) {
+            return false;
+        }
+        return (bool) wp_cache_flush_runtime();
+    }
+
     public function user_ids_after($after_id, $limit) {
         global $wpdb;
         list($clause, $clause_args) = self::user_key_clause();

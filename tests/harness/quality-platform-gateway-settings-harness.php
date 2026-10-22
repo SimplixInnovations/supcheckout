@@ -109,9 +109,16 @@ q6_assert(
     q6_contains($gateway, 'Available payment methods depend on your UPayments account and provider configuration.'),
     'merchant-facing gateway description binds payment-method claims to provider/account configuration'
 );
+// Fix A1-01 review round 1 (owner decision 2026-10-22): automatic renewal charges are
+// blocked, so the description says they are paused instead of implying that provider setup
+// makes them work.
 q6_assert(
-    q6_contains($gateway, 'Subscription auto-deduction requires separately validated provider setup.'),
-    'merchant-facing gateway description preserves the external-validation boundary for auto-deduction'
+    !q6_contains($gateway, 'Subscription auto-deduction requires separately validated provider setup.'),
+    'merchant-facing gateway description no longer implies auto-deduction works with provider setup'
+);
+q6_assert(
+    q6_contains($gateway, 'Automatic subscription renewal charges are paused; collect renewals manually or by payment link.'),
+    'merchant-facing gateway description states that automatic renewal charges are paused'
 );
 
 q6_assert(substr_count($tests, 'public function test_') >= 8, 'GatewaySettings has focused PHPUnit characterization');

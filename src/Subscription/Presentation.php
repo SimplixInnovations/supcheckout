@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Subscription;
 
 use Simplixi\SUPCheckout\Subscription\Cron\Scheduler;
 use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
+use Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
@@ -245,7 +246,16 @@ final class Presentation {
         if ($auto_deduction === 'yes' && empty($last_billed_dt)) {
             echo '<p><strong>' . esc_html__('Auto Deduction Order', 'supcheckout') . ':</strong> ' . esc_html__('Yes', 'supcheckout') . '</p>';
         } else {
-            if ($raw_status !== 'cancelled') {
+            if ($raw_status !== 'cancelled' && !AutoDeductResultVerifier::can_verify_success()) {
+                // Fix A1-01: no automatic charge will happen, so no "Next Billing Date". The
+                // box mirrors the parent's note: when an earlier automatic charge may have
+                // debited the customer, check the UPayments dashboard before collecting.
+                echo '<p><strong>' . esc_html__('Automatic Renewal', 'supcheckout') . ':</strong> '
+                    . (self::earlier_charge_unconfirmed($order)
+                        ? esc_html__('Paused. An earlier automatic charge could not be confirmed: check the UPayments dashboard before you collect this renewal manually or send a payment link.', 'supcheckout')
+                        : esc_html__('Paused. Collect this renewal manually or send the customer a payment link.', 'supcheckout'))
+                    . '</p>';
+            } elseif ($raw_status !== 'cancelled') {
                 echo '<p><strong>' . esc_html__('Next Billing Date', 'supcheckout') . ':</strong> ' . esc_html(self::format_date_time($next_billing_dt)) . '</p>';
             }
             if (!empty($last_billed_dt)) {
@@ -253,6 +263,40 @@ final class Presentation {
             }
         }
         echo '</div>';
+    }
+
+    /**
+     * Fix A1-01: tells store managers, on WooCommerce and Plugins screens, that automatic
+     * subscription renewal charges are paused while "Enable Subscriptions" is on.
+     *
+     * @return void
+     */
+    public static function render_auto_renewal_paused_notice() {
+        if (AutoDeductResultVerifier::can_verify_success() || !current_user_can('manage_woocommerce')) {
+            return;
+        }
+        $settings = Keys::get_settings(array());
+        if (!is_array($settings) || !isset($settings['enable_subscriptions']) || $settings['enable_subscriptions'] !== 'yes') {
+            return;
+        }
+        if (!self::is_store_admin_screen()) {
+            return;
+        }
+        echo '<div class="notice notice-warning"><p><strong>'
+            . esc_html__('Automatic subscription renewals are paused.', 'supcheckout')
+            . '</strong> '
+            . esc_html(self::auto_renewal_paused_message())
+            . '</p></div>';
+    }
+
+    /**
+     * The paused statement shared by the admin notice and the "Enable Subscriptions"
+     * setting description (fix A1-01). Unescaped: callers escape for their context.
+     *
+     * @return string
+     */
+    public static function auto_renewal_paused_message() {
+        return __('SUPCheckout does not send automatic renewal charges until a verified UPayments capture contract is approved. Collect renewals manually or by payment link.', 'supcheckout');
     }
 
     /** @return mixed */
@@ -329,7 +373,11 @@ final class Presentation {
                     <tr><th style="border: 1px solid;"><?php esc_html_e('Started On', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html(self::format_date_time($started_at)); ?></td></tr>
                     <?php if (Keys::read_order_meta($order, 'UPayments_AutoDeduction') !== 'yes') { ?>
                         <tr><th style="border: 1px solid;"><?php esc_html_e('Last Billed On', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($last_billed_dt ? self::format_date_time($last_billed_dt) : '-'); ?></td></tr>
-                        <tr><th style="border: 1px solid;"><?php esc_html_e('Next Billing Date', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($next_billing_dt->format('Y-m-d H:i:s')); ?></td></tr>
+                        <?php if (!AutoDeductResultVerifier::can_verify_success()) { ?>
+                            <tr><th style="border: 1px solid;"><?php esc_html_e('Automatic Renewal', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php esc_html_e('Paused. Renewals are not charged to your card automatically.', 'supcheckout'); ?></td></tr>
+                        <?php } else { ?>
+                            <tr><th style="border: 1px solid;"><?php esc_html_e('Next Billing Date', 'supcheckout'); ?></th><td style="border: 1px solid;"><?php echo esc_html($next_billing_dt->format('Y-m-d H:i:s')); ?></td></tr>
+                        <?php } ?>
                     <?php } ?>
                 </tbody>
             </table>
@@ -470,6 +518,37 @@ final class Presentation {
             ),
             'yearly' => array(1 => __('Every Year', 'supcheckout')),
         );
+    }
+
+    /**
+     * The parent's paused note decides; before the parent has one, the read-only billing
+     * history lookup does (it fails closed).
+     *
+     * @param \WC_Order $order Subscription parent.
+     * @return bool
+     */
+    private static function earlier_charge_unconfirmed($order) {
+        $flag = LifecycleScheduler::paused_note_flag($order);
+        if ($flag !== '') {
+            return $flag === LifecycleScheduler::PAUSED_NOTE_UNCONFIRMED;
+        }
+        return LifecycleScheduler::has_unconfirmed_charge($order);
+    }
+
+    /** @return bool True on a WooCommerce admin screen or the Plugins screen. */
+    private static function is_store_admin_screen() {
+        if (!function_exists('get_current_screen')) {
+            return false;
+        }
+        $screen = get_current_screen();
+        $screen_id = is_object($screen) && isset($screen->id) ? $screen->id : null;
+        if (!is_string($screen_id)) {
+            return false;
+        }
+        if ($screen_id === 'plugins') {
+            return true;
+        }
+        return function_exists('wc_get_screen_ids') && in_array($screen_id, (array) wc_get_screen_ids(), true);
     }
 
     /** @param string $status @return string */

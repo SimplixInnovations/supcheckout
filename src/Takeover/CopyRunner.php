@@ -205,6 +205,9 @@ final class CopyRunner {
     }
 
     /**
+     * One bounded step under the runner lock; after it, this request's object cache is
+     * flushed (CopyStore::flush_runtime_cache()), so a loop of steps never accumulates them.
+     *
      * @return string One of the status constants.
      */
     public function run() {
@@ -233,6 +236,10 @@ final class CopyRunner {
             }
         } finally {
             OrderLock::replace_if_current(self::LOCK_OPTION, $lock, '0:released');
+            // A5-02: every loop over run() (the onboarding driver's time-boxed tick, the
+            // Action Scheduler action, WP-CLI `run`) spans many steps in one request, and
+            // an object that copies nothing is never saved, so never evicted.
+            $this->store->flush_runtime_cache();
         }
     }
 

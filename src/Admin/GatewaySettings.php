@@ -3,6 +3,8 @@
 namespace Simplixi\SUPCheckout\Admin;
 
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
+use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
+use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
@@ -16,12 +18,40 @@ final class GatewaySettings {
     private const SUPPORTED_CURRENCIES = array('KWD', 'SAR', 'USD', 'BHD', 'EUR', 'OMR', 'QAR', 'AED');
 
     /**
+     * ISO 4217 minor units of every supported currency: the most fractional
+     * digits an amount in that currency can carry to the provider.
+     */
+    private const CURRENCY_MINOR_UNITS = array(
+        'KWD' => 3,
+        'SAR' => 2,
+        'USD' => 2,
+        'BHD' => 3,
+        'EUR' => 2,
+        'OMR' => 3,
+        'QAR' => 2,
+        'AED' => 2,
+    );
+
+    /**
      * Return the canonical checkout currency allowlist for server/client parity.
      *
      * @return array<int, string>
      */
     public static function supported_currencies() {
         return self::SUPPORTED_CURRENCIES;
+    }
+
+    /**
+     * Return the ISO 4217 minor units of a supported currency.
+     *
+     * @param mixed $currency Upper-case ISO 4217 code.
+     * @return int|null Null for an unsupported or malformed currency, which callers fail closed on.
+     */
+    public static function currency_minor_units($currency) {
+        if (!is_string($currency) || !in_array($currency, self::SUPPORTED_CURRENCIES, true)) {
+            return null;
+        }
+        return self::CURRENCY_MINOR_UNITS[$currency];
     }
 
     /**
@@ -147,8 +177,14 @@ final class GatewaySettings {
                 'type' => 'checkbox',
                 'label' => __('Enable subscription payments', 'supcheckout'),
                 'default' => 'no',
-                'desc_tip' => true,
-                'description' => __('Only Subscription Products are allowed at checkout If Subscription is enabled.', 'supcheckout'),
+                // Fix A1-01: while automatic renewal charges are paused the statement is shown
+                // under the field, not hidden in a tooltip, and shares its copy with the notice.
+                'desc_tip' => AutoDeductResultVerifier::can_verify_success(),
+                'description' => AutoDeductResultVerifier::can_verify_success()
+                    ? __('Only Subscription Products are allowed at checkout If Subscription is enabled.', 'supcheckout')
+                    : __('Only Subscription Products are allowed at checkout If Subscription is enabled.', 'supcheckout')
+                        . ' ' . __('Automatic renewal charges are paused.', 'supcheckout')
+                        . ' ' . SubscriptionPresentation::auto_renewal_paused_message(),
             ),
         );
     }

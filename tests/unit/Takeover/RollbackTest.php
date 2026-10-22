@@ -100,6 +100,27 @@ final class RollbackTest extends TestCase {
         return new Rollback($this->store, $this->system);
     }
 
+    public function test_a5_02_the_back_sync_flushes_the_runtime_cache_once_per_order_batch(): void {
+        // 118 more legacy orders before the switch: with order 7 and the post-cutover order 8,
+        // the back-sync walks 120 orders in three batches (50, 50, 20).
+        for ($id = 100; $id < 218; $id++) {
+            $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)), 'completed');
+        }
+        $this->seed_cut_over();
+        $at = array();
+        $this->system->on_step = function ($step) use (&$at) {
+            $at[$step] = $this->store->runtime_flushes;
+        };
+
+        $result = $this->rollback()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(3, $at['orders_synced'] - $at['drained'], 'one runtime-cache flush after each order back-sync batch');
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status'], 'the same rollback as without the flush');
+        self::assertSame(array('pay-217'), $GLOBALS['supcheckout_test_status_orders'][217]->persisted_values('UPayments_PaymentID'));
+        self::assertSame(array(), $GLOBALS['supcheckout_test_status_orders'][217]->persisted_values('_supcheckout_payment_id'), 'the copy is removed');
+    }
+
     public function test_review_focus_5_a_rollback_restores_identities_and_keeps_every_payment(): void {
         $paid = $this->seed_cut_over();
         $pre_switch = $GLOBALS['supcheckout_test_status_orders'][7];
@@ -469,6 +490,28 @@ final class RollbackTest extends TestCase {
         self::assertSame('new_table_missing', $result['report']['table']);
         self::assertSame($legacy_before, $this->store->tables['legacy'], 'the stale claim is never deleted or rewritten');
         self::assertSame(TakeoverState::CUT_OVER, TakeoverState::get()['status']);
+    }
+
+    public function test_a5_02_the_copy_removal_and_its_rescan_flush_the_runtime_cache_once_per_batch(): void {
+        for ($id = 100; $id < 218; $id++) {
+            $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)), 'completed');
+        }
+        $this->seed_cut_over();
+        $at = array();
+        $this->system->on_step = function ($step) use (&$at) {
+            $at[$step] = $this->store->runtime_flushes;
+        };
+
+        $result = $this->rollback()->run(false);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        // Cursor pass: 120 orders (50, 50, 20), users 3 and 5, product 40.
+        self::assertSame(3 + 1 + 1, $at['copies_removed'] - $at['cron_restored'], 'one flush after each batch of the cursor pass');
+        // Pass-2 rescan: every order still selected (payment_method upayments) and loaded,
+        // none saved, so nothing else evicts them; no user or product holds a copy any more.
+        self::assertSame(3, $at['rescanned'] - $at['copies_removed'], 'one flush after each order batch of the rescan');
+        self::assertSame(array(), $GLOBALS['supcheckout_test_status_orders'][217]->persisted_values('_supcheckout_payment_id'));
+        self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status']);
     }
 
     public function test_the_removal_settles_then_rescans_late_writes_before_recording_completion(): void {

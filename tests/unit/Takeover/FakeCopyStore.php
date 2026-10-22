@@ -2,6 +2,7 @@
 
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
+use Simplixi\SUPCheckout\Takeover\CopyRunner;
 use Simplixi\SUPCheckout\Takeover\FinalizeStore;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
@@ -54,6 +55,10 @@ final class FakeCopyStore implements FinalizeStore {
     public $fail_replace = false;
     /** @var list<array{0:string,1:string|null}> Orphan deletions: [after, upto]. */
     public $orphan_deletes = array();
+    /** @var int flush_runtime_cache() calls (A5-02: one after each bounded batch of a walk). */
+    public $runtime_flushes = 0;
+    /** @var list<mixed> The copy-runner lock record (CopyRunner::LOCK_OPTION) at each flush. */
+    public $lock_at_flush = array();
 
     public function order_ids_after($after_id, $limit) {
         $this->selections[] = array('orders', $limit);
@@ -142,6 +147,13 @@ final class FakeCopyStore implements FinalizeStore {
             call_user_func($this->on_load_product, $product_id);
         }
         return isset($this->products[$product_id]) ? $this->products[$product_id] : null;
+    }
+
+    public function flush_runtime_cache() {
+        ++$this->runtime_flushes;
+        $options = $GLOBALS['supcheckout_test_options'];
+        $this->lock_at_flush[] = isset($options[CopyRunner::LOCK_OPTION]) ? $options[CopyRunner::LOCK_OPTION] : null;
+        return true;
     }
 
     public function table_exists($which) {

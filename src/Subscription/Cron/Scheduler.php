@@ -111,6 +111,25 @@ class Scheduler
             self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
             return self::$last_outcome;
         }
+        if (!AutoDeductResultVerifier::can_verify_success()) {
+            // Fix A1-01 (owner decision 2026-10-22): no automatic renewal charge is sent
+            // while its success cannot be verified. Stop before the billing table, the
+            // renewal-card lookup and any cycle claim; not_eligible is never retried by the
+            // worker. While the gateway has subscriptions enabled, the parent gets one note
+            // so the merchant collects the renewal manually. The note can never change the
+            // outcome.
+            self::$last_outcome = self::OUTCOME_NOT_ELIGIBLE;
+            try {
+                $gateway = self::getGateway();
+                if ($gateway && $gateway->get_option('enable_subscriptions') === 'yes') {
+                    LifecycleScheduler::note_auto_renewal_paused($order);
+                }
+            } catch (\Throwable $e) {
+                $context['order_id'] = $order->get_id();
+                wc_get_logger()->warning('Paused-renewal note skipped.', $context);
+            }
+            return self::$last_outcome;
+        }
         try {
             if (!CycleClaim::maybe_install()) {
                 self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;

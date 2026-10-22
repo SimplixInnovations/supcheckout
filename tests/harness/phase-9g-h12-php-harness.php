@@ -3417,7 +3417,7 @@ if (is_resource($proc)) {
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($scheduler_blob, '843b28b6d7b79b55767ba444dc37dfc7612bc6d2', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
+upay_assert_eq($scheduler_blob, '9a5994bbc27fc59983950ba42ef4330d9dd5f854', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
 
 // --- SEM14-I: CycleClaim.php reviewed protected blob ---
 $cycle_blob = '';
@@ -7481,6 +7481,171 @@ upay_assert_eq(
 );
 
 // ---------------------------------------------------------------------------
+// SECTION A6-05-TOK: characterization of the untested get_or_establish_token
+// exits (bootstrap_lock_contention, legacy_migration_required,
+// context_invalidated_before_persist, context_changed_before_persist,
+// persist_failure, rollback readback_failed). Direct helper calls, so every
+// assertion is helper_unit_runtime. Each pins today's outcome and its writes.
+// ---------------------------------------------------------------------------
+$tok_cti = 'Simplixi\SUPCheckout\Token\CustomerTokenIdentity';
+$tok_user = 7;
+$tok_gen = str_repeat('ab', 16);
+$tok_gen_rotated = str_repeat('cd', 16);
+$tok_secret_option = 'upayments_token_identity_secret_v2';
+$tok_bootstrap_lock = $tok_cti::get_bootstrap_lock_name();
+$tok_secret_record = function ($generation) {
+    $secret = str_repeat('5e', 32);
+    return [
+        'version' => 1,
+        'secret' => $secret,
+        'generation_id' => $generation,
+        'verifier' => hash_hmac('sha256', 'upayments_token_identity_secret_record_v1|1|' . $generation, $secret),
+    ];
+};
+// Fresh state; $with_secret seeds a valid identity root for generation $tok_gen.
+$tok_reset = function ($with_secret) use ($tok_cti, $tok_user, $tok_gen, $tok_secret_option, $tok_secret_record) {
+    upay_reset_state();
+    upay_call_static($tok_cti, 'reset_rollback_state_for_tests', []);
+    $state =& upay_test_state();
+    $state['current_user_id'] = $tok_user;
+    if ($with_secret) {
+        $state['options'][$tok_secret_option] = $tok_secret_record($tok_gen);
+    }
+};
+// A create-token transport that echoes the candidate (HTTP 201); $during runs
+// inside the provider call, between the pre-call and pre-persist context reads.
+$tok_caller = function (&$calls, $during = null) {
+    return function ($candidate) use (&$calls, $during) {
+        $calls++;
+        if (is_callable($during)) { $during(); }
+        return [
+            'transport_ok' => true, 'http_status' => 201, 'curl_errno' => 0,
+            'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => $candidate]]),
+        ];
+    };
+};
+$tok_meta_key = function () use ($tok_cti) {
+    $ctx = $tok_cti::read_existing_identity_context('test_api_key', false);
+    return $tok_cti::get_user_meta_key('1', $ctx['scope']);
+};
+$tok_run = function ($caller) use ($tok_cti, $tok_user) {
+    return $tok_cti::get_or_establish_token($tok_user, 'test_api_key', false, $caller);
+};
+
+// TOK-0 control: the same fixtures establish a canonical token, so the negative
+// cases below fail for the reason they name and not for a broken fixture.
+$tok_reset(true);
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls));
+upay_assert_eq([$tok_result['success'], $tok_result['reason'], $tok_result['established'], $tok_calls], [true, 'created', true, 1], 'A6-05 TOK-0 control: the fixtures establish a canonical token', 'helper_unit_runtime');
+upay_assert_eq(count(get_user_meta($tok_user, $tok_meta_key(), false)), 1, 'A6-05 TOK-0 control: exactly one provenance record is written', 'helper_unit_runtime');
+
+// TOK-1: the identity root is absent and another worker holds the bootstrap lock.
+$tok_reset(false);
+$state =& upay_test_state();
+$state['locks'][$tok_bootstrap_lock] = true;
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls));
+upay_assert_eq([$tok_result['success'], $tok_result['token'], $tok_result['reason']], [false, null, 'bootstrap_lock_contention'], 'A6-05 TOK-1 bootstrap_lock_contention fails closed without a token', 'helper_unit_runtime');
+upay_assert_eq([$tok_calls, array_key_exists($tok_secret_option, $state['options']), $state['option_creates'], $state['usermeta_writes']], [0, false, 0, 0], 'A6-05 TOK-1 bootstrap_lock_contention calls no provider and writes no secret or provenance', 'helper_unit_runtime');
+upay_assert_eq(!empty($state['locks'][$tok_bootstrap_lock]), true, 'A6-05 TOK-1 bootstrap_lock_contention leaves the other worker\'s bootstrap lock held', 'helper_unit_runtime');
+
+// TOK-2: bootstrap census cannot prove an empty history (query exception).
+$tok_reset(false);
+$state =& upay_test_state();
+$state['history_query_exception'] = true;
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls));
+upay_assert_eq([$tok_result['success'], $tok_result['reason']], [false, 'legacy_migration_required'], 'A6-05 TOK-2 legacy_migration_required at the bootstrap census', 'helper_unit_runtime');
+upay_assert_eq([$tok_calls, array_key_exists($tok_secret_option, $state['options']), $state['option_creates'], $state['usermeta_writes']], [0, false, 0, 0], 'A6-05 TOK-2 bootstrap census refusal creates no identity root and calls no provider', 'helper_unit_runtime');
+upay_assert_eq(isset($state['locks'][$tok_bootstrap_lock]), false, 'A6-05 TOK-2 bootstrap census refusal releases the bootstrap lock', 'helper_unit_runtime');
+
+// TOK-3: established root, but the pre-lock customer history is blocking.
+$tok_reset(true);
+$state =& upay_test_state();
+$state['history_query_exception'] = true;
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls));
+upay_assert_eq([$tok_result['success'], $tok_result['reason']], [false, 'legacy_migration_required'], 'A6-05 TOK-3 legacy_migration_required before the customer lock', 'helper_unit_runtime');
+upay_assert_eq([$tok_calls, $state['usermeta_writes'], $state['lock_held_names']], [0, 0, []], 'A6-05 TOK-3 pre-lock refusal takes no lock, calls no provider and writes no provenance', 'helper_unit_runtime');
+
+// TOK-4: history is clean before the lock and becomes blocking once it is held.
+$tok_reset(true);
+$state =& upay_test_state();
+$tok_wpdb_saved = $GLOBALS['wpdb'];
+$GLOBALS['wpdb'] = new class extends WpdbStub {
+    public function get_var($sql = null) {
+        $result = parent::get_var($sql);
+        if ($result === '1' && is_string($sql) && stripos($sql, 'GET_LOCK') !== false) {
+            $state =& upay_test_state();
+            $state['history_query_exception'] = true;
+        }
+        return $result;
+    }
+};
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls));
+$GLOBALS['wpdb'] = $tok_wpdb_saved;
+upay_assert_eq([$tok_result['success'], $tok_result['reason']], [false, 'legacy_migration_required'], 'A6-05 TOK-4 legacy_migration_required after the customer lock', 'helper_unit_runtime');
+upay_assert_eq([$tok_calls, $state['usermeta_writes'], count($state['lock_held_names']), count($state['locks'])], [0, 0, 1, 0], 'A6-05 TOK-4 post-lock refusal calls no provider, writes nothing and releases the lock it took', 'helper_unit_runtime');
+
+// TOK-5: the identity root disappears during the Create Token call.
+$tok_reset(true);
+$state =& upay_test_state();
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls, function () use ($tok_secret_option) {
+    $s =& upay_test_state();
+    unset($s['options'][$tok_secret_option]);
+}));
+upay_assert_eq([$tok_result['success'], $tok_result['token'], $tok_result['reason']], [false, null, 'context_invalidated_before_persist'], 'A6-05 TOK-5 context_invalidated_before_persist returns no token', 'helper_unit_runtime');
+upay_assert_eq([$tok_calls, $state['usermeta_writes'], count($state['locks'])], [1, 0, 0], 'A6-05 TOK-5 context_invalidated_before_persist persists no provenance and releases the lock', 'helper_unit_runtime');
+
+// TOK-6: the identity root rotates to a new generation during the call.
+$tok_reset(true);
+$state =& upay_test_state();
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls, function () use ($tok_secret_option, $tok_secret_record, $tok_gen_rotated) {
+    $s =& upay_test_state();
+    $s['options'][$tok_secret_option] = $tok_secret_record($tok_gen_rotated);
+}));
+upay_assert_eq([$tok_result['success'], $tok_result['token'], $tok_result['reason']], [false, null, 'context_changed_before_persist'], 'A6-05 TOK-6 context_changed_before_persist returns no token', 'helper_unit_runtime');
+upay_assert_eq([$tok_calls, $state['usermeta_writes'], count($state['locks'])], [1, 0, 0], 'A6-05 TOK-6 context_changed_before_persist persists no provenance and releases the lock', 'helper_unit_runtime');
+
+// TOK-7: the post-insert refresh fails; the record is rolled back (refresh then
+// fails too) and the call reports persist_failure.
+$tok_reset(true);
+$state =& upay_test_state();
+$tok_key7 = $tok_meta_key();
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls, function () {
+    $s =& upay_test_state();
+    $s['force_user_cache_refresh_failure'] = true;
+}));
+$tok_rollback = upay_call_static($tok_cti, 'last_rollback_state', []);
+upay_assert_eq([$tok_result['success'], $tok_result['token'], $tok_result['reason']], [false, null, 'persist_failure'], 'A6-05 TOK-7 persist_failure when the provenance write cannot be verified', 'helper_unit_runtime');
+upay_assert_eq([$tok_calls, $state['usermeta_writes'], get_user_meta($tok_user, $tok_key7, false)], [1, 1, []], 'A6-05 TOK-7 persist_failure deletes the one record it inserted', 'helper_unit_runtime');
+upay_assert_eq(is_array($tok_rollback) ? [$tok_rollback['reason'], $tok_rollback['meta_key']] : null, ['refresh_failed', $tok_key7], 'A6-05 TOK-7 the rollback outcome is recorded as refresh_failed', 'helper_unit_runtime');
+
+// TOK-8: a concurrent writer adds a second record, so the rollback runs; its
+// readback then fails (non-array) and is recorded as readback_failed.
+$tok_reset(true);
+$state =& upay_test_state();
+$tok_key8 = $tok_meta_key();
+$state['inject_user_meta_after_add'] = ['user_id' => $tok_user, 'key' => $tok_key8, 'value' => 'concurrent-writer'];
+$state['get_user_meta_filter'] = function ($result, $user_id, $key, $single) use ($tok_key8) {
+    $s = upay_test_state();
+    return (!$single && $key === $tok_key8 && !empty($s['delete_user_meta_calls'])) ? false : $result;
+};
+$tok_calls = 0;
+$tok_result = $tok_run($tok_caller($tok_calls));
+$state['get_user_meta_filter'] = null;
+$tok_rollback = upay_call_static($tok_cti, 'last_rollback_state', []);
+upay_assert_eq([$tok_result['success'], $tok_result['token'], $tok_result['reason']], [false, null, 'persist_failure'], 'A6-05 TOK-8 a duplicate-cardinality readback reports persist_failure', 'helper_unit_runtime');
+upay_assert_eq(is_array($tok_rollback) ? [$tok_rollback['reason'], $tok_rollback['meta_key']] : null, ['readback_failed', $tok_key8], 'A6-05 TOK-8 the rollback outcome is recorded as readback_failed', 'helper_unit_runtime');
+upay_assert_eq(get_user_meta($tok_user, $tok_key8, false), ['concurrent-writer'], 'A6-05 TOK-8 the exact inserted record is removed and the concurrent value kept', 'helper_unit_runtime');
+upay_reset_state();
+
+// ---------------------------------------------------------------------------
 // SEMANTIC LEDGER — exact family breakdown for auditability
 // ---------------------------------------------------------------------------
 // Residual Correction #28: this ledger is populated automatically at runtime
@@ -7676,12 +7841,12 @@ $_expected_family_baseline = array(
 //                                                   TOTAL       = 21
 $_expected_categories = array(
     'semantic_runtime'    => 379,
-    'helper_unit_runtime' => 854,
+    'helper_unit_runtime' => 876,    // 854 + 22 A6-05-TOK characterization assertions
     'static_source'       => 46,
     'harness_self_test'   => 662,    // 641 baseline + 21 §4/§5/§7 probes
     'lint_tooling'        => 10,
 );
-$_expected_total_pass    = 1951;    // 379 + 854 + 46 + 662 + 10
+$_expected_total_pass    = 1973;    // 379 + 876 + 46 + 662 + 10
 $_expected_total_fail    = 0;
 $_family_mismatch        = 0;
 $_category_mismatch      = 0;

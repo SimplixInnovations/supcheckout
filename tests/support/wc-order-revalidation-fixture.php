@@ -56,6 +56,22 @@ if (!class_exists('WC_Order', false)) {
         private $meta = array();
         /** @var array<int,array{type:string}> */
         private $items = array();
+        /** @var list<string> Order notes added through add_order_note(). */
+        public $notes = array();
+        /** @var int Calls to save(). */
+        public $saves = 0;
+
+        public function update_meta_data($key, $value): void { $this->meta[(string) $key] = $value; }
+        public function add_order_note($note, $is_customer_note = 0, $added_by_user = false): int
+        {
+            $this->notes[] = (string) $note;
+            return count($this->notes);
+        }
+        public function save(): int
+        {
+            ++$this->saves;
+            return $this->id;
+        }
 
         public function set_id($id): void { $this->id = (int) $id; }
         public function set_status($status): void { $this->status = (string) $status; }

@@ -100,6 +100,7 @@ $GLOBALS['__upay_test_state'] = [
     'uuid_counter' => 0,
     // Optional one-shot concurrent user-meta fixture, consumed by add_user_meta().
     'inject_user_meta_after_add' => null,
+    'get_user_meta_filter' => null,
 ];
 
 function &upay_test_state() {
@@ -139,6 +140,7 @@ function upay_reset_state() {
         'process_payment_calls' => 0,
         'uuid_counter' => 0,
         'inject_user_meta_after_add' => null,
+        'get_user_meta_filter' => null,
     ];
 }
 
@@ -220,7 +222,13 @@ function get_user_meta($user_id, $key, $single = false) {
     $state =& upay_test_state();
     $values = isset($state['usermeta'][$user_id][$key]) ? $state['usermeta'][$user_id][$key] : [];
     if (!is_array($values)) $values = [$values];
-    return $single ? (count($values) > 0 ? $values[0] : '') : $values;
+    $result = $single ? (count($values) > 0 ? $values[0] : '') : $values;
+    // Optional read fixture (A6-05): lets a case model a storage read that fails
+    // after a write. Inert unless a test sets it.
+    if (isset($state['get_user_meta_filter']) && is_callable($state['get_user_meta_filter'])) {
+        return call_user_func($state['get_user_meta_filter'], $result, $user_id, $key, $single);
+    }
+    return $result;
 }
 function add_user_meta($user_id, $key, $value, $unique = false) {
     $state =& upay_test_state();

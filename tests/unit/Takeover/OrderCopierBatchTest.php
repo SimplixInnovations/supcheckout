@@ -181,6 +181,34 @@ final class OrderCopierBatchTest extends TestCase {
         self::assertStringStartsWith('0:', (string) $GLOBALS['supcheckout_test_options'][CopyRunner::LOCK_OPTION], 'released after the batch');
     }
 
+    public function test_a5_02_each_run_flushes_the_runtime_cache_once_after_releasing_its_lock(): void {
+        for ($id = 1; $id <= 120; $id++) {
+            self::order($id, array('UPayments_PaymentID' => array('pay-' . $id)));
+        }
+
+        self::assertSame('continue', $this->runner()->run());
+        self::assertSame(1, $this->store->runtime_flushes, 'one flush per bounded step');
+        self::assertSame('continue', $this->runner()->run());
+
+        self::assertSame(2, $this->store->runtime_flushes);
+        foreach ($this->store->lock_at_flush as $lock) {
+            self::assertStringStartsWith('0:released', (string) $lock, 'the flush comes after the runner lock is released');
+        }
+        self::assertSame(array('pay-100'), $GLOBALS['supcheckout_test_status_orders'][100]->persisted_values('_supcheckout_payment_id'));
+    }
+
+    public function test_a5_02_an_idle_or_busy_runner_flushes_nothing(): void {
+        self::order(1, array('UPayments_PaymentID' => array('pay-1')));
+        self::state('verified');
+        self::assertSame('idle', $this->runner()->run());
+
+        self::state('copying');
+        $GLOBALS['supcheckout_test_options'][CopyRunner::LOCK_OPTION] = ($this->now + 60) . ':' . str_repeat('a', 32);
+        self::assertSame('busy', $this->runner()->run());
+
+        self::assertSame(0, $this->store->runtime_flushes, 'no step ran, so there is nothing to drop');
+    }
+
     public function test_begin_resets_progress_and_enters_copying_only_from_preflight_ok(): void {
         self::state('idle');
         self::assertFalse(CopyRunner::begin());

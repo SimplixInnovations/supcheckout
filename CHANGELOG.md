@@ -6,6 +6,30 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Subscriptions: automatic renewal charges are blocked (hardening fix A1-01)
+
+- **SUPCheckout no longer sends an automatic renewal charge** (UPayments auto-deduct) while it cannot verify that the charge succeeded (owner decision 2026-10-22). Before, a due renewal charged the customer's saved card and was then held with no renewal order and no note.
+- A due subscription parent now stops before the saved-card lookup and before any billing-cycle claim. No due-parent action is queued for it.
+- Each subscription parent gets one order note: "Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. Collect this renewal manually or send the customer a payment link."
+- Store managers see an admin notice on WooCommerce and Plugins screens while "Enable Subscriptions" is on. The order box and My Account show "Automatic Renewal: Paused" instead of a next billing date, and the setting description says that automatic renewal charges are paused.
+- Collect renewals manually or by payment link. Stored subscription data, the billing-attempt history and the `upay_process_subscriptions` hook are unchanged.
+
+### Hardening: large stores can switch, roll back and dry-run finalize from the browser (A5-02)
+
+- The takeover walks over every order now flush the in-request object cache after each batch of at most 50: the Cutover final verify, the Rollback back-sync and copy removal (its rescans included), the Finalize dry run and removal, and every copy loop (the onboarding driver's tick, the Action Scheduler batch action and `wp supcheckout takeover run`). Before, each walked order stayed in memory for the whole request, so on a store of roughly 5,000 to 6,000 orders or more a switch, rollback or finalize dry run started from the REST API or Action Scheduler (256M) ran out of memory. Shell access was needed to finish.
+- The flush is `wp_cache_flush_runtime()`, used whenever the object cache supports it, Redis and Memcached drop-ins included. It never calls `wp_cache_flush()`, so the persistent cache is left alone. Copies, verifications, failure codes, locks and compare-and-swaps are unchanged.
+- The migration matrix keeps its 10,000-order WP-CLI end-to-end switch and adds the web-memory walks. After the WP-CLI switch, the same lane runs the finalize dry run and a budgeted rollback, each in one request at `memory_limit=256M`. A new parallel 10,000-order lane copies through WP-CLI, then runs the switch itself in one request at 256M. Each walk's peak-memory growth must stay within 64 MB, and the new lane is part of the matrix gate.
+
+### Performance: the takeover state is decoded once per request (hardening A3-07)
+
+- `TakeoverState::get()` used to JSON-decode the stored takeover state on every call, about 6 to 10 times per request once a takeover had started. It now memoises the decoded record for the request, keyed on the exact stored string: an unchanged record is decoded once and a changed one is decoded again. Every write, `flush_cache()` and `refresh()` drop the memo. Return shapes and the compare-and-swap semantics are unchanged: transitions and patches read the raw record fresh and swap against it, never against the memo. The state option stays non-autoloaded.
+
+### Checkout: an amount with more decimals than its currency allows fails before the Charge (hardening A1-03)
+
+- Each supported currency now has its ISO 4217 minor units: 3 for KWD, BHD and OMR, 2 for SAR, USD, EUR, QAR and AED. An order total whose fraction, trailing zeros ignored, is longer than that, for example `18.045` AED from a store set to 3 AED decimals, used to reach UPayments. Card networks settle AED in 2 decimals, so the provider either refused it or rounded it, and a rounded payment then failed the exact amount check and left a paid order Pending.
+- Such a checkout now fails before any UPayments call. The customer sees the usual "Payment request could not be completed" notice and the order gets one private note naming the currency and its allowed decimals. The amount is never rounded. `18.040` AED and `1.505` KWD still Charge, encoded exactly as before. A currency without known minor units also fails closed. Classic checkout, Blocks (Store API) and the multi-merchant amount follow the same rule.
+- New report-only setup check `currency_decimals`: it warns, never fails, when the store's price decimals or a WooCommerce Multilingual currency's decimals exceed that currency's minor units, with `{currency, decimals, allowed}`. It changes no setting.
+
 ### Checkout: a long exact unit price no longer fails the payment (hardening A1-02)
 
 - UPayments caps `products[].price` at 7 characters. A checkout whose exact unit price is longer, for example `10499.99` AED, `1234.567` KWD, or a percentage coupon with quantity such as `1.640625`, used to fail with "Payment request could not be completed". It now sends the Charge without `products[]`, the same way it already handles any other line that cannot be described exactly.

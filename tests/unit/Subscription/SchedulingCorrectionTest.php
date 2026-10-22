@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Tests\Subscription;
 
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
 use Simplixi\SUPCheckout\Subscription\Scheduling\DueParentWorker;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
@@ -113,8 +114,34 @@ final class SchedulingCorrectionTest extends TestCase
         self::assertCount(2, $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
-    public function test_run_batch_advances_offset_cursor_across_pages(): void
+    public function test_run_batch_advances_offset_cursor_across_pages_and_notes_every_parent_while_auto_charges_are_blocked(): void
     {
+        foreach (range(1, 75) as $i) {
+            $this->make_parent($i);
+        }
+        $b1 = HistoricalEnrollment::run_batch();
+        self::assertSame(50, $b1['scanned']);
+        self::assertFalse($b1['complete']);
+        self::assertSame(50, $b1['cursor']);
+
+        $b2 = HistoricalEnrollment::run_batch();
+        self::assertSame(25, $b2['scanned']);
+        self::assertTrue($b2['complete']);
+        self::assertSame(0, $b2['cursor'], 'cursor resets after a complete pass for repair');
+
+        // Fix A1-01: the bounded feeder still reaches every parent (no starvation), but while
+        // automatic renewal charges are blocked it notes each one instead of queueing it.
+        self::assertSame(0, $b1['scheduled'] + $b2['scheduled']);
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
+        foreach (range(1, 75) as $i) {
+            self::assertCount(1, wc_get_order($i)->notes, "parent {$i} is noted once");
+        }
+    }
+
+    /** Gate-open companion (fix A1-01 review M2): the original R4 contract. */
+    public function test_run_batch_advances_offset_cursor_across_pages_when_the_gate_is_open(): void
+    {
+        self::require_gate_open();
         foreach (range(1, 75) as $i) {
             $this->make_parent($i);
         }
@@ -132,7 +159,63 @@ final class SchedulingCorrectionTest extends TestCase
         self::assertSame(75, $b1['scheduled'] + $b2['scheduled']);
     }
 
-    public function test_run_batch_matrix_counts(): void
+    /** Gate-open companion (fix A1-01 review M2): the original R4 contract. */
+    public function test_run_batch_matrix_counts_when_the_gate_is_open(): void
+    {
+        self::require_gate_open();
+        foreach (array(0, 1, 49, 50, 51, 75, 100, 125) as $total) {
+            HistoricalEnrollment::reset_cursor();
+            $GLOBALS['supcheckout_test_status_orders'] = array();
+            $GLOBALS['supcheckout_as_calls']['scheduled'] = array();
+            foreach (range(1, max($total, 1)) as $i) {
+                if ($total === 0) {
+                    break;
+                }
+                $this->make_parent($i);
+            }
+            $seen = 0;
+            $guard = 0;
+            do {
+                $stats = HistoricalEnrollment::run_batch();
+                $seen += $stats['scanned'];
+                $guard++;
+            } while (!$stats['complete'] && $guard < 20);
+
+            self::assertSame($total, $seen, "total={$total} must all be examined");
+            self::assertSame($total === 0 ? 0 : $total, count($GLOBALS['supcheckout_as_calls']['scheduled']), "total={$total} scheduled count");
+        }
+    }
+
+    /** Gate-open companion (fix A1-01 review M2): the original R4 contract. */
+    public function test_worker_skips_stale_cycle_without_mutating_claims_when_the_gate_is_open(): void
+    {
+        self::require_gate_open();
+        $this->make_parent(30);
+        DueParentWorker::handle(30, time() - 86400);
+        // Stale cycle must not remain the only action; current due is scheduled.
+        self::assertNotEmpty($GLOBALS['supcheckout_as_calls']['scheduled']);
+        foreach ($GLOBALS['supcheckout_as_calls']['scheduled'] as $row) {
+            self::assertSame(30, $row['args']['parent_order_id']);
+        }
+    }
+
+    /** Gate-open companion (fix A1-01 review M2): the original R4 contract. */
+    public function test_resume_schedules_exactly_one_next_cycle_when_the_gate_is_open(): void
+    {
+        self::require_gate_open();
+        $parent = $this->make_parent(50);
+        self::assertTrue(LifecycleScheduler::schedule_resume($parent));
+        self::assertCount(1, $GLOBALS['supcheckout_as_calls']['scheduled']);
+    }
+
+    private static function require_gate_open(): void
+    {
+        if (!AutoDeductResultVerifier::can_verify_success()) {
+            self::markTestSkipped('Automatic renewal charges are blocked (fix A1-01); the queueing contract applies once the gate opens.');
+        }
+    }
+
+    public function test_run_batch_matrix_counts_examines_every_order_and_queues_nothing_while_auto_charges_are_blocked(): void
     {
         foreach (array(0, 1, 49, 50, 51, 75, 100, 125) as $total) {
             HistoricalEnrollment::reset_cursor();
@@ -157,7 +240,8 @@ final class SchedulingCorrectionTest extends TestCase
             } while (!$stats['complete'] && $guard < 20);
 
             self::assertSame($total, $seen, "total={$total} must all be examined");
-            self::assertSame($total === 0 ? 0 : $total, count($GLOBALS['supcheckout_as_calls']['scheduled']), "total={$total} scheduled count");
+            // Fix A1-01: nothing is queued while automatic renewal charges are blocked.
+            self::assertSame(0, count($GLOBALS['supcheckout_as_calls']['scheduled']), "total={$total} scheduled count");
         }
     }
 
@@ -170,16 +254,14 @@ final class SchedulingCorrectionTest extends TestCase
         self::assertFalse(HistoricalEnrollment::parent_qualifies($pending));
     }
 
-    public function test_worker_skips_stale_cycle_without_mutating_claims(): void
+    public function test_worker_skips_stale_cycle_and_queues_no_replacement_while_auto_charges_are_blocked(): void
     {
         $parent = $this->make_parent(30);
         $stale_due = time() - 86400;
         DueParentWorker::handle(30, $stale_due);
-        // Stale cycle must not remain the only action; current due is scheduled.
-        self::assertNotEmpty($GLOBALS['supcheckout_as_calls']['scheduled']);
-        foreach ($GLOBALS['supcheckout_as_calls']['scheduled'] as $row) {
-            self::assertSame(30, $row['args']['parent_order_id']);
-        }
+        // Fix A1-01: while automatic renewal charges are blocked the stale action is not
+        // replaced by one for the current cycle (it was before the owner decision).
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
     public function test_pause_cancels_pending_supcheckout_actions(): void
@@ -192,11 +274,13 @@ final class SchedulingCorrectionTest extends TestCase
         self::assertCount(0, $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
-    public function test_resume_schedules_exactly_one_next_cycle(): void
+    public function test_resume_queues_nothing_and_notes_the_parent_while_auto_charges_are_blocked(): void
     {
         $parent = $this->make_parent(50);
-        self::assertTrue(LifecycleScheduler::schedule_resume($parent));
-        self::assertCount(1, $GLOBALS['supcheckout_as_calls']['scheduled']);
+        // Fix A1-01: resume queues nothing while automatic renewal charges are blocked.
+        self::assertFalse(LifecycleScheduler::schedule_resume($parent));
+        self::assertCount(0, $GLOBALS['supcheckout_as_calls']['scheduled']);
+        self::assertCount(1, $parent->notes);
     }
 
     public function test_duplicate_concurrent_style_calls_yield_one_action(): void
