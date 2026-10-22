@@ -6,6 +6,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Checkout: an amount with more decimals than its currency allows fails before the Charge (hardening A1-03)
+
+- Each supported currency now has its ISO 4217 minor units: 3 for KWD, BHD and OMR, 2 for SAR, USD, EUR, QAR and AED. An order total whose fraction, trailing zeros ignored, is longer than that, for example `18.045` AED from a store set to 3 AED decimals, used to reach UPayments. Card networks settle AED in 2 decimals, so the provider either refused it or rounded it, and a rounded payment then failed the exact amount check and left a paid order Pending.
+- Such a checkout now fails before any UPayments call. The customer sees the usual "Payment request could not be completed" notice and the order gets one private note naming the currency and its allowed decimals. The amount is never rounded. `18.040` AED and `1.505` KWD still Charge, encoded exactly as before. A currency without known minor units also fails closed. Classic checkout, Blocks (Store API) and the multi-merchant amount follow the same rule.
+- New report-only setup check `currency_decimals`: it warns, never fails, when the store's price decimals or a WooCommerce Multilingual currency's decimals exceed that currency's minor units, with `{currency, decimals, allowed}`. It changes no setting.
+
 ### Checkout: a long exact unit price no longer fails the payment (hardening A1-02)
 
 - UPayments caps `products[].price` at 7 characters. A checkout whose exact unit price is longer, for example `10499.99` AED, `1234.567` KWD, or a percentage coupon with quantity such as `1.640625`, used to fail with "Payment request could not be completed". It now sends the Charge without `products[]`, the same way it already handles any other line that cannot be described exactly.

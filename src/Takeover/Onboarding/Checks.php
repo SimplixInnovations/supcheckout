@@ -31,6 +31,9 @@ final class Checks {
     public const WCML_SETTINGS_OPTION = '_wcml_settings';
     public const WCML_LOCATION_OPTION_PREFIX = 'wcml_payment_gateway_';
     private const WCML_MULTI_CURRENCY = 2;
+    /** WooCommerce's price decimals option and its default (wc_get_price_decimals()). */
+    private const PRICE_DECIMALS_OPTION = 'woocommerce_price_num_decimals';
+    private const PRICE_DECIMALS_DEFAULT = 2;
 
     /**
      * @param string               $id      Check ID.
@@ -195,6 +198,79 @@ final class Checks {
                 'unsupported' => array_slice($unsupported, 0, Bounded::LIST_LIMIT),
                 'truncated' => count($unsupported) > Bounded::LIST_LIMIT,
             ));
+    }
+
+    /**
+     * Report-only: warns when the store currency, or a WooCommerce Multilingual currency
+     * while multi-currency is on, shows more price decimals than its ISO 4217 minor units.
+     * Checkout refuses such an amount before the Charge, so this catches the setting
+     * first. Unsupported currencies and unreadable decimals are left to the currency and
+     * multilingual checks. It never fails and never writes.
+     *
+     * @param Environment $env Environment.
+     * @return array{id:string, result:string, code:string|null, message:string, data:array<string,mixed>}
+     */
+    public static function currency_decimals(Environment $env) {
+        $configured = array();
+        $store = self::decimals_value($env->option(self::PRICE_DECIMALS_OPTION, self::PRICE_DECIMALS_DEFAULT));
+        if ($store !== null) {
+            $configured[] = array($env->currency(), $store);
+        }
+        $raw = $env->option(self::WCML_SETTINGS_OPTION, null);
+        if (is_array($raw) && isset($raw['enable_multi_currency'], $raw['currency_options'])
+            && $raw['enable_multi_currency'] === self::WCML_MULTI_CURRENCY && is_array($raw['currency_options'])
+        ) {
+            foreach ($raw['currency_options'] as $code => $entry) {
+                $decimals = is_array($entry) && isset($entry['num_decimals']) ? self::decimals_value($entry['num_decimals']) : null;
+                if ($decimals !== null) {
+                    $configured[] = array((string) $code, $decimals);
+                }
+            }
+        }
+
+        $mismatches = array();
+        foreach ($configured as $pair) {
+            $allowed = GatewaySettings::currency_minor_units($pair[0]);
+            if ($allowed !== null && $pair[1] > $allowed && !isset($mismatches[$pair[0]])) {
+                $mismatches[$pair[0]] = array('currency' => $pair[0], 'decimals' => $pair[1], 'allowed' => $allowed);
+            }
+        }
+        if ($mismatches === array()) {
+            return self::check('currency_decimals', self::PASS, null,
+                __('Every supported currency shows no more decimals than it allows.', 'supcheckout'));
+        }
+
+        $list = array_values($mismatches);
+        $first = $list[0];
+        return self::check('currency_decimals', self::WARN, 'currency_decimals_exceed_minor_units',
+            sprintf(
+                /* translators: 1: ISO 4217 currency code, 2: configured price decimals, 3: decimals the currency allows. */
+                __('%1$s is set to %2$d price decimals but allows only %3$d. SUPCheckout refuses a payment whose total uses the extra decimals, before UPayments is called. Set each listed currency to its allowed decimals in the WooCommerce or WooCommerce Multilingual currency settings; SUPCheckout does not change them.', 'supcheckout'),
+                $first['currency'],
+                $first['decimals'],
+                $first['allowed']
+            ),
+            array(
+                'currency' => $first['currency'],
+                'decimals' => $first['decimals'],
+                'allowed' => $first['allowed'],
+                'mismatches' => array_slice($list, 0, Bounded::LIST_LIMIT),
+                'truncated' => count($list) > Bounded::LIST_LIMIT,
+            ));
+    }
+
+    /**
+     * @param mixed $value A price-decimals setting.
+     * @return int|null The decimals, or null when the value is not a plain non-negative integer.
+     */
+    private static function decimals_value($value) {
+        if (is_int($value)) {
+            return $value >= 0 ? $value : null;
+        }
+        if (is_string($value) && preg_match('/^[0-9]{1,2}$/D', $value) === 1) {
+            return (int) $value;
+        }
+        return null;
     }
 
     /**

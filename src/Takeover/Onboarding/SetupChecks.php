@@ -47,6 +47,7 @@ final class SetupChecks {
             Checks::credential($credential),
             Checks::account_mode($credential),
             Checks::currency($this->env),
+            Checks::currency_decimals($this->env),
             Checks::callback_reachable($callback),
             Checks::cache_exclusion($callback),
             $this->cache_layers($callback, $probe),
