@@ -65,6 +65,8 @@ final class PaymentLifecycle {
     private const SWEEP_CHECKED_META = '_supcheckout_sweep_checked_at_v1';
     private const SWEEP_PARKED_META = '_supcheckout_sweep_parked_v1';
     private const NO_CALLBACK_NOTED_META = '_supcheckout_no_callback_noted_v1';
+    // A reconcile event overdue by more than this is treated as lost by the sweep.
+    private const SWEEP_LOST_EVENT_SECONDS = 3600;
     // Stored provider results that ProviderResult::classify() treats as terminal
     // (CAPTURED, FAILED, CANCELLED); ReconciliationSweepTest pins the two together.
     private const TERMINAL_PROVIDER_RESULTS = array(
@@ -181,7 +183,7 @@ final class PaymentLifecycle {
      */
     public static function sweep_order($order_id) {
         $order_id = self::parse_order_id($order_id);
-        if ($order_id === null || self::has_scheduled_reconciliation($order_id)) {
+        if ($order_id === null) {
             return;
         }
         try {
@@ -191,6 +193,12 @@ final class PaymentLifecycle {
             }
             $order->update_meta_data(self::SWEEP_CHECKED_META, time());
             $order->save();
+            // A scheduled check owns the order, unless it is overdue by more than an
+            // hour: WP-Cron then lost it (no traffic, a failed run) and the sweep takes over.
+            $scheduled = self::next_scheduled(self::RECONCILE_HOOK, array($order_id));
+            if ($scheduled !== false && $scheduled[0] >= time() - self::SWEEP_LOST_EVENT_SECONDS) {
+                return;
+            }
             if (method_exists($order, 'get_status') && (string) $order->get_status() === 'failed'
                 && !self::failed_order_sweepable($order)
             ) {
@@ -203,20 +211,17 @@ final class PaymentLifecycle {
     }
 
     /**
-     * A failed order is re-checked only for an unverified cursor or for this attempt's
-     * trusted cursor with a non-terminal result (verify-P, A1-06(b)).
+     * A failed order is re-checked only for an unverified cursor or for a trusted
+     * cursor with a non-terminal result (verify-P, A1-06(b)). A trusted cursor of an
+     * earlier attempt then takes reconcile_order()'s stale-attempt path: the track is
+     * queued once on the bounded capture-only check and the cursor is reset.
      */
     private static function failed_order_sweepable($order) {
         if (self::parse_track_id(Keys::read_order_meta($order, self::UNVERIFIED_TRACK_META)) !== null) {
             return true;
         }
-        $current = self::parse_generic_identifier(Keys::read_order_meta($order, 'UPayments_order_id'), 255);
-        $trusted_requested = self::parse_generic_identifier(Keys::read_order_meta($order, self::TRUSTED_REQUESTED_META), 255);
         $result = Keys::read_order_meta($order, self::PROVIDER_RESULT_META);
         return self::trusted_cursor_present($order)
-            && $current !== null
-            && $trusted_requested !== null
-            && hash_equals($current, $trusted_requested)
             && is_string($result) && $result !== ''
             && !in_array($result, self::TERMINAL_PROVIDER_RESULTS, true);
     }
@@ -242,19 +247,23 @@ final class PaymentLifecycle {
                 || !method_exists($order, 'update_meta_data')
                 || !method_exists($order, 'add_order_note')
                 || !method_exists($order, 'save')
-                || !self::basic_order_preflight($order, self::gateway())
-                || (string) $order->get_status() !== 'pending'
-                || self::is_verified_capture($order)
-                || self::trusted_cursor_present($order)
-                || self::parse_track_id(Keys::read_order_meta($order, self::UNVERIFIED_TRACK_META)) !== null
                 || (string) $order->get_meta(self::NO_CALLBACK_NOTED_META) !== ''
             ) {
                 return;
             }
+            // Every candidate is flagged, noted or not: a rejected one would otherwise
+            // be selected again every run for 48 h.
             $order->update_meta_data(self::NO_CALLBACK_NOTED_META, 1);
-            $order->add_order_note(
-                __('SUPCheckout has not received a UPayments callback for this order. This is usual for an abandoned payment; if the customer reports paying, check the UPayments merchant dashboard before fulfilling the order.', 'supcheckout')
-            );
+            if (self::basic_order_preflight($order, self::gateway())
+                && (string) $order->get_status() === 'pending'
+                && !self::is_verified_capture($order)
+                && !self::trusted_cursor_present($order)
+                && self::parse_track_id(Keys::read_order_meta($order, self::UNVERIFIED_TRACK_META)) === null
+            ) {
+                $order->add_order_note(
+                    __('SUPCheckout has not received a UPayments callback for this order. This is usual for an abandoned payment; if the customer reports paying, check the UPayments merchant dashboard before fulfilling the order.', 'supcheckout')
+                );
+            }
             $order->save();
         } catch (\Throwable $e) {
             self::log('missing_callback_note_exception', 'warning');
@@ -568,6 +577,11 @@ final class PaymentLifecycle {
             ) {
                 // An authenticated provider response that cannot bind this cursor
                 // is definitive negative evidence for using that unverified cursor.
+                // A callback did arrive, so the hourly sweep must not later call
+                // the order "no callback received" (saved by clear_reconciliation).
+                if (method_exists($order, 'update_meta_data')) {
+                    $order->update_meta_data(self::NO_CALLBACK_NOTED_META, 1);
+                }
                 self::clear_reconciliation($order);
             }
 
@@ -1769,8 +1783,9 @@ final class PaymentLifecycle {
     }
 
     /**
-     * Takes an order out of the hourly sweep until its next payment attempt
-     * (reset_attempt_cursor_state() unparks it).
+     * Takes an order out of the hourly sweep until its next payment attempt: the next
+     * Charge (CheckoutOrchestrator::record_new_attempt()) or a cursor reset for a new
+     * attempt (reset_attempt_cursor_state()) unparks it.
      */
     private static function park_from_sweep($order, $track_id) {
         if (!is_object($order) || !method_exists($order, 'update_meta_data') || !method_exists($order, 'save')) {

@@ -39,12 +39,16 @@ final class ReconciliationSweep {
         add_action(self::HOOK, array(self::class, 'run'));
         add_action('admin_init', array(self::class, 'ensure_scheduled'));
         // Covers stores updated through WP-CLI or an auto-update with no admin visit after.
-        add_action('woocommerce_init', array(self::class, 'ensure_scheduled_in_background'));
+        // Not woocommerce_init: WooCommerce fires it at init:0, before Action Scheduler
+        // initialises at init:1, so its API would refuse to schedule.
+        add_action('action_scheduler_init', array(self::class, 'ensure_scheduled_in_background'));
     }
 
     /**
      * Ensures the recurring action from WP-Cron and WP-CLI requests only, so storefront
-     * requests never pay for it.
+     * requests never pay for it. With ALTERNATE_WP_CRON, cron runs inside a visitor
+     * request that is not flagged as a cron request, so on those stores only the
+     * admin_init path ensures the action.
      *
      * @return void
      */
@@ -67,6 +71,11 @@ final class ReconciliationSweep {
             return;
         }
         if (!function_exists('as_has_scheduled_action') || !function_exists('as_schedule_recurring_action')) {
+            return;
+        }
+        // Before initialisation the Action Scheduler API returns false/0 and flags
+        // _doing_it_wrong; no marker is written, so a later request tries again.
+        if (class_exists('ActionScheduler') && !\ActionScheduler::is_initialized()) {
             return;
         }
         $now = time();

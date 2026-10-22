@@ -9,6 +9,14 @@
     },
     {
         "kind": "action",
+        "hook": "action_scheduler_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
         "hook": "added_post_meta",
         "priority": 10,
         "accepted_args": 4,
@@ -283,14 +291,6 @@
         "kind": "action",
         "hook": "woocommerce_custom_type_add_to_cart",
         "priority": 30,
-        "accepted_args": 1,
-        "registered_in": "load",
-        "contexts": "admin cli frontend no_woocommerce"
-    },
-    {
-        "kind": "action",
-        "hook": "woocommerce_init",
-        "priority": 10,
         "accepted_args": 1,
         "registered_in": "load",
         "contexts": "admin cli frontend no_woocommerce"
@@ -754,6 +754,14 @@
     {
         "kind": "hook_reference",
         "type": "action",
+        "hook": "action_scheduler_init",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
         "hook": "added_post_meta",
         "priority": 10,
         "accepted_args": 4,
@@ -1050,14 +1058,6 @@
     {
         "kind": "hook_reference",
         "type": "action",
-        "hook": "woocommerce_init",
-        "priority": 10,
-        "accepted_args": 1,
-        "contexts": "static"
-    },
-    {
-        "kind": "hook_reference",
-        "type": "action",
         "hook": "woocommerce_my_account_my_orders_column_order_status",
         "priority": 10,
         "accepted_args": 1,
@@ -1313,17 +1313,6 @@
         "unique": false,
         "registered_in": "admin_init",
         "contexts": "admin"
-    },
-    {
-        "kind": "schedule_call",
-        "function": "as_schedule_recurring_action",
-        "hook": "supcheckout_reconciliation_sweep",
-        "group": "supcheckout",
-        "interval": 3600,
-        "args": "[]",
-        "unique": false,
-        "registered_in": "woocommerce_init",
-        "contexts": "cli"
     },
     {
         "kind": "schedule_call",

@@ -1657,6 +1657,8 @@ class CheckoutOrchestrator {
                 }
                 Keys::delete_order_meta($order, "UPayments_order_id");
                 Keys::add_order_meta($order, "UPayments_order_id", $unique_order_id);
+                // A new attempt re-enters the hourly reconciliation sweep (PaymentLifecycle).
+                $order->delete_meta_data('_supcheckout_sweep_parked_v1');
                 $order->save_meta_data();
 
                 return ["result" => "success", "redirect" => $redirect_url];

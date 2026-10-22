@@ -17,7 +17,18 @@ function supcheckout_sweep_test_reset() {
         'has_result' => false,
         'schedule_calls' => array(),
         'schedule_result' => 1001,
+        // Action Scheduler initialises at init:1; WooCommerce fires woocommerce_init at init:0.
+        'as_initialized' => true,
     );
+}
+
+if (!class_exists('ActionScheduler', false)) {
+    // The real ActionScheduler::is_initialized( $function_name = null ).
+    final class ActionScheduler {
+        public static function is_initialized($function_name = null) {
+            return !empty($GLOBALS['supcheckout_sweep_test']['as_initialized']);
+        }
+    }
 }
 
 if (!function_exists('wp_doing_ajax')) {

@@ -81,7 +81,7 @@ final class ReconciliationSweepTest extends TestCase {
         self::assertSame(1, $GLOBALS['supcheckout_sweep_test']['has_calls']);
     }
 
-    public function test_register_ensures_from_admin_init_and_from_woocommerce_init(): void {
+    public function test_register_ensures_from_admin_init_and_once_action_scheduler_is_initialised(): void {
         ReconciliationSweep::register();
 
         $hooks = array_map(static function ($call) {
@@ -89,10 +89,22 @@ final class ReconciliationSweepTest extends TestCase {
         }, $GLOBALS['supcheckout_test_action_calls']);
         self::assertContains(array(ReconciliationSweep::HOOK, array(ReconciliationSweep::class, 'run')), $hooks);
         self::assertContains(array('admin_init', array(ReconciliationSweep::class, 'ensure_scheduled')), $hooks);
-        self::assertContains(array('woocommerce_init', array(ReconciliationSweep::class, 'ensure_scheduled_in_background')), $hooks);
+        // woocommerce_init fires at init:0, before Action Scheduler initialises at init:1.
+        self::assertContains(array('action_scheduler_init', array(ReconciliationSweep::class, 'ensure_scheduled_in_background')), $hooks);
+        self::assertNotContains('woocommerce_init', array_column($hooks, 0));
     }
 
-    public function test_woocommerce_init_ensures_only_in_background_requests_so_the_storefront_pays_nothing(): void {
+    public function test_an_uninitialised_action_scheduler_is_never_queried(): void {
+        $GLOBALS['supcheckout_sweep_test']['as_initialized'] = false;
+
+        ReconciliationSweep::ensure_scheduled();
+
+        self::assertSame(0, $GLOBALS['supcheckout_sweep_test']['has_calls']);
+        self::assertSame(array(), $GLOBALS['supcheckout_sweep_test']['schedule_calls']);
+        self::assertArrayNotHasKey(self::MARKER, $GLOBALS['supcheckout_test_options'], 'no marker, so the next request tries again');
+    }
+
+    public function test_background_ensure_runs_only_in_background_requests_so_the_storefront_pays_nothing(): void {
         ReconciliationSweep::ensure_scheduled_in_background();
         self::assertSame(0, $GLOBALS['supcheckout_sweep_test']['has_calls'], 'a storefront request makes no query and reads no marker');
         self::assertSame(array(), $GLOBALS['supcheckout_test_option_calls']);

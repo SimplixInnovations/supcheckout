@@ -91,8 +91,10 @@ if ($violations !== array()) {
 // The takeover copy runner (0b Task 6) registers its Action Scheduler hook and its watchdog
 // (action_scheduler_init) only while the takeover is copying: every other state boots
 // without them, so idle stores add nothing at runtime. These boots are checked, never recorded.
+// ReconciliationSweep also hooks action_scheduler_init in every state (U2 review I-1: its
+// background ensure must wait for Action Scheduler), so that one entry is discounted.
 foreach (array('idle' => 0, 'preflight_ok' => 0, 'copying' => 2, 'verified' => 0, 'cut_over' => 0) as $takeover_status => $expected) {
-    $registered = 0;
+    $registered = -1;
     foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
         if ($entry['kind'] === 'action' && in_array($entry['hook'], array('supcheckout_takeover_copy_batch', 'action_scheduler_init'), true)) {
             $registered++;

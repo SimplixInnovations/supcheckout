@@ -1980,8 +1980,10 @@ namespace {
     ok(\Simplixi\SUPCheckout\Payment\state()['wc_get_orders_calls'] <= 4 * 5, 'U2 A3-03 S2 each run makes a bounded number of order queries');
 
     // S3 (A1-06(b), verify-P correction): a failed order is swept only with an
-    // unverified cursor or a current-attempt trusted cursor whose result is not
-    // terminal. A failed order with a terminal or stale-attempt trusted cursor is not.
+    // unverified cursor or a trusted cursor whose result is not terminal. A failed
+    // order with a terminal trusted cursor is not. A non-terminal trusted cursor of an
+    // earlier attempt takes reconcile_order()'s existing stale-attempt path (U2 review
+    // M-1, option B): queued once on the bounded capture-only check, cursor reset.
     $gateway = $u2_reset();
     $f1 = $u2_order(820, 'failed');
     $u2_unverified($f1, 'track-f1');
@@ -1997,6 +1999,7 @@ namespace {
     $f4->meta['_simplixpay_upayments_status_track_v1'] = 'track-f4';
     $f4->meta['_simplixpay_upayments_status_requested_v1'] = 'merchant-order-823-old';
     $f4->meta['_simplixpay_upayments_provider_result_v1'] = 'NULL';
+    $f4->meta[$prior_meta] = array('merchant-order-823-old');
     $f5 = $u2_order(824, 'failed');
     $f5->created = time() - 7200;
     $u2_provider(array(
@@ -2008,7 +2011,11 @@ namespace {
     same($s3, array('track-f1', 'track-f2'), 'U2 A1-06(b) S3 the sweep looks up a failed order with an unverified or a non-terminal current-attempt cursor, and no other failed order');
     same(array($f1->get_status(), $f1->payment_complete_calls, $f1->get_transaction_id()), array('processing', 1, 'pay-f1'), 'U2 A1-06(b) S3 a retried failed order whose capture was missed is completed once');
     same(array($f3->get_status(), $f3->get_meta($u2_checked)), array('failed', ''), 'U2 A1-06(b) S3 a failed order with a terminal trusted cursor is not selected (control)');
-    same(array($f4->get_meta('_simplixpay_upayments_status_track_v1'), $f4->get_meta('_simplixpay_upayments_secondary_pending_v1')), array('track-f4', ''), 'U2 A1-06(b) S3 a failed order whose trusted cursor is for an earlier attempt is left alone');
+    same($c_queue_pairs($f4), array(array('track' => 'track-f4', 'requested' => 'merchant-order-823-old')), 'U2 review M-1 S3 an earlier attempt\'s non-terminal trusted track on a failed order is queued once on the capture-only check (was left alone at cf2a31b)');
+    same($f4->get_meta('_simplixpay_upayments_status_track_v1'), '', 'U2 review M-1 S3 the stale-attempt trusted cursor is reset, so the order leaves the sweep');
+    ok($c_secondary_scheduled(823), 'U2 review M-1 S3 the bounded secondary check is scheduled');
+    same(array($f4->get_status(), $f4->payment_complete_calls), array('failed', 0), 'U2 review M-1 S3 queueing changes no payment state');
+    same(count($u2_sweep()), 0, 'U2 review M-1 S3 a second run looks nothing up (the secondary check owns track-f4)');
     same(count($f5->notes), 0, 'U2 A1-06(b) S3 a failed order without a cursor gets no sweep note');
 
     // S4 (A1-04 trusted-cursor path, now noted once by U1): an order whose trusted
@@ -2057,6 +2064,46 @@ namespace {
     ok(isset($quiet->notes[0]) && strpos($quiet->notes[0], 'callback') !== false && strpos($quiet->notes[0], 'if the customer reports paying') !== false, 'U2 A1-09 S5 the note is neutral: no callback was received; check the dashboard if the customer reports paying');
     same($quiet->status, 'pending', 'U2 A1-09 S5 the note changes nothing else');
     same(array(count($fresh->notes), count($old->notes), count($cursor->notes), count($uncharged->notes), count($failed_quiet->notes)), array(0, 0, 0, 0, 0), 'U2 A1-09 S5 no note before 30 minutes, after 48 hours, with a cursor, without a Charge, or on a failed order');
+
+    // S5b (U2 review I-2): a first callback whose amount does not bind clears the
+    // unverified cursor, which used to make the order look like "no callback". The
+    // sweep must leave only U1's mismatch note.
+    $gateway = $u2_reset();
+    $mismatch = $u2_order(836);
+    $mismatch->created = time() - 7200;
+    $tx = transaction_for($mismatch, 'CAPTURED', 'track-m', 'pay-m');
+    $tx['total_price'] = '10.001';
+    set_provider_transaction($tx);
+    PaymentLifecycle::route_callback($gateway, $mismatch, 'track-m', 'merchant-order-836', 'webhook');
+    same(count($mismatch->notes), 1, 'U2 review I-2 S5b the first callback leaves the mismatch note (U1)');
+    same($mismatch->get_meta('_simplixpay_upayments_unverified_track_v1'), '', 'U2 review I-2 S5b the mismatch clears the unverified cursor (U1)');
+    $u2_sweep();
+    $u2_sweep();
+    same(count($mismatch->notes), 1, 'U2 review I-2 S5b two sweeps leave only the mismatch note (a no-callback note was added at cf2a31b)');
+    ok(isset($mismatch->notes[0]) && strpos($mismatch->notes[0], 'amount') !== false, 'U2 review I-2 S5b the remaining note is the mismatch note');
+    // A permanent rejection on the PHP side also sets the flag, so the order is not
+    // re-selected every run for 48 h.
+    $paid_pending = $u2_order(837);
+    $paid_pending->created = time() - 7200;
+    $paid_pending->meta['_upay_verified_capture'] = '1';
+    $u2_sweep();
+    same(array(count($paid_pending->notes), $paid_pending->get_meta('_supcheckout_no_callback_noted_v1')), array(0, 1), 'U2 review I-2 S5b a rejected candidate gets no note but is flagged, so it is not selected again');
+
+    // S5c (U2 review M-3): an order whose reconcile event is not overdue is marked
+    // swept without a lookup, so it does not hold a never-swept slot; an event overdue
+    // by more than an hour is treated as lost and the order is swept.
+    $gateway = $u2_reset();
+    $due = $u2_order(838);
+    $u2_unverified($due, 'track-due');
+    \Simplixi\SUPCheckout\Payment\state()['scheduled']['simplixpay_upayments_reconcile_order|[838]'] = time() + 60;
+    $lost_event = $u2_order(839);
+    $u2_unverified($lost_event, 'track-lost-event');
+    \Simplixi\SUPCheckout\Payment\state()['scheduled']['simplixpay_upayments_reconcile_order|[839]'] = time() - 2 * 3600;
+    $u2_provider(array('track-lost-event' => transaction_for($lost_event, 'CAPTURED', 'track-lost-event', 'pay-lost-event')));
+    same($u2_sweep(), array('track-lost-event'), 'U2 review M-3 S5c only the order whose event is overdue by more than an hour is looked up');
+    ok((int) $due->get_meta($u2_checked) > 0, 'U2 review M-3 S5c an order with a pending event is still marked swept (it was not at cf2a31b)');
+    same(array($due->get_status(), $due->payment_complete_calls), array('pending', 0), 'U2 review M-3 S5c the order with a pending event is left to that event');
+    same(array($lost_event->get_status(), $lost_event->payment_complete_calls), array('processing', 1), 'U2 review M-3 S5c the order whose event was lost is completed once by the sweep (skipped at cf2a31b)');
 
     // S6 (A6-04): one order whose save() throws (for example an ERP-sync hook) no
     // longer aborts the sweep, and a throwing callback still returns an outcome.
