@@ -52,6 +52,14 @@
         "hook": "admin_notices",
         "priority": 10,
         "accepted_args": 1,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "action",
+        "hook": "admin_notices",
+        "priority": 10,
+        "accepted_args": 1,
         "registered_in": "plugins_loaded",
         "contexts": "no_woocommerce"
     },
@@ -779,6 +787,14 @@
         "kind": "hook_reference",
         "type": "action",
         "hook": "admin_menu",
+        "priority": 10,
+        "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "action",
+        "hook": "admin_notices",
         "priority": 10,
         "accepted_args": 1,
         "contexts": "static"

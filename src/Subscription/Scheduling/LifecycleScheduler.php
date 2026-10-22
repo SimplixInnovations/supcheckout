@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Subscription\Scheduling;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
@@ -15,6 +16,9 @@ use Simplixi\SUPCheckout\Takeover\Keys;
  */
 final class LifecycleScheduler
 {
+    /** Order meta flag: the parent already carries the paused-renewal note (fix A1-01). */
+    public const PAUSED_NOTE_META = '_supcheckout_auto_renewal_paused_note_v1';
+
     public static function register(): void
     {
         add_action('woocommerce_payment_complete', array(__CLASS__, 'maybe_schedule_initial'), 20, 1);
@@ -69,6 +73,11 @@ final class LifecycleScheduler
         if (!HistoricalEnrollment::parent_qualifies($order)) {
             return false;
         }
+        if (!AutoDeductResultVerifier::can_verify_success()) {
+            // Automatic renewal charges are blocked: queue nothing, tell the merchant once.
+            self::note_auto_renewal_paused($order);
+            return false;
+        }
         $due = HistoricalEnrollment::next_run_at($order);
         if ($due === null) {
             return false;
@@ -78,6 +87,36 @@ final class LifecycleScheduler
             return true;
         }
         return ActionSchedulerBridge::ensure_cycle_action((int) $order->get_id(), $due, null, 0);
+    }
+
+    /**
+     * One order note per subscription parent: automatic renewal charges are paused, so the
+     * merchant collects the renewal manually (fix A1-01). Guarded by an order meta flag and
+     * written through the order CRUD (HPOS-safe). A renewal child or a one-time order gets
+     * nothing.
+     *
+     * @return bool True when this call added the note.
+     */
+    public static function note_auto_renewal_paused(\WC_Order $order): bool
+    {
+        if (Keys::read_order_meta($order, 'UPayments_AutoDeduction') === 'yes') {
+            return false;
+        }
+        $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
+        if (!is_string($plan) || $plan === '' || $plan === 'one_time') {
+            return false;
+        }
+        if ((string) $order->get_meta(self::PAUSED_NOTE_META) === '1') {
+            return false;
+        }
+        // The flag is saved before the note: a later pass (the hourly feeder, a queued
+        // worker action, a resume) finds it and adds no second note.
+        $order->update_meta_data(self::PAUSED_NOTE_META, '1');
+        $order->save();
+        $order->add_order_note(
+            __('Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. Collect this renewal manually or send the customer a payment link.', 'supcheckout')
+        );
+        return true;
     }
 
     /**

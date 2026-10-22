@@ -502,7 +502,11 @@ function coexistence_child($root, $scenario, $official_stub) {
 
     $notices = 0;
     foreach ($GLOBALS['coexistence']['actions'] as $action) {
-        if ($action[0] === 'admin_notices') {
+        // The paused-renewal notice (fix A1-01) is a booted SUPCheckout's own store notice,
+        // registered on every boot and rendered only when subscriptions are enabled; it is
+        // not a conflict notice.
+        $paused_renewal_notice = is_array($action[1]) && $action[1] === array('Simplixi\\SUPCheckout\\Subscription\\Presentation', 'render_auto_renewal_paused_notice');
+        if ($action[0] === 'admin_notices' && !$paused_renewal_notice) {
             $notices++;
             if (strpos($scenario, 'notice_') === 0) {
                 call_user_func($action[1]);

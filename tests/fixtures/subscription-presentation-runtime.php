@@ -24,6 +24,15 @@ namespace Simplixi\SUPCheckout\Subscription\Cron {
 namespace {
     class WooCommerce {}
 
+    // The admin screen the paused-renewal notice is asked on (null: none yet).
+    function get_current_screen() {
+        return isset($GLOBALS['supcheckout_test_current_screen']) ? $GLOBALS['supcheckout_test_current_screen'] : null;
+    }
+
+    function wc_get_screen_ids() {
+        return array('woocommerce_page_wc-settings', 'woocommerce_page_wc-orders', 'shop_order', 'edit-shop_order');
+    }
+
     class WC_Product {
         public $type = 'simple';
         public $id = 12;

@@ -128,8 +128,13 @@ final class SchedulingBridgeEnrollmentTest extends TestCase
 
         $stats = HistoricalEnrollment::enroll_slice(array($a, $b), true);
         self::assertSame(2, $stats['scanned']);
-        self::assertSame(1, $stats['skipped']);
-        self::assertSame(1, $stats['scheduled']);
+        // Fix A1-01: while automatic renewal charges are blocked the qualifying parent is
+        // noted, not queued (it was scheduled=1 before the owner decision of 2026-10-22).
+        self::assertSame(2, $stats['skipped']);
+        self::assertSame(0, $stats['scheduled']);
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
+        self::assertCount(1, $a->notes, 'the qualifying parent gets the paused note');
+        self::assertSame(array(), $b->notes, 'a renewal child gets none');
         self::assertTrue($stats['complete']);
         self::assertLessThanOrEqual(HistoricalEnrollment::BATCH_SIZE, $stats['scanned']);
     }

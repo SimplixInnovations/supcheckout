@@ -112,6 +112,15 @@ class Scheduler
             return self::$last_outcome;
         }
         try {
+            if (!AutoDeductResultVerifier::can_verify_success()) {
+                // Fix A1-01 (owner decision 2026-10-22): no automatic renewal charge is sent
+                // while its success cannot be verified. Stop before the renewal-card lookup
+                // and before any cycle claim; not_eligible is never retried by the worker.
+                // The parent gets one note so the merchant collects the renewal manually.
+                LifecycleScheduler::note_auto_renewal_paused($order);
+                self::$last_outcome = self::OUTCOME_NOT_ELIGIBLE;
+                return self::$last_outcome;
+            }
             if (!CycleClaim::maybe_install()) {
                 self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
                 return self::$last_outcome;

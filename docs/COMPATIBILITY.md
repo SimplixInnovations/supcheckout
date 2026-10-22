@@ -166,7 +166,7 @@ Historical package-root movement remains certified for both pre-stable `simplixp
 | Analytics return/replay | **Verified — characterization** | Replayed verified browser callbacks do not mutate payment state and repeat the same order-received navigation; SUPCheckout emits no tested GA/Meta/GTM purchase API itself. Downstream tracker deduplication is not owned by SUPCheckout. |
 | Automatic WooCommerce refunds | **Unsupported** | Withheld pending a durable idempotency/reconciliation design. |
 | Arbitrary marketplace multi-split | **Unsupported** | Current boundary is one additional merchant only. |
-| Live subscription auto-deduction | **External/manual** | Non-idempotent provider mutation is not executed merely for CI. |
+| Live subscription auto-deduction | **External/manual — automatic renewal charges blocked** | SUPCheckout sends no automatic renewal charge while its success cannot be verified (owner decision 2026-10-22); renewals are collected manually or by payment link. Non-idempotent provider mutation is not executed merely for CI. |
 | Wallet payment completion | **External/manual** | Requires eligible provider account/device evidence. |
 | WPML / WCML / multicurrency | **External/manual** | Requires dedicated real-environment qualification. |
 | RTL / Arabic | **External/manual** | Requires real admin/checkout/account/return UI validation. |

@@ -72,6 +72,9 @@ require_once dirname(__DIR__, 2) . '/src/Release/Identity.php';
 require_once dirname(__DIR__, 2) . '/src/Provider/MultiMerchantContract.php';
 require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
 require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
+// The Enable Subscriptions description reads the automatic-charge gate (fix A1-01); the
+// plugin loads the verifier before any gateway builds its fields.
+require_once dirname(__DIR__, 2) . '/src/Subscription/AutoDeductResultVerifier.php';
 require_once dirname(__DIR__, 2) . '/src/Admin/GatewaySettings.php';
 
 $pass = 0;

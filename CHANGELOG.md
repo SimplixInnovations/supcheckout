@@ -6,6 +6,14 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Subscriptions: automatic renewal charges are blocked (hardening fix A1-01)
+
+- **SUPCheckout no longer sends an automatic renewal charge** (UPayments auto-deduct) while it cannot verify that the charge succeeded (owner decision 2026-10-22). Before, a due renewal charged the customer's saved card and was then held with no renewal order and no note.
+- A due subscription parent now stops before the saved-card lookup and before any billing-cycle claim. No due-parent action is queued for it.
+- Each subscription parent gets one order note: "Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. Collect this renewal manually or send the customer a payment link."
+- Store managers see an admin notice on WooCommerce and Plugins screens while "Enable Subscriptions" is on. The order box and My Account show "Automatic Renewal: Paused" instead of a next billing date, and the setting description says that automatic renewal charges are paused.
+- Collect renewals manually or by payment link. Stored subscription data, the billing-attempt history and the `upay_process_subscriptions` hook are unchanged.
+
 ### Onboarding backend: services and the admin REST API (Sub-project 0c)
 
 - **Admin-only REST API `supcheckout/v1`** for the smart switch and the new-merchant checks: status, preflight, switch, rollback, abort, finalize (with a dry run), stale-claims release, self-test and setup checks. While the official UPayments plugin is active, only the 8 takeover routes are registered. There are no screens yet; the wizard comes in Sub-project 2.

@@ -195,10 +195,9 @@ final class SchedulingRetryIsolationTest extends TestCase
     public function test_resume_schedules_exactly_one_attempt0(): void
     {
         $parent = $this->make_parent(41);
-        self::assertTrue(LifecycleScheduler::schedule_resume($parent));
-        $rows = $GLOBALS['supcheckout_as_calls']['scheduled'];
-        self::assertCount(1, $rows);
-        self::assertSame(0, $rows[0]['args']['retry_attempt']);
+        // Fix A1-01: resume queues no attempt while automatic renewal charges are blocked.
+        self::assertFalse(LifecycleScheduler::schedule_resume($parent));
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
     public function test_repair_feeder_does_not_compete_with_pending_retry(): void

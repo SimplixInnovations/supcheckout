@@ -30,6 +30,7 @@ final class Composition {
         add_action('woocommerce_my_account_my_orders_column_order_type', array(Presentation::class, 'render_account_order_type'));
         add_action('woocommerce_my_account_my_orders_column_order_status', array(Presentation::class, 'render_account_subscription_status'));
         add_action('woocommerce_admin_order_data_after_billing_address', array(Presentation::class, 'render_admin_order_summary'), 10, 1);
+        add_action('admin_notices', array(Presentation::class, 'render_auto_renewal_paused_notice'));
     }
 
     /**

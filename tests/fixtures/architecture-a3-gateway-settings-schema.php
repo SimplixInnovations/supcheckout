@@ -122,6 +122,8 @@ return array(
         'label' => 'Enable subscription payments',
         'default' => 'no',
         'desc_tip' => true,
-        'description' => 'Only Subscription Products are allowed at checkout If Subscription is enabled.',
+        // Fix A1-01 (owner decision 2026-10-22): the description states that automatic
+        // renewal charges are paused.
+        'description' => 'Only Subscription Products are allowed at checkout If Subscription is enabled. Automatic renewal charges are paused: SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. Collect renewals manually or by payment link.',
     ),
 );

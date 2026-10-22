@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription\Scheduling;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
+
 /**
  * Narrow due-parent worker. Orchestration only — charge authority stays
  * with CycleClaim + the R3 Scheduler dispatch path.
@@ -53,7 +55,10 @@ final class DueParentWorker
         // Stale-cycle detection compares billing-cycle identity only.
         if ($queued_due > 0 && !self::same_cycle($queued_due, $current_due)) {
             self::log('stale_cycle', $parent_id, 'queued_cycle_mismatch', $queued_due, $attempt);
-            if (!ActionSchedulerBridge::has_any_open_cycle_attempt($parent_id, $current_due)) {
+            // While automatic renewal charges are blocked (fix A1-01) no replacement is queued.
+            if (AutoDeductResultVerifier::can_verify_success()
+                && !ActionSchedulerBridge::has_any_open_cycle_attempt($parent_id, $current_due)
+            ) {
                 ActionSchedulerBridge::ensure_cycle_action($parent_id, $current_due, null, 0);
             }
             return;

@@ -3417,7 +3417,7 @@ if (is_resource($proc)) {
     fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
     proc_close($proc);
 }
-upay_assert_eq($scheduler_blob, '843b28b6d7b79b55767ba444dc37dfc7612bc6d2', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
+upay_assert_eq($scheduler_blob, '328a8eb325a154d1650399d920637fcab3ca47c9', 'SEM14-H Scheduler.php blob byte-identical', 'static_source');
 
 // --- SEM14-I: CycleClaim.php reviewed protected blob ---
 $cycle_blob = '';

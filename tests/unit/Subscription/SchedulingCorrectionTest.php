@@ -128,8 +128,13 @@ final class SchedulingCorrectionTest extends TestCase
         self::assertTrue($b2['complete']);
         self::assertSame(0, $b2['cursor'], 'cursor resets after a complete pass for repair');
 
-        // No permanent starvation: all 75 eventually scheduled.
-        self::assertSame(75, $b1['scheduled'] + $b2['scheduled']);
+        // Fix A1-01: the bounded feeder still reaches every parent (no starvation), but while
+        // automatic renewal charges are blocked it notes each one instead of queueing it.
+        self::assertSame(0, $b1['scheduled'] + $b2['scheduled']);
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
+        foreach (range(1, 75) as $i) {
+            self::assertCount(1, wc_get_order($i)->notes, "parent {$i} is noted once");
+        }
     }
 
     public function test_run_batch_matrix_counts(): void
@@ -157,7 +162,8 @@ final class SchedulingCorrectionTest extends TestCase
             } while (!$stats['complete'] && $guard < 20);
 
             self::assertSame($total, $seen, "total={$total} must all be examined");
-            self::assertSame($total === 0 ? 0 : $total, count($GLOBALS['supcheckout_as_calls']['scheduled']), "total={$total} scheduled count");
+            // Fix A1-01: nothing is queued while automatic renewal charges are blocked.
+            self::assertSame(0, count($GLOBALS['supcheckout_as_calls']['scheduled']), "total={$total} scheduled count");
         }
     }
 
@@ -175,11 +181,9 @@ final class SchedulingCorrectionTest extends TestCase
         $parent = $this->make_parent(30);
         $stale_due = time() - 86400;
         DueParentWorker::handle(30, $stale_due);
-        // Stale cycle must not remain the only action; current due is scheduled.
-        self::assertNotEmpty($GLOBALS['supcheckout_as_calls']['scheduled']);
-        foreach ($GLOBALS['supcheckout_as_calls']['scheduled'] as $row) {
-            self::assertSame(30, $row['args']['parent_order_id']);
-        }
+        // Fix A1-01: while automatic renewal charges are blocked the stale action is not
+        // replaced by one for the current cycle (it was before the owner decision).
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
     public function test_pause_cancels_pending_supcheckout_actions(): void
@@ -195,8 +199,10 @@ final class SchedulingCorrectionTest extends TestCase
     public function test_resume_schedules_exactly_one_next_cycle(): void
     {
         $parent = $this->make_parent(50);
-        self::assertTrue(LifecycleScheduler::schedule_resume($parent));
-        self::assertCount(1, $GLOBALS['supcheckout_as_calls']['scheduled']);
+        // Fix A1-01: resume queues nothing while automatic renewal charges are blocked.
+        self::assertFalse(LifecycleScheduler::schedule_resume($parent));
+        self::assertCount(0, $GLOBALS['supcheckout_as_calls']['scheduled']);
+        self::assertCount(1, $parent->notes);
     }
 
     public function test_duplicate_concurrent_style_calls_yield_one_action(): void

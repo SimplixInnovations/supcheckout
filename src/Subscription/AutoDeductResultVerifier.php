@@ -22,6 +22,24 @@ final class AutoDeductResultVerifier
     public const BINDING_MISMATCH      = 'binding_mismatch';
 
     /**
+     * The one switch for automatic renewal charges (fix A1-01, owner decision 2026-10-22,
+     * "Block auto-charges").
+     *
+     * verify() never returns VERIFIED_SUCCESS: no first-party UPayments auto-deduct capture
+     * contract is approved. While that holds, this returns false and SUPCheckout sends no
+     * automatic renewal charge at all. The subscription engine stops before the renewal-card
+     * lookup and before any cycle claim, queues no due-parent work, and the merchant collects
+     * renewals manually or by payment link.
+     *
+     * Return true only in the same change that makes verify() able to return
+     * VERIFIED_SUCCESS under an approved capture contract.
+     */
+    public static function can_verify_success(): bool
+    {
+        return false;
+    }
+
+    /**
      * @param mixed  $response Decoded provider response body.
      * @param array  $expected {amount,currency,parent_id,cycle_key,reference_id}
      * @return array{outcome:string,reason:string,payment_id:?string,paid_amount:?string,paid_currency:?string}
