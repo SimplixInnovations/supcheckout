@@ -388,7 +388,7 @@ if ($version !== '') {
             '        info.compress_type = zipfile.ZIP_STORED',
             '        zout.writestr(info, data)',
             '',
-        ))));
+        )));
         $stray_output = '';
         $stray_ready = $stray_ready
             && 0 === release_run('python3 ' . escapeshellarg($stray_script) . ' ' . escapeshellarg($first_zip) . ' ' . escapeshellarg($stray_zip), $stray_output)
