@@ -141,7 +141,8 @@ a3_assert_same($expected_fields, $fields, 'complete nested gateway field schema 
 a3_assert_same('yes', $fields['enabled']['default'], 'gateway remains enabled by default');
 a3_assert_same('no', $fields['make_default_gateway']['default'], 'default-gateway opt-in remains disabled');
 a3_assert_same('UPayments', $fields['title']['default'], 'checkout title default remains method title');
-a3_assert_same('Gateway description', $fields['description']['default'], 'checkout description default remains method description');
+// U6 (A4-07): deliberately changed. The method description is merchant-facing admin copy.
+a3_assert_same('Pay securely with the payment methods available through UPayments.', $fields['description']['default'], 'checkout description default is customer-facing copy, not the method description');
 a3_assert_same('', $fields['api_key']['default'], 'API key default remains empty');
 a3_assert_same('password', $fields['api_key']['type'], 'API key uses a masked WooCommerce password control');
 a3_assert_same('no', $fields['debug']['default'], 'debug logging remains opt-in');

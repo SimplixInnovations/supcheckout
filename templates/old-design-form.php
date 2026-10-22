@@ -13,9 +13,15 @@ defined( 'ABSPATH' ) || exit;
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- WooCommerce template locals are intentionally scoped to the template include.
 ?>
 <div class="supcheckout form-row form-row-wide">
-    <?php 
+    <?php
     // get_description() applies woocommerce_gateway_description, where WPML/WCML translate it.
-    echo wp_kses_post($gateway->get_description());
+    // dir="auto" keeps an English sentence's punctuation in place on an RTL checkout.
+    $gateway_description = $gateway->get_description();
+    if (is_string($gateway_description) && trim($gateway_description) !== '') {
+    ?>
+        <div class="supcheckout-description" dir="auto"><?php echo wp_kses_post($gateway_description); ?></div>
+    <?php
+    }
     $icons = array();
     $whitelabled = false;
     

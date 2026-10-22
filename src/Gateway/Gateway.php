@@ -717,7 +717,7 @@ class Gateway extends \WC_Payment_Gateway {
     public function custom_payment_gateway_icons($icon, $gateway_id)
     {
         if (Keys::is_our_gateway($gateway_id)){
-            $icon = '<span>' . esc_html__('Pay securely with', 'supcheckout') . ' <img src="' . esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/upayment.png') . '" alt="" style="height: 24px !important; padding-left:4px;"/></span>';
+            $icon = '<span>' . esc_html__('Pay securely with', 'supcheckout') . ' <img src="' . esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/upayment.png') . '" alt="" style="height: 24px !important; padding-inline-start:4px;"/></span>';
         }
         return $icon;
     }

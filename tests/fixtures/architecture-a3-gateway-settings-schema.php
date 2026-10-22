@@ -32,7 +32,9 @@ return array(
         'title' => 'Description',
         'type' => 'textarea',
         'description' => 'Instructions that the customer will see on your checkout.',
-        'default' => 'Gateway description',
+        // U6 (A4-07): deliberately changed from the passed-in method description, which is
+        // merchant-facing admin copy, to a short customer-facing default.
+        'default' => 'Pay securely with the payment methods available through UPayments.',
         'desc_tip' => true,
     ),
     'api_key' => array(

@@ -55,11 +55,24 @@ final class GatewaySettings {
     }
 
     /**
+     * The customer-facing checkout description used while the merchant has not saved one.
+     *
+     * The method description is merchant-facing admin copy, so it is not the default the
+     * shopper sees (U6, A4-07). A saved description, empty or not, is never replaced.
+     *
+     * @return string
+     */
+    public static function default_checkout_description() {
+        return __('Pay securely with the payment methods available through UPayments.', 'supcheckout');
+    }
+
+    /**
      * Build the inherited WooCommerce gateway field schema.
      *
      * @param string $domain Gateway text domain.
      * @param string $method_title Gateway method title.
-     * @param string $method_description Gateway method description.
+     * @param string $method_description Gateway method description. Kept for the signature;
+     *                                   since U6 it is no longer the checkout description default.
      * @return array
      */
     public static function fields($domain, $method_title, $method_description) {
@@ -88,7 +101,7 @@ final class GatewaySettings {
                 'title' => __('Description', 'supcheckout'),
                 'type' => 'textarea',
                 'description' => __('Instructions that the customer will see on your checkout.', 'supcheckout'),
-                'default' => $method_description,
+                'default' => self::default_checkout_description(),
                 'desc_tip' => true,
             ),
             'api_key' => array(

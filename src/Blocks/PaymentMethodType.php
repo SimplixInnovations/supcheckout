@@ -94,6 +94,7 @@ class PaymentMethodType extends AbstractPaymentMethodType {
                 'wp-element',
                 'wp-data',
                 'wp-i18n',
+                'wp-html-entities',
                 'wc-blocks-data-store',
             ],
             \Simplixi\SUPCheckout\Release\Identity::VERSION,
@@ -252,6 +253,11 @@ class PaymentMethodType extends AbstractPaymentMethodType {
         // SUPCheckout passes only gateway-specific state and a compatibility
         // fallback product-type snapshot for environments without live props.
         return [
+            // The merchant's title and description, through the woocommerce_gateway_title /
+            // woocommerce_gateway_description filters where WPML/WCML translate them, as
+            // plain text: the client decodes entities and renders text nodes only.
+            'title'                      => $this->gateway ? wp_strip_all_tags( (string) $this->gateway->get_title() ) : '',
+            'description'                => $this->gateway ? wp_strip_all_tags( (string) $this->gateway->get_description() ) : '',
             'availability_valid'         => $availability_valid,
             'supported_currencies'       => GatewaySettings::supported_currencies(),
             'is_whitelabled'            => $whitelabled,

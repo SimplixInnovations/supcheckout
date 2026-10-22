@@ -1,6 +1,10 @@
 .payment_box{
     padding: 0 !important;
 }
+/* The merchant's checkout description; dir="auto" isolates its direction (U6). */
+.supcheckout-description {
+    margin: 0 0 8px;
+}
 .upay-payment-method {
     border: 1px solid #D9D9D9;
     border-radius: 5px;
