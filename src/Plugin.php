@@ -16,6 +16,7 @@ use Simplixi\SUPCheckout\Subscription\SchedulerBootstrap;
 use Simplixi\SUPCheckout\Takeover\Cli as TakeoverCli;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
 use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
+use Simplixi\SUPCheckout\Takeover\ReactivationGuard;
 
 /**
  * Composition root. From Task 3 on, every WordPress hook SUPCheckout registers is
@@ -49,6 +50,7 @@ final class Plugin {
         AsyncDriver::register();
         RestRoutes::register();
         TakeoverCli::register();
+        ReactivationGuard::register(self::$main_file);
         self::load_runtime(self::$main_file);
     }
 

@@ -33,6 +33,13 @@ final class AutoDeductResultVerifier
      *
      * Return true only in the same change that makes verify() able to return
      * VERIFIED_SUCCESS under an approved capture contract.
+     *
+     * Precondition for that change (A5-01): the Scheduler must first hold any cycle whose
+     * legacy and SUPCheckout copies of `_upay_last_billed_at`, `_upay_last_attempt_at` or
+     * `_upay_subscription_status` differ on a cut-over or finalized store, with no POST. An
+     * official plugin reactivated after the switch writes only the legacy names, and the
+     * new-name-first read would otherwise bill the same cycle twice
+     * (Takeover\ReactivationGuard only refuses the reactivation while SUPCheckout runs).
      */
     public static function can_verify_success(): bool
     {

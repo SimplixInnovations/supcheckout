@@ -166,7 +166,7 @@ const window = {
     supCheckout: {},
     setTimeout(fn) { fn(); return 1; },
 };
-const sandbox = { console, document, window, jQuery: jquery, wcUser: { isLoggedIn: true } };
+const sandbox = { console, document, window, jQuery: jquery, supCheckoutSubscription: { isLoggedIn: true } };
 
 function run(source, filename) {
     vm.runInNewContext(source, sandbox, { filename });

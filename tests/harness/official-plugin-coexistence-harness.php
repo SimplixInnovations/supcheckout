@@ -105,9 +105,14 @@ coexistence_assert(strpos($alone['out'], 'NOTICES:0') !== false, 'SUPCheckout al
 // Fix A1-01 review M3: the paused-renewal notice is counted on its own: one registration on
 // a booted SUPCheckout, none while it is paused next to the official plugin.
 coexistence_assert(strpos($alone['out'], 'PAUSED_RENEWAL_NOTICES:1') !== false, 'SUPCheckout alone registers the paused-renewal notice once');
+// Hardening T2 (A5-01): the official-reactivation guard (two option filters, the activate_plugin hook neutraliser and its notice
+// on admin_notices and network_admin_notices) is a booted SUPCheckout's own and is counted
+// on its own, never as a conflict notice; a paused SUPCheckout registers none of it.
+coexistence_assert(strpos($alone['out'], 'REACTIVATION_GUARD_HOOKS:5') !== false, 'SUPCheckout alone registers the official-reactivation guard once');
 foreach (array('stale', 'unrelated', 'shim') as $booted_scenario) {
     $booted = coexistence_run($root, $booted_scenario, $official_stub);
     coexistence_assert(strpos($booted['out'], 'PAUSED_RENEWAL_NOTICES:1') !== false, "booted ({$booted_scenario}): the paused-renewal notice is registered once");
+    coexistence_assert(strpos($booted['out'], 'REACTIVATION_GUARD_HOOKS:5') !== false, "booted ({$booted_scenario}): the official-reactivation guard is registered once");
 }
 
 $official_first = coexistence_run($root, 'official_first', $official_stub);
@@ -178,6 +183,7 @@ foreach (array(
     coexistence_assert(strpos($result['out'], 'OFFICIAL_LOADED') !== false, "paused ({$scenario}): the official plugin's global surface loads");
     coexistence_assert(strpos($result['out'], 'SUPCHECKOUT_VERSION:undefined') !== false && strpos($result['out'], 'NOTICES:1') !== false, "paused ({$scenario}): SUPCheckout stays paused with one conflict notice");
     coexistence_assert(strpos($result['out'], 'PAUSED_RENEWAL_NOTICES:0') !== false, "paused ({$scenario}): no paused-renewal notice is registered");
+    coexistence_assert(strpos($result['out'], 'REACTIVATION_GUARD_HOOKS:0') !== false, "paused ({$scenario}): no official-reactivation guard is registered");
     coexistence_assert(strpos($result['out'], 'CLASSES:official=yes,ours=yes') !== false, "paused ({$scenario}): official UPayments\\Subscription and SUPCheckout Simplixi\\SUPCheckout\\Subscription classes resolve in one process");
     coexistence_assert(strpos($result['out'], 'UP_PLUGIN_URL:official') !== false && strpos($result['out'], 'UP_PLUGIN_PATH:official') !== false, "paused ({$scenario}): the official plugin's path constants are its own");
     coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "paused ({$scenario}): no PHP warning, notice or deprecation");
@@ -510,6 +516,12 @@ function coexistence_child($root, $scenario, $official_stub) {
 
     $notices = 0;
     $paused_renewal_notices = 0;
+    $reactivation_guard_hooks = 0;
+    foreach (array_merge($GLOBALS['coexistence']['actions'], $GLOBALS['coexistence']['filters']) as $registration) {
+        if (is_array($registration[1]) && $registration[1][0] === 'Simplixi\\SUPCheckout\\Takeover\\ReactivationGuard') {
+            $reactivation_guard_hooks++;
+        }
+    }
     foreach ($GLOBALS['coexistence']['actions'] as $action) {
         // The paused-renewal notice (fix A1-01) is a booted SUPCheckout's own store notice,
         // registered on every boot and rendered only when subscriptions are enabled; it is
@@ -518,7 +530,8 @@ function coexistence_child($root, $scenario, $official_stub) {
         if ($action[0] === 'admin_notices' && $paused_renewal_notice) {
             $paused_renewal_notices++;
         }
-        if ($action[0] === 'admin_notices' && !$paused_renewal_notice) {
+        $reactivation_notice = is_array($action[1]) && $action[1] === array('Simplixi\\SUPCheckout\\Takeover\\ReactivationGuard', 'render_notice');
+        if ($action[0] === 'admin_notices' && !$paused_renewal_notice && !$reactivation_notice) {
             $notices++;
             if (strpos($scenario, 'notice_') === 0) {
                 call_user_func($action[1]);
@@ -527,6 +540,7 @@ function coexistence_child($root, $scenario, $official_stub) {
     }
     echo "\nNOTICES:{$notices}\n";
     echo "PAUSED_RENEWAL_NOTICES:{$paused_renewal_notices}\n";
+    echo "REACTIVATION_GUARD_HOOKS:{$reactivation_guard_hooks}\n";
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
     echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
     echo 'COPY_RUNNER_HOOKS:' . $copy_runner_hooks . "\n";

@@ -120,7 +120,7 @@ final class CheckoutAssets {
             );
             wp_localize_script(
                 'supcheckout-subscription-checkout',
-                'wcUser',
+                'supCheckoutSubscription',
                 array(
                     'isLoggedIn' => is_user_logged_in(),
                     'i18n' => self::subscription_i18n(),

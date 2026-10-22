@@ -261,9 +261,12 @@ supcheckout_cert_assert(
         && $notice_result['result'] === 'failure',
     'Provider-method cooldown yields deterministic gateway availability failure'
 );
+// Hardening T5 (A6-01), retargeted on purpose: the getter runs on render paths (payment box,
+// order-review refresh, Blocks payment data), so it queues no notice of its own. Place
+// order reports the failure exactly once (CheckoutOrchestrator, unit-tested).
 supcheckout_cert_assert(
-    in_array(__('Payment methods could not be loaded. Please try again.', 'supcheckout'), $notice_messages, true),
-    'Provider availability failure still reports the SUPCheckout checkout error'
+    $notice_messages === array($foreign_notice),
+    'Provider availability failure queues no SUPCheckout notice from the getter: only the third-party notice remains'
 );
 supcheckout_cert_assert(
     in_array($foreign_notice, $notice_messages, true),
