@@ -125,6 +125,29 @@ final class CheckoutPayloadTest extends TestCase {
         );
     }
 
+    public function test_a2_02_live_mode_accepts_only_https_redirects(): void {
+        self::assertNull(
+            CheckoutPayload::normalize_upayments_redirect_url('http://sandboxapi.upayments.com/get-pay-by-apple', true)
+        );
+        self::assertNull(CheckoutPayload::normalize_upayments_redirect_url('HTTP://pay.example/redirect', true));
+        self::assertSame(
+            'https://pay.example/redirect',
+            CheckoutPayload::normalize_upayments_redirect_url(' https://pay.example/redirect ', true)
+        );
+        self::assertSame(
+            'HTTPS://pay.example/redirect',
+            CheckoutPayload::normalize_upayments_redirect_url('HTTPS://pay.example/redirect', true)
+        );
+        // The other guards still apply in live mode.
+        self::assertNull(CheckoutPayload::normalize_upayments_redirect_url('https://user@pay.example/redirect', true));
+        self::assertNull(CheckoutPayload::normalize_upayments_redirect_url('javascript:alert(1)', true));
+        // Sandbox keeps the documented UPayments HTTP sandbox links.
+        self::assertSame(
+            'http://sandboxapi.upayments.com/get-pay-by-apple',
+            CheckoutPayload::normalize_upayments_redirect_url('http://sandboxapi.upayments.com/get-pay-by-apple', false)
+        );
+    }
+
     public function test_field_presence_distinguishes_absent_from_explicit_null(): void {
         self::assertTrue(CheckoutPayload::field_present(array('save' => null), 'save'));
         self::assertFalse(CheckoutPayload::field_present(array(), 'save'));
