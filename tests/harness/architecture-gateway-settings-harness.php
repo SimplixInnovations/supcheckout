@@ -75,6 +75,8 @@ require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
 // The Enable Subscriptions description reads the automatic-charge gate (fix A1-01); the
 // plugin loads the verifier before any gateway builds its fields.
 require_once dirname(__DIR__, 2) . '/src/Subscription/AutoDeductResultVerifier.php';
+// It also shares the paused statement with the admin notice (review M5).
+require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
 require_once dirname(__DIR__, 2) . '/src/Admin/GatewaySettings.php';
 
 $pass = 0;

@@ -317,8 +317,10 @@ final class PresentationTest extends TestCase {
 
     /** Fix A1-01: no "Next Billing Date" as if a charge will happen while auto-charges are paused. */
     public function test_admin_summary_shows_automatic_renewal_paused_instead_of_a_next_billing_date(): void {
+        $order = $this->subscriptionOrder();
+        $order->meta['_supcheckout_auto_renewal_paused_note_v1'] = '1';
         ob_start();
-        Presentation::render_admin_summary($this->subscriptionOrder());
+        Presentation::render_admin_summary($order);
         $html = ob_get_clean();
 
         self::assertStringContainsString('upay-subscription-summary', $html);
@@ -327,6 +329,24 @@ final class PresentationTest extends TestCase {
             '<p><strong>Automatic Renewal:</strong> Paused. Collect this renewal manually or send the customer a payment link.</p>',
             $html
         );
+    }
+
+    /** Review I1: the admin box mirrors the "check the dashboard first" note. */
+    public function test_admin_summary_warns_to_check_the_dashboard_when_an_earlier_charge_is_unconfirmed(): void {
+        $expected = '<p><strong>Automatic Renewal:</strong> Paused. An earlier automatic charge could not be confirmed: '
+            . 'check the UPayments dashboard before you collect this renewal manually or send a payment link.</p>';
+
+        $noted = $this->subscriptionOrder();
+        $noted->meta['_supcheckout_auto_renewal_paused_note_v1'] = 'unconfirmed';
+        ob_start();
+        Presentation::render_admin_summary($noted);
+        self::assertStringContainsString($expected, (string) ob_get_clean(), 'the parent carries the unconfirmed note');
+
+        $unread = $this->subscriptionOrder();
+        $GLOBALS['wpdb'] = null;
+        ob_start();
+        Presentation::render_admin_summary($unread);
+        self::assertStringContainsString($expected, (string) ob_get_clean(), 'no note yet and the billing history cannot be read: fail closed');
     }
 
     public function test_account_details_show_automatic_renewal_paused_instead_of_a_next_billing_date(): void {
@@ -346,13 +366,20 @@ final class PresentationTest extends TestCase {
             Presentation::render_auto_renewal_paused_notice();
             self::assertSame(
                 '<div class="notice notice-warning"><p><strong>Automatic subscription renewals are paused.</strong> '
-                . 'SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. '
-                . 'Collect renewals manually or by payment link.</p></div>',
+                . Presentation::auto_renewal_paused_message() . '</p></div>',
                 ob_get_clean(),
                 $screen
             );
         }
         self::assertSame('manage_woocommerce', $GLOBALS['supcheckout_test_subscription_presentation']['capability_calls'][0][0]);
+    }
+
+    /** Review M5: one shared paused statement for the notice and the setting. */
+    public function test_the_paused_statement_is_one_shared_string(): void {
+        self::assertSame(
+            'SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. Collect renewals manually or by payment link.',
+            Presentation::auto_renewal_paused_message()
+        );
     }
 
     public function test_paused_renewal_notice_is_silent_without_capability_setting_or_store_screen(): void {
@@ -380,7 +407,7 @@ final class PresentationTest extends TestCase {
         preg_match_all("/echo\\s+(.+?);/s", $body, $echoes);
         self::assertNotSame(array(), $echoes[1]);
         foreach ($echoes[1] as $expression) {
-            $without_escaped = preg_replace("/esc_html__\\('(?:[^'\\\\]|\\\\.)*', 'supcheckout'\\)/", '', $expression);
+            $without_escaped = preg_replace("/esc_html__\\('(?:[^'\\\\]|\\\\.)*', 'supcheckout'\\)|esc_html\\(self::auto_renewal_paused_message\\(\\)\\)/", '', $expression);
             self::assertDoesNotMatchRegularExpression("/__\\(|\\$/", (string) $without_escaped, 'only esc_html__() copy and literal markup are echoed: ' . $expression);
         }
     }
@@ -397,6 +424,7 @@ final class PresentationTest extends TestCase {
             'add_custom_data_panel',
             'add_custom_data_tab',
             'add_custom_product_type',
+            'auto_renewal_paused_message',
             'custom_product_types',
             'display_custom_data_in_cart',
             'display_custom_field_on_frontend',

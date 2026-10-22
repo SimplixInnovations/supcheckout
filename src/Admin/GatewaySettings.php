@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Admin;
 
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
 use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
+use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
@@ -148,11 +149,14 @@ final class GatewaySettings {
                 'type' => 'checkbox',
                 'label' => __('Enable subscription payments', 'supcheckout'),
                 'default' => 'no',
-                'desc_tip' => true,
+                // Fix A1-01: while automatic renewal charges are paused the statement is shown
+                // under the field, not hidden in a tooltip, and shares its copy with the notice.
+                'desc_tip' => AutoDeductResultVerifier::can_verify_success(),
                 'description' => AutoDeductResultVerifier::can_verify_success()
                     ? __('Only Subscription Products are allowed at checkout If Subscription is enabled.', 'supcheckout')
                     : __('Only Subscription Products are allowed at checkout If Subscription is enabled.', 'supcheckout')
-                        . ' ' . __('Automatic renewal charges are paused: SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. Collect renewals manually or by payment link.', 'supcheckout'),
+                        . ' ' . __('Automatic renewal charges are paused.', 'supcheckout')
+                        . ' ' . SubscriptionPresentation::auto_renewal_paused_message(),
             ),
         );
     }

@@ -5,6 +5,7 @@ namespace Simplixi\SUPCheckout\Subscription\Scheduling;
 defined('ABSPATH') || exit;
 
 use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
+use Simplixi\SUPCheckout\Subscription\Cron\CycleClaim;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
 /**
@@ -18,6 +19,14 @@ final class LifecycleScheduler
 {
     /** Order meta flag: the parent already carries the paused-renewal note (fix A1-01). */
     public const PAUSED_NOTE_META = '_supcheckout_auto_renewal_paused_note_v1';
+    /** Flag value: the plain paused note was written. */
+    public const PAUSED_NOTE_PLAIN = '1';
+    /** Flag value: the "check the UPayments dashboard first" note was written. */
+    public const PAUSED_NOTE_UNCONFIRMED = 'unconfirmed';
+    /** Per-parent option lock that keeps two passes from both writing the note. */
+    public const NOTE_LOCK_PREFIX = 'supcheckout_renewal_note_lock_';
+    /** Seconds after which a lock left by a crashed pass is replaced. */
+    public const NOTE_LOCK_TTL = 300;
 
     public static function register(): void
     {
@@ -91,32 +100,117 @@ final class LifecycleScheduler
 
     /**
      * One order note per subscription parent: automatic renewal charges are paused, so the
-     * merchant collects the renewal manually (fix A1-01). Guarded by an order meta flag and
-     * written through the order CRUD (HPOS-safe). A renewal child or a one-time order gets
-     * nothing.
+     * merchant collects the renewal manually (fix A1-01). A renewal child or a one-time order
+     * gets nothing.
+     *
+     * When an earlier automatic charge may have debited the customer (a held or dispatching
+     * billing cycle, or a legacy unresolved attempt), the note says to check the UPayments
+     * dashboard before collecting, so the customer is not charged twice.
+     *
+     * Idempotent under concurrency: an atomic add_option() lock per parent, the flag re-read
+     * on a freshly loaded order under that lock, and the lock released in `finally`. The
+     * flag is saved before the note: a later pass finds it and adds no second note, and a
+     * note that fails after the flag is never retried into a duplicate. Never throws.
      *
      * @return bool True when this call added the note.
      */
     public static function note_auto_renewal_paused(\WC_Order $order): bool
     {
+        if (!self::is_subscription_parent($order) || self::paused_note_flag($order) !== '') {
+            return false;
+        }
+        $parent_id = (int) $order->get_id();
+        if ($parent_id <= 0 || !self::acquire_note_lock($parent_id)) {
+            return false;
+        }
+        try {
+            $fresh = function_exists('wc_get_order') ? wc_get_order($parent_id) : false;
+            if (!$fresh instanceof \WC_Order || self::paused_note_flag($fresh) !== '') {
+                return false;
+            }
+            $unconfirmed = self::has_unconfirmed_charge($fresh);
+            $fresh->update_meta_data(self::PAUSED_NOTE_META, $unconfirmed ? self::PAUSED_NOTE_UNCONFIRMED : self::PAUSED_NOTE_PLAIN);
+            $fresh->save();
+            $fresh->add_order_note($unconfirmed
+                ? __('Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. An earlier automatic charge for this subscription could not be confirmed. Check the UPayments dashboard for that payment before you collect this renewal manually or send a payment link, so the customer is not charged twice.', 'supcheckout')
+                : __('Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. Collect this renewal manually or send the customer a payment link.', 'supcheckout'));
+            return true;
+        } catch (\Throwable $e) {
+            if (function_exists('wc_get_logger')) {
+                wc_get_logger()->warning(
+                    'Paused-renewal note could not be written.',
+                    array('source' => 'upayments-cron', 'order_id' => $parent_id)
+                );
+            }
+            return false;
+        } finally {
+            delete_option(self::NOTE_LOCK_PREFIX . $parent_id);
+        }
+    }
+
+    /**
+     * Read-only: may an earlier automatic charge have debited the customer for this parent?
+     * True for a held or dispatching billing cycle, a legacy unresolved attempt, or when the
+     * billing history cannot be read (fail closed: "check the dashboard first").
+     */
+    public static function has_unconfirmed_charge(\WC_Order $order): bool
+    {
+        if ((string) Keys::read_order_meta($order, '_upay_last_attempt_at') !== '') {
+            return true;
+        }
+        global $wpdb;
+        if (!is_object($wpdb) || !isset($wpdb->prefix) || !method_exists($wpdb, 'get_var') || !method_exists($wpdb, 'prepare')) {
+            return true;
+        }
+        try {
+            if (!CycleClaim::table_exists()) {
+                return false;
+            }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One read-only count on the plugin-owned billing-attempt journal; a cached answer could hide a possible earlier debit.
+            $count = $wpdb->get_var(
+                $wpdb->prepare(
+                    'SELECT COUNT(*) FROM %i WHERE parent_order_id = %d AND state IN (%s, %s)',
+                    CycleClaim::table_name(),
+                    (int) $order->get_id(),
+                    CycleClaim::STATE_HELD,
+                    CycleClaim::STATE_DISPATCHING
+                )
+            );
+        } catch (\Throwable $e) {
+            return true;
+        }
+        return $count === null || (int) $count > 0;
+    }
+
+    /** @return string The paused-note flag value ('' when the parent has no note yet). */
+    public static function paused_note_flag(\WC_Order $order): string
+    {
+        $flag = $order->get_meta(self::PAUSED_NOTE_META);
+        return is_scalar($flag) ? (string) $flag : '';
+    }
+
+    private static function is_subscription_parent(\WC_Order $order): bool
+    {
         if (Keys::read_order_meta($order, 'UPayments_AutoDeduction') === 'yes') {
             return false;
         }
         $plan = Keys::read_order_meta($order, '_upay_subscription_plan');
-        if (!is_string($plan) || $plan === '' || $plan === 'one_time') {
+        return is_string($plan) && $plan !== '' && $plan !== 'one_time';
+    }
+
+    /** Atomic per-parent lock; a lock older than NOTE_LOCK_TTL (a crashed pass) is replaced. */
+    private static function acquire_note_lock(int $parent_id): bool
+    {
+        $lock = self::NOTE_LOCK_PREFIX . $parent_id;
+        if (add_option($lock, (string) time(), '', 'no')) {
+            return true;
+        }
+        $since = (int) get_option($lock, 0);
+        if ($since > time() - self::NOTE_LOCK_TTL) {
             return false;
         }
-        if ((string) $order->get_meta(self::PAUSED_NOTE_META) === '1') {
-            return false;
-        }
-        // The flag is saved before the note: a later pass (the hourly feeder, a queued
-        // worker action, a resume) finds it and adds no second note.
-        $order->update_meta_data(self::PAUSED_NOTE_META, '1');
-        $order->save();
-        $order->add_order_note(
-            __('Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. Collect this renewal manually or send the customer a payment link.', 'supcheckout')
-        );
-        return true;
+        delete_option($lock);
+        return (bool) add_option($lock, (string) time(), '', 'no');
     }
 
     /**

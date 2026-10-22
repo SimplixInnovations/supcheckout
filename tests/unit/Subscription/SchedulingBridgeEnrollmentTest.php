@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Tests\Subscription;
 
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
 
@@ -115,7 +116,33 @@ final class SchedulingBridgeEnrollmentTest extends TestCase
         self::assertFalse(HistoricalEnrollment::parent_qualifies($no_product));
     }
 
-    public function test_enrollment_batch_is_bounded_and_skips_ineligible(): void
+    /**
+     * Gate-open companion (fix A1-01 review M2): the original R4 contract, skipped while
+     * automatic renewal charges are blocked and run again the day the gate opens.
+     */
+    public function test_enrollment_batch_is_bounded_and_skips_ineligible_when_the_gate_is_open(): void
+    {
+        if (!AutoDeductResultVerifier::can_verify_success()) {
+            self::markTestSkipped('Automatic renewal charges are blocked (fix A1-01); the queueing contract applies once the gate opens.');
+        }
+        HistoricalEnrollment::reset_cursor();
+        $a = $this->make_parent(array('id' => 11));
+        $b = $this->make_parent(array('id' => 12, 'meta' => array(
+            'UPayments_AutoDeduction' => 'yes',
+            '_upay_subscription_status' => 'active',
+            '_upay_subscription_plan' => 'monthly',
+            '_upay_subscription_interval' => '1',
+        )));
+
+        $stats = HistoricalEnrollment::enroll_slice(array($a, $b), true);
+        self::assertSame(2, $stats['scanned']);
+        self::assertSame(1, $stats['skipped']);
+        self::assertSame(1, $stats['scheduled']);
+        self::assertTrue($stats['complete']);
+        self::assertLessThanOrEqual(HistoricalEnrollment::BATCH_SIZE, $stats['scanned']);
+    }
+
+    public function test_enrollment_batch_is_bounded_and_notes_instead_of_queueing_while_auto_charges_are_blocked(): void
     {
         HistoricalEnrollment::reset_cursor();
         $a = $this->make_parent(array('id' => 11));

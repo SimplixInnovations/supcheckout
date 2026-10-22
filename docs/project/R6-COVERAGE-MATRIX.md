@@ -15,7 +15,7 @@ Base for this pass: `776e0d3b98a54b78c502a792cc01fca7d757d6fe`.
 | No bundled duplicate AS library | same | recursive scan of plugin tree | VERIFIED |
 | AS cross-version WC 10.8/11.0/11.1 × legacy/HPOS | Compatibility matrix + AS runtime test | one cell per band | VERIFIED — Compatibility matrix + ActionSchedulerCompatibilityRuntimeTest |
 | Orders loaded/request ≤ 50 | `HistoricalEnrollment::BATCH_SIZE` + `tests/performance/r6-large-store-benchmark.php` + `SchedulingCorrectionTest` | hard fail if exceeded | VERIFIED |
-| All eligible parents reached | `r6-large-store-benchmark.php` | exact per-eligible ID proof: one attempt-0 action each until 2026-10-22; since fix A1-01 (automatic renewal charges blocked) one paused-renewal note each and zero actions | VERIFIED — r6-large-store-benchmark exact eligible ID proof (missing=0 duplicates=0) |
+| All eligible parents reached | `r6-large-store-benchmark.php` | exact per-eligible ID proof: one attempt-0 action each until 2026-10-22; since fix A1-01 (automatic renewal charges blocked) one paused-renewal note each and zero actions. The original R4 queueing unit tests are kept as `*_when_the_gate_is_open` companions, skipped while `AutoDeductResultVerifier::can_verify_success()` is false | VERIFIED — r6-large-store-benchmark exact eligible ID proof (missing=0 duplicates=0) |
 | Synthetic 10k legacy/HPOS | `.github/workflows/r6-large-store-benchmark.yml` | 100/1k/5k/10k × 2 | VERIFIED — R6 Large-Store Benchmark workflow 100/1k/5k/10k × legacy/HPOS |
 | Real merchant production throughput | — | not synthetic | EXTERNAL REQUIRED |
 | Fresh install | `PluginActivationTest` + Compatibility | activation + defaults | VERIFIED |

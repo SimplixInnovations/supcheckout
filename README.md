@@ -62,7 +62,7 @@ SUPCheckout is intentionally **UPayments-specific**. Other payment providers bel
 | Official WordPress Plugin Check on the packaged artifact | Strict gate |
 | Automatic WooCommerce refunds | Not supported |
 | Arbitrary marketplace multi-split | Not supported |
-| Live subscription auto-deduction | External/manual qualification required |
+| Live subscription auto-deduction | Paused: collect renewals manually or by payment link |
 
 Payment-method and wallet availability still depends on the merchant's UPayments account, provider configuration, plugin settings and device/account eligibility.
 

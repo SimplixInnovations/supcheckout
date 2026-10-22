@@ -624,6 +624,8 @@ if ($phase === 'pre0b_switch' || $phase === 'pre0b_rerun') {
         supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before, 'zero auto-deduct requests');
         supcheckout_cert_assert(count(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id)) === 2, 'no claim row is written for the due cycle');
         supcheckout_cert_assert(supcheckout_matrix_paused_notes($parent_id) === 1, 'exactly one paused-renewal note on the parent');
+        // Review I1: the parent's billing history holds a held cycle (a possible earlier debit).
+        supcheckout_matrix_assert_paused_note_kind($parent_id, true);
         // Gate forced open: the due cycle claims in the new table, once, and is never charged twice.
         supcheckout_cert_assert(supcheckout_matrix_renew_gate_open($parent_id) === 'held', 'gate forced open: the renewal claims its cycle and is held (auto-deduct capture stays fail-closed)');
         supcheckout_cert_assert(supcheckout_matrix_counter(SUPCHECKOUT_MATRIX_CALLS, 'auto-deduct') === $calls_before + 1, 'gate forced open: exactly one auto-deduct request');

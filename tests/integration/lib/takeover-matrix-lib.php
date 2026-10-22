@@ -408,13 +408,38 @@ function supcheckout_matrix_renew_gate_open($parent_id) {
  * @return int Order notes on the parent that say automatic renewal charges are paused.
  */
 function supcheckout_matrix_paused_notes($parent_id) {
-    $count = 0;
+    return count(supcheckout_matrix_paused_note_texts($parent_id));
+}
+
+/**
+ * @param int $parent_id Parent order.
+ * @return list<string> The paused-renewal notes on the parent.
+ */
+function supcheckout_matrix_paused_note_texts($parent_id) {
+    $texts = array();
     foreach (wc_get_order_notes(array('order_id' => (int) $parent_id)) as $note) {
         if (strpos((string) $note->content, 'Automatic renewal charges are paused') === 0) {
-            ++$count;
+            $texts[] = (string) $note->content;
         }
     }
-    return $count;
+    return $texts;
+}
+
+/**
+ * Review I1: a parent with a held or dispatching cycle (a possible earlier debit) gets the
+ * "check the UPayments dashboard first" note; any other parent gets the plain one.
+ *
+ * @param int  $parent_id   Parent order.
+ * @param bool $unconfirmed Whether the parent has a possibly debited earlier cycle.
+ * @return void
+ */
+function supcheckout_matrix_assert_paused_note_kind($parent_id, $unconfirmed) {
+    $texts = supcheckout_matrix_paused_note_texts($parent_id);
+    supcheckout_cert_assert(count($texts) === 1, 'exactly one paused-renewal note: ' . wp_json_encode($texts));
+    $warns = strpos($texts[0], 'Check the UPayments dashboard') !== false;
+    supcheckout_cert_assert($warns === (bool) $unconfirmed, $unconfirmed
+        ? 'the parent with a held cycle is told to check the UPayments dashboard before collecting'
+        : 'a parent with no held or dispatching cycle gets the plain collect-manually note');
 }
 
 /**
@@ -447,6 +472,7 @@ function supcheckout_matrix_assert_renewal_once($parent_id, $renewals_before) {
     supcheckout_cert_assert(supcheckout_matrix_claims('supcheckout_billing_attempts', $parent_id) === array(), 'zero claim rows for the cycle in supcheckout_billing_attempts');
     supcheckout_cert_assert(supcheckout_matrix_claims('upayments_billing_attempts', $parent_id) === array(), 'zero claim rows for the cycle in the legacy billing table');
     supcheckout_cert_assert(supcheckout_matrix_paused_notes($parent_id) === $notes_before + 1, 'exactly one paused-renewal note was added to the parent');
+    supcheckout_matrix_assert_paused_note_kind($parent_id, false);
 
     $again = supcheckout_matrix_renew($parent_id);
     supcheckout_cert_assert($again === 'not_eligible', 'a second pass is not charged either: ' . $again);

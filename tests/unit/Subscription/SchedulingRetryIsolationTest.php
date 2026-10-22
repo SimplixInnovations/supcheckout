@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Tests\Subscription;
 
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Subscription\AutoDeductResultVerifier;
 use Simplixi\SUPCheckout\Subscription\Scheduling\ActionSchedulerBridge;
 use Simplixi\SUPCheckout\Subscription\Scheduling\DueParentWorker;
 use Simplixi\SUPCheckout\Subscription\Scheduling\HistoricalEnrollment;
@@ -192,7 +193,25 @@ final class SchedulingRetryIsolationTest extends TestCase
         self::assertTrue(ActionSchedulerBridge::has_open_cycle_action(32, $other, 0));
     }
 
-    public function test_resume_schedules_exactly_one_attempt0(): void
+    /** Gate-open companion (fix A1-01 review M2): the original R4 contract. */
+    public function test_resume_schedules_exactly_one_attempt0_when_the_gate_is_open(): void
+    {
+        self::require_gate_open();
+        $parent = $this->make_parent(41);
+        self::assertTrue(LifecycleScheduler::schedule_resume($parent));
+        $rows = $GLOBALS['supcheckout_as_calls']['scheduled'];
+        self::assertCount(1, $rows);
+        self::assertSame(0, $rows[0]['args']['retry_attempt']);
+    }
+
+    private static function require_gate_open(): void
+    {
+        if (!AutoDeductResultVerifier::can_verify_success()) {
+            self::markTestSkipped('Automatic renewal charges are blocked (fix A1-01); the queueing contract applies once the gate opens.');
+        }
+    }
+
+    public function test_resume_queues_no_attempt_while_auto_charges_are_blocked(): void
     {
         $parent = $this->make_parent(41);
         // Fix A1-01: resume queues no attempt while automatic renewal charges are blocked.
@@ -200,8 +219,13 @@ final class SchedulingRetryIsolationTest extends TestCase
         self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
-    public function test_repair_feeder_does_not_compete_with_pending_retry(): void
+    /**
+     * Gate-open companion (fix A1-01 review M2): while automatic renewal charges are blocked
+     * the feeder queues nothing at all, so this would pass vacuously; it runs once the gate opens.
+     */
+    public function test_repair_feeder_does_not_compete_with_pending_retry_when_the_gate_is_open(): void
     {
+        self::require_gate_open();
         $parent = $this->make_parent(51);
         $due = HistoricalEnrollment::next_run_at($parent);
         self::assertNotNull($due);

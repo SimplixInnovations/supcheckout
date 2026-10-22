@@ -53,10 +53,16 @@ final class GatewaySettingsTest extends TestCase {
 
         self::assertSame(
             'Only Subscription Products are allowed at checkout If Subscription is enabled. '
-            . 'Automatic renewal charges are paused: SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. '
+            . 'Automatic renewal charges are paused. SUPCheckout does not send automatic renewal charges until UPayments confirms how to verify them. '
             . 'Collect renewals manually or by payment link.',
             $fields['enable_subscriptions']['description']
         );
+        self::assertStringEndsWith(
+            \Simplixi\SUPCheckout\Subscription\Presentation::auto_renewal_paused_message(),
+            $fields['enable_subscriptions']['description'],
+            'review M5: the setting and the admin notice share one paused statement'
+        );
+        self::assertFalse($fields['enable_subscriptions']['desc_tip'], 'review M5: the paused statement is visible, not hidden in a tooltip');
         self::assertSame('no', $fields['enable_subscriptions']['default'], 'the toggle stays default-off');
     }
 

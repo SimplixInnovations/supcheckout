@@ -27,6 +27,9 @@ use Simplixi\SUPCheckout\Takeover\TakeoverState;
 #[PreserveGlobalState(false)]
 final class AutoDeductDispatchGateTest extends TestCase {
     private const PARENT_ID = 70;
+    private const UNCONFIRMED_NOTE = 'Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. '
+        . 'An earlier automatic charge for this subscription could not be confirmed. Check the UPayments dashboard for that payment '
+        . 'before you collect this renewal manually or send a payment link, so the customer is not charged twice.';
 
     protected function setUp(): void {
         require_once dirname(__DIR__, 2) . '/support/wc-order-revalidation-fixture.php';
@@ -44,6 +47,8 @@ final class AutoDeductDispatchGateTest extends TestCase {
         $GLOBALS['wpdb'] = self::recording_wpdb();
         \supcheckout_test_reset_subscription_presentation();
         $GLOBALS['supcheckout_test_saved_card_lookups'] = array();
+        $GLOBALS['supcheckout_test_unconfirmed_rows'] = '0';
+        $GLOBALS['supcheckout_test_gateway_subscriptions'] = 'yes';
         $GLOBALS['supcheckout_test_subscription_presentation']['wc'] = self::woocommerce_with_gateway();
         if (!function_exists('wc_get_logger')) {
             eval('function wc_get_logger() { return new class() {
@@ -64,7 +69,107 @@ final class AutoDeductDispatchGateTest extends TestCase {
         self::assertSame(Scheduler::OUTCOME_NOT_ELIGIBLE, $outcome, 'not_eligible: the worker never retries it');
         self::assertSame(array(), $GLOBALS['supcheckout_test_saved_card_lookups'], 'the gate stops before the renewal-card lookup');
         self::assertSame(array(), $GLOBALS['supcheckout_test_http_calls'], 'no retrieve-customer-cards and no auto-deduct request');
-        self::assertSame(array(), $GLOBALS['supcheckout_test_wpdb_queries'], 'no cycle-claim table work and no claim row');
+        foreach ($GLOBALS['supcheckout_test_wpdb_queries'] as $statement) {
+            // Only the read-only unconfirmed-charge lookup behind the note (review I1).
+            self::assertStringStartsWith('get_var ', $statement, 'no cycle-claim write and no claim row');
+            self::assertMatchesRegularExpression('/"query":"(SHOW TABLES|SELECT COUNT)/', $statement);
+        }
+    }
+
+    // --- Review I1: a possible earlier debit changes the note. ---
+
+    public function test_a_parent_with_a_held_or_dispatching_cycle_gets_the_check_the_dashboard_note(): void {
+        $GLOBALS['supcheckout_test_unconfirmed_rows'] = '1';
+        $parent = self::parent(self::PARENT_ID, self::legacy_meta());
+
+        Scheduler::process_parent_order($parent);
+
+        self::assertSame(array(self::UNCONFIRMED_NOTE), $parent->notes);
+        self::assertSame(LifecycleScheduler::PAUSED_NOTE_UNCONFIRMED, (string) $parent->get_meta(LifecycleScheduler::PAUSED_NOTE_META), 'the flag records which note was written, for the admin box');
+        $lookup = array_values(array_filter($GLOBALS['supcheckout_test_wpdb_queries'], static function ($statement) {
+            return strpos($statement, 'SELECT COUNT') !== false;
+        }));
+        self::assertCount(1, $lookup);
+        self::assertStringContainsString('_billing_attempts",70,"held","dispatching"]', $lookup[0], 'held or dispatching rows of this parent only');
+    }
+
+    public function test_a_legacy_unresolved_attempt_also_gets_the_check_the_dashboard_note(): void {
+        $parent = self::parent(self::PARENT_ID, array('_upay_last_attempt_at' => '2020-01-01 00:00:00') + self::legacy_meta());
+
+        Scheduler::process_parent_order($parent);
+
+        self::assertSame(array(self::UNCONFIRMED_NOTE), $parent->notes);
+    }
+
+    public function test_an_unreadable_billing_history_fails_closed_to_the_check_the_dashboard_note(): void {
+        $GLOBALS['supcheckout_test_unconfirmed_rows'] = null;
+        $parent = self::parent(self::PARENT_ID, self::legacy_meta());
+
+        Scheduler::process_parent_order($parent);
+
+        self::assertSame(array(self::UNCONFIRMED_NOTE), $parent->notes);
+    }
+
+    // --- Review M1: idempotent under concurrency. ---
+
+    public function test_a_concurrent_pass_holding_the_note_lock_adds_no_note(): void {
+        $parent = self::parent(self::PARENT_ID, self::legacy_meta());
+        \add_option(LifecycleScheduler::NOTE_LOCK_PREFIX . self::PARENT_ID, (string) time());
+
+        self::assertFalse(LifecycleScheduler::note_auto_renewal_paused($parent));
+
+        self::assertSame(array(), $parent->notes);
+        self::assertSame('', (string) $parent->get_meta(LifecycleScheduler::PAUSED_NOTE_META));
+    }
+
+    public function test_a_stale_note_lock_is_cleared_and_the_lock_is_released_after_the_note(): void {
+        $parent = self::parent(self::PARENT_ID, self::legacy_meta());
+        $lock = LifecycleScheduler::NOTE_LOCK_PREFIX . self::PARENT_ID;
+        \add_option($lock, (string) (time() - LifecycleScheduler::NOTE_LOCK_TTL - 1));
+
+        self::assertTrue(LifecycleScheduler::note_auto_renewal_paused($parent));
+
+        self::assertCount(1, $parent->notes);
+        self::assertFalse(\get_option($lock), 'the lock is deleted once the note is written');
+    }
+
+    public function test_the_flag_is_re_read_from_a_fresh_order_under_the_lock(): void {
+        $stale = self::parent(self::PARENT_ID, self::legacy_meta());
+        $fresh = self::parent(self::PARENT_ID, array(LifecycleScheduler::PAUSED_NOTE_META => '1') + self::legacy_meta());
+
+        self::assertFalse(LifecycleScheduler::note_auto_renewal_paused($stale), 'another process already noted the parent');
+
+        self::assertSame(array(), $stale->notes);
+        self::assertSame(array(), $fresh->notes);
+        self::assertFalse(\get_option(LifecycleScheduler::NOTE_LOCK_PREFIX . self::PARENT_ID));
+    }
+
+    // --- Review M4: outcome first, note only when subscriptions are on, note isolated. ---
+
+    public function test_no_note_when_the_gateway_has_subscriptions_disabled(): void {
+        $GLOBALS['supcheckout_test_gateway_subscriptions'] = 'no';
+        $parent = self::parent(self::PARENT_ID, self::legacy_meta());
+
+        self::assertSame(Scheduler::OUTCOME_NOT_ELIGIBLE, Scheduler::process_parent_order($parent));
+
+        self::assertSame(array(), $parent->notes);
+    }
+
+    public function test_a_failing_note_never_turns_the_outcome_into_a_retry(): void {
+        $parent = new class() extends \WC_Order {
+            public function save(): int {
+                throw new \RuntimeException('database gone');
+            }
+        };
+        $parent->set_id(self::PARENT_ID);
+        $parent->set_status('processing');
+        $parent->set_payment_method('upayments');
+        $parent->set_meta(self::legacy_meta());
+        $parent->set_items(array(array('type' => 'custom_type')));
+        $GLOBALS['supcheckout_test_status_orders'][self::PARENT_ID] = $parent;
+
+        self::assertSame(Scheduler::OUTCOME_NOT_ELIGIBLE, Scheduler::process_parent_order($parent), 'not pre_dispatch_no_attempt: nothing is retried');
+        self::assertFalse(\get_option(LifecycleScheduler::NOTE_LOCK_PREFIX . self::PARENT_ID), 'the lock is released on failure');
     }
 
     public function test_the_parent_gets_exactly_one_paused_note_across_passes(): void {
@@ -219,6 +324,10 @@ final class AutoDeductDispatchGateTest extends TestCase {
             /** @return mixed */
             public function get_var($prepared) {
                 $this->record('get_var', $prepared);
+                if (is_array($prepared) && strpos($prepared['query'], 'SELECT COUNT') === 0) {
+                    // Held or dispatching rows of the parent (null: the read failed).
+                    return $GLOBALS['supcheckout_test_unconfirmed_rows'];
+                }
                 if (is_array($prepared) && $prepared['args'] !== array()) {
                     return stripslashes((string) end($prepared['args']));
                 }
@@ -250,7 +359,7 @@ final class AutoDeductDispatchGateTest extends TestCase {
             public $id = 'upayments';
 
             public function get_option($key, $default = '') {
-                return $key === 'enable_subscriptions' ? 'yes' : $default;
+                return $key === 'enable_subscriptions' ? $GLOBALS['supcheckout_test_gateway_subscriptions'] : $default;
             }
 
             /** @return array<string,mixed> */

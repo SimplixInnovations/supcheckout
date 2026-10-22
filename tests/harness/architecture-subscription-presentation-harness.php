@@ -96,6 +96,8 @@ require_once dirname(__DIR__, 2) . '/src/Takeover/TakeoverState.php';
 require_once dirname(__DIR__, 2) . '/src/Takeover/Keys.php';
 // Presentation reads the automatic-charge gate (fix A1-01).
 require_once dirname(__DIR__, 2) . '/src/Subscription/AutoDeductResultVerifier.php';
+// The admin box mirrors the parent's paused note (review I1).
+require_once dirname(__DIR__, 2) . '/src/Subscription/Scheduling/LifecycleScheduler.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Presentation.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/Composition.php';
 require_once dirname(__DIR__, 2) . '/src/Subscription/ProductTypeHooks.php';
@@ -300,7 +302,7 @@ a4_assert(strpos($composition, 'register_presentation_hooks') !== false && strpo
 // earlier: #71 bfadff3). This harness exited silently before reaching these pins, so they
 // still named the #67 / pre-#71 blobs; they now match the pins in the H12, Q13, Q14, Q16
 // and Q17 harnesses.
-a4_same('328a8eb325a154d1650399d920637fcab3ca47c9', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
+a4_same('9a5994bbc27fc59983950ba42ef4330d9dd5f854', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
 a4_same('66b42899a97a6423bcd4d54ac8bf96554373d150', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
 
 echo "\nArchitecture Subscription Presentation: {$pass} PASS / {$fail} FAIL\n";

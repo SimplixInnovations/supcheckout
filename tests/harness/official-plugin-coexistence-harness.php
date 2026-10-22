@@ -102,6 +102,13 @@ $alone = coexistence_run($root, 'alone', $official_stub);
 coexistence_assert($alone['code'] === 0, 'SUPCheckout alone loads without error');
 coexistence_assert(strpos($alone['out'], 'DECLARED:yes') !== false, 'SUPCheckout alone declares its gateway bootstrap');
 coexistence_assert(strpos($alone['out'], 'NOTICES:0') !== false, 'SUPCheckout alone registers no conflict notice');
+// Fix A1-01 review M3: the paused-renewal notice is counted on its own: one registration on
+// a booted SUPCheckout, none while it is paused next to the official plugin.
+coexistence_assert(strpos($alone['out'], 'PAUSED_RENEWAL_NOTICES:1') !== false, 'SUPCheckout alone registers the paused-renewal notice once');
+foreach (array('stale', 'unrelated', 'shim') as $booted_scenario) {
+    $booted = coexistence_run($root, $booted_scenario, $official_stub);
+    coexistence_assert(strpos($booted['out'], 'PAUSED_RENEWAL_NOTICES:1') !== false, "booted ({$booted_scenario}): the paused-renewal notice is registered once");
+}
 
 $official_first = coexistence_run($root, 'official_first', $official_stub);
 coexistence_assert($official_first['code'] === 0, 'official plugin loaded first: SUPCheckout loads without a redeclaration fatal');
@@ -170,6 +177,7 @@ foreach (array(
 ) as $scenario => $result) {
     coexistence_assert(strpos($result['out'], 'OFFICIAL_LOADED') !== false, "paused ({$scenario}): the official plugin's global surface loads");
     coexistence_assert(strpos($result['out'], 'SUPCHECKOUT_VERSION:undefined') !== false && strpos($result['out'], 'NOTICES:1') !== false, "paused ({$scenario}): SUPCheckout stays paused with one conflict notice");
+    coexistence_assert(strpos($result['out'], 'PAUSED_RENEWAL_NOTICES:0') !== false, "paused ({$scenario}): no paused-renewal notice is registered");
     coexistence_assert(strpos($result['out'], 'CLASSES:official=yes,ours=yes') !== false, "paused ({$scenario}): official UPayments\\Subscription and SUPCheckout Simplixi\\SUPCheckout\\Subscription classes resolve in one process");
     coexistence_assert(strpos($result['out'], 'UP_PLUGIN_URL:official') !== false && strpos($result['out'], 'UP_PLUGIN_PATH:official') !== false, "paused ({$scenario}): the official plugin's path constants are its own");
     coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "paused ({$scenario}): no PHP warning, notice or deprecation");
@@ -501,11 +509,15 @@ function coexistence_child($root, $scenario, $official_stub) {
     }
 
     $notices = 0;
+    $paused_renewal_notices = 0;
     foreach ($GLOBALS['coexistence']['actions'] as $action) {
         // The paused-renewal notice (fix A1-01) is a booted SUPCheckout's own store notice,
         // registered on every boot and rendered only when subscriptions are enabled; it is
-        // not a conflict notice.
+        // counted on its own, never as a conflict notice.
         $paused_renewal_notice = is_array($action[1]) && $action[1] === array('Simplixi\\SUPCheckout\\Subscription\\Presentation', 'render_auto_renewal_paused_notice');
+        if ($action[0] === 'admin_notices' && $paused_renewal_notice) {
+            $paused_renewal_notices++;
+        }
         if ($action[0] === 'admin_notices' && !$paused_renewal_notice) {
             $notices++;
             if (strpos($scenario, 'notice_') === 0) {
@@ -514,6 +526,7 @@ function coexistence_child($root, $scenario, $official_stub) {
         }
     }
     echo "\nNOTICES:{$notices}\n";
+    echo "PAUSED_RENEWAL_NOTICES:{$paused_renewal_notices}\n";
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
     echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
     echo 'COPY_RUNNER_HOOKS:' . $copy_runner_hooks . "\n";
