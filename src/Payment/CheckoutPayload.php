@@ -548,18 +548,13 @@ class CheckoutPayload {
     /**
      * Validate and normalize a UPayments redirect URL.
      *
-     * Accepts only absolute http/https URLs with a non-empty host, and only https
-     * when $require_https is set (live mode, A2-02): a live customer must never be
-     * sent to an unencrypted payment page. Sandbox keeps http, because UPayments
-     * documents http sandbox links. Does NOT force same-origin or a host allowlist:
-     * UPayments payment URLs are external and their hosted-page hosts are not yet
-     * confirmed by the provider.
+     * Accepts only absolute http/https URLs with a non-empty host.
+     * Does NOT force same-origin — UPayments payment URLs are external.
      *
-     * @param mixed $value         Raw redirect value from provider response.
-     * @param bool  $require_https Reject http (live mode).
+     * @param mixed $value Raw redirect value from provider response.
      * @return string|null Normalized URL or null if invalid.
      */
-    public static function normalize_upayments_redirect_url($value, $require_https = false) {
+    public static function normalize_upayments_redirect_url($value) {
         if (!is_string($value)) {
             return null;
         }
@@ -587,9 +582,6 @@ class CheckoutPayload {
         }
         $scheme = strtolower($parts['scheme']);
         if ($scheme !== 'http' && $scheme !== 'https') {
-            return null;
-        }
-        if ($require_https && $scheme !== 'https') {
             return null;
         }
         return $url;

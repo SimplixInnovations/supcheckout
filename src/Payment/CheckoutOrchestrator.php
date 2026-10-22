@@ -1564,13 +1564,10 @@ class CheckoutOrchestrator {
                     }
 
                     // E. Determine redirect URL: prefer data.link, fallback to data.transactionData.redirect_url.
-                    // Live mode accepts only https payment pages (A2-02). Only an
-                    // explicit sandbox setting keeps the documented http sandbox links.
                     $redirect_url = null;
-                    $require_https = !(method_exists($gateway, 'getMode') && $gateway->getMode() === true);
 
                     if (isset($result['data']['link']) && is_string($result['data']['link'])) {
-                        $redirect_url = CheckoutPayload::normalize_upayments_redirect_url($result['data']['link'], $require_https);
+                        $redirect_url = CheckoutPayload::normalize_upayments_redirect_url($result['data']['link']);
                     }
 
                     if ($redirect_url === null
@@ -1579,7 +1576,7 @@ class CheckoutOrchestrator {
                         && isset($result['data']['transactionData']['redirect_url'])
                         && is_string($result['data']['transactionData']['redirect_url'])
                     ) {
-                        $redirect_url = CheckoutPayload::normalize_upayments_redirect_url($result['data']['transactionData']['redirect_url'], $require_https);
+                        $redirect_url = CheckoutPayload::normalize_upayments_redirect_url($result['data']['transactionData']['redirect_url']);
                     }
 
                     // Require a valid redirect URL.

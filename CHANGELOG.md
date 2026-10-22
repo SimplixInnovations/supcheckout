@@ -6,9 +6,7 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
-### Charge path: exact amount binding, the hosted-page language, provider text and live redirects (hardening A1-07, A4-02, A1-10, A2-02)
-
-- **Live checkouts go only to https payment pages.** A Charge response whose payment link (`data.link`, or the `data.transactionData.redirect_url` fallback) used `http` was handed to WooCommerce as the checkout redirect in every mode. In live mode an `http` link is now rejected: the checkout shows the usual "Payment request could not be completed" notice and no attempt is recorded. If `data.link` is `http` and the fallback is `https`, the fallback is used. Sandbox mode keeps the documented `http` sandbox links. Payment-page hosts are still not restricted; a host allowlist waits until UPayments confirms its hosted-page hosts.
+### Charge path: exact amount binding, the hosted-page language and provider text (hardening A1-07, A4-02, A1-10)
 
 - **Accented product and customer names reach UPayments intact.** The text cleaner for provider `products[].name` and `products[].description` and `customer.name` deleted accented Latin letters and characters next to a no-break space ("Café Crème Zoë" became "Caf Crme Zo"), and any invalid byte emptied the whole value. It now keeps every well-formed UTF-8 character and drops only invalid bytes, such as a character cut off mid-sequence. These fields are descriptive only; the amount is unchanged. Arabic text was not affected.
 
