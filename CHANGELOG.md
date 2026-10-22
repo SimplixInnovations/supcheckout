@@ -14,6 +14,12 @@ The project is still in pre-release engineering hardening. Entries below are eng
 - Store managers see an admin notice on WooCommerce and Plugins screens while "Enable Subscriptions" is on. The order box and My Account show "Automatic Renewal: Paused" instead of a next billing date, and the setting description says that automatic renewal charges are paused.
 - Collect renewals manually or by payment link. Stored subscription data, the billing-attempt history and the `upay_process_subscriptions` hook are unchanged.
 
+### Hardening: large stores can switch, roll back and dry-run finalize from the browser (A5-02)
+
+- The takeover walks over every order now flush the in-request object cache after each batch of at most 50: the Cutover final verify, the Rollback back-sync and copy removal (its rescans included), the Finalize dry run and removal, and every copy loop (the onboarding driver's tick, the Action Scheduler batch action and `wp supcheckout takeover run`). Before, each walked order stayed in memory for the whole request, so on a store of roughly 5,000 to 6,000 orders or more a switch, rollback or finalize dry run started from the REST API or Action Scheduler (256M) ran out of memory. Shell access was needed to finish.
+- The flush is `wp_cache_flush_runtime()`, used whenever the object cache supports it, Redis and Memcached drop-ins included. It never calls `wp_cache_flush()`, so the persistent cache is left alone. Copies, verifications, failure codes, locks and compare-and-swaps are unchanged.
+- The migration matrix keeps its 10,000-order WP-CLI end-to-end switch and adds the web-memory walks. After the WP-CLI switch, the same lane runs the finalize dry run and a budgeted rollback, each in one request at `memory_limit=256M`. A new parallel 10,000-order lane copies through WP-CLI, then runs the switch itself in one request at 256M. Each walk's peak-memory growth must stay within 64 MB, and the new lane is part of the matrix gate.
+
 ### Checkout: a long exact unit price no longer fails the payment (hardening A1-02)
 
 - UPayments caps `products[].price` at 7 characters. A checkout whose exact unit price is longer, for example `10499.99` AED, `1234.567` KWD, or a percentage coupon with quantity such as `1.640625`, used to fail with "Payment request could not be completed". It now sends the Charge without `products[]`, the same way it already handles any other line that cannot be described exactly.

@@ -370,6 +370,7 @@ function h12dp_copy_store() {
         public function add_unique_user_meta($user_id, $key, $slashed_value) { return add_user_meta($user_id, $key, $slashed_value, true) !== false; }
         public function product_ids_after($after_id, $limit) { return array(); }
         public function load_product($product_id) { return null; }
+        public function flush_runtime_cache() { return false; }
         public function table_exists($which) { return false; }
         public function create_new_table() { return false; }
         public function table_columns($which) { return array(); }

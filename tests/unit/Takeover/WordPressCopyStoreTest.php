@@ -329,6 +329,43 @@ final class WordPressCopyStoreTest extends TestCase {
         self::assertSame(array(), (new WordPressCopyStore())->table_columns(CopyStore::TABLE_LEGACY));
     }
 
+    /** A5-02: the in-request object cache, never the persistent one, for any object cache that supports it. */
+    private static function define_object_cache(bool $supports_runtime_flush): void {
+        $GLOBALS['supcheckout_test_cache_calls'] = array();
+        $GLOBALS['supcheckout_test_supports_runtime_flush'] = $supports_runtime_flush;
+        eval('function wp_cache_supports($feature) { $GLOBALS["supcheckout_test_cache_calls"][] = "supports:" . $feature; return $feature === "flush_runtime" && $GLOBALS["supcheckout_test_supports_runtime_flush"]; }');
+        eval('function wp_cache_flush_runtime() { $GLOBALS["supcheckout_test_cache_calls"][] = "flush_runtime"; return true; }');
+        eval('function wp_cache_flush() { $GLOBALS["supcheckout_test_cache_calls"][] = "flush"; return true; }');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a5_02_the_runtime_cache_flush_clears_only_the_in_request_cache(): void {
+        self::define_object_cache(true);
+
+        self::assertTrue((new WordPressCopyStore())->flush_runtime_cache());
+
+        self::assertSame(array('supports:flush_runtime', 'flush_runtime'), $GLOBALS['supcheckout_test_cache_calls'], 'wp_cache_flush() (the persistent cache) is never called');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a5_02_an_object_cache_without_runtime_flush_support_is_left_alone(): void {
+        self::define_object_cache(false);
+
+        self::assertFalse((new WordPressCopyStore())->flush_runtime_cache());
+
+        self::assertSame(array('supports:flush_runtime'), $GLOBALS['supcheckout_test_cache_calls'], 'no flush of any kind');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a5_02_a_wordpress_without_the_runtime_flush_api_is_left_alone(): void {
+        self::assertFalse(function_exists('wp_cache_flush_runtime') || function_exists('wp_cache_supports'), 'precondition: neither API exists here');
+
+        self::assertFalse((new WordPressCopyStore())->flush_runtime_cache());
+    }
+
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
     public function test_the_new_table_is_created_from_the_cycle_claim_schema(): void {

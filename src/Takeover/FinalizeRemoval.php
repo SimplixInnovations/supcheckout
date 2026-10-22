@@ -113,11 +113,11 @@ final class FinalizeRemoval {
             case self::PHASE_CRON:
                 return self::cron($system, $apply);
             case self::PHASE_ORDERS:
-                return self::orders($store, (int) $cursor, $apply);
+                return self::flush_after_batch($store, $phase, self::orders($store, (int) $cursor, $apply));
             case self::PHASE_USERS:
-                return self::users($store, (int) $cursor, $apply);
+                return self::flush_after_batch($store, $phase, self::users($store, (int) $cursor, $apply));
             case self::PHASE_PRODUCTS:
-                return self::products($store, (int) $cursor, $apply);
+                return self::flush_after_batch($store, $phase, self::products($store, (int) $cursor, $apply));
             case self::PHASE_OPTIONS:
                 return self::options($apply);
             case self::PHASE_BACKUPS:
@@ -129,6 +129,25 @@ final class FinalizeRemoval {
             default:
                 return self::result(self::DONE, self::PHASE_DONE, 0);
         }
+    }
+
+    /**
+     * A5-02: the dry run (Finalize::plan()) and the removal walk every order, user and
+     * product within one request, and the dry run never saves (so never evicts) one. After
+     * each batch of an object phase, this request's object cache is flushed
+     * (CopyStore::flush_runtime_cache()). A batch keeps its phase in the result; an empty
+     * selection moves on to the next phase and holds nothing to drop.
+     *
+     * @param FinalizeStore $store Store.
+     * @param string        $phase The object phase that ran.
+     * @param array{status:string, progress:array{phase:string, cursor:int|string}, removed:array<string,int>, kept:list<array<string,mixed>>} $out Its result.
+     * @return array{status:string, progress:array{phase:string, cursor:int|string}, removed:array<string,int>, kept:list<array<string,mixed>>} $out, unchanged.
+     */
+    private static function flush_after_batch(FinalizeStore $store, $phase, array $out) {
+        if ($out['progress']['phase'] === $phase) {
+            $store->flush_runtime_cache();
+        }
+        return $out;
     }
 
     /**

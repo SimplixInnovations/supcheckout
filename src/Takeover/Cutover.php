@@ -268,7 +268,10 @@ final class Cutover {
     }
 
     /**
-     * Step 3 over every order, user and product the copy runner would select.
+     * Step 3 over every order, user and product the copy runner would select. The walk can
+     * span the whole store in one request, so this request's object cache is flushed after
+     * every batch (A5-02): most objects verify equal and are never saved, so nothing else
+     * would evict them.
      *
      * @return bool
      */
@@ -285,6 +288,7 @@ final class Cutover {
                     return false;
                 }
             }
+            $this->flush_batch($ids);
         } while (count($ids) === CopyRunner::ORDER_BATCH);
         $cursor = 0;
         do {
@@ -298,6 +302,7 @@ final class Cutover {
                     return false;
                 }
             }
+            $this->flush_batch($ids);
         } while (count($ids) === CopyRunner::USER_BATCH);
         $cursor = 0;
         do {
@@ -309,9 +314,22 @@ final class Cutover {
                     return false;
                 }
             }
+            $this->flush_batch($ids);
         } while (count($ids) === CopyRunner::PRODUCT_BATCH);
         $this->report['mismatches'] = $mismatches;
         return array_sum($mismatches) === 0;
+    }
+
+    /**
+     * After a non-empty batch, after its last maybe_renew(): CopyStore::flush_runtime_cache().
+     *
+     * @param list<int> $ids The batch.
+     * @return void
+     */
+    private function flush_batch(array $ids) {
+        if ($ids !== array()) {
+            $this->store->flush_runtime_cache();
+        }
     }
 
     /**
