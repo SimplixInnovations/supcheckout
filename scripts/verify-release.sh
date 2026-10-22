@@ -107,6 +107,15 @@ with zipfile.ZipFile(zip_path, "r") as archive:
         if rel not in allowed_exact and not rel.startswith(allowed_prefixes):
             raise SystemExit(f"Unexpected release path outside allowlist: {rel}")
 
+    # languages/ holds translation data only, flat: never code (a stray .php) or subfolders.
+    language_suffixes = (".pot", ".po", ".mo", ".json", ".l10n.php")
+    for rel in rel_names:
+        if not rel.startswith("languages/"):
+            continue
+        leaf = rel[len("languages/"):]
+        if "/" in leaf or not leaf.startswith("supcheckout") or not leaf.endswith(language_suffixes):
+            raise SystemExit(f"Unexpected file in languages/: {rel}")
+
     distignore = subprocess.check_output(
         ["git", "-C", str(root), "show", "HEAD:.distignore"],
         text=True,
