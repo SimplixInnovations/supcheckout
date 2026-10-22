@@ -1060,12 +1060,29 @@ class CheckoutPayload {
         if ($str === '') {
             return '';
         }
-        // Remove invalid UTF-8 sequences using PCRE (always available).
-        $str = preg_replace('/[\x00-\x7F][\x80-\xBF]+/u', '', $str);
-        $str = preg_replace('/[\xC0-\xDF](?![\x80-\xBF])/u', '', $str);
-        $str = preg_replace('/[\xE0-\xEF](?![\x80-\xBF]{2})/u', '', $str);
-        $str = preg_replace('/[\xF0-\xF7](?![\x80-\xBF]{3})/u', '', $str);
-        if ($str === '' || $str === null) {
+        // Keep only well-formed UTF-8 sequences (RFC 3629) and drop every other byte.
+        // The pattern runs on bytes, without the /u flag: with /u, \x80-\xFF would
+        // mean code points U+0080-U+00FF, so accented Latin letters and characters
+        // next to a no-break space were deleted, and any invalid byte made PCRE
+        // return null and empty the whole value (A1-10). mb_scrub() is not used: it
+        // substitutes '?' instead of removing the byte.
+        $sequences = array();
+        if (preg_match_all(
+            '/[\x00-\x7F]'
+            . '|[\xC2-\xDF][\x80-\xBF]'
+            . '|\xE0[\xA0-\xBF][\x80-\xBF]'
+            . '|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}'
+            . '|\xED[\x80-\x9F][\x80-\xBF]'
+            . '|\xF0[\x90-\xBF][\x80-\xBF]{2}'
+            . '|[\xF1-\xF3][\x80-\xBF]{3}'
+            . '|\xF4[\x80-\x8F][\x80-\xBF]{2}/',
+            $str,
+            $sequences
+        ) === false) {
+            return '';
+        }
+        $str = implode('', $sequences[0]);
+        if ($str === '') {
             return '';
         }
         // Fast path: mbstring available.

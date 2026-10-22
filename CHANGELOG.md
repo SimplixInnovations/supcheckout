@@ -6,7 +6,9 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
-### Charge path: exact amount binding and the hosted-page language (hardening A1-07, A4-02)
+### Charge path: exact amount binding, the hosted-page language and provider text (hardening A1-07, A4-02, A1-10)
+
+- **Accented product and customer names reach UPayments intact.** The text cleaner for provider `products[].name` and `products[].description` and `customer.name` deleted accented Latin letters and characters next to a no-break space ("Café Crème Zoë" became "Caf Crme Zo"), and any invalid byte emptied the whole value. It now keeps every well-formed UTF-8 character and drops only invalid bytes, such as a character cut off mid-sequence. These fields are descriptive only; the amount is unchanged. Arabic text was not affected.
 
 - **Arabic orders open the UPayments page in Arabic.** Every Charge asked for the English hosted card/KNET page, whatever the order's language. The Charge `language` is now `ar` for an Arabic order and `en` otherwise. The order's WPML/WCML language (`wpml_language` order meta) decides first, then the WPML current language (`wpml_current_language`), then the site locale. Arabic means `ar` or Moroccan Arabic `ary`, with or without a region. Other codes that start with "ar", such as Aragonese, get English. The static device fingerprint (`device.browserDetails.language`) is unchanged. This needs real WPML/WCML runtime evidence before any multilingual support claim (`docs/COMPATIBILITY.md`).
 
