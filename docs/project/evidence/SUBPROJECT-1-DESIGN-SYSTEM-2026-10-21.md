@@ -96,7 +96,7 @@ The controller ran four independent reviews on the whole Sub-project 1 diff from
   - C4: DataTable `density="comfortable"` could not override a compact root.
 - **Accessibility** (approve; Important I1–I4, Minor M1–M6): all fixed in #211, together with the re-review items N1 (DataTable stale sort announcement, including a mid-load edge case) and N2 (the Notice focus target's scope and visibility), and new forced-colors coverage of the palette (`palette-forced-colors` baseline). The re-review approved 14 of 14 items. N3, the palette viewport's use of `:has()`, is recorded as a browser floor in `docs/COMPATIBILITY.md`.
 - **Release** (reproducible, 224 files built twice; WordPress.org compliant):
-  - H1, Admin UI Gate was not a required check: done; the owner approved it on 2026-10-21 and `Admin UI Gate` is a required status check in the `Main Rule` ruleset. `AGENTS.md` merge discipline names it (pending owner acknowledgement).
+  - H1, Admin UI Gate was not a required check: done; the owner approved it on 2026-10-21 and `Admin UI Gate` is a required status check in the `Main Rule` ruleset. `AGENTS.md` merge discipline names it (acknowledged by the owner 2026-10-22).
   - H2, the markdown-it allow-list expiry was untracked: resolved by #208.
   - M1, `min-release-age` was not enforced on the lockfile: the lock-age check (`npm run audit:lock-age`) in #209.
   - M2, the build and dependency documentation, and M3, the revert recipe: these docs (`RELEASE-ENGINEERING.md`, `CONTRIBUTING.md`).
@@ -105,17 +105,20 @@ The controller ran four independent reviews on the whole Sub-project 1 diff from
   - L5, the pixel-exact visual lane can drift when `playwright install --with-deps` pulls newer distro font or freetype packages onto the pinned `ubuntu-24.04` image: documented as the expected regeneration case (`CONTRIBUTING.md` › Regenerating the baselines).
   - L6, an ambient `NODE_ENV` or `BROWSERSLIST` changes a local build: documented as "build in a clean environment" (`CONTRIBUTING.md`).
 
-## Pending owner acknowledgements
+## Owner acknowledgements
 
-Work proceeded on these recommendations; each waits for the owner's acknowledgement.
+Work proceeded on these recommendations. On 2026-10-22 the owner accepted the recommended option for every item below, asking for the best practice and the standard recommended by WordPress and WooCommerce. Each item is **acknowledged by the owner 2026-10-22**.
 
-1. The `--sup-*` token prefix, scoped under `.supcheckout-admin`.
-2. Light and dark with a manual toggle that defaults to the system preference.
-3. Shipping the human-readable TypeScript source (`assets/admin/src/**`) in the package.
-4. The audit allow-list: braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c (no patched release, development-only, expiring 2027-01-17). Alternatively, the owner may require a bare `npm audit --audit-level=high`.
-5. The darkened colour values: the light strong border `#858B96` (drafted `#8A919C`), the retuned subtle text, and the dark `*-950` status tints.
-6. Mod+K yields to WordPress core's command palette.
-7. The `AGENTS.md` diff in the closeout PR: the gate sentence edit, the permanent-controls addition and the "Admin UI Gate green" merge-discipline line.
+1. The `--sup-*` token prefix, scoped under `.supcheckout-admin`: acknowledged by the owner 2026-10-22.
+2. Light and dark following the system setting by default, with a manual toggle: acknowledged by the owner 2026-10-22.
+3. Shipping the human-readable TypeScript source (`assets/admin/src/**`) in the package: acknowledged by the owner 2026-10-22.
+4. The audit allow-list: braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c (no patched release, development-only, expiring 2027-01-17): acknowledged by the owner 2026-10-22. The bare `npm audit --audit-level=high` alternative is not required.
+5. The darkened colour values: the light strong border `#858B96` (drafted `#8A919C`), the retuned subtle text, and the dark `*-950` status tints (the DESIGN.md "Contrast decisions" bullet): acknowledged by the owner 2026-10-22.
+6. Mod+K yields to WordPress core's command palette, and traps while a SUPCheckout modal is open (DESIGN.md): acknowledged by the owner 2026-10-22.
+7. The `AGENTS.md` diff in the closeout PR: the gate sentence edit, the permanent-controls addition and the "Admin UI Gate green" merge-discipline line: acknowledged by the owner 2026-10-22.
+8. The pixel-exact visual comparison (the pinned visual-regression lane): acknowledged by the owner 2026-10-22.
+
+The Sub-project 0c items were acknowledged the same day: the paused-surface amendment (the lazy `action_scheduler_before_process_queue` hook, 0c plan decision 6) and the gate-wording update ([evidence](SUBPROJECT-0C-OWNER-STAGING-REVIEW-2026-10-22.md)).
 
 ## Owner manual test list
 
@@ -136,6 +139,8 @@ CI cannot do these. They are External / manual in `docs/COMPATIBILITY.md`.
 4. **Safari, Firefox and mobile devices:** the same gallery in the four modes. Only Chromium is automated.
 5. **Touch:** toast swipe-to-dismiss in RTL.
 6. **Real Arabic copy review:** a native speaker reviews the Arabic strings and their rendering, including Arabic amounts in `Numeric`. The gallery shows English in RTL, and only the `foundations-arabic` specimen shows real Arabic text.
+7. **Live cutover:** confirm the automatic LiteSpeed/Cloudflare purge when the real takeover runs on the live store. The 0c staging copy could not repeat it (its takeover is finalized and LiteSpeed Cache is not active); the real-plugin CI cell covers it (`tests/integration/CachePurgeRuntimeTest.php` with LiteSpeed Cache 7.9.1).
+8. **Store configuration advice:** set the store to use '.' as the decimal separator and AED at 2 decimals, because "1,500 KWD" reads as thousands.
 
 ## Hardening tracker
 

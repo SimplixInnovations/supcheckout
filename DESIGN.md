@@ -174,7 +174,7 @@ Sources: `assets/admin/src/tokens/*.tokens.json`, the generator `tools/admin-ui/
 - **Mode.** Light / Dark / Match system, default Match system (the `ThemeToggle`). "Match system" is pure CSS (`prefers-color-scheme` unless `data-sup-theme` is set), so nothing flashes before React mounts. In dark mode elevation comes from surface steps and a hairline border, not shadows.
 - **Admin colour scheme.** No core scheme is a dark content scheme, so the scheme drives only the accent, never the mode. The nine core schemes (`fresh`, `light`, `modern`, `blue`, `coffee`, `ectoplasm`, `midnight`, `ocean`, `sunrise`) have contrast-verified light and dark accent ramps; an unknown scheme falls back to `fresh` (accent `#2271B1`).
 - **Brand.** `brand.tokens.json` may set only allow-listed keys and replaces the scheme accents. The generator's `--check` fails on drift, on any WCAG 2.2 AA contrast failure in either mode across the nine schemes, and on an invalid or inaccessible brand file.
-- **Contrast decisions (pending owner acknowledgement).** The light strong border is `#858B96`, a shade darker than the drafted `#8A919C`, so control boundaries reach 3:1 on canvas, surface, raised, sunken and the accent-subtle background. Subtle text (`--sup-color-fg-subtle`) is retuned to 4.5:1 text contrast, including on accent-subtle and status backgrounds. Dark-mode status tints use the calm `*-950` steps. Status colours are never the only signal: every status carries text and an icon.
+- **Contrast decisions (acknowledged by the owner 2026-10-22).** The light strong border is `#858B96`, a shade darker than the drafted `#8A919C`, so control boundaries reach 3:1 on canvas, surface, raised, sunken and the accent-subtle background. Subtle text (`--sup-color-fg-subtle`) is retuned to 4.5:1 text contrast, including on accent-subtle and status backgrounds. Dark-mode status tints use the calm `*-950` steps. Status colours are never the only signal: every status carries text and an icon.
 
 ### Arabic typography
 
@@ -206,7 +206,7 @@ A polite `status` region is announced reliably only when its content changes aft
 
 ### Mod+K yield and trap rule
 
-Mod+K (Meta+K on Apple platforms, Ctrl+K elsewhere) belongs to WordPress core's command palette wherever core loads it: the SUPCheckout palette then binds no key, and Sub-project 2 registers SUPCheckout commands into `core/commands`. Only where core's palette is absent does Mod+K toggle ours (pending owner acknowledgement). While any SUPCheckout modal is open, the modal frame marks Mod+K handled, so core's palette never opens over a pending confirmation. The binding ignores IME composition, matches the physical K key on other layouts and never overrides an editor that handled the key first.
+Mod+K (Meta+K on Apple platforms, Ctrl+K elsewhere) belongs to WordPress core's command palette wherever core loads it: the SUPCheckout palette then binds no key, and Sub-project 2 registers SUPCheckout commands into `core/commands`. Only where core's palette is absent does Mod+K toggle ours (acknowledged by the owner 2026-10-22). While any SUPCheckout modal is open, the modal frame marks Mod+K handled, so core's palette never opens over a pending confirmation. The binding ignores IME composition, matches the physical K key on other layouts and never overrides an editor that handled the key first.
 
 ### Component inventory
 
