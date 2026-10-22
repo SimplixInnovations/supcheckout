@@ -34,7 +34,12 @@ defined( 'ABSPATH' ) || exit;
         // Display only (provider amounts never read this): the store's own price format,
         // separators and currency position, bidi-isolated in <bdi> by wc_price().
         $price_html = wc_price($total_raw, array('currency' => $currency_code));
-        $price_allowed_html = array('span' => array('class' => true), 'bdi' => array());
+        // Exactly the markup wc_price() emits, including translate="no" (WooCommerce 11.1+)
+        // and dir="auto" on the currency symbol.
+        $price_allowed_html = array(
+            'span' => array('class' => true, 'translate' => true, 'dir' => true, 'aria-hidden' => true),
+            'bdi' => array(),
+        );
         $price_text = trim(html_entity_decode(wp_strip_all_tags($price_html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $whitelabled = false;
         $payment_data = $gateway->getPaymentIcons();

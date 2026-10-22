@@ -63,7 +63,7 @@ final class GatewaySettings {
      * @return string
      */
     public static function default_checkout_description() {
-        return __('Pay securely with the payment methods available through UPayments.', 'supcheckout');
+        return __('Choose your payment method and complete your payment on the secure UPayments page.', 'supcheckout');
     }
 
     /**

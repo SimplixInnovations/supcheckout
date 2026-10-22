@@ -55,7 +55,7 @@ final class GatewaySettingsTest extends TestCase {
             Supports Classic and Block Checkout.";
         $fields = GatewaySettings::fields('upayments', 'UPayments', $method_description);
 
-        self::assertSame('Pay securely with the payment methods available through UPayments.', $fields['description']['default']);
+        self::assertSame('Choose your payment method and complete your payment on the secure UPayments page.', $fields['description']['default']);
         self::assertNotSame($method_description, $fields['description']['default']);
         self::assertStringNotContainsString("
 ", $fields['description']['default']);

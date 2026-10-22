@@ -72,8 +72,17 @@ $hosted_prices = template_prices($hosted['html']);
 template_assert(count($hosted_prices) === 1, 'the hosted button shows one price');
 template_assert(
     isset($hosted_prices[0])
-        && strpos($hosted_prices[0], '<span class="woocommerce-Price-amount amount"><bdi>12.500&nbsp;<span class="woocommerce-Price-currencySymbol">&#x62f;.&#x643;</span></bdi></span>') !== false,
+        && strpos($hosted_prices[0], '<span class="woocommerce-Price-amount amount"><bdi>12.500&nbsp;<span class="woocommerce-Price-currencySymbol" translate="no" dir="auto">&#x62f;.&#x643;</span></bdi></span>') !== false,
     'checkout shows the cart total through wc_price in the store\'s price format, bidi-isolated in <bdi>'
+);
+// Review round 1 (I-1): the escaping allowlist keeps the attributes wc_price() emits.
+template_assert(
+    isset($hosted_prices[0]) && strpos($hosted_prices[0], 'translate="no"') !== false,
+    'the currency symbol keeps wc_price()\'s translate="no", so page translators leave it alone'
+);
+template_assert(
+    isset($hosted_prices[0]) && preg_match('/<span class="woocommerce-Price-currencySymbol"[^>]*\bdir="auto"/', $hosted_prices[0]) === 1,
+    'the currency symbol keeps wc_price()\'s dir="auto"'
 );
 $hosted_label = template_hosted_aria_label($hosted['html']);
 template_assert(
@@ -97,7 +106,7 @@ template_assert($order_pay['code'] === 0, 'pay-for-order renders without error')
 $order_prices = template_prices($order_pay['html']);
 template_assert(
     isset($order_prices[0])
-        && strpos($order_prices[0], '<bdi>7.250&nbsp;<span class="woocommerce-Price-currencySymbol">&#x631;.&#x633;</span></bdi>') !== false,
+        && strpos($order_prices[0], '<bdi>7.250&nbsp;<span class="woocommerce-Price-currencySymbol" translate="no" dir="auto">&#x631;.&#x633;</span></bdi>') !== false,
     'pay-for-order shows the order\'s own total in the order\'s own currency, not the empty cart'
 );
 
@@ -173,8 +182,21 @@ function esc_html_e($text, $domain = 'default') { echo htmlspecialchars((string)
 function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
 function esc_attr($text) { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
 function esc_url($url) { return (string) $url; }
-// Tag-level stand-ins for kses: keep only the allowed elements.
-function wp_kses($text, $allowed) { return strip_tags((string) $text, array_keys((array) $allowed)); }
+// Stand-in for kses: keep only the allowed elements, and on them only the allowed attributes.
+function wp_kses($text, $allowed) {
+    $allowed = (array) $allowed;
+    $text = strip_tags((string) $text, array_keys($allowed));
+    return preg_replace_callback('/<(\/?)([a-z0-9]+)([^>]*)>/i', function ($m) use ($allowed) {
+        if ($m[1] === '/') { return '</' . $m[2] . '>'; }
+        $keep = isset($allowed[strtolower($m[2])]) ? (array) $allowed[strtolower($m[2])] : array();
+        preg_match_all('/\s([a-z-]+)="([^"]*)"/i', $m[3], $attrs, PREG_SET_ORDER);
+        $out = '<' . $m[2];
+        foreach ($attrs as $attr) {
+            if (!empty($keep[strtolower($attr[1])])) { $out .= ' ' . $attr[1] . '="' . $attr[2] . '"'; }
+        }
+        return $out . '>';
+    }, $text);
+}
 function wp_kses_post($text) { return strip_tags((string) $text, array('a', 'b', 'br', 'em', 'i', 'p', 'span', 'strong')); }
 function wp_strip_all_tags($text, $remove_breaks = false) { return trim(strip_tags(preg_replace('@<(script|style)[^>]*?>.*?</\\1>@si', '', (string) $text))); }
 function wp_json_encode($data, $flags = 0) { return json_encode($data, $flags); }
@@ -191,13 +213,14 @@ function wc_get_price_decimal_separator() { return $GLOBALS['template_scenario']
 function wc_get_price_thousand_separator() { return $GLOBALS['template_scenario'] === 'comma_store' ? '.' : ','; }
 function get_woocommerce_price_format() { return '%2$s&nbsp;%1$s'; }
 function wc_format_decimal($number, $dp = false) { return number_format((float) $number, $dp === false ? 3 : (int) $dp, '.', ''); }
-// Mirrors the markup of WooCommerce's wc_price().
+// Mirrors the markup of WooCommerce's wc_price(), including the translate="no" (WooCommerce
+// 11.1+) and dir="auto" (WooCommerce trunk) attributes on the currency symbol.
 function wc_price($price, $args = array()) {
     $currency = isset($args['currency']) && $args['currency'] !== '' ? $args['currency'] : get_woocommerce_currency();
     $decimals = isset($args['decimals']) ? (int) $args['decimals'] : wc_get_price_decimals();
     $formatted = number_format((float) $price, $decimals, wc_get_price_decimal_separator(), wc_get_price_thousand_separator());
     return '<span class="woocommerce-Price-amount amount"><bdi>'
-        . sprintf(get_woocommerce_price_format(), '<span class="woocommerce-Price-currencySymbol">' . get_woocommerce_currency_symbol($currency) . '</span>', $formatted)
+        . sprintf(get_woocommerce_price_format(), '<span class="woocommerce-Price-currencySymbol" translate="no" dir="auto">' . get_woocommerce_currency_symbol($currency) . '</span>', $formatted)
         . '</bdi></span>';
 }
 function is_wc_endpoint_url($endpoint = '') { return $GLOBALS['template_scenario'] === 'order_pay' && $endpoint === 'order-pay'; }
