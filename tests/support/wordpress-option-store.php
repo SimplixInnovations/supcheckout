@@ -98,9 +98,13 @@ if (!function_exists('supcheckout_test_option_value_matches')) {
      * (utf8mb4_unicode_ci / utf8mb4_unicode_520_ci), so a plain `option_value = %s`
      * matches a value that differs only in letter case or trailing spaces. Only the
      * bytewise form `CAST(option_value AS BINARY) = CAST(%s AS BINARY)` compares
-     * exactly. Accent folding is not emulated.
+     * exactly. Accent folding is not emulated. A non-string value held by the fake
+     * stands for the row's serialized form, which is what MySQL compares.
      */
     function supcheckout_test_option_value_matches($query, $stored, $expected) {
+        if (!is_string($stored)) {
+            $stored = serialize($stored);
+        }
         if (strpos((string) $query, 'CAST(option_value AS BINARY) = CAST(%s AS BINARY)') !== false) {
             return $stored === $expected;
         }

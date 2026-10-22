@@ -94,10 +94,20 @@ foreach (array(
     'release_requires_the_exact_owner_token',
     'expired_record_is_replaced_only_by_compare_and_swap',
     'stale_takeover_cannot_replace_a_newer_competing_owner',
-    'malformed_existing_record_fails_closed_without_deletion',
+    // OL-1 (2026-10-22) deliberately replaced "malformed_existing_record_fails_closed_without_deletion":
+    // it pinned a record no worker holds or can release, which blocked the order's
+    // payment lifecycle forever. Recovery stays compare-and-swap only, never steals a
+    // live lease, and has exactly one winner.
+    'an_unparseable_record_is_recovered_by_compare_and_swap',
+    'a_record_expiring_far_beyond_the_bound_is_recovered',
+    'a_live_record_is_never_stolen',
+    'a_hold_just_inside_the_implausible_expiry_bound_is_not_stolen',
+    'two_concurrent_recoverers_of_one_corrupt_record_have_exactly_one_winner',
 ) as $test_name) {
     q3_assert(q3_contains($lock_tests, $test_name), "order-lock test exists: {$test_name}");
 }
+q3_assert(q3_contains($order_lock, 'self::replace_if_current($name, $expected, $record)'), 'stale, corrupt and implausible lock recovery is one exact-value compare-and-swap');
+q3_assert(q3_contains($order_lock, 'private const MAX_CLOCK_AHEAD = 3600;'), 'implausible-expiry recovery bound stays far above the 45-second lease');
 
 q3_assert(q3_contains($option_fixture, 'class SUPCheckout_Test_WPDB'), 'unit fixture provides a deterministic wpdb compare-and-swap seam');
 q3_assert(q3_contains($option_fixture, "strpos(\$statement['query'], 'UPDATE ') === 0"), 'unit fixture executes conditional update semantics');
