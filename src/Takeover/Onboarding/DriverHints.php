@@ -62,17 +62,19 @@ final class DriverHints {
     }
 
     /**
-     * A5-05: the copy stopped at an order its payment lock held through every busy retry.
-     * A payment holds that lock for at most 45 seconds, so the record is most likely
-     * unparseable (OrderLock then fails closed and never breaks it); the takeover never
-     * deletes a payment lock itself.
+     * A5-05: the copy stopped at an order whose payment lock stayed genuinely held through
+     * every busy retry (a live lease its holder kept renewing, for example a payment in a
+     * slow provider call, or a lease written by a node whose clock runs ahead). A damaged
+     * lock record is never this case: OrderLock recovers expired, unparseable and
+     * implausible-expiry records itself by compare-and-swap (OL-1), so the hint never
+     * blames one and never asks the merchant to delete a lock.
      *
      * @param int $order_id The locked order.
      * @return string
      */
     public static function order_locked($order_id) {
         $order_id = (int) $order_id;
-        return 'order ' . $order_id . ' stayed locked through every retry (a payment holds its lock for at most 45 seconds), so its lock record is probably damaged; check that no payment for order ' . $order_id . ' is in progress, delete the lock options whose names end in "order_lock_v1_' . $order_id . '" (wp option list --search="*order_lock_v1_' . $order_id . '"), then start again';
+        return 'A payment for order ' . $order_id . ' kept its payment lock through ' . DriverStep::MAX_BUSY_RETRIES . ' checks about a minute apart. Let that payment finish (check the order in WooCommerce and the UPayments dashboard), then start the switch again.';
     }
 
     /**

@@ -363,8 +363,9 @@ final class DriverStep {
                 return;
             }
             if ($step === CopyRunner::RETRY) {
-                // A5-05: an order held by its payment lock. A live holder releases it within
-                // seconds; an unparseable lock record holds it forever, so this is bounded.
+                // A5-05: an order held by its payment lock. OrderLock recovers a damaged or
+                // expired record itself (OL-1), so this is a lock that is genuinely held; a
+                // holder normally releases it within seconds, and the retries are bounded.
                 $this->busy_retry('copy', 'order_locked', array('copy' => CopyRunner::RETRY, 'locked_order' => $this->onboarding->locked_order()));
                 return;
             }

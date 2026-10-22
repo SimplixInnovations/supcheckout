@@ -51,6 +51,10 @@ final class DriverStepTest extends TestCase {
     private $op = array();
     /** @var array<string, mixed> */
     private $last = array();
+    /** @var (callable(): void)|null Runs before every tick, e.g. a payment renewing its order lock. */
+    private $before_each_tick = null;
+    /** @var array<string, string> The order-lock records the simulated payment last wrote. */
+    private $held_lock_records = array();
 
     protected function setUp(): void {
         \supcheckout_test_reset_wp_options();
@@ -111,6 +115,9 @@ final class DriverStepTest extends TestCase {
     private function ticks(int $count): array {
         $out = array();
         for ($i = 0; $i < $count; $i++) {
+            if ($this->before_each_tick !== null) {
+                ($this->before_each_tick)();
+            }
             $result = $this->driver()->tick($this->op);
             $this->op = array_merge($this->op, DriverStep::progress_fields($this->op, $result));
             if ($result['next_delay'] === null) {
@@ -125,6 +132,31 @@ final class DriverStepTest extends TestCase {
     /** @return array<string, mixed> */
     private function tick(): array {
         return $this->ticks(1)[0];
+    }
+
+    /**
+     * A payment that keeps holding the order's lock: before every tick it renews a live,
+     * well-formed lease (the OrderLock record format "<expiry>:<token>", 45-second TTL) under
+     * every current name of the lock, as a real holder would. OrderLock never recovers such
+     * a lease (OL-1 recovers only expired, unparseable or implausible-expiry records).
+     */
+    private function hold_order_lock(int $order_id): void {
+        $this->before_each_tick = function () use ($order_id) {
+            $record = (time() + 45) . ':' . str_repeat('a', 32);
+            foreach (Keys::ephemeral_names('simplixpay_upay_order_lock_v1_' . $order_id) as $name) {
+                $GLOBALS['supcheckout_test_options'][$name] = $record;
+                $this->held_lock_records[$name] = $record;
+            }
+        };
+    }
+
+    /** @return array<string, mixed> The current values of the held lock records. */
+    private function current_lock_records(): array {
+        $current = array();
+        foreach (array_keys($this->held_lock_records) as $name) {
+            $current[$name] = isset($GLOBALS['supcheckout_test_options'][$name]) ? $GLOBALS['supcheckout_test_options'][$name] : null;
+        }
+        return $current;
     }
 
     /** @return array<string, mixed> */
@@ -351,15 +383,17 @@ final class DriverStepTest extends TestCase {
     }
 
     /**
-     * A5-05: an order whose lock record is unparseable (truncated, or edited by an options
-     * cleaner) is held forever (OrderLock fails closed). The copy used to retry it every 60
-     * seconds with no bound; it now counts as a busy retry and ends `order_locked`, naming
-     * the order and how to clear its lock.
+     * A5-05: an order whose payment lock stays genuinely held (a live lease its holder keeps
+     * renewing, for example a payment stuck in a slow provider call, or a lease written by a
+     * node whose clock runs ahead) used to be retried every 60 seconds with no bound. It now
+     * counts as a busy retry and ends `order_locked`, naming the order and telling the merchant
+     * to let that payment finish. A damaged lock record is not this case: OrderLock recovers
+     * it itself (OL-1; see the unparseable-record test below).
      */
     public function test_a5_05_a_permanently_locked_order_retries_17_times_then_fails_order_locked(): void {
         $GLOBALS['supcheckout_test_status_orders'][1] = new FakeCrudObject(1, 'upayments', array('UPayments_PaymentID' => array('pay-1')));
-        $GLOBALS['supcheckout_test_options']['simplixpay_upay_order_lock_v1_1'] = 'corrupt';
         CutoverTest::state('copying');
+        $this->hold_order_lock(1);
         $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'copy'));
 
         $ticks = $this->ticks(18);
@@ -368,24 +402,55 @@ final class DriverStepTest extends TestCase {
         self::assertSame(1, $ticks[0]['report']['locked_order'], 'the copy progress names the locked order');
         self::assertSame(array('failed', 'order_locked', null), array($this->last['outcome'], $this->last['error'], $this->last['next_delay']));
         self::assertSame(DriverHints::order_locked(1), $this->last['hint']);
-        self::assertStringContainsString('order_lock_v1_1', $this->last['hint']);
+        self::assertStringContainsString('order 1 ', $this->last['hint'], 'the hint names the locked order');
+        self::assertStringContainsString('Let that payment finish', $this->last['hint']);
+        self::assertStringNotContainsString('damaged', $this->last['hint'], 'a damaged lock record is recovered by OrderLock itself (OL-1), so the hint never blames one');
+        self::assertStringNotContainsString('order_lock_v1', $this->last['hint'], 'the merchant is never told to delete a payment lock');
         self::assertSame(1, $this->last['report']['locked_order']);
         self::assertSame(TakeoverState::COPYING, self::takeover_status(), 'resumable: nothing was skipped');
-        self::assertSame('corrupt', $GLOBALS['supcheckout_test_options']['simplixpay_upay_order_lock_v1_1'], 'a payment lock is never broken by the takeover');
+        self::assertNotSame(array(), $this->held_lock_records);
+        self::assertSame($this->held_lock_records, $this->current_lock_records(), 'a payment lock is never broken by the takeover');
     }
 
     public function test_a5_05_copy_progress_resets_the_busy_retry_count(): void {
         for ($id = 1; $id <= 3; $id++) {
             $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)));
         }
-        $GLOBALS['supcheckout_test_options']['simplixpay_upay_order_lock_v1_3'] = 'corrupt';
         CutoverTest::state('copying');
+        $this->hold_order_lock(3);
         $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'copy', 'busy_retries' => 16));
 
         $result = $this->tick();
 
         self::assertSame(array('running', 60, 1), array($result['outcome'], $result['next_delay'], $result['busy_retries']), 'orders 1 and 2 were copied: only the lock on order 3 counts');
         self::assertSame(3, $result['report']['locked_order']);
+        self::assertSame($this->held_lock_records, $this->current_lock_records(), 'the held lock on order 3 is untouched');
+    }
+
+    /**
+     * OL-1 x A5-05: an unparseable order-lock record (truncated, or edited by an options
+     * cleaner) is held by nobody. OrderLock recovers it by compare-and-swap when the copy
+     * acquires the lock, so the order is copied at once and the switch never ends
+     * `order_locked`.
+     */
+    public function test_a5_05_an_unparseable_order_lock_record_is_recovered_and_the_order_is_copied(): void {
+        $GLOBALS['supcheckout_test_status_orders'][1] = new FakeCrudObject(1, 'upayments', array('UPayments_PaymentID' => array('pay-1')));
+        CutoverTest::state('copying');
+        $GLOBALS['supcheckout_test_options']['simplixpay_upay_order_lock_v1_1'] = 'corrupt';
+        $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'copy'));
+
+        $result = $this->tick();
+
+        self::assertSame(array('running', 'retire', 0), array($result['outcome'], $result['phase'], $result['next_delay']), (string) json_encode($result));
+        self::assertNull($result['error']);
+        self::assertSame(0, $result['busy_retries'], 'the recovered record never counted as a busy retry');
+        self::assertArrayNotHasKey('locked_order', $result['report']);
+        self::assertContains('copy_verified', $result['steps']);
+        self::assertSame(TakeoverState::VERIFIED, self::takeover_status());
+        self::assertSame(array('pay-1'), $GLOBALS['supcheckout_test_status_orders'][1]->persisted_values('_supcheckout_payment_id'), 'the order behind the damaged record is copied');
+        foreach (Keys::ephemeral_names('simplixpay_upay_order_lock_v1_1') as $name) {
+            self::assertArrayNotHasKey($name, $GLOBALS['supcheckout_test_options'], 'the copy released the lock it recovered: ' . $name);
+        }
     }
 
     public function test_a_finished_copy_moves_to_retire_and_the_official_plugin_goes_first(): void {
