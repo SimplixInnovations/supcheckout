@@ -173,6 +173,88 @@ $write_only_saved = get_option($option_name);
 supcheckout_cert_assert(is_array($write_only_saved) && isset($write_only_saved['title']), 'Saving the settings with the API key field empty is not refused while a key is stored (the full field set is written)');
 supcheckout_cert_assert(is_array($write_only_saved) && isset($write_only_saved['api_key']) && $write_only_saved['api_key'] === $write_only_secret, 'Saving the settings with the API key field empty keeps the stored key');
 
+// Review round 1 #4: the same write-only contract through WooCommerce's real REST
+// controllers, as an administrator (rest_do_request(), no HTTP).
+$rest_original_user = get_current_user_id();
+$rest_admins = get_users(array('role' => 'administrator', 'number' => 1, 'fields' => 'ID'));
+$rest_admin_id = isset($rest_admins[0]) ? (int) $rest_admins[0] : 0;
+if ($rest_admin_id === 0) {
+    $rest_admin_id = (int) wp_insert_user(array(
+        'user_login' => 'supcheckout_rest_cert_' . wp_generate_password(6, false),
+        'user_pass'  => wp_generate_password(24, true),
+        'role'       => 'administrator',
+    ));
+}
+wp_set_current_user($rest_admin_id);
+supcheckout_cert_store_option_raw($option_name, array(
+    'enabled'              => 'yes',
+    'api_key'              => $write_only_secret,
+    'use_new_design'       => 'yes',
+    'enable_save_card'     => 'yes',
+    'enable_subscriptions' => 'no',
+));
+wp_cache_delete($option_name, 'options');
+// The controllers read WooCommerce's own gateway instance: reload its settings so the GETs
+// below really hold the secret in memory.
+$rest_instance_holds_secret = false;
+foreach (WC()->payment_gateways()->payment_gateways() as $rest_gateway_instance) {
+    if (is_object($rest_gateway_instance) && isset($rest_gateway_instance->id) && $rest_gateway_instance->id === 'upayments') {
+        $rest_gateway_instance->init_settings();
+        $rest_instance_holds_secret = $rest_gateway_instance->get_option('api_key') === $write_only_secret;
+    }
+}
+supcheckout_cert_assert($rest_instance_holds_secret, 'WooCommerce\'s gateway instance holds the stored API key before the REST reads');
+
+$rest_value_of = static function ($gateway_data) {
+    if (!is_array($gateway_data) || !isset($gateway_data['settings']) || !is_array($gateway_data['settings'])) {
+        return null;
+    }
+    return isset($gateway_data['settings']['api_key']['value']) ? (string) $gateway_data['settings']['api_key']['value'] : '';
+};
+foreach (array('/wc/v3/payment_gateways/upayments', '/wc/v2/payment_gateways/upayments') as $rest_route) {
+    $rest_read = rest_do_request(new \WP_REST_Request('GET', $rest_route));
+    $rest_read_data = $rest_read->get_data();
+    supcheckout_cert_assert(
+        $rest_read->get_status() === 200 && $rest_value_of($rest_read_data) === '' && strpos((string) wp_json_encode($rest_read_data), $write_only_secret) === false,
+        "REST GET {$rest_route} as an administrator returns the gateway with the API key blank or absent"
+    );
+}
+$rest_collection = rest_do_request(new \WP_REST_Request('GET', '/wc/v3/payment_gateways'));
+$rest_collection_ours = null;
+foreach ((array) $rest_collection->get_data() as $rest_item) {
+    if (is_array($rest_item) && isset($rest_item['id']) && $rest_item['id'] === 'upayments') {
+        $rest_collection_ours = $rest_item;
+    }
+}
+supcheckout_cert_assert(
+    $rest_collection->get_status() === 200 && $rest_collection_ours !== null && $rest_value_of($rest_collection_ours) === ''
+        && strpos((string) wp_json_encode($rest_collection->get_data()), $write_only_secret) === false,
+    'REST GET /wc/v3/payment_gateways (collection) never returns the stored API key'
+);
+
+$rest_blank = new \WP_REST_Request('PUT', '/wc/v3/payment_gateways/upayments');
+$rest_blank->set_body_params(array('settings' => array('api_key' => '')));
+$rest_blank_response = rest_do_request($rest_blank);
+wp_cache_delete($option_name, 'options');
+$rest_after_blank = get_option($option_name);
+supcheckout_cert_assert(
+    $rest_blank_response->get_status() === 200 && is_array($rest_after_blank) && isset($rest_after_blank['api_key']) && $rest_after_blank['api_key'] === $write_only_secret,
+    'REST PUT with settings.api_key blank keeps the stored API key'
+);
+
+$rest_new_key = 'A2-01-REPLACED-KEY-' . wp_generate_password(12, false);
+$rest_replace = new \WP_REST_Request('PUT', '/wc/v3/payment_gateways/upayments');
+$rest_replace->set_body_params(array('settings' => array('api_key' => $rest_new_key)));
+$rest_replace_response = rest_do_request($rest_replace);
+wp_cache_delete($option_name, 'options');
+$rest_after_replace = get_option($option_name);
+supcheckout_cert_assert(
+    $rest_replace_response->get_status() === 200 && is_array($rest_after_replace) && isset($rest_after_replace['api_key']) && $rest_after_replace['api_key'] === $rest_new_key
+        && strpos((string) wp_json_encode($rest_replace_response->get_data()), $rest_new_key) === false,
+    'REST PUT with a new settings.api_key replaces the stored key, and the response does not echo it'
+);
+wp_set_current_user($rest_original_user);
+
 if ($original === $missing) {
     delete_option($option_name);
 } else {

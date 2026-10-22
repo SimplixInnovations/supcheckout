@@ -299,6 +299,9 @@ final class GatewaySettings {
      * show the field empty (A2-01). The stored key is posted back slashed, as WordPress
      * posts form data; `api_key_missing` then applies only when no key is stored.
      *
+     * The supported actions on a stored key are "replace the key" (submit a new one) or
+     * "disable the gateway". There is no control to clear a stored key yet.
+     *
      * @param array  $post_data  WooCommerce gateway post data.
      * @param string $gateway_id The current gateway id.
      * @param mixed  $stored     The stored key.
