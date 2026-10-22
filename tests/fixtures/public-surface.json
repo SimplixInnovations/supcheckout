@@ -457,6 +457,14 @@
     },
     {
         "kind": "filter",
+        "hook": "lang_dir_for_domain",
+        "priority": 10,
+        "accepted_args": 3,
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
+        "kind": "filter",
         "hook": "pre_update_option_active_plugins",
         "priority": 10,
         "accepted_args": 2,
@@ -1243,6 +1251,14 @@
         "hook": "admin_body_class",
         "priority": 10,
         "accepted_args": 1,
+        "contexts": "static"
+    },
+    {
+        "kind": "hook_reference",
+        "type": "filter",
+        "hook": "lang_dir_for_domain",
+        "priority": 10,
+        "accepted_args": 3,
         "contexts": "static"
     },
     {
