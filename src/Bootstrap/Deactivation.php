@@ -38,8 +38,13 @@ use Simplixi\SUPCheckout\Takeover\TakeoverState;
  * Every step is isolated: a failure never stops the others and never blocks the deactivation.
  */
 final class Deactivation {
-    /** Legacy name of the subscription tick; only its new-name twin is ever removed. */
-    private const SUBSCRIPTION_TICK = 'upay_process_subscriptions';
+    /**
+     * Release\Identity::LEGACY_SUBSCRIPTION_HOOK, which DeactivationTest pins it to. Not
+     * read from Identity: loading Release/Identity.php runs PaymentLifecycle::bootstrap(), so
+     * a paused deactivation would add the payment callback hooks the official plugin owns.
+     * Only its new-name twin is ever removed.
+     */
+    public const LEGACY_SUBSCRIPTION_HOOK = 'upay_process_subscriptions';
 
     /**
      * @return void
@@ -59,7 +64,7 @@ final class Deactivation {
     public static function unschedule_subscription_twin() {
         $twins = Keys::cron_hooks();
         if (function_exists('wp_unschedule_hook')) {
-            wp_unschedule_hook($twins[self::SUBSCRIPTION_TICK]);
+            wp_unschedule_hook($twins[self::LEGACY_SUBSCRIPTION_HOOK]);
         }
     }
 

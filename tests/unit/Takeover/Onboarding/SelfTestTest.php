@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Tests\Takeover\Onboarding;
 
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Takeover\Environment;
 use Simplixi\SUPCheckout\Takeover\Keys;
@@ -190,8 +192,11 @@ final class SelfTestTest extends TestCase {
         self::assertStringNotContainsString('woocommerce not loaded', (string) wp_json_encode($report));
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function test_the_post_switch_self_test_reports_wpml_gateway_strings_translated_only_under_the_previous_id(): void {
         // A4-04 / owner observation O2: after the switch WCML looks up supcheckout_gateway_*.
+        define('WPML_ST_VERSION', '3.2.19');
         $db = PreflightFixtures::db(array(
             'SHOW TABLES LIKE' => static function (array $args) {
                 return stripslashes((string) $args[0]);

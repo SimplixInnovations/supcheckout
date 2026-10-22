@@ -240,24 +240,22 @@ final class Checks {
     }
 
     /**
-     * One check from several warnings of the same check: the first code and data lead, the
-     * messages are joined, and `codes` lists every code so none is hidden.
+     * One check from one or more warnings of the same check: the first warning's code,
+     * message and data lead; `codes` and `messages` list every warning's code and full message,
+     * so none is hidden. Each message stays a separate string, so the report bounding
+     * (Bounded::STRING_LIMIT per string) never cuts one off.
      *
      * @param non-empty-list<array{id:string, result:string, code:string|null, message:string, data:array<string,mixed>}> $warnings Warnings.
      * @return array{id:string, result:string, code:string|null, message:string, data:array<string,mixed>}
      */
     private static function combined(array $warnings) {
-        if (count($warnings) === 1) {
-            return $warnings[0];
-        }
         $data = array();
-        $messages = array();
         foreach ($warnings as $warning) {
             $data += $warning['data'];
-            $messages[] = $warning['message'];
         }
         $data['codes'] = array_column($warnings, 'code');
-        return self::check($warnings[0]['id'], self::WARN, $warnings[0]['code'], implode(' ', $messages), $data);
+        $data['messages'] = array_column($warnings, 'message');
+        return self::check($warnings[0]['id'], self::WARN, $warnings[0]['code'], $warnings[0]['message'], $data);
     }
 
     /**
@@ -390,8 +388,9 @@ final class Checks {
      * Translation as `{gateway id}_gateway_{key}` in context admin_texts_woocommerce_gateways,
      * so the switch to the SUPCheckout ID leaves earlier translations under the previous
      * names. Lists each (new string, language) with a completed translation under the previous
-     * name only. Skipped, with `checked` false, when the WPML String Translation tables do not
-     * exist.
+     * name only. Skipped, with `checked` false and no query, unless WPML String Translation is
+     * active (WPML_ST_VERSION) and both of its tables exist: tables a removed WPML left behind
+     * are never read.
      *
      * @param Environment $env Environment.
      * @return array{checked:bool, untranslated:list<array{string:string, language:string}>, truncated:bool}
@@ -400,7 +399,7 @@ final class Checks {
         $result = array('checked' => false, 'untranslated' => array(), 'truncated' => false);
         $strings = $env->table('icl_strings');
         $translations = $env->table('icl_string_translations');
-        if (!$env->has_db() || !self::table_exists($env, $strings) || !self::table_exists($env, $translations)) {
+        if (!defined('WPML_ST_VERSION') || !$env->has_db() || !self::table_exists($env, $strings) || !self::table_exists($env, $translations)) {
             return $result;
         }
         $rows = $env->select_col(

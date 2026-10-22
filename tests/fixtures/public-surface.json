@@ -1570,7 +1570,7 @@
     {
         "kind": "schedule_reference",
         "function": "wp_unschedule_hook",
-        "hook": "<dynamic:$twins[self::SUBSCRIPTION_TICK]>",
+        "hook": "<dynamic:$twins[self::LEGACY_SUBSCRIPTION_HOOK]>",
         "contexts": "static"
     },
     {

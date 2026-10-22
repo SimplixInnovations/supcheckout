@@ -7,6 +7,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Bootstrap\Deactivation;
 use Simplixi\SUPCheckout\Payment\ReconciliationSweep;
+use Simplixi\SUPCheckout\Release\Identity;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
 use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
 use Simplixi\SUPCheckout\Takeover\Onboarding\Operation;
@@ -157,6 +158,25 @@ final class DeactivationTest extends TestCase {
             self::assertSame(array('supcheckout_process_subscriptions'), self::pending_events(), $label);
             self::assertArrayNotHasKey(self::MARKER, $GLOBALS['supcheckout_test_options'], $label . ': the sweep is still removed');
         }
+    }
+
+    public function test_a_paused_deactivation_registers_no_payment_runtime(): void {
+        // While the official plugin is active (PausedBoot), the deactivation request must not
+        // load Release/Identity.php: loading it runs PaymentLifecycle::bootstrap(), which adds
+        // the payment callback and reconcile hooks the official plugin owns in that request.
+        self::state(TakeoverState::CUT_OVER);
+        self::operation(Operation::DONE);
+        self::event('supcheckout_process_subscriptions');
+
+        Deactivation::deactivate();
+
+        self::assertSame(array('supcheckout_process_subscriptions'), $GLOBALS['supcheckout_test_cron_unscheduled']);
+        self::assertSame(array(), $GLOBALS['supcheckout_test_hook_calls'], 'no runtime hook is added');
+        self::assertFalse(class_exists(Identity::class, false), 'Release/Identity.php is not loaded');
+    }
+
+    public function test_the_legacy_subscription_tick_name_is_the_release_identity_one(): void {
+        self::assertSame(Identity::LEGACY_SUBSCRIPTION_HOOK, Deactivation::LEGACY_SUBSCRIPTION_HOOK);
     }
 
     public function test_deactivation_deletes_only_the_throttle_marker(): void {
