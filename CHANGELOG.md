@@ -20,6 +20,10 @@ The project is still in pre-release engineering hardening. Entries below are eng
 - The flush is `wp_cache_flush_runtime()`, used whenever the object cache supports it, Redis and Memcached drop-ins included. It never calls `wp_cache_flush()`, so the persistent cache is left alone. Copies, verifications, failure codes, locks and compare-and-swaps are unchanged.
 - The migration matrix keeps its 10,000-order WP-CLI end-to-end switch and adds the web-memory walks. After the WP-CLI switch, the same lane runs the finalize dry run and a budgeted rollback, each in one request at `memory_limit=256M`. A new parallel 10,000-order lane copies through WP-CLI, then runs the switch itself in one request at 256M. Each walk's peak-memory growth must stay within 64 MB, and the new lane is part of the matrix gate.
 
+### Performance: the takeover state is decoded once per request (hardening A3-07)
+
+- `TakeoverState::get()` used to JSON-decode the stored takeover state on every call, about 6 to 10 times per request once a takeover had started. It now memoises the decoded record for the request, keyed on the exact stored string: an unchanged record is decoded once and a changed one is decoded again. Every write, `flush_cache()` and `refresh()` drop the memo. Return shapes and the compare-and-swap semantics are unchanged: transitions and patches read the raw record fresh and swap against it, never against the memo. The state option stays non-autoloaded.
+
 ### Checkout: a long exact unit price no longer fails the payment (hardening A1-02)
 
 - UPayments caps `products[].price` at 7 characters. A checkout whose exact unit price is longer, for example `10499.99` AED, `1234.567` KWD, or a percentage coupon with quantity such as `1.640625`, used to fail with "Payment request could not be completed". It now sends the Charge without `products[]`, the same way it already handles any other line that cannot be described exactly.

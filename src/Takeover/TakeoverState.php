@@ -23,6 +23,11 @@ defined('ABSPATH') || exit;
  * Neither add_option() nor update_option() is used: both read first and then write
  * unconditionally.
  *
+ * Reading is cheap: get() returns the decoded state memoised for the request, keyed on
+ * the exact stored string, so an unchanged record is JSON-decoded once and a changed
+ * one is decoded again. The memo never stands in for storage: transition() and patch()
+ * read the raw string fresh and the swap compares against it, never against the memo.
+ *
  * is_cut_over() is called by Keys::write_key() on every write, so its answer is
  * cached for the request. A successful transition resets the cache in this process;
  * other long-running processes (a queue runner, WP-CLI) keep their answer until
@@ -68,6 +73,12 @@ final class TakeoverState {
 
     /** @var bool|null */
     private static $cut_over = null;
+
+    /** @var string|null Raw stored string the memoised decode belongs to. */
+    private static $memo_raw = null;
+
+    /** @var (array<string, mixed>)|null Decode of $memo_raw: the normalised state, or null for an unreadable record. */
+    private static $memo_state = null;
 
     /**
      * Current state. Progress fields written with patch() (for example `cursors` or
@@ -204,6 +215,7 @@ final class TakeoverState {
      */
     public static function flush_cache() {
         self::$cut_over = null;
+        self::forget_decoded();
     }
 
     /**
@@ -231,12 +243,24 @@ final class TakeoverState {
             return false;
         }
         if ($raw === null) {
-            return OrderLock::insert_if_absent(self::OPTION, $encoded);
-        }
-        if ($encoded === $raw) {
+            $written = OrderLock::insert_if_absent(self::OPTION, $encoded);
+        } elseif ($encoded === $raw) {
             return true;
+        } else {
+            $written = OrderLock::replace_if_current(self::OPTION, $raw, $encoded);
         }
-        return OrderLock::replace_if_current(self::OPTION, $raw, $encoded);
+        self::forget_decoded();
+        return $written;
+    }
+
+    /**
+     * Drop the memoised decode (every write, flush_cache() and refresh()).
+     *
+     * @return void
+     */
+    private static function forget_decoded() {
+        self::$memo_raw = null;
+        self::$memo_state = null;
     }
 
     /**
@@ -265,6 +289,19 @@ final class TakeoverState {
         if (!is_string($raw)) {
             return null;
         }
+        if (self::$memo_raw !== $raw) {
+            self::$memo_state = self::parse($raw);
+            self::$memo_raw = $raw;
+        }
+        return self::$memo_state;
+    }
+
+    /**
+     * @param string $raw Stored string.
+     * @return (array{status:string, cut_over_at:int, cursor:int, totals:array<mixed>}&array<string,mixed>)|null
+     *         Null for an unreadable record.
+     */
+    private static function parse($raw) {
         $decoded = json_decode($raw, true);
         if (!is_array($decoded)
             || !isset($decoded['status'])
