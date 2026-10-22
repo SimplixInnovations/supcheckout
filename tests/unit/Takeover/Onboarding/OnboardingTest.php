@@ -69,6 +69,25 @@ final class OnboardingTest extends TestCase {
         TakeoverState::flush_cache();
     }
 
+    /**
+     * Make TakeoverState compare-and-swaps lose: before an UPDATE of the state option,
+     * another process rewrites the record (same status, another field).
+     *
+     * @param int $times Lost swaps; PHP_INT_MAX for every one.
+     */
+    private static function lose_state_swaps(int $times): void {
+        $left = $times;
+        $GLOBALS['wpdb']->before_query = static function (array $statement) use (&$left) {
+            if ($left <= 0 || strpos($statement['query'], 'UPDATE ') !== 0 || $statement['args'][1] !== TakeoverState::OPTION) {
+                return;
+            }
+            --$left;
+            $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+            $state['noise'] = isset($state['noise']) ? $state['noise'] + 1 : 1;
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+        };
+    }
+
     // --- Outcome. ---
 
     public function test_outcome_factories_and_accessors(): void {
@@ -226,7 +245,20 @@ final class OnboardingTest extends TestCase {
         self::assertTrue($outcome->is_ok());
         self::assertSame('upayments/UPayments.php', $outcome->data()['deactivated']);
         self::assertSame(array('official plugin deactivated: upayments/UPayments.php'), $outcome->lines());
+        self::assertTrue($outcome->data()['recorded']);
         self::assertSame('upayments/UPayments.php', TakeoverState::get()[Rollback::OFFICIAL_RECORD]);
+    }
+
+    public function test_a5_07_retire_official_warns_when_the_deactivation_cannot_be_recorded(): void {
+        $this->seed_state('verified');
+        self::lose_state_swaps(PHP_INT_MAX);
+
+        $outcome = $this->onboarding()->retire_official(true, 'switch');
+
+        self::assertTrue($outcome->is_ok(), 'the plugin is deactivated: the switch goes on');
+        self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated);
+        self::assertFalse($outcome->data()['recorded']);
+        self::assertContains('warning: official_deactivation_not_recorded (a rollback will not reactivate upayments/UPayments.php; activate it yourself afterwards)', $outcome->lines());
     }
 
     public function test_retire_official_with_nothing_active_deactivates_nothing(): void {

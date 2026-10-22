@@ -391,6 +391,24 @@ final class CutoverTest extends TestCase {
         self::assertFalse(Quiesce::is_active(1800000000));
     }
 
+    public function test_a5_07_a_tail_deactivation_whose_record_is_lost_is_a_step(): void {
+        self::state('cut_over');
+        $this->system->official = 'upayments/UPayments.php';
+        // Every state compare-and-swap loses to a concurrent writer.
+        $GLOBALS['wpdb']->before_query = static function (array $statement) {
+            if (strpos($statement['query'], 'UPDATE ') === 0 && $statement['args'][1] === TakeoverState::OPTION) {
+                $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+                $state['noise'] = isset($state['noise']) ? $state['noise'] + 1 : 1;
+                $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+            }
+        };
+
+        $result = $this->cutover()->run(true);
+
+        self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated);
+        self::assertContains('official_deactivation_unrecorded', $result['steps'], (string) json_encode($result));
+    }
+
     public function test_a_cut_over_store_whose_official_plugin_stays_active_is_a_warning_not_a_plain_success(): void {
         self::state('cut_over');
         $this->system->official = 'upayments/UPayments.php';

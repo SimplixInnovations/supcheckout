@@ -171,6 +171,25 @@ final class DriverStepTest extends TestCase {
         $this->system->log = array();
     }
 
+    /**
+     * Make TakeoverState compare-and-swaps lose: before an UPDATE of the state option,
+     * another process rewrites the record (same status, another field).
+     *
+     * @param int $times Lost swaps; PHP_INT_MAX for every one.
+     */
+    private static function lose_state_swaps(int $times): void {
+        $left = $times;
+        $GLOBALS['wpdb']->before_query = static function (array $statement) use (&$left) {
+            if ($left <= 0 || strpos($statement['query'], 'UPDATE ') !== 0 || $statement['args'][1] !== TakeoverState::OPTION) {
+                return;
+            }
+            --$left;
+            $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+            $state['noise'] = isset($state['noise']) ? $state['noise'] + 1 : 1;
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+        };
+    }
+
     private static function takeover_status(): string {
         TakeoverState::refresh();
         return TakeoverState::get()['status'];
@@ -310,6 +329,44 @@ final class DriverStepTest extends TestCase {
         self::assertSame(TakeoverState::COPYING, self::takeover_status(), 'resumable');
     }
 
+    /**
+     * A5-05: an order whose lock record is unparseable (truncated, or edited by an options
+     * cleaner) is held forever (OrderLock fails closed). The copy used to retry it every 60
+     * seconds with no bound; it now counts as a busy retry and ends `order_locked`, naming
+     * the order and how to clear its lock.
+     */
+    public function test_a5_05_a_permanently_locked_order_retries_17_times_then_fails_order_locked(): void {
+        $GLOBALS['supcheckout_test_status_orders'][1] = new FakeCrudObject(1, 'upayments', array('UPayments_PaymentID' => array('pay-1')));
+        $GLOBALS['supcheckout_test_options']['simplixpay_upay_order_lock_v1_1'] = 'corrupt';
+        CutoverTest::state('copying');
+        $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'copy'));
+
+        $ticks = $this->ticks(18);
+
+        self::assertSame(array_fill(0, 17, 60), array_column(array_slice($ticks, 0, 17), 'next_delay'), (string) json_encode($ticks[0]));
+        self::assertSame(1, $ticks[0]['report']['locked_order'], 'the copy progress names the locked order');
+        self::assertSame(array('failed', 'order_locked', null), array($this->last['outcome'], $this->last['error'], $this->last['next_delay']));
+        self::assertSame(DriverHints::order_locked(1), $this->last['hint']);
+        self::assertStringContainsString('order_lock_v1_1', $this->last['hint']);
+        self::assertSame(1, $this->last['report']['locked_order']);
+        self::assertSame(TakeoverState::COPYING, self::takeover_status(), 'resumable: nothing was skipped');
+        self::assertSame('corrupt', $GLOBALS['supcheckout_test_options']['simplixpay_upay_order_lock_v1_1'], 'a payment lock is never broken by the takeover');
+    }
+
+    public function test_a5_05_copy_progress_resets_the_busy_retry_count(): void {
+        for ($id = 1; $id <= 3; $id++) {
+            $GLOBALS['supcheckout_test_status_orders'][$id] = new FakeCrudObject($id, 'upayments', array('UPayments_PaymentID' => array('pay-' . $id)));
+        }
+        $GLOBALS['supcheckout_test_options']['simplixpay_upay_order_lock_v1_3'] = 'corrupt';
+        CutoverTest::state('copying');
+        $this->start(Operation::KIND_SWITCH, array(), array('phase' => 'copy', 'busy_retries' => 16));
+
+        $result = $this->tick();
+
+        self::assertSame(array('running', 60, 1), array($result['outcome'], $result['next_delay'], $result['busy_retries']), 'orders 1 and 2 were copied: only the lock on order 3 counts');
+        self::assertSame(3, $result['report']['locked_order']);
+    }
+
     public function test_a_finished_copy_moves_to_retire_and_the_official_plugin_goes_first(): void {
         $this->start(Operation::KIND_SWITCH, array('deactivate_official' => true));
 
@@ -368,6 +425,17 @@ final class DriverStepTest extends TestCase {
         self::assertSame(TakeoverState::VERIFIED, self::takeover_status(), 'Cutover did not run in this tick');
         self::assertNotContains('quiesced', $this->system->log);
         self::assertSame(array(), $result['attempts'], 'no cutover attempt was used');
+    }
+
+    public function test_a5_07_an_unrecorded_deactivation_is_a_step_of_the_switch(): void {
+        $this->seed_verified();
+        $this->start(Operation::KIND_SWITCH, array('deactivate_official' => true), array('phase' => 'retire'));
+        self::lose_state_swaps(PHP_INT_MAX);
+
+        $result = $this->tick();
+
+        self::assertSame(array('running', 'cutover', 0), array($result['outcome'], $result['phase'], $result['next_delay']));
+        self::assertSame(array('official_deactivated', 'official_deactivation_unrecorded'), $result['steps']);
     }
 
     public function test_switch_without_consent_is_blocked_official_active_and_stays_verified(): void {

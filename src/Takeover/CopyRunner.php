@@ -83,6 +83,8 @@ final class CopyRunner {
     private $store;
     /** @var callable */
     private $clock;
+    /** @var int|null The order whose lock made the last run() return RETRY (A5-05). */
+    private $locked_order = null;
 
     /**
      * @param CopyStore|null $store Store; WordPress when omitted.
@@ -211,6 +213,7 @@ final class CopyRunner {
      * @return string One of the status constants.
      */
     public function run() {
+        $this->locked_order = null;
         if (TakeoverState::get()['status'] !== TakeoverState::COPYING) {
             return self::IDLE;
         }
@@ -243,6 +246,11 @@ final class CopyRunner {
         }
     }
 
+    /** @return int|null The order whose lock made the last run() return RETRY. */
+    public function locked_order() {
+        return $this->locked_order;
+    }
+
     /**
      * @param array<string, mixed> $progress Progress.
      * @return string
@@ -254,6 +262,7 @@ final class CopyRunner {
             $order = $this->store->load_order($order_id);
             $copy = $order === null ? null : OrderCopier::copy($order, is_callable($post_meta) ? $post_meta : false);
             if ($copy !== null && $copy['status'] === OrderCopier::LOCKED) {
+                $this->locked_order = (int) $order_id;
                 return self::RETRY;
             }
             if ($copy === null || $copy['status'] === OrderCopier::MISSING) {

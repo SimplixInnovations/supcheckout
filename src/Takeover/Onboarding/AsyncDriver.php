@@ -44,6 +44,9 @@ defined('ABSPATH') || exit;
  * - watchdog() re-queues a running operation that is due and has no pending or running
  *   action. It runs from the scheduled watchdog action, from status polls and start calls;
  *   the scheduled one that declines for a pending or running drive action reschedules itself.
+ *   Without Action Scheduler (WooCommerce deactivated meanwhile) nothing can run the
+ *   operation: past due by more than RUNNER_STALL_SECONDS it is finished `failed` /
+ *   `scheduler_unavailable` (A5-06), so a new start is not refused for ever.
  * - runner_health() tells a status poll that Action Scheduler is not running (WP-Cron
  *   disabled and no admin page dispatching the async runner): the operation stays running
  *   with nothing half-done, and after RUNNER_STALL_SECONDS past due it reads `stalled`.
@@ -214,7 +217,13 @@ final class AsyncDriver {
         if (!Operation::is_running($op) || ($op_id !== null && $op['id'] !== (string) $op_id)) {
             return false;
         }
-        if ((int) $op['next_at'] > time() || !self::scheduler_ready()) {
+        if ((int) $op['next_at'] > time()) {
+            return false;
+        }
+        if (!self::scheduler_ready()) {
+            if (self::runner_health($op, time())['stalled']) {
+                Operation::finish($op['id'], Operation::FAILED, 'scheduler_unavailable', self::HINT_SCHEDULER, array(), time());
+            }
             return false;
         }
         if (as_has_scheduled_action(self::HOOK, null, self::GROUP)) {

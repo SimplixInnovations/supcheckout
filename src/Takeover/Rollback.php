@@ -102,6 +102,8 @@ final class Rollback {
 
     /** Attempts on an order whose lock a payment request holds. */
     private const LOCK_ATTEMPTS = 3;
+    /** Compare-and-swap attempts for the official deactivation record (A5-07). */
+    private const RECORD_ATTEMPTS = 5;
 
     /** @var RollbackStore */
     private $store;
@@ -729,13 +731,22 @@ final class Rollback {
 
     /**
      * Record which official install the takeover deactivated, so a rollback or abort
-     * reactivates exactly that one.
+     * reactivates exactly that one. A concurrent state write (the cache-purge marker, a CLI
+     * command) makes a compare-and-swap lose: patch() re-reads the record on every attempt,
+     * at most RECORD_ATTEMPTS times (A5-07).
      *
      * @param string $basename Plugin basename.
-     * @return void
+     * @return bool True once the record is stored; false when it could not be (the caller warns).
      */
     public static function record_official_deactivated($basename) {
-        TakeoverState::patch(array(self::OFFICIAL_RECORD => (string) $basename));
+        $basename = (string) $basename;
+        for ($attempt = 0; $attempt < self::RECORD_ATTEMPTS; $attempt++) {
+            if (TakeoverState::patch(array(self::OFFICIAL_RECORD => $basename))) {
+                TakeoverState::refresh();
+                return self::recorded_official(TakeoverState::get()) === $basename;
+            }
+        }
+        return false;
     }
 
     /**

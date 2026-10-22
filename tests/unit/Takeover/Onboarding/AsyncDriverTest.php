@@ -474,6 +474,29 @@ final class AsyncDriverTest extends TestCase {
         self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
     }
 
+    /**
+     * A5-06: with Action Scheduler gone mid-operation (WooCommerce deactivated), nothing can
+     * run the operation, and every new start answered 409 until it came back. Once past due
+     * by RUNNER_STALL_SECONDS, the watchdog finishes it `scheduler_unavailable`.
+     */
+    public function test_a5_06_a_watchdog_without_a_scheduler_finishes_an_overdue_operation(): void {
+        $op = self::start(Operation::KIND_SWITCH);
+        \Action_Scheduler::$initialized = false;
+
+        self::update($op, array('next_at' => time() - AsyncDriver::RUNNER_STALL_SECONDS + 5));
+        self::assertFalse(AsyncDriver::watchdog());
+        self::assertSame('running', Operation::current()['outcome'], 'not yet past the stall bound');
+
+        self::update($op, array('next_at' => time() - AsyncDriver::RUNNER_STALL_SECONDS - 1));
+        self::assertFalse(AsyncDriver::watchdog());
+
+        $current = Operation::current();
+        self::assertSame(array('failed', 'scheduler_unavailable'), array($current['outcome'], $current['error']));
+        self::assertNotNull($current['hint']);
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled'], 'nothing scheduled');
+        self::assertNotNull(Operation::start(Operation::KIND_PREFLIGHT, array(), 1, time()), 'a new start is no longer refused');
+    }
+
     public function test_a_watchdog_declining_for_a_pending_drive_action_reschedules_itself(): void {
         // The scheduled watchdog is consumed when it runs: if it only declined, a drive action
         // that later dies (a killed in-progress tick) would leave nothing to recover it.

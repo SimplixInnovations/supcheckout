@@ -53,6 +53,20 @@ final class DriverHints {
     }
 
     /**
+     * A5-05: the copy stopped at an order its payment lock held through every busy retry.
+     * A payment holds that lock for at most 45 seconds, so the record is most likely
+     * unparseable (OrderLock then fails closed and never breaks it); the takeover never
+     * deletes a payment lock itself.
+     *
+     * @param int $order_id The locked order.
+     * @return string
+     */
+    public static function order_locked($order_id) {
+        $order_id = (int) $order_id;
+        return 'order ' . $order_id . ' stayed locked through every retry (a payment holds its lock for at most 45 seconds), so its lock record is probably damaged; check that no payment for order ' . $order_id . ' is in progress, delete the lock options whose names end in "order_lock_v1_' . $order_id . '" (wp option list --search="*order_lock_v1_' . $order_id . '"), then start again';
+    }
+
+    /**
      * @param string $kind Operation kind.
      * @return string
      */
