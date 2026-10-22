@@ -6,6 +6,13 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Payments: unbound and late payments are no longer silent (hardening A1-04, A1-05, A6-03)
+
+- **An amount or currency mismatch now leaves a merchant note.** When UPayments authenticates this order's own transaction but its amount or currency does not match the order, the order still stays unpaid, exactly as before. It now gets one private order note naming the track and whether the amount or the currency did not match, plus a log entry (`current_attempt_unbound_binding_amount` or `_binding_currency`). The note never carries amounts, keys or customer data. This covers both the first callback and a later check of an already trusted track, including the hourly safety-net sweep. A replay, a repeated check or the other-attempt path never adds a second note for the same track.
+- **A second track that is still pending is rechecked.** A track checked on the capture-only path (another attempt on the order, or a retry inside the same hosted session) whose UPayments result is still NULL or pending used to be checked once and dropped. A later KNET capture of that track was then never applied. It now joins the existing bounded secondary retry (60/120/240/480 s, at most 4 runs, at most 3 queued tracks), so a capture within that window completes the order once. After the last run the existing one-time note asks the merchant to check the UPayments dashboard. Failed and cancelled results are still dropped at once.
+- **Retry and notice parity.** An unexpected error while recording a non-captured result now schedules the normal bounded payment check (within its 4 attempts) instead of nothing. When WP-Cron refuses the capture-only retry, the merchant now gets the same one-time "could not schedule the automatic UPayments payment check" note as the primary path.
+- Paid-state rules are unchanged: only an authenticated, fully bound CAPTURED result marks an order paid.
+
 ### Subscriptions: automatic renewal charges are blocked (hardening fix A1-01)
 
 - **SUPCheckout no longer sends an automatic renewal charge** (UPayments auto-deduct) while it cannot verify that the charge succeeded (owner decision 2026-10-22). Before, a due renewal charged the customer's saved card and was then held with no renewal order and no note.
