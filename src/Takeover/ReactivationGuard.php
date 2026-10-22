@@ -3,6 +3,7 @@
 namespace Simplixi\SUPCheckout\Takeover;
 
 use Simplixi\SUPCheckout\Gateway\OfficialPluginConflict;
+use Simplixi\SUPCheckout\Payment\ReconciliationSweep;
 
 defined('ABSPATH') || exit;
 
@@ -34,7 +35,9 @@ defined('ABSPATH') || exit;
  * A site activation is never refused in any other state: Rollback and Abort reactivate the
  * official plugin in preflight_ok, after leaving cut_over, and an administrator may
  * reactivate it by hand after a rollback (rolled_back). The way back from cut_over is
- * Rollback; a finalized switch is final.
+ * Rollback; a finalized switch is final. Such an allowed activation pauses SUPCheckout, so
+ * after_activation() (on `activated_plugin`) stops SUPCheckout's hourly sweep action and its
+ * throttle marker, as Rollback does, instead of leaving the action to fail every hour.
  *
  * The guard acts only in a request where SUPCheckout itself is loaded and booted (it is
  * registered by Plugin::boot(); a paused SUPCheckout has nothing to guard). An activation
@@ -68,6 +71,7 @@ final class ReactivationGuard {
         add_filter('pre_update_option_active_plugins', array(self::class, 'filter_site_plugins'), 10, 2);
         add_filter('pre_update_site_option_active_sitewide_plugins', array(self::class, 'filter_network_plugins'), 10, 2);
         add_action('activate_plugin', array(self::class, 'before_activation'), 0, 2);
+        add_action('activated_plugin', array(self::class, 'after_activation'), 10, 2);
         add_action('admin_notices', array(self::class, 'render_notice'));
         add_action('network_admin_notices', array(self::class, 'render_notice'));
     }
@@ -86,6 +90,37 @@ final class ReactivationGuard {
         }
         remove_all_actions('activate_' . $plugin);
         self::remove_callbacks_defined_in('activated_plugin', $plugin);
+    }
+
+    /**
+     * `activated_plugin`: an official-plugin activation the guard let through (before the
+     * switch, or by hand after a rollback) pauses SUPCheckout from the next request, and a
+     * paused SUPCheckout registers no sweep callback. Its hourly Action Scheduler action
+     * would fail every hour until Action Scheduler gives up, and its 12 h throttle marker
+     * would keep a resumed SUPCheckout from re-ensuring it. So remove both, the same step
+     * Rollback takes when it reactivates the official plugin (batch 2 final review M-3,
+     * batch 3 R1-2). A refused activation changes nothing: SUPCheckout keeps running.
+     *
+     * A failure is isolated: the activation has already happened and is never blocked.
+     *
+     * @param mixed $plugin       Plugin basename.
+     * @param mixed $network_wide Whether this is a network activation.
+     * @return void
+     */
+    public static function after_activation($plugin, $network_wide = false) {
+        if (!is_string($plugin)
+            || !OfficialPluginConflict::is_conflicting_entry($plugin, (string) self::$main_file)
+            || self::refusal_reason($plugin, (bool) $network_wide) !== null
+        ) {
+            return;
+        }
+        try {
+            ReconciliationSweep::unschedule();
+        } catch (\Throwable $e) {
+            // Isolated: the marker is already deleted (unschedule() does it in a finally), and
+            // the activation must not be blocked or noisy over a housekeeping step.
+            unset($e);
+        }
     }
 
     /**

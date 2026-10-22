@@ -6,6 +6,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Payment\ReconciliationSweep;
 use Simplixi\SUPCheckout\Takeover\ReactivationGuard;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 
@@ -55,6 +56,7 @@ final class ReactivationGuardTest extends TestCase {
                 array('filter', 'pre_update_option_active_plugins', array(ReactivationGuard::class, 'filter_site_plugins'), 10, 2),
                 array('filter', 'pre_update_site_option_active_sitewide_plugins', array(ReactivationGuard::class, 'filter_network_plugins'), 10, 2),
                 array('action', 'activate_plugin', array(ReactivationGuard::class, 'before_activation'), 0, 2),
+                array('action', 'activated_plugin', array(ReactivationGuard::class, 'after_activation'), 10, 2),
                 array('action', 'admin_notices', array(ReactivationGuard::class, 'render_notice'), 10, 1),
                 array('action', 'network_admin_notices', array(ReactivationGuard::class, 'render_notice'), 10, 1),
             ),
@@ -253,6 +255,103 @@ final class ReactivationGuardTest extends TestCase {
             self::activated_plugin_callbacks(),
             "only the root-level official file's callback is removed; upayments/, woocommerce/ and this test file keep theirs"
         );
+    }
+
+    /**
+     * Batch 3 R1-2 (the rest of batch-2 review M-3): an activation the guard lets through
+     * (before the switch, or by hand after a rollback) pauses SUPCheckout, which then
+     * registers no sweep callback. Its hourly Action Scheduler action would fail every hour
+     * until Action Scheduler gives up, and its 12 h throttle marker would keep a resumed
+     * SUPCheckout from re-ensuring it. The same step Rollback takes removes both.
+     *
+     * @return list<string> The pending "group:hook" actions that are not SUPCheckout's.
+     */
+    private static function seed_sweep(): array {
+        require_once dirname(__DIR__, 2) . '/support/action-scheduler-stubs.php';
+        $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
+        $GLOBALS['supcheckout_as_calls']['scheduled'][] = array('timestamp' => time() + 300, 'hook' => ReconciliationSweep::HOOK, 'args' => array(), 'group' => 'supcheckout', 'unique' => false);
+        $GLOBALS['supcheckout_as_calls']['scheduled'][] = array('timestamp' => time() + 300, 'hook' => 'woocommerce_cleanup_draft_orders', 'args' => array(), 'group' => 'woocommerce-db-updates', 'unique' => false);
+        $GLOBALS['supcheckout_test_options']['supcheckout_sweep_ensured_at'] = time() - 60;
+        return array('woocommerce-db-updates:woocommerce_cleanup_draft_orders');
+    }
+
+    /** @return list<string> */
+    private static function pending_actions(): array {
+        return array_map(static function ($row) {
+            return $row['group'] . ':' . $row['hook'];
+        }, $GLOBALS['supcheckout_as_calls']['scheduled']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    #[DataProvider('open_states')]
+    public function test_an_allowed_activation_of_the_official_plugin_stops_the_hourly_sweep(string $status): void {
+        self::boot($status);
+        $others = self::seed_sweep();
+
+        ReactivationGuard::after_activation(self::OFFICIAL, false);
+
+        self::assertSame($others, self::pending_actions(), "only SUPCheckout's sweep is removed");
+        self::assertContains(array(ReconciliationSweep::HOOK, array(), 'supcheckout'), $GLOBALS['supcheckout_as_calls']['unscheduled_all'], 'exact hook, arguments and group: never group-wide');
+        self::assertArrayNotHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options'], 'a resumed SUPCheckout re-ensures the sweep at once');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    #[DataProvider('guarded_states')]
+    public function test_a_refused_activation_leaves_the_sweep_alone_because_supcheckout_keeps_running(string $status): void {
+        self::boot($status);
+        self::seed_sweep();
+        $before = self::pending_actions();
+
+        ReactivationGuard::after_activation(self::OFFICIAL, false);
+
+        self::assertSame($before, self::pending_actions());
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['unscheduled_all']);
+        self::assertArrayHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a_refused_network_activation_leaves_the_sweep_alone(): void {
+        self::boot(TakeoverState::IDLE);
+        $GLOBALS['supcheckout_test_multisite'] = true;
+        self::seed_sweep();
+        $before = self::pending_actions();
+
+        ReactivationGuard::after_activation(self::OFFICIAL, true);
+
+        self::assertSame($before, self::pending_actions());
+        self::assertArrayHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_the_activation_of_any_other_plugin_leaves_the_sweep_alone(): void {
+        self::boot(TakeoverState::IDLE);
+        self::seed_sweep();
+        $before = self::pending_actions();
+
+        foreach (array('woocommerce/woocommerce.php', 'supcheckout/UPayments.php', self::OWN, 'removed-upayments/UPayments.php') as $plugin) {
+            ReactivationGuard::after_activation($plugin, false);
+        }
+        ReactivationGuard::after_activation(array('not', 'a', 'basename'), false);
+
+        self::assertSame($before, self::pending_actions());
+        self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['unscheduled_all']);
+        self::assertArrayHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_a_failing_sweep_stop_never_blocks_the_activation(): void {
+        self::boot(TakeoverState::IDLE);
+        self::seed_sweep();
+        $GLOBALS['supcheckout_test_as_unschedule_throws'] = true;
+
+        ReactivationGuard::after_activation(self::OFFICIAL, false);
+
+        self::assertArrayNotHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options'], 'the marker is deleted even when Action Scheduler throws');
     }
 
     /**
