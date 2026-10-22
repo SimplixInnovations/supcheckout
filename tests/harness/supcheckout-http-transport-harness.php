@@ -131,10 +131,11 @@ $result = $gateway->call_transport('charge', 'DELETE', null);
 sut_assert(count($transport_calls) === 0, 'unsupported HTTP method performs no request');
 sut_assert($result['transport_ok'] === false && $result['http_status'] === 0, 'unsupported HTTP method fails closed');
 
-// U5 (A3-01, A3-02): a shopper render may wait at most 5 seconds for a display-only
-// provider read (availability, saved-card listing). The 15-second default above is
-// unchanged, and Charge, token and status calls never get the shorter budget, even
-// when they run inside a display read.
+// U5 (A3-01): a shopper render may wait at most 5 seconds for the saved-card listing.
+// The 15-second default above is unchanged. Availability keeps 15 seconds even on a
+// render (review round 1, I-1): a render that timed out early would write the shared
+// failure sentinel that place-order and Charge read. Charge, token and status calls
+// never get the shorter budget, even when they run inside a display read.
 $display_routes = array(
     array('check-payment-button-status', 'GET', null),
     array('retrieve-customer-cards', 'POST', '{}'),
@@ -154,7 +155,7 @@ $display_timeouts = array_map(static function ($call) {
     return isset($call['args']['timeout']) ? (int) $call['args']['timeout'] : null;
 }, $transport_calls);
 sut_assert($display_return === 'display-result', 'a display read returns what its callback returns');
-sut_assert($display_timeouts === array(5, 5, 15, 15, 15), 'only availability and saved-card listing get the 5-second display budget');
+sut_assert($display_timeouts === array(15, 5, 15, 15, 15), 'only the saved-card listing gets the 5-second display budget; availability, Charge, token and status calls keep 15 seconds');
 
 $transport_calls = array();
 $gateway->call_transport('check-payment-button-status', 'GET');
@@ -221,7 +222,8 @@ $transport_calls = array();
 $availability_gateway->read_for_display(function () use ($availability_gateway) {
     return $availability_gateway->getUpayPaymentMethods();
 });
-sut_assert(count($transport_calls) === 1 && (int) $transport_calls[0]['args']['timeout'] === 5, 'a render past the display window refreshes once, within the 5-second budget');
+sut_assert(count($transport_calls) === 1, 'a render past the display window refreshes availability once');
+sut_assert(isset($transport_calls[0]['args']['timeout']) && (int) $transport_calls[0]['args']['timeout'] === 15, 'a render-triggered availability refresh uses the default 15-second timeout, never 5');
 
 echo "\nSUPCheckout Production HTTP Transport: {$pass} PASS / {$fail} FAIL\n";
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";

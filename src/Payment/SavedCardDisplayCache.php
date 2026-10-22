@@ -19,7 +19,9 @@ defined('ABSPATH') || exit;
  *
  * An entry is bound to the user, credential, mode, token-identity scope and
  * generation, and customer token, so any change misses. A save-card Charge forgets
- * it (CheckoutOrchestrator through Gateway::forget_saved_card_views()). The gateway
+ * it (CheckoutOrchestrator through Gateway::forget_saved_card_views()). The card is
+ * only added later, on the hosted payment page, so a render in the next 120 s can
+ * cache the old list again: a new card may take up to two minutes to show. The gateway
  * hands in the session; without one nothing is cached. This class reads no request
  * globals itself.
  */

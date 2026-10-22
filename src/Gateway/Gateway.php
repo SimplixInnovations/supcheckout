@@ -47,10 +47,15 @@ class Gateway extends \WC_Payment_Gateway {
 
     /** Seconds any provider call may take (pinned by the HTTP transport harness). */
     private const PROVIDER_REQUEST_TIMEOUT = 15;
-    /** Seconds a display-only provider read may hold up a shopper render (A3-01, A3-02). */
+    /** Seconds the saved-card listing may hold up a shopper render (A3-01). */
     private const DISPLAY_REQUEST_TIMEOUT = 5;
-    /** The only routes that get the display budget: never Charge, token or status calls. */
-    private const DISPLAY_ROUTES = array('check-payment-button-status', 'retrieve-customer-cards');
+    /**
+     * The only route that gets the display budget. Never Charge, token or status calls,
+     * and never availability: a render that timed out early would write the shared
+     * failure sentinel that place-order and Charge read (the ten-minute display copy
+     * already bounds render-triggered availability calls).
+     */
+    private const DISPLAY_ROUTES = array('retrieve-customer-cards');
 
     /** @var int Nesting depth of read_for_display() calls in progress. */
     private $display_reads = 0;
@@ -396,7 +401,7 @@ class Gateway extends \WC_Payment_Gateway {
      *     preserve endpoint identity; avoid method/body ambiguity on
      *     cross-host hops);
      *   - finite 15-second request timeout; inside read_for_display(), the
-     *     availability and saved-card listing routes get 5 seconds instead;
+     *     saved-card listing route gets 5 seconds instead;
      *   - Bearer Authorization applied for the entire call.
      *
      * SECURITY: This helper does NOT log raw request bodies, raw response
@@ -594,10 +599,10 @@ class Gateway extends \WC_Payment_Gateway {
      * order-review refresh or the Blocks payment data (A3-01, A3-02).
      *
      * Inside it, availability may be served from the recent display copy
-     * (PaymentMethodAvailability::fetch_for_display()), and the availability and
-     * saved-card listing calls wait at most 5 seconds instead of 15. Charge, token and
-     * status calls keep 15 seconds even here, and the place-order check and the Charge
-     * path never run inside it.
+     * (PaymentMethodAvailability::fetch_for_display()), and the saved-card listing call
+     * waits at most 5 seconds instead of 15. Availability, Charge, token and status
+     * calls keep 15 seconds even here, and the place-order check and the Charge path
+     * never run inside it.
      *
      * @param callable $read Zero-argument callback.
      * @return mixed What $read returns.

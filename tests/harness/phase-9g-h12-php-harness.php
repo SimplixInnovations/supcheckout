@@ -6221,6 +6221,31 @@ $state['current_user_id'] = 43;
 $u5_other_user = $u5_render_blocks();
 upay_assert_eq($u5_other_user['saved_cards'] ?? null, array(), 'U5-SCC-11 another user without provenance gets no saved cards from the cache', 'semantic_runtime');
 upay_assert_eq($state['retrieve_calls'], 0, 'U5-SCC-12 another user without provenance makes no Retrieve', 'semantic_runtime');
+
+// Review round 1 (M-2): another user WITH valid provenance on a session that still
+// holds user 42's entry must miss, list their own cards once, and never see 42's handles.
+$u5_42_handles = array();
+foreach (($u5_blocks_first['saved_cards'] ?? array()) as $u5_card) {
+    $u5_42_handles[] = $u5_card['selection'] ?? null;
+}
+$u5_store_before_43 = $state['wc_session_store']['supcheckout_saved_card_views_v1'] ?? null;
+$state['usermeta'][43] = [
+    '_upay_customer_token_v2_b1_' . $blocks_scope => [[
+        'version' => 3, 'kind' => 'canonical', 'token' => '87654321',
+        'source' => 'create_201', 'scope' => $blocks_scope, 'secret_generation_id' => $blocks_gen_actual,
+        'established_at_gmt' => time(),
+    ]],
+];
+$state['retrieve_calls'] = 0;
+$u5_user_43 = $u5_render_blocks();
+$u5_43_handles = array();
+foreach (($u5_user_43['saved_cards'] ?? array()) as $u5_card) {
+    $u5_43_handles[] = $u5_card['selection'] ?? null;
+}
+upay_assert_eq(is_array($u5_store_before_43) && count($u5_42_handles) === 1, true, 'U5-SCC-16 the shared session still holds the user 42 entry when user 43 renders', 'semantic_runtime');
+upay_assert_eq($state['retrieve_calls'], 1, 'U5-SCC-17 user 43 with valid provenance misses the user 42 entry and makes exactly one Retrieve', 'semantic_runtime');
+upay_assert_eq(count($u5_43_handles) === 1 && array_intersect($u5_43_handles, $u5_42_handles) === array(), true, 'U5-SCC-18 user 43 is shown none of the user 42 handles', 'semantic_runtime');
+unset($state['usermeta'][43]);
 $state['current_user_id'] = 42;
 
 // Failures are not cached: the next render asks again.
@@ -7919,7 +7944,7 @@ $_expected_family_baseline = array(
     'SP-MISMATCH'         => 15,
     'BLOCKS-SAN'          => 10,
     'CLASSIC-PAN'         => 7,
-    'SC-VIEW-CACHE'       => 15,    // U5 (A3-01) U5-SCC-1..15
+    'SC-VIEW-CACHE'       => 18,    // U5 (A3-01) U5-SCC-1..18
     'MALFORMED-CARD'      => 56,
     'HOSTILE'             => 3,
     'ECON-E2E'            => 24,
@@ -7945,13 +7970,13 @@ $_expected_family_baseline = array(
 //   PROBE-RECOVERY (§5):     2 snapshot/restoration assertions =  2
 //                                                   TOTAL       = 21
 $_expected_categories = array(
-    'semantic_runtime'    => 396,    // 379 + 17 U5 (A3-01) saved-card display-cache assertions
+    'semantic_runtime'    => 399,    // 379 + 20 U5 (A3-01) saved-card display-cache assertions
     'helper_unit_runtime' => 876,    // 854 + 22 A6-05-TOK characterization assertions
     'static_source'       => 46,
     'harness_self_test'   => 662,    // 641 baseline + 21 §4/§5/§7 probes
     'lint_tooling'        => 10,
 );
-$_expected_total_pass    = 1990;    // 396 + 876 + 46 + 662 + 10
+$_expected_total_pass    = 1993;    // 399 + 876 + 46 + 662 + 10
 $_expected_total_fail    = 0;
 $_family_mismatch        = 0;
 $_category_mismatch      = 0;

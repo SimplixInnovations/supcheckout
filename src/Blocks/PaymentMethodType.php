@@ -131,7 +131,7 @@ class PaymentMethodType extends AbstractPaymentMethodType {
         $availability = null;
         if ( $this->gateway ) {
             // Blocks payment data is display-only: availability may come from the recent
-            // display copy and its provider calls wait at most 5 seconds (A3-02).
+            // ten-minute display copy (A3-02); the saved-card listing waits at most 5 s.
             $gateway = $this->gateway;
             $availability = $gateway->read_for_display( function () use ( $gateway ) {
                 return $gateway->getPaymentIcons();
