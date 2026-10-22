@@ -102,7 +102,7 @@ with zipfile.ZipFile(zip_path, "r") as archive:
     allowed_exact = {
         "supcheckout.php", "UPayments.php", "index.php", "uninstall.php", "LICENSE", "readme.txt",
     }
-    allowed_prefixes = ("src/", "assets/", "templates/")
+    allowed_prefixes = ("src/", "assets/", "templates/", "languages/")
     for rel in rel_names:
         if rel not in allowed_exact and not rel.startswith(allowed_prefixes):
             raise SystemExit(f"Unexpected release path outside allowlist: {rel}")

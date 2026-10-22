@@ -141,6 +141,7 @@ CI cannot do these. They are External / manual in `docs/COMPATIBILITY.md`.
 6. **Real Arabic copy review:** a native speaker reviews the Arabic strings and their rendering, including Arabic amounts in `Numeric`. The gallery shows English in RTL, and only the `foundations-arabic` specimen shows real Arabic text.
 7. **Live cutover:** confirm the automatic LiteSpeed/Cloudflare purge when the real takeover runs on the live store. The 0c staging copy could not repeat it (its takeover is finalized and LiteSpeed Cache is not active); the real-plugin CI cell covers it (`tests/integration/CachePurgeRuntimeTest.php` with LiteSpeed Cache 7.9.1).
 8. **Store configuration advice:** set the store to use '.' as the decimal separator and AED at 2 decimals, because "1,500 KWD" reads as thousands.
+9. **Bundled Arabic translations (hardening U7, A4-01):** the Arabic in `languages/supcheckout-ar.po` is machine-drafted. A native Arabic speaker reviews it on staging before release: the checkout ("Pay securely with", method labels, notices and the payment button), the thank-you and order pages, the order-totals rows in customer emails, the My Account subscription screens and the admin app. Fix the wording in the `.po` and rebuild the `.mo` and the admin JSON files from it.
 
 ## Hardening tracker
 

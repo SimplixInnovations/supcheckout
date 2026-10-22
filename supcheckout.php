@@ -13,6 +13,7 @@
  * WC tested up to: 11.1
  * License: MIT
  * Text Domain: supcheckout
+ * Domain Path: /languages
  */
 
 defined('ABSPATH') || exit;

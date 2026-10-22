@@ -156,6 +156,10 @@ release_assert(
     strpos($verify, '"node_modules/", "tools/"') !== false && strpos($verify, 'forbidden_suffixes = (".map",)') !== false,
     'verifier forbids node_modules/, tools/ and source maps'
 );
+release_assert(
+    strpos($verify, 'allowed_prefixes = ("src/", "assets/", "templates/", "languages/")') !== false,
+    'verifier allows exactly the runtime subtrees, including the bundled languages/ directory (A4-01)'
+);
 
 release_assert(substr_count($build, 'supcheckout') >= 2, 'builder owns canonical SUPCheckout ZIP/root slug');
 release_assert(strpos($build, 'slug = "simplixpay-upayments"') === false, 'builder contains no retired package-root slug');
@@ -277,6 +281,10 @@ if ($version !== '') {
                 );
                 release_assert(in_array($prefix . 'readme.txt', $names, true), 'canonical package contains WordPress.org readme');
                 release_assert(!in_array($prefix . 'composer.json', $names, true), 'canonical package excludes Composer controls');
+                // A4-01 (U7): the bundled translations the Domain Path header names.
+                foreach (array('supcheckout.pot', 'supcheckout-ar.po', 'supcheckout-ar.mo') as $language_file) {
+                    release_assert(in_array($prefix . 'languages/' . $language_file, $names, true), 'canonical package ships the bundled translation file: ' . $language_file);
+                }
 
                 $contains_screenshots = false;
                 foreach ($names as $name) {

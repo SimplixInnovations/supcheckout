@@ -279,9 +279,10 @@ q2_assert(
     q2_contains($runtime, 'Text Domain: supcheckout'),
     'plugin header exposes canonical SUPCheckout text domain'
 );
+// A4-01 (U7): the header names the packaged languages/ directory, which now exists.
 q2_assert(
-    !q2_contains($runtime, 'Domain Path:'),
-    'plugin header does not advertise a non-packaged languages directory'
+    q2_contains($runtime, 'Domain Path: /languages') && is_dir($q2_root . '/languages'),
+    'plugin header names the packaged languages directory'
 );
 q2_assert(
     is_file($q2_root . '/readme.txt'),
