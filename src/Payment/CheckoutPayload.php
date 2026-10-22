@@ -496,6 +496,56 @@ class CheckoutPayload {
     }
 
     /**
+     * The hosted payment page language for an order (A4-02): 'ar' or 'en', the
+     * two values UPayments documents for the Charge `language` field.
+     *
+     * The order's own language comes first: WPML/WCML stores it in the
+     * `wpml_language` order meta at checkout, so it does not depend on the request.
+     * Then the WPML current language (`wpml_current_language`), then
+     * determine_locale(). The first known value decides.
+     *
+     * @param mixed $order WooCommerce order.
+     * @return string 'ar' or 'en'.
+     */
+    public static function provider_language($order) {
+        $candidates = array();
+        if (is_object($order) && method_exists($order, 'get_meta')) {
+            $candidates[] = $order->get_meta('wpml_language');
+        }
+        if (function_exists('apply_filters')) {
+            $candidates[] = apply_filters('wpml_current_language', null);
+        }
+        if (function_exists('determine_locale')) {
+            $candidates[] = determine_locale();
+        }
+        return self::provider_language_code($candidates);
+    }
+
+    /**
+     * Map the first non-empty language code or locale to 'ar' or 'en'.
+     *
+     * Arabic is `ar` and Moroccan Arabic `ary`, alone or with a region (`ar_KW`,
+     * `ar-SA`). Other codes that merely start with "ar" (Aragonese `arg`,
+     * Mapudungun `arn`) and every other language get English.
+     *
+     * @param array<int,mixed> $candidates Language codes or locales, in precedence order.
+     * @return string 'ar' or 'en'.
+     */
+    public static function provider_language_code(array $candidates) {
+        foreach ($candidates as $candidate) {
+            if (!is_string($candidate)) {
+                continue;
+            }
+            $candidate = strtolower(trim($candidate));
+            if ($candidate === '') {
+                continue;
+            }
+            return preg_match('/^ary?(?:[_-][a-z0-9]+)*$/', $candidate) === 1 ? 'ar' : 'en';
+        }
+        return 'en';
+    }
+
+    /**
      * Validate and normalize a UPayments redirect URL.
      *
      * Accepts only absolute http/https URLs with a non-empty host.

@@ -205,6 +205,66 @@ final class CheckoutOrchestratorTest extends TestCase {
         );
     }
 
+    /**
+     * @param array<string,mixed> $meta Order meta.
+     * @return array<string,mixed> The decoded Charge payload.
+     */
+    private function captured_charge_payload(array $meta): array {
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order($meta);
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $sent = array();
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$sent) {
+                if ($route === 'charge') {
+                    $sent[] = $body;
+                }
+                return array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $orchestrator->process(42);
+
+        self::assertCount(1, $sent);
+        $payload = json_decode($sent[0], true);
+        self::assertIsArray($payload);
+        return $payload;
+    }
+
+    public function test_a4_02_an_arabic_order_requests_the_arabic_hosted_page(): void {
+        $payload = $this->captured_charge_payload(array('wpml_language' => 'ar'));
+
+        self::assertSame('ar', $payload['language']);
+        // The static device fingerprint is left as it is.
+        self::assertSame('en', $payload['device']['browserDetails']['language']);
+    }
+
+    public function test_a4_02_the_wpml_current_language_is_used_when_the_order_has_none(): void {
+        if (!function_exists('apply_filters')) {
+            eval('function apply_filters($hook, $value = null) {
+                return $hook === "wpml_current_language" && isset($GLOBALS["supcheckout_test_wpml_language"])
+                    ? $GLOBALS["supcheckout_test_wpml_language"]
+                    : $value;
+            }');
+        }
+        $GLOBALS['supcheckout_test_wpml_language'] = 'ar';
+
+        self::assertSame('ar', $this->captured_charge_payload(array())['language']);
+
+        $GLOBALS['supcheckout_test_wpml_language'] = 'en';
+        self::assertSame('en', $this->captured_charge_payload(array())['language']);
+        // The order's own language wins over the request's.
+        self::assertSame('en', $this->captured_charge_payload(array('wpml_language' => 'en'))['language']);
+    }
+
+    public function test_a4_02_other_languages_keep_the_english_hosted_page(): void {
+        self::assertSame('en', $this->captured_charge_payload(array())['language']);
+        self::assertSame('en', $this->captured_charge_payload(array('wpml_language' => 'fr'))['language']);
+    }
+
     public function test_a1_07_a_rejected_charge_records_no_amount_snapshot(): void {
         \supcheckout_test_reset_wp_options();
         $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));

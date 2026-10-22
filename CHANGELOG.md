@@ -6,7 +6,9 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
-### Charge path: exact amount binding (hardening A1-07)
+### Charge path: exact amount binding and the hosted-page language (hardening A1-07, A4-02)
+
+- **Arabic orders open the UPayments page in Arabic.** Every Charge asked for the English hosted card/KNET page, whatever the order's language. The Charge `language` is now `ar` for an Arabic order and `en` otherwise. The order's WPML/WCML language (`wpml_language` order meta) decides first, then the WPML current language (`wpml_current_language`), then the site locale. Arabic means `ar` or Moroccan Arabic `ary`, with or without a region. Other codes that start with "ar", such as Aragonese, get English. The static device fingerprint (`device.browserDetails.language`) is unchanged. This needs real WPML/WCML runtime evidence before any multilingual support claim (`docs/COMPATIBILITY.md`).
 
 - **A 3-decimal order verified in a 2-decimal request now binds.** WooCommerce re-rounds an order total to the current request's price decimals every time the order loads. A webhook or cron request has no shopper currency, so on a store whose default currency has 2 decimals, a KWD, BHD or OMR order charged at `12.345` was read as `12.35` and never matched the provider's `12.345`. The order then stayed Pending after the customer paid. A successful Charge now records the exact amount it sent (`_supcheckout_charge_amount_v1`), and the status check binds the provider amount to that. Nothing is rounded: the snapshot is used only while the order total, as WooCommerce rounds it in that request, still matches it. An order edited after the Charge fails binding, as before. Orders charged before this change keep the exact order-total comparison. The key is first-party only, so the takeover does not copy or remove it.
 

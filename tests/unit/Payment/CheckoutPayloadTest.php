@@ -296,6 +296,40 @@ final class CheckoutPayloadTest extends TestCase {
         }
     }
 
+    public function test_a4_02_provider_language_is_arabic_only_for_arabic_language_codes(): void {
+        foreach (array('ar', 'AR', 'ar_KW', 'ar-SA', 'ary', 'ary_MA', ' ar ') as $arabic) {
+            self::assertSame('ar', CheckoutPayload::provider_language_code(array($arabic)), $arabic);
+        }
+        // Aragonese (arg), Mapudungun (arn) and every other language get English.
+        foreach (array('en', 'en_US', 'fr_FR', 'arg', 'arn', 'ara', 'x-ar', '') as $other) {
+            self::assertSame('en', CheckoutPayload::provider_language_code(array($other)), $other);
+        }
+    }
+
+    public function test_a4_02_provider_language_uses_the_first_known_language_in_order(): void {
+        // The order's own language decides; a request locale never overrides it.
+        self::assertSame('en', CheckoutPayload::provider_language_code(array('en', 'ar', 'ar')));
+        self::assertSame('ar', CheckoutPayload::provider_language_code(array('ar', 'en', 'en_US')));
+        // Unknown order language: the WPML current language, then the locale.
+        self::assertSame('ar', CheckoutPayload::provider_language_code(array('', 'ar', 'en_US')));
+        self::assertSame('ar', CheckoutPayload::provider_language_code(array(null, null, 'ar')));
+        self::assertSame('en', CheckoutPayload::provider_language_code(array(null, array('ar'), false)));
+        self::assertSame('en', CheckoutPayload::provider_language_code(array()));
+    }
+
+    public function test_a4_02_provider_language_reads_the_order_wpml_language(): void {
+        $arabic_order = new class() {
+            public function get_meta($key) { return $key === 'wpml_language' ? 'ar' : ''; }
+        };
+        $plain_order = new class() {
+            public function get_meta($key) { return ''; }
+        };
+
+        self::assertSame('ar', CheckoutPayload::provider_language($arabic_order));
+        self::assertSame('en', CheckoutPayload::provider_language($plain_order));
+        self::assertSame('en', CheckoutPayload::provider_language(null));
+    }
+
     public function test_provider_text_truncation_is_scalar_only_and_utf8_safe(): void {
         self::assertSame('abc', CheckoutPayload::truncate_provider_text('abcdef', 3));
         self::assertSame('سلا', CheckoutPayload::truncate_provider_text('سلام', 3));

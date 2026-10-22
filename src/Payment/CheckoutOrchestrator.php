@@ -1068,7 +1068,10 @@ class CheckoutOrchestrator {
                     'src' => 'woocommerce',
                 ),
                 'is_whitelabled'  => $whitelabled,
-                'language'        => 'en',
+                // The hosted page language follows the order (A4-02). The
+                // device.browserDetails.language below belongs to a static
+                // fingerprint and stays 'en'.
+                'language'        => CheckoutPayload::provider_language($order),
                 'isSaveCard'      => $isSaveCard,
                 'tokens'          => array(
                     'creditCard'          => null,
