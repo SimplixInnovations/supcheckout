@@ -160,16 +160,22 @@ supcheckout_cert_assert(
     'parent C retry remains queued after pause A'
 );
 
-// --- Resume creates exactly one attempt-0 action ---
+// --- Resume while automatic renewal charges are blocked (fix A1-01, owner decision
+// 2026-10-22): no action is queued and the parent carries one paused-renewal note. Before
+// the decision, resume created exactly one attempt-0 action here. ---
 $pA->update_meta_data('_upay_subscription_status', 'active');
 $pA->save();
 supcheckout_cert_assert(
-    LifecycleScheduler::schedule_resume($pA) === true,
-    'resume schedules one legitimate next cycle'
+    LifecycleScheduler::schedule_resume($pA) === false,
+    'resume queues no cycle while automatic renewal charges are blocked'
 );
 supcheckout_cert_assert(
-    ASBridge::has_any_open_cycle_attempt((int) $pA->get_id(), (int) Enrollment::next_run_at($pA)),
-    'resume created a pending cycle action'
+    !ASBridge::has_any_open_cycle_attempt((int) $pA->get_id(), (int) Enrollment::next_run_at($pA)),
+    'resume created no pending cycle action'
+);
+supcheckout_cert_assert(
+    (string) wc_get_order((int) $pA->get_id())->get_meta(LifecycleScheduler::PAUSED_NOTE_META) === '1',
+    'the resumed parent carries the paused-renewal note flag'
 );
 
 // Cleanup sample (leave table disposable).
