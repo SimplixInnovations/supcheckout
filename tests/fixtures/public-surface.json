@@ -426,6 +426,12 @@
         "contexts": "cli"
     },
     {
+        "kind": "deactivation",
+        "hook": "main_plugin_file",
+        "registered_in": "load",
+        "contexts": "admin cli frontend no_woocommerce"
+    },
+    {
         "kind": "filter",
         "hook": "product_type_selector",
         "priority": 10,
@@ -1418,6 +1424,22 @@
     {
         "kind": "schedule_reference",
         "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_onboarding_drive",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_onboarding_watchdog",
+        "group": "supcheckout-onboarding",
+        "args": "<dynamic:null>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
         "hook": "supcheckout_onboarding_watchdog",
         "group": "supcheckout-onboarding",
         "args": "<dynamic:null>",
@@ -1429,6 +1451,22 @@
         "hook": "supcheckout_process_due_parent",
         "group": "supcheckout",
         "args": "[parent_order_id:int,cycle_due_gmt:int,retry_attempt:int]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_reconciliation_sweep",
+        "group": "supcheckout",
+        "args": "[]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "as_unschedule_all_actions",
+        "hook": "supcheckout_takeover_copy_batch",
+        "group": "supcheckout",
+        "args": "[]",
         "contexts": "static"
     },
     {
@@ -1527,6 +1565,12 @@
         "function": "wp_unschedule_event",
         "hook": "<dynamic:(string)$hook>",
         "args": "<param:array $args>",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "wp_unschedule_hook",
+        "hook": "<dynamic:$twins[self::SUBSCRIPTION_TICK]>",
         "contexts": "static"
     },
     {

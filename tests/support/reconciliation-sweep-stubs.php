@@ -17,6 +17,7 @@ function supcheckout_sweep_test_reset() {
         'has_result' => false,
         'schedule_calls' => array(),
         'schedule_result' => 1001,
+        'unschedule_calls' => array(),
         // Action Scheduler initialises at init:1; WooCommerce fires woocommerce_init at init:0.
         'as_initialized' => true,
     );
@@ -54,6 +55,13 @@ if (!function_exists('as_schedule_recurring_action')) {
     function as_schedule_recurring_action($timestamp, $interval, $hook, $args = array(), $group = '') {
         $GLOBALS['supcheckout_sweep_test']['schedule_calls'][] = array((int) $timestamp, (int) $interval, (string) $hook, $args, (string) $group);
         return $GLOBALS['supcheckout_sweep_test']['schedule_result'];
+    }
+}
+
+if (!function_exists('as_unschedule_all_actions')) {
+    function as_unschedule_all_actions($hook, $args = null, $group = '') {
+        $GLOBALS['supcheckout_sweep_test']['unschedule_calls'][] = array((string) $hook, $args, (string) $group);
+        $GLOBALS['supcheckout_sweep_test']['has_result'] = false;
     }
 }
 

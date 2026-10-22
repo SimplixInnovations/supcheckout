@@ -92,6 +92,26 @@ final class ReconciliationSweep {
     }
 
     /**
+     * Deactivation cleanup (A3-08): cancels the recurring action (exact hook, arguments and
+     * group, never group-wide) and deletes the throttle marker, so a reactivation schedules
+     * the sweep on its first admin, WP-Cron or WP-CLI request. Before Action Scheduler
+     * initialises only the marker goes; ensure_scheduled() then finds the existing action.
+     *
+     * @return void
+     */
+    public static function unschedule() {
+        try {
+            if (function_exists('as_unschedule_all_actions')
+                && !(class_exists('ActionScheduler') && !\ActionScheduler::is_initialized())
+            ) {
+                as_unschedule_all_actions(self::HOOK, array(), self::GROUP);
+            }
+        } finally {
+            delete_option(self::ENSURED_OPTION);
+        }
+    }
+
+    /**
      * @return void
      */
     public static function run() {

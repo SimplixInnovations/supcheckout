@@ -5,6 +5,7 @@ namespace Simplixi\SUPCheckout\Tests\Takeover;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Bootstrap\Deactivation;
 use Simplixi\SUPCheckout\Bootstrap\WooCommerceDeclarations;
 use Simplixi\SUPCheckout\Takeover\Cli;
 use Simplixi\SUPCheckout\Rest\Routes;
@@ -17,8 +18,9 @@ use Simplixi\SUPCheckout\Takeover\PausedBoot;
  * only the WooCommerce feature declarations, the takeover CLI (under WP-CLI), the takeover
  * REST routes (`rest_api_init`, never the self-test or setup-check routes), the two
  * onboarding driver hooks (at once under cron, AJAX and WP-CLI, otherwise lazily on Action
- * Scheduler's queue start) and, on a preflight probe request alone, the probe answer. No
- * gateway, Blocks method, payment callback, payment cron hook or global symbol.
+ * Scheduler's queue start), the deactivation cleanup (A3-08, on the main file) and, on a
+ * preflight probe request alone, the probe answer. No gateway, Blocks method, payment
+ * callback, payment cron hook or global symbol.
  *
  * The feature declarations are the full boot's (before_woocommerce_init); otherwise
  * WooCommerce lists the paused plugin as incompatible with HPOS and the Cart & Checkout
@@ -90,6 +92,17 @@ final class PausedBootTest extends TestCase {
         self::assertSame(
             array(array('cart_checkout_blocks', $main_file, true), array('custom_order_tables', $main_file, true)),
             \Automattic\WooCommerce\Utilities\FeaturesUtil::$declared
+        );
+    }
+
+    public function test_the_paused_boot_registers_the_deactivation_cleanup_on_its_main_file(): void {
+        // A3-08: a store that deactivates SUPCheckout while the official plugin is active
+        // still drops SUPCheckout's own schedules. The ::class constant loads no file.
+        PausedBoot::boot(ABSPATH . 'supcheckout.php');
+
+        self::assertSame(
+            array(array('deactivation', ABSPATH . 'supcheckout.php', array(Deactivation::class, 'deactivate'))),
+            $GLOBALS['supcheckout_test_file_hook_calls']
         );
     }
 

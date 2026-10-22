@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Takeover;
 
 defined('ABSPATH') || exit;
 
+use Simplixi\SUPCheckout\Bootstrap\Deactivation;
 use Simplixi\SUPCheckout\Bootstrap\WooCommerceDeclarations;
 use Simplixi\SUPCheckout\Rest\Routes;
 use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
@@ -35,7 +36,11 @@ use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
  *   `action_scheduler_before_process_queue`, which Action Scheduler's queue runners fire
  *   (this covers ALTERNATE_WP_CRON; the admin "Run" row action bypasses it, see
  *   AsyncDriver). Neither reads any state. The admin screens come in Sub-project 2
- *   (the existing paused notice comes from OfficialPluginConflict itself).
+ *   (the existing paused notice comes from OfficialPluginConflict itself);
+ * - the deactivation cleanup on the main file (Bootstrap\Deactivation, A3-08, named by
+ *   ::class so it loads only on deactivation), so a store that deactivates SUPCheckout while
+ *   paused still drops SUPCheckout's own schedules. It never touches
+ *   upay_process_subscriptions, which the official plugin uses.
  *
  * It registers no gateway, no Blocks method, no payment callback (`wc_upayments` stays the
  * official plugin's alone), no payment or subscription cron or Action Scheduler hook and
@@ -57,6 +62,7 @@ final class PausedBoot {
         } else {
             add_action('action_scheduler_before_process_queue', array(AsyncDriver::class, 'register_hooks'));
         }
+        register_deactivation_hook($main_file, array(Deactivation::class, 'deactivate'));
         if (LegacyCallbackListener::is_probe()) {
             add_action(LegacyCallbackListener::HOOK, array(LegacyCallbackListener::class, 'handle_probe'), 5);
         }

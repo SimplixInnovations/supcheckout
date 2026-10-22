@@ -1092,8 +1092,10 @@ arch2_assert(
             . 'RestRoutes::register();'
             // 0b Task 9: `wp supcheckout takeover`, registered only under WP-CLI.
             . 'TakeoverCli::register();'
+            // A3-08 (U8): the deactivation cleanup, named by ::class so it loads only on deactivation.
+            . 'register_deactivation_hook(self::$main_file,array(Deactivation::class,deactivate));'
             . 'self::load_runtime(self::$main_file);',
-    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner, the onboarding driver, the admin REST routes and CLI, then loads the former main-file runtime'
+    'Plugin::boot is the idempotent composition root that registers the gateway bindings and, in main-file order, every former main-file hook, then the takeover copy runner, the onboarding driver, the admin REST routes and CLI, then the deactivation cleanup, then loads the former main-file runtime'
 );
 // The former main-file runtime block (constants, ordered loads, release constants) is pinned
 // exactly: before Task 5 the main-file byte ratchet guarded it, so a dropped or reordered

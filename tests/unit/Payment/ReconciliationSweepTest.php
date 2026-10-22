@@ -114,6 +114,29 @@ final class ReconciliationSweepTest extends TestCase {
         self::assertSame(1, $GLOBALS['supcheckout_sweep_test']['has_calls'], 'a WP-Cron request (auto-update, no admin visit) ensures the action');
     }
 
+    public function test_unschedule_removes_the_action_and_the_marker_so_a_reactivation_schedules_at_once(): void {
+        $GLOBALS['supcheckout_sweep_test']['has_result'] = true;
+        ReconciliationSweep::ensure_scheduled();
+        self::assertArrayHasKey(self::MARKER, $GLOBALS['supcheckout_test_options']);
+
+        ReconciliationSweep::unschedule();
+
+        self::assertSame(array(array(ReconciliationSweep::HOOK, array(), 'supcheckout')), $GLOBALS['supcheckout_sweep_test']['unschedule_calls'], 'exact hook, arguments and group');
+        self::assertArrayNotHasKey(self::MARKER, $GLOBALS['supcheckout_test_options']);
+        ReconciliationSweep::ensure_scheduled();
+        self::assertCount(1, $GLOBALS['supcheckout_sweep_test']['schedule_calls'], 'the next admin request inside the old throttle window schedules again');
+    }
+
+    public function test_unschedule_before_action_scheduler_initialises_still_deletes_the_marker(): void {
+        $GLOBALS['supcheckout_sweep_test']['as_initialized'] = false;
+        $GLOBALS['supcheckout_test_options'][self::MARKER] = time();
+
+        ReconciliationSweep::unschedule();
+
+        self::assertSame(array(), $GLOBALS['supcheckout_sweep_test']['unschedule_calls']);
+        self::assertArrayNotHasKey(self::MARKER, $GLOBALS['supcheckout_test_options']);
+    }
+
     public function test_failed_orders_are_selected_only_for_non_terminal_trusted_results(): void {
         $excluded = self::not_in_values(PaymentLifecycle::sweep_candidate_meta_query('failed'));
         self::assertNotNull($excluded, 'the failed-order query excludes terminal trusted results');
