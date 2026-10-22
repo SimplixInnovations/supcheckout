@@ -230,7 +230,7 @@ tranches:
     subproject_0c_plan: docs/superpowers/plans/2026-10-18-subproject-0c-onboarding-backend.md
     subproject_0c_status: onboarding_backend_tasks_1_10
     subproject_0c_scope: services_and_admin_rest_api_no_ui
-    subproject_0c_owner_staging_review: pending
+    subproject_0c_owner_staging_review: done_owner_verified
     subproject_0c_owner_staging_review_blocks_engineering: false
     subproject_0c_engineering: complete
     subproject_0c_merged_main: 5dce3f1d1397d455baa4b4bfe64ef3f89184de6e
