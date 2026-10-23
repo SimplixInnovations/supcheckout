@@ -10,6 +10,17 @@
  * Jed 1.x file for assets/admin/build/app.js and one per lazy chunk listed in
  * app.chunks.json, from tests/admin-ui/wp/fixtures/ar-strings.json. Never
  * shipped; no network language pack is needed.
+ *
+ * It also writes wp-content/languages/plugins/supcheckout-ar.mo with the same
+ * strings, so the fixture is a complete language pack. WP_Textdomain_Registry
+ * keys a pack on its .mo (or .l10n.php) file, and load_script_textdomain()
+ * reads the JSON from the directory the registry returns. Without the .mo the
+ * registry finds no pack, the A4-01 `lang_dir_for_domain` fallback points
+ * WordPress at the bundled languages/ folder, and the bundled JSON replaces the
+ * fixture JSON. With it, the pack wins, as an installed pack does on a real
+ * store. The bundled fallback itself is covered by tests/unit/Bootstrap/
+ * TranslationsTest.php and the Compatibility ReleaseMetadataTest and
+ * I18nEarlyLoadingTest runs, which install no pack.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -18,6 +29,7 @@ if (PHP_SAPI !== 'cli') {
 
 const SUPCHECKOUT_FIXTURE_DOMAIN = 'supcheckout';
 const SUPCHECKOUT_FIXTURE_LOCALE = 'ar';
+const SUPCHECKOUT_FIXTURE_PLURAL_FORMS = 'nplurals=6; plural=(n == 0) ? 0 : ((n == 1) ? 1 : ((n == 2) ? 2 : ((n % 100 >= 3 && n % 100 <= 10) ? 3 : ((n % 100 >= 11 && n % 100 <= 99) ? 4 : 5))));';
 const SUPCHECKOUT_FIXTURE_CHUNK = '#^chunks/[a-z0-9-]+\.[a-f0-9]{8}\.js\z#';
 
 /**
@@ -54,7 +66,7 @@ function supcheckout_fixture_jed(array $strings) {
         '' => array(
             'domain' => 'messages',
             'lang' => SUPCHECKOUT_FIXTURE_LOCALE,
-            'plural-forms' => 'nplurals=6; plural=(n == 0) ? 0 : ((n == 1) ? 1 : ((n == 2) ? 2 : ((n % 100 >= 3 && n % 100 <= 10) ? 3 : ((n % 100 >= 11 && n % 100 <= 99) ? 4 : 5))));',
+            'plural-forms' => SUPCHECKOUT_FIXTURE_PLURAL_FORMS,
         ),
     );
     foreach ($strings as $source => $translation) {
@@ -66,6 +78,39 @@ function supcheckout_fixture_jed(array $strings) {
         'domain' => 'messages',
         'locale_data' => array('messages' => $messages),
     );
+}
+
+/**
+ * A GNU gettext .mo file (little-endian, revision 0, no hash table) of singular entries.
+ *
+ * @param array<string, string> $entries Source string => translation; '' is the header.
+ * @return string The file bytes.
+ */
+function supcheckout_fixture_mo(array $entries) {
+    $sorted = array();
+    foreach ($entries as $source => $translation) {
+        $sorted[(string) $source] = (string) $translation;
+    }
+    // gettext readers binary-search the originals, so they are sorted bytewise.
+    ksort($sorted, SORT_STRING);
+    $count = count($sorted);
+    $originals_offset = 28;
+    $translations_offset = $originals_offset + 8 * $count;
+    $pool_offset = $translations_offset + 8 * $count;
+    $originals = '';
+    $translations = '';
+    $pool = '';
+    foreach (array_keys($sorted) as $source) {
+        $originals .= pack('VV', strlen($source), $pool_offset + strlen($pool));
+        $pool .= $source . "\0";
+    }
+    foreach ($sorted as $translation) {
+        $translations .= pack('VV', strlen($translation), $pool_offset + strlen($pool));
+        $pool .= $translation . "\0";
+    }
+    // Magic, revision, count, originals table, translations table, hash size, hash offset.
+    return pack('VVVVVVV', 0x950412de, 0, $count, $originals_offset, $translations_offset, 0, $pool_offset)
+        . $originals . $translations . $pool;
 }
 
 if ($argc !== 2 || !is_dir($argv[1])) {
@@ -120,3 +165,16 @@ foreach ($files as $relative => $strings) {
     }
     echo 'wrote ' . basename($target) . ' for ' . $relative . PHP_EOL;
 }
+
+// The pack's .mo, written byte for byte here rather than with WordPress's POMO classes:
+// before PHP 8.5 those need WordPress's compat.php polyfills (array_last()), which this
+// standalone CLI script does not load, and the .mo format is small and stable.
+$mo_target = sprintf('%s/%s-%s.mo', $languages, SUPCHECKOUT_FIXTURE_DOMAIN, SUPCHECKOUT_FIXTURE_LOCALE);
+$mo_entries = array_merge($fixture['app'], $fixture['chunks']);
+$mo_entries[''] = 'Language: ' . SUPCHECKOUT_FIXTURE_LOCALE . "\n"
+    . "Content-Type: text/plain; charset=UTF-8\n"
+    . 'Plural-Forms: ' . SUPCHECKOUT_FIXTURE_PLURAL_FORMS . "\n";
+if (false === file_put_contents($mo_target, supcheckout_fixture_mo($mo_entries))) {
+    supcheckout_fixture_fail("cannot write $mo_target");
+}
+echo 'wrote ' . basename($mo_target) . ' (the language pack the registry keys on)' . PHP_EOL;

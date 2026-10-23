@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Payment;
 
+defined('ABSPATH') || exit;
+
 final class SavedCardPresentation {
     /**
      * Return only the final four display digits from a provider card shape.

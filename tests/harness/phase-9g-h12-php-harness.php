@@ -5892,6 +5892,7 @@ upay_assert_eq($result_save_card['provenance_generation'] ?? null, $result_save_
 upay_assert((int) ($result_save_card['usermeta_writes'] ?? 0) > 0, 'SP-SAVE-CARD usermeta_writes > 0 (persistence occurred)', 'semantic_runtime');
 upay_assert((int) ($result_save_card['identity_writes'] ?? 0) > 0, 'SP-SAVE-CARD identity_writes > 0 (persistence occurred)', 'semantic_runtime');
 upay_assert((int) ($result_save_card['provenance_writes'] ?? 0) > 0, 'SP-SAVE-CARD provenance_writes > 0 (persistence occurred)', 'semantic_runtime');
+upay_assert_eq(array_key_exists('saved_card_view_entry_after', $result_save_card) ? $result_save_card['saved_card_view_entry_after'] : 'absent', null, 'SP-SAVE-CARD U5 a save-card Charge forgets the cached saved-card list', 'semantic_runtime');
 
 // ===========================================================================
 // SP-SELECTED-CARD: Store API selected-card path.
@@ -5932,6 +5933,7 @@ upay_assert_eq((int) ($result_selected_card['retrieve_calls'] ?? 0), 1, 'SP-SELE
 upay_assert_eq((int) ($result_selected_card['charge_calls'] ?? 0), 1, 'SP-SELECTED-CARD Charge=1', 'semantic_runtime');
 upay_assert_eq((int) ($result_selected_card['secret_creates'] ?? 0), 0, 'SP-SELECTED-CARD secret_creates=0', 'semantic_runtime');
 upay_assert_eq((int) ($result_selected_card['usermeta_writes'] ?? 0), 0, 'SP-SELECTED-CARD usermeta_writes=0', 'semantic_runtime');
+upay_assert_eq($result_selected_card['saved_card_view_entry_after'] ?? 'absent', 'seeded-display-entry', 'SP-SELECTED-CARD U5 paying with a saved card keeps the cached saved-card list', 'semantic_runtime');
 // identity_writes and provenance_writes are non-zero because production
 // records the existing identity/provenance on the order (not creating new).
 upay_assert((int) ($result_selected_card['identity_writes'] ?? 0) > 0, 'SP-SELECTED-CARD identity_writes > 0 (order snapshot)', 'semantic_runtime');
@@ -6140,6 +6142,130 @@ if (class_exists('Simplixi\\SUPCheckout\\Payment\\SavedCardPresentation', false)
 } else {
     upay_assert_eq(false, true, 'CLASSIC-PAN-0 production bootstrap loads SavedCardPresentation before Classic rendering', 'semantic_runtime');
 }
+
+// ===========================================================================
+// SECTION U5-SAVED-CARD-DISPLAY-CACHE (A3-01): order-review refreshes and Blocks
+// checkout loads reuse the saved-card list for two minutes from the shopper's
+// WooCommerce session, holding display-safe fields only. Payment-time membership
+// verification is not cached (covered by the SP-SELECTED-CARD cases above).
+// ===========================================================================
+$u5_card_token = '9876543210123456';
+$u5_retrieve_body = json_encode(array(
+    'status' => true,
+    'data' => array('customerCards' => array(
+        array('token' => $u5_card_token, 'number' => '4111 1111 1111 4242', 'brand' => 'Visa'),
+    )),
+));
+$u5_retrieve_ok = array('transport_ok' => true, 'http_status' => 201, 'curl_errno' => 0, 'body' => $u5_retrieve_body);
+$u5_gw = new WC_Upayments_Testable();
+$u5_gw->apiKey = 'test_api_key';
+$u5_gw->testMode = 'no';
+$u5_gw->saveCardEnabled = 'yes';
+$u5_gw->autoDeduction = 'no';
+$u5_availability = array(
+    'result' => 'success',
+    'isWhiteLabel' => true,
+    'payButtons' => array('knet' => 1, 'credit_card' => 1),
+);
+$u5_render_blocks = function () use ($u5_gw) {
+    return (new WCGatewayUPaymentsBlocks_Testable('', $u5_gw))->get_payment_method_data();
+};
+$u5_render_classic = function () use ($u5_gw, $ROOT) {
+    $gateway = $u5_gw;
+    $save_card_enabled = true;
+    ob_start();
+    include $ROOT . '/templates/new-design-form.php';
+    return ob_get_clean();
+};
+
+$state['availability_response'] = $u5_availability;
+$state['is_checkout'] = true;
+$state['wc_cart'] = new class {
+    public function get_total($context = '') {
+        return '12.50';
+    }
+    public function get_cart() {
+        return array();
+    }
+};
+upay_set_provider_response('retrieve-customer-cards', $u5_retrieve_ok);
+
+// Blocks: three checkout loads in one session, one Retrieve.
+$state['retrieve_calls'] = 0;
+$state['wc_session_store'] = array();
+$u5_blocks_first = $u5_render_blocks();
+$u5_blocks_second = $u5_render_blocks();
+$u5_blocks_third = $u5_render_blocks();
+upay_assert_eq($state['retrieve_calls'], 1, 'U5-SCC-1 three Blocks checkout loads in one session make one saved-card Retrieve', 'semantic_runtime');
+upay_assert_eq(count($u5_blocks_first['saved_cards'] ?? array()), 1, 'U5-SCC-2 the first Blocks load lists the saved card', 'semantic_runtime');
+upay_assert_eq($u5_blocks_third['saved_cards'] ?? null, $u5_blocks_first['saved_cards'] ?? false, 'U5-SCC-3 a cached Blocks load lists the same card, label and handle', 'semantic_runtime');
+upay_assert_eq(($u5_blocks_third['saved_cards'][0]['label'] ?? null), '•••• 4242', 'U5-SCC-4 the cached Blocks label is last-four only', 'semantic_runtime');
+$u5_session_dump = serialize($state['wc_session_store']);
+upay_assert_eq(strpos($u5_session_dump, $u5_card_token) === false, true, 'U5-SCC-5 the session cache never holds the provider card token', 'semantic_runtime');
+upay_assert_eq(strpos($u5_session_dump, '4111') === false && strpos($u5_session_dump, '12345678') === false, true, 'U5-SCC-6 the session cache holds no card number and no customer token', 'semantic_runtime');
+
+// Classic: three order-review refreshes in one session, one Retrieve.
+$state['retrieve_calls'] = 0;
+$state['wc_session_store'] = array();
+$u5_classic_first = $u5_render_classic();
+$u5_render_classic();
+$u5_classic_third = $u5_render_classic();
+upay_assert_eq($state['retrieve_calls'], 1, 'U5-SCC-7 three Classic order-review refreshes in one session make one saved-card Retrieve', 'semantic_runtime');
+upay_assert_eq(preg_match('/value="sc1_[0-9a-f]{64}"/', $u5_classic_third) === 1 && strpos($u5_classic_third, '•••• 4242') !== false, true, 'U5-SCC-8 a cached Classic refresh still renders the opaque handle and last four', 'semantic_runtime');
+upay_assert_eq($u5_classic_third, $u5_classic_first, 'U5-SCC-9 a cached Classic refresh renders the same markup', 'semantic_runtime');
+upay_assert_eq(strpos($u5_classic_third, $u5_card_token) === false, true, 'U5-SCC-10 a cached Classic refresh never renders the provider token', 'semantic_runtime');
+
+// A different shopper on the same session (log out, log in as someone else) never sees it.
+$state['retrieve_calls'] = 0;
+$state['current_user_id'] = 43;
+$u5_other_user = $u5_render_blocks();
+upay_assert_eq($u5_other_user['saved_cards'] ?? null, array(), 'U5-SCC-11 another user without provenance gets no saved cards from the cache', 'semantic_runtime');
+upay_assert_eq($state['retrieve_calls'], 0, 'U5-SCC-12 another user without provenance makes no Retrieve', 'semantic_runtime');
+
+// Review round 1 (M-2): another user WITH valid provenance on a session that still
+// holds user 42's entry must miss, list their own cards once, and never see 42's handles.
+$u5_42_handles = array();
+foreach (($u5_blocks_first['saved_cards'] ?? array()) as $u5_card) {
+    $u5_42_handles[] = $u5_card['selection'] ?? null;
+}
+$u5_store_before_43 = $state['wc_session_store']['supcheckout_saved_card_views_v1'] ?? null;
+$state['usermeta'][43] = [
+    '_upay_customer_token_v2_b1_' . $blocks_scope => [[
+        'version' => 3, 'kind' => 'canonical', 'token' => '87654321',
+        'source' => 'create_201', 'scope' => $blocks_scope, 'secret_generation_id' => $blocks_gen_actual,
+        'established_at_gmt' => time(),
+    ]],
+];
+$state['retrieve_calls'] = 0;
+$u5_user_43 = $u5_render_blocks();
+$u5_43_handles = array();
+foreach (($u5_user_43['saved_cards'] ?? array()) as $u5_card) {
+    $u5_43_handles[] = $u5_card['selection'] ?? null;
+}
+upay_assert_eq(is_array($u5_store_before_43) && count($u5_42_handles) === 1, true, 'U5-SCC-16 the shared session still holds the user 42 entry when user 43 renders', 'semantic_runtime');
+upay_assert_eq($state['retrieve_calls'], 1, 'U5-SCC-17 user 43 with valid provenance misses the user 42 entry and makes exactly one Retrieve', 'semantic_runtime');
+upay_assert_eq(count($u5_43_handles) === 1 && array_intersect($u5_43_handles, $u5_42_handles) === array(), true, 'U5-SCC-18 user 43 is shown none of the user 42 handles', 'semantic_runtime');
+unset($state['usermeta'][43]);
+$state['current_user_id'] = 42;
+
+// Failures are not cached: the next render asks again.
+$state['retrieve_calls'] = 0;
+$state['wc_session_store'] = array();
+upay_set_provider_response('retrieve-customer-cards', array('transport_ok' => false, 'http_status' => 503, 'curl_errno' => 0, 'body' => ''));
+$u5_render_blocks();
+upay_set_provider_response('retrieve-customer-cards', $u5_retrieve_ok);
+$u5_after_failure = $u5_render_blocks();
+upay_assert_eq($state['retrieve_calls'], 2, 'U5-SCC-13 a failed Retrieve is not cached', 'semantic_runtime');
+upay_assert_eq(count($u5_after_failure['saved_cards'] ?? array()), 1, 'U5-SCC-14 the render after a failure lists the card', 'semantic_runtime');
+
+// Forgetting the entry (a save-card Charge) makes the next render ask again.
+$state['retrieve_calls'] = 0;
+if (method_exists($u5_gw, 'forget_saved_card_views')) {
+    $u5_gw->forget_saved_card_views();
+}
+$u5_render_blocks();
+upay_assert_eq($state['retrieve_calls'], 1, 'U5-SCC-15 a forgotten entry is fetched again', 'semantic_runtime');
+unset($state['wc_session_store']);
 
 
 // ===========================================================================
@@ -7664,6 +7790,9 @@ $_semantic_ledger = [
     'SP-MISMATCH'    => ['entrypoint' => 'Store process_payment',  'outcome' => 'Retrieve rejection/no Charge'],
     'BLOCKS-SAN'     => ['entrypoint' => 'get_payment_method_data','outcome' => 'real sanitizer'],
     'CLASSIC-PAN'    => ['entrypoint' => 'Classic template render',  'outcome' => 'last-four-only card presentation'],
+    // U5 (A3-01): the two-minute display-only saved-card cache across real
+    // Blocks data builds and real Classic template renders.
+    'SC-VIEW-CACHE'  => ['entrypoint' => 'Blocks data / Classic render', 'outcome' => 'one Retrieve per session window, no token cached'],
     'MALFORMED-CARD' => ['entrypoint' => 'process_payment',        'outcome' => 'strict failure/no mutation'],
     'HOSTILE'        => ['entrypoint' => 'Store process_payment',  'outcome' => 'hostile Classic POST isolation'],
     // Residual Correction #29: explicit ledger families for the honest
@@ -7810,11 +7939,12 @@ $_expected_family_baseline = array(
     'MM'                  => 100,
     'OW'                  => 11,
     'SP-SUCCESS'          => 19,
-    'SP-SAVE-CARD'        => 24,
-    'SP-SELECTED'         => 20,
+    'SP-SAVE-CARD'        => 25,    // 24 + U5 save-card Charge forgets the display cache
+    'SP-SELECTED'         => 21,    // 20 + U5 selected-card Charge keeps the display cache
     'SP-MISMATCH'         => 15,
     'BLOCKS-SAN'          => 10,
     'CLASSIC-PAN'         => 7,
+    'SC-VIEW-CACHE'       => 18,    // U5 (A3-01) U5-SCC-1..18
     'MALFORMED-CARD'      => 56,
     'HOSTILE'             => 3,
     'ECON-E2E'            => 24,
@@ -7840,13 +7970,13 @@ $_expected_family_baseline = array(
 //   PROBE-RECOVERY (§5):     2 snapshot/restoration assertions =  2
 //                                                   TOTAL       = 21
 $_expected_categories = array(
-    'semantic_runtime'    => 379,
+    'semantic_runtime'    => 399,    // 379 + 20 U5 (A3-01) saved-card display-cache assertions
     'helper_unit_runtime' => 876,    // 854 + 22 A6-05-TOK characterization assertions
     'static_source'       => 46,
     'harness_self_test'   => 662,    // 641 baseline + 21 §4/§5/§7 probes
     'lint_tooling'        => 10,
 );
-$_expected_total_pass    = 1973;    // 379 + 876 + 46 + 662 + 10
+$_expected_total_pass    = 1993;    // 399 + 876 + 46 + 662 + 10
 $_expected_total_fail    = 0;
 $_family_mismatch        = 0;
 $_category_mismatch      = 0;

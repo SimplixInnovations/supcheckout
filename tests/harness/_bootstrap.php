@@ -347,6 +347,7 @@ function esc_url($url) { return $url; }
 function esc_url_raw($url) { return $url; }
 function wp_kses($content, $allowed_html) { return $content; }
 function wp_kses_post($content) { return $content; }
+function wp_strip_all_tags($text, $remove_breaks = false) { return trim(strip_tags((string) $text)); }
 function get_current_blog_id() { return 1; }
 function get_current_user_id() { return upay_test_state()['current_user_id']; }
 function is_user_logged_in() { return get_current_user_id() > 0; }
@@ -400,6 +401,11 @@ function is_wc_endpoint_url() { return false; }
 function get_locale() { return 'en_US'; }
 function get_woocommerce_currency() { return 'KWD'; }
 function get_woocommerce_currency_symbol() { return 'KD'; }
+// U6 (A4-06): the new-design buttons print the total through wc_price().
+function wc_price($price, $args = array()) {
+    return '<span class="woocommerce-Price-amount amount"><bdi>' . number_format((float) $price, wc_get_price_decimals(), '.', ',')
+        . '&nbsp;<span class="woocommerce-Price-currencySymbol">' . get_woocommerce_currency_symbol() . '</span></bdi></span>';
+}
 function plugin_dir_url($file) { return 'https://example.test/wp-content/plugins/upayments/'; }
 function plugin_dir_path($file) { return '/var/www/wp-content/plugins/upayments/'; }
 function plugins_url($asset, $file = '') { return 'https://example.test/wp-content/plugins/upayments/' . $asset; }
@@ -584,6 +590,9 @@ if (!class_exists('WC_Payment_Gateway')) {
         public function init_settings() {}
         public function log($content, $level = 'debug') {}
         public function get_option_key() { return 'woocommerce_upayments_settings'; }
+        // Mirror WC_Payment_Gateway: the title/description filters are where WCML translates.
+        public function get_title() { return apply_filters('woocommerce_gateway_title', $this->title, $this->id); }
+        public function get_description() { return apply_filters('woocommerce_gateway_description', $this->description, $this->id); }
     }
 }
 if (!class_exists('WC_Meta_Data')) {
@@ -904,6 +913,18 @@ function WC() {
             $this->session = new class {
                 public function set($k, $v) {
                     if ($k === 'refresh_totals') upay_test_state()['session_refresh_totals']++;
+                    // Opt-in WooCommerce session store: inert unless a case sets
+                    // $state['wc_session_store'] to an array.
+                    $state =& upay_test_state();
+                    if (isset($state['wc_session_store']) && is_array($state['wc_session_store'])) {
+                        $state['wc_session_store'][$k] = $v;
+                    }
+                }
+                public function get($k, $default = null) {
+                    $state = upay_test_state();
+                    return isset($state['wc_session_store']) && is_array($state['wc_session_store']) && array_key_exists($k, $state['wc_session_store'])
+                        ? $state['wc_session_store'][$k]
+                        : $default;
                 }
             };
         }

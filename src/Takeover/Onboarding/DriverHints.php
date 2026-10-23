@@ -2,6 +2,9 @@
 
 namespace Simplixi\SUPCheckout\Takeover\Onboarding;
 
+use Simplixi\SUPCheckout\Takeover\Keys;
+use Simplixi\SUPCheckout\Takeover\Rollback;
+
 defined('ABSPATH') || exit;
 
 /**
@@ -15,6 +18,29 @@ final class DriverHints {
     public const PREFLIGHT = 'fix the blocking preflight findings, then start again';
     public const OFFICIAL = 'deactivate the official UPayments plugin, or start again with deactivate_official';
     public const MISMATCH = 'review the mismatches; the store was not switched';
+    /** A5-04: the gateway settings copy kept by a `settings_diverged` rollback (preflight or rollback). */
+    public const SETTINGS_KEPT = Rollback::SETTINGS_DIVERGED_HINT;
+    /** A5-04: any other settings_target_foreign shape (a copied option, an unreadable journal). */
+    public const SETTINGS_TARGET_FOREIGN = 'follow the settings_target_foreign preflight finding: delete each SUPCheckout option it names once its value is reconciled, or, when it says the takeover journal is unreadable, restore the journal options (supcheckout_takeover_journal_v1*) from a backup; then start again';
+
+    /**
+     * @param array<string, mixed> $report Preflight report with a blocking finding.
+     * @return string SETTINGS_KEPT when only the kept gateway settings block, SETTINGS_TARGET_FOREIGN
+     *                for any other settings_target_foreign finding, otherwise PREFLIGHT.
+     */
+    public static function preflight(array $report) {
+        foreach (isset($report['blocking']) && is_array($report['blocking']) ? $report['blocking'] : array() as $finding) {
+            if (!is_array($finding) || !isset($finding['code']) || $finding['code'] !== 'settings_target_foreign') {
+                continue;
+            }
+            $data = isset($finding['data']) && is_array($finding['data']) ? $finding['data'] : array();
+            $settings_only = isset($data['journal_unreadable'], $data['targets'])
+                && $data['journal_unreadable'] === false
+                && $data['targets'] === array(Keys::SETTINGS_OPTION);
+            return $settings_only ? self::SETTINGS_KEPT : self::SETTINGS_TARGET_FOREIGN;
+        }
+        return self::PREFLIGHT;
+    }
 
     /**
      * @param string $kind  Operation kind.
@@ -33,6 +59,22 @@ final class DriverHints {
                 return 'run "wp supcheckout takeover finalize --dry-run" on the server';
         }
         return 'run "wp supcheckout takeover run --deactivate-official" on the server';
+    }
+
+    /**
+     * A5-05: the copy stopped at an order whose payment lock stayed genuinely held through
+     * every busy retry (a live lease its holder kept renewing, for example a payment in a
+     * slow provider call, or a lease written by a node whose clock runs ahead). A damaged
+     * lock record is never this case: OrderLock recovers expired, unparseable and
+     * implausible-expiry records itself by compare-and-swap (OL-1), so the hint never
+     * blames one and never asks the merchant to delete a lock.
+     *
+     * @param int $order_id The locked order.
+     * @return string
+     */
+    public static function order_locked($order_id) {
+        $order_id = (int) $order_id;
+        return 'A payment for order ' . $order_id . ' kept its payment lock through ' . DriverStep::MAX_BUSY_RETRIES . ' checks about a minute apart. Let that payment finish (check the order in WooCommerce and the UPayments dashboard), then start the switch again.';
     }
 
     /**

@@ -69,6 +69,25 @@ final class OnboardingTest extends TestCase {
         TakeoverState::flush_cache();
     }
 
+    /**
+     * Make TakeoverState compare-and-swaps lose: before an UPDATE of the state option,
+     * another process rewrites the record (same status, another field).
+     *
+     * @param int $times Lost swaps; PHP_INT_MAX for every one.
+     */
+    private static function lose_state_swaps(int $times): void {
+        $left = $times;
+        $GLOBALS['wpdb']->before_query = static function (array $statement) use (&$left) {
+            if ($left <= 0 || strpos($statement['query'], 'UPDATE ') !== 0 || $statement['args'][1] !== TakeoverState::OPTION) {
+                return;
+            }
+            --$left;
+            $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+            $state['noise'] = isset($state['noise']) ? $state['noise'] + 1 : 1;
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+        };
+    }
+
     // --- Outcome. ---
 
     public function test_outcome_factories_and_accessors(): void {
@@ -186,6 +205,17 @@ final class OnboardingTest extends TestCase {
         self::assertSame(array('takeover finalize steps: finalized', $expected, 'removed: orders=2'), array_slice($finalize->lines(), 0, 3));
     }
 
+    public function test_a5_04_a_settings_diverged_rollback_prints_how_to_clear_the_kept_settings(): void {
+        $outcome = Onboarding::rewind_outcome(Rollback::MODE_ROLLBACK, array(
+            'ok' => false, 'restored' => 0, 'error' => null, 'steps' => array('rolled_back'), 'warnings' => array(),
+            'conflicts' => array(array('seq' => -1, 'target' => 'settings_diverged', 'path' => 'woocommerce_upayments_settings')),
+            'report' => array('settings_diverged' => array('kept' => array('woocommerce_supcheckout_settings'), 'legacy' => 'woocommerce_upayments_settings', 'hint' => Rollback::SETTINGS_DIVERGED_HINT)),
+        ));
+
+        self::assertSame(Outcome::CONFLICTS, $outcome->code());
+        self::assertContains('next: ' . Rollback::SETTINGS_DIVERGED_HINT, $outcome->lines());
+    }
+
     public function test_a_failed_purge_is_listed_by_name_and_no_purge_means_no_line(): void {
         $purge = array('ran' => array('object_cache'), 'manual' => array(), 'failed' => array('w3tc', 'system'));
         $with = Onboarding::cutover_outcome(array('ok' => true, 'error' => null, 'steps' => array('cut_over'), 'warnings' => array(), 'report' => array('cache_purge' => $purge)));
@@ -215,7 +245,20 @@ final class OnboardingTest extends TestCase {
         self::assertTrue($outcome->is_ok());
         self::assertSame('upayments/UPayments.php', $outcome->data()['deactivated']);
         self::assertSame(array('official plugin deactivated: upayments/UPayments.php'), $outcome->lines());
+        self::assertTrue($outcome->data()['recorded']);
         self::assertSame('upayments/UPayments.php', TakeoverState::get()[Rollback::OFFICIAL_RECORD]);
+    }
+
+    public function test_a5_07_retire_official_warns_when_the_deactivation_cannot_be_recorded(): void {
+        $this->seed_state('verified');
+        self::lose_state_swaps(PHP_INT_MAX);
+
+        $outcome = $this->onboarding()->retire_official(true, 'switch');
+
+        self::assertTrue($outcome->is_ok(), 'the plugin is deactivated: the switch goes on');
+        self::assertSame(array('upayments/UPayments.php'), $this->system->deactivated);
+        self::assertFalse($outcome->data()['recorded']);
+        self::assertContains('warning: official_deactivation_not_recorded (a rollback will not reactivate upayments/UPayments.php; activate it yourself afterwards)', $outcome->lines());
     }
 
     public function test_retire_official_with_nothing_active_deactivates_nothing(): void {

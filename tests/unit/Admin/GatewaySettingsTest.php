@@ -39,12 +39,27 @@ final class GatewaySettingsTest extends TestCase {
         self::assertSame('yes', $fields['enabled']['default']);
         self::assertSame('no', $fields['make_default_gateway']['default']);
         self::assertSame('UPayments', $fields['title']['default']);
-        self::assertSame('Provider description', $fields['description']['default']);
+        // U6 (A4-07): deliberately changed. The checkout description default used to be the
+        // admin-facing method description; it is now its own customer-facing sentence.
+        self::assertSame(GatewaySettings::default_checkout_description(), $fields['description']['default']);
         self::assertSame('', $fields['api_key']['default']);
         self::assertSame('password', $fields['api_key']['type']);
         self::assertSame('yes', $fields['enable_save_card']['default']);
         self::assertSame('no', $fields['enable_multimerchant']['default']);
         self::assertSame('multimerchant_repeater', $fields['multimerchant_accounts']['type']);
+    }
+
+    /** U6 (A4-07): shoppers never see the merchant-facing method description by default. */
+    public function test_checkout_description_default_is_short_customer_copy_not_the_admin_method_description(): void {
+        $method_description = "UPayments payment integration for WooCommerce. Available payment methods depend on your UPayments account.
+            Supports Classic and Block Checkout.";
+        $fields = GatewaySettings::fields('upayments', 'UPayments', $method_description);
+
+        self::assertSame('Choose your payment method and complete your payment on the secure UPayments page.', $fields['description']['default']);
+        self::assertNotSame($method_description, $fields['description']['default']);
+        self::assertStringNotContainsString("
+", $fields['description']['default']);
+        self::assertSame($fields['description']['default'], GatewaySettings::default_checkout_description());
     }
 
     /** Fix A1-01: the merchant reads, where they enable subscriptions, that auto-charges are paused. */

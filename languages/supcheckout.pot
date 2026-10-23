@@ -1,0 +1,1409 @@
+# Copyright (C) 2026 Simplix Innovations
+# This file is distributed under the MIT.
+msgid ""
+msgstr ""
+"Project-Id-Version: SUPCheckout for UPayments 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/SimplixInnovations/supcheckout/issues\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-10-22T17:09:01+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: supcheckout\n"
+
+#. Plugin Name of the plugin
+#: supcheckout.php:3
+msgid "SUPCheckout for UPayments"
+msgstr ""
+
+#. Plugin URI of the plugin
+#: supcheckout.php:4
+msgid "https://github.com/SimplixInnovations/supcheckout"
+msgstr ""
+
+#. Description of the plugin
+#: supcheckout.php:5
+msgid "Independently engineered UPayments payment integration for WooCommerce by Simplix Innovations."
+msgstr ""
+
+#. Author of the plugin
+#: supcheckout.php:7
+msgid "Simplix Innovations"
+msgstr ""
+
+#. Author URI of the plugin
+#: supcheckout.php:8
+msgid "https://simplixi.com"
+msgstr ""
+
+#: src/Account/SubscriptionActions.php:52
+msgid "Unauthorized request."
+msgstr ""
+
+#: src/Account/SubscriptionActions.php:74
+msgid "Invalid subscription request."
+msgstr ""
+
+#: src/Account/SubscriptionActions.php:84
+msgid "Invalid subscription state transition."
+msgstr ""
+
+#: src/Account/SubscriptionActions.php:101
+msgid "Invalid request."
+msgstr ""
+
+#: src/Account/SubscriptionActions.php:108
+msgid "Your subscription has been cancelled."
+msgstr ""
+
+#: src/Account/SubscriptionActions.php:111
+msgid "Subscription paused."
+msgstr ""
+
+#: src/Account/SubscriptionActions.php:114
+msgid "Subscription resumed."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:68
+msgid "Choose your payment method and complete your payment on the secure UPayments page."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:83
+#: src/Subscription/Presentation.php:559
+msgid "Active"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:89
+msgid "Default Gateway"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:91
+msgid "Make UPayments the default payment method at checkout"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:93
+msgid "If enabled, UPayments will be preselected at checkout. Merchants can still reorder gateways."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:96
+msgid "Title"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:98
+msgid "This controls the title which the user sees during checkout."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:103
+msgid "Description"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:105
+msgid "Instructions that the customer will see on your checkout."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:110
+msgid "Api Key"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:112
+msgid "Copy/paste values from UPayments dashboard"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:117
+msgid "Debug logging"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:119
+msgid "Log non-sensitive UPayments diagnostic events to WooCommerce logs."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:123
+msgid "Test Mode"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:129
+msgid "Show paid orders as \"Completed\"?"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:135
+msgid "Card Tokenization & Design"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:140
+msgid "Use New Design"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:142
+msgid "Use the modern design (if unchecked uses classic design)"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:146
+msgid "Enable Save Card"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:148
+msgid "Allow customers to save card details (Tokenization)"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:152
+msgid "Multimerchant Configuration"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:156
+msgid "Enable Multimerchant"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:158
+msgid "Handle Merchant Account & Charges"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:182
+msgid "Multimerchant Accounts"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:184
+msgid "Manage IBAN and charges for Main-Merchant."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:187
+msgid "Subscription Configuration"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:191
+msgid "Enable Subscriptions"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:193
+msgid "Enable subscription payments"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:199
+#: src/Admin/GatewaySettings.php:200
+msgid "Only Subscription Products are allowed at checkout If Subscription is enabled."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:201
+msgid "Automatic renewal charges are paused."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:294
+msgid "A key is saved. For security it is never shown. Leave this field empty to keep it, or enter a new key to replace it."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:383
+msgid "Save Card must be enabled when Subscriptions are enabled, so it was turned on."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:518
+msgid "Fixed"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:519
+msgid "Percentage"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:532
+msgid "IBAN Number"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:533
+msgid "Knet Charge"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:534
+msgid "Knet Charge Type"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:535
+msgid "CC Charge"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:536
+msgid "CC Charge Type"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:541
+msgid "KWK00445..."
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:542
+#: src/Admin/GatewaySettings.php:551
+msgid "0.000"
+msgstr ""
+
+#: src/Admin/GatewaySettings.php:545
+#: src/Admin/GatewaySettings.php:554
+msgid "Select"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:233
+#: src/Blocks/PaymentMethodType.php:311
+#: templates/new-design-form.php:131
+msgid "Saved card"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:275
+#: src/Subscription/Checkout/Fields.php:80
+msgid "Purchase Type"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:276
+#: src/Subscription/Checkout/Fields.php:95
+msgid "Billing Interval"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:277
+#: src/Gateway/CheckoutAssets.php:197
+#: src/Subscription/Checkout/Fields.php:83
+msgid "One-time"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:279
+#: src/Subscription/Checkout/Fields.php:84
+msgid "Daily Subscription"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:280
+#: src/Subscription/Checkout/Fields.php:85
+msgid "Weekly Subscription"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:281
+#: src/Subscription/Checkout/Fields.php:86
+msgid "Monthly Subscription"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:282
+#: src/Subscription/Checkout/Fields.php:87
+msgid "Quarterly Subscription"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:283
+#: src/Subscription/Checkout/Fields.php:88
+msgid "Yearly Subscription"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:285
+#: src/Subscription/Checkout/Fields.php:98
+msgid "Select interval"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:288
+#: src/Gateway/CheckoutAssets.php:200
+#: src/Subscription/Presentation.php:506
+msgid "Every Day"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:291
+#: src/Gateway/CheckoutAssets.php:202
+#: src/Subscription/Presentation.php:508
+msgid "Every Week"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:292
+#: src/Gateway/CheckoutAssets.php:203
+#: src/Subscription/Presentation.php:509
+msgid "Every 2 Weeks"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:293
+#: src/Gateway/CheckoutAssets.php:204
+#: src/Subscription/Presentation.php:510
+msgid "Every 3 Weeks"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:296
+#: src/Gateway/CheckoutAssets.php:207
+#: src/Subscription/Presentation.php:513
+msgid "Every Month"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:297
+#: src/Gateway/CheckoutAssets.php:208
+#: src/Subscription/Presentation.php:514
+msgid "Every 2 Months"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:300
+#: src/Gateway/CheckoutAssets.php:211
+#: src/Subscription/Presentation.php:517
+msgid "Every Quarter"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:301
+#: src/Gateway/CheckoutAssets.php:212
+#: src/Subscription/Presentation.php:518
+msgid "Every 2 Quarters"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:302
+#: src/Gateway/CheckoutAssets.php:213
+#: src/Subscription/Presentation.php:519
+msgid "Every 3 Quarters"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:305
+#: src/Gateway/CheckoutAssets.php:215
+#: src/Subscription/Presentation.php:521
+msgid "Every Year"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:308
+msgid "Saved card selected"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:309
+#: templates/new-design-form.php:190
+msgid "For faster and more secure checkout. Save your card details."
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:310
+#: templates/new-design-form.php:124
+msgid "Saved Cards"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:312
+msgid "Choose Payment Method"
+msgstr ""
+
+#: src/Blocks/PaymentMethodType.php:313
+#: templates/new-design-form.php:144
+msgid "Other Options"
+msgstr ""
+
+#: src/Bootstrap/Requirements.php:37
+msgid "UPayments Gateway"
+msgstr ""
+
+#: src/Bootstrap/Requirements.php:37
+msgid "requires WooCommerce to be installed and active!"
+msgstr ""
+
+#: src/Gateway/CheckoutAssets.php:179
+msgid "Please log in to save or use a saved card."
+msgstr ""
+
+#: src/Gateway/CheckoutAssets.php:198
+msgid "Select Interval"
+msgstr ""
+
+#: src/Gateway/Gateway.php:179
+msgid "UPayments"
+msgstr ""
+
+#: src/Gateway/Gateway.php:180
+msgid ""
+"UPayments payment integration for WooCommerce. Available payment methods depend on your UPayments account and provider configuration.\n"
+"            Supports Classic and Block Checkout. Automatic subscription renewal charges are paused; collect renewals manually or by payment link."
+msgstr ""
+
+#: src/Gateway/Gateway.php:241
+msgid "Go to My Account"
+msgstr ""
+
+#: src/Gateway/Gateway.php:354
+msgid "Your payment is successful with UPayments."
+msgstr ""
+
+#: src/Gateway/Gateway.php:357
+msgid "Your payment was not completed with UPayments."
+msgstr ""
+
+#: src/Gateway/Gateway.php:360
+msgid "Your order was cancelled."
+msgstr ""
+
+#: src/Gateway/Gateway.php:363
+msgid "Your payment has been refunded."
+msgstr ""
+
+#: src/Gateway/Gateway.php:365
+msgid "We are verifying your payment status with UPayments. Please wait."
+msgstr ""
+
+#: src/Gateway/Gateway.php:367
+msgid "Your payment status is pending. We will update the order when UPayments confirms the final status."
+msgstr ""
+
+#: src/Gateway/Gateway.php:584
+msgid "Please choose how you would like to pay."
+msgstr ""
+
+#: src/Gateway/Gateway.php:701
+msgid "Payment Status"
+msgstr ""
+
+#: src/Gateway/Gateway.php:708
+msgid "UPayment ID"
+msgstr ""
+
+#: src/Gateway/Gateway.php:729
+msgid "Pay securely with"
+msgstr ""
+
+#: src/Gateway/Gateway.php:778
+msgid "Please enter UPayments API Key"
+msgstr ""
+
+#: src/Gateway/Gateway.php:779
+msgid "Please enter Multimerchant Configuration"
+msgstr ""
+
+#: src/Gateway/Gateway.php:912
+msgid "Woocommerce"
+msgstr ""
+
+#: src/Gateway/Gateway.php:1275
+msgid "KNET"
+msgstr ""
+
+#: src/Gateway/Gateway.php:1279
+msgid "Apple Pay KNET"
+msgstr ""
+
+#: src/Gateway/Gateway.php:1283
+#: src/Gateway/Gateway.php:1299
+msgid "Credit Card"
+msgstr ""
+
+#: src/Gateway/Gateway.php:1287
+msgid "Apple Pay Credit Card"
+msgstr ""
+
+#: src/Gateway/Gateway.php:1291
+msgid "Samsung Pay"
+msgstr ""
+
+#: src/Gateway/Gateway.php:1295
+msgid "Google Pay"
+msgstr ""
+
+#: src/Gateway/OfficialPluginConflict.php:146
+#: src/Gateway/OfficialPluginConflict.php:156
+msgid "SUPCheckout is paused."
+msgstr ""
+
+#: src/Gateway/OfficialPluginConflict.php:148
+msgid "The UPayments plugin is also active, and the two cannot run at the same time. UPayments keeps processing payments until you switch. Deactivate the UPayments plugin to switch to SUPCheckout; your gateway settings stay in place."
+msgstr ""
+
+#: src/Gateway/OfficialPluginConflict.php:153
+msgid "To go back to UPayments, deactivate it first and then roll back the switch in SUPCheckout."
+msgstr ""
+
+#: src/Gateway/OfficialPluginConflict.php:154
+#: src/Takeover/ReactivationGuard.php:326
+msgid "The switch is final, so the UPayments plugin cannot take this store back."
+msgstr ""
+
+#: src/Gateway/OfficialPluginConflict.php:158
+msgid "This store has already switched to SUPCheckout, and the UPayments plugin is active again. Payments started after the switch cannot complete while SUPCheckout is paused, and UPayments does not have the gateway settings changed after the switch. Deactivate the UPayments plugin now to resume SUPCheckout."
+msgstr ""
+
+#: src/Gateway/OrderPresentation.php:43
+msgid "Payment Status:"
+msgstr ""
+
+#: src/Gateway/OrderPresentation.php:48
+msgid "UPayment ID:"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:16
+msgid "SUPCheckout for UPayments Migration"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:17
+msgid "SUPCheckout Migration"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:26
+msgid "You do not have permission to run SUPCheckout migration tools."
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:107
+msgid "SUPCheckout for UPayments — Historical Identity Migration"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:108
+msgid "Run a bounded identity-nonmutating preflight first. Dry-run records only redacted operations-result checkpoints; execute mode creates only verified legacy provenance. Neither path contacts UPayments."
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:109
+msgid "Credentials are read from the existing UPayments gateway settings and are never displayed or submitted by this form."
+msgstr ""
+
+#. translators: %s: internal fail-closed migration rejection reason code.
+#: src/Migration/MigrationAdmin.php:113
+#, php-format
+msgid "Migration request rejected: %s"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:119
+msgid "Result"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:127
+msgid "User IDs"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:129
+msgid "Comma or whitespace separated positive customer IDs. Maximum 500 IDs per submitted list."
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:130
+msgid "Explicit offset"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:132
+msgid "Use an explicit offset to deliberately re-evaluate a known position. Leave at 0 when using durable resume."
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:133
+msgid "Durable resume"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:134
+msgid "Resume from the first user without a matching durable operations-result checkpoint."
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:135
+msgid "Resume is credential/mode/list scoped and cannot be combined with a nonzero explicit offset."
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:136
+msgid "Batch limit"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:138
+msgid "Mode"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:139
+msgid "Dry-run preflight + result checkpoint"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:140
+msgid "Execute verified migrations"
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:141
+msgid "I explicitly confirm execute mode. This is required only when Execute is selected."
+msgstr ""
+
+#: src/Migration/MigrationAdmin.php:144
+msgid "Run migration batch"
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:104
+msgid "UPayments could not be reached to start this payment (network error or timeout). The customer was asked to try again."
+msgstr ""
+
+#. translators: 1: HTTP status code, 2: sanitized provider reason.
+#: src/Payment/CheckoutOrchestrator.php:110
+#, php-format
+msgid "UPayments rejected the payment request (HTTP %1$d): %2$s"
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:112
+msgid "no reason given"
+msgstr ""
+
+#. translators: %s: ISO 4217 currency code.
+#: src/Payment/CheckoutOrchestrator.php:134
+#, php-format
+msgid "SUPCheckout did not start this payment: UPayments does not support the order currency %s."
+msgstr ""
+
+#. translators: 1: ISO 4217 currency code, 2: number of decimal places the currency allows.
+#: src/Payment/CheckoutOrchestrator.php:151
+#, php-format
+msgid "SUPCheckout did not start this payment: the order total has more decimal places than %1$s allows (%2$d). Set %1$s to %2$d decimals in the WooCommerce or WooCommerce Multilingual currency settings."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:192
+#: src/Payment/CheckoutOrchestrator.php:199
+#: src/Payment/CheckoutOrchestrator.php:208
+#: src/Payment/CheckoutOrchestrator.php:219
+#: src/Payment/CheckoutOrchestrator.php:250
+#: src/Payment/CheckoutOrchestrator.php:258
+#: src/Payment/CheckoutOrchestrator.php:481
+#: src/Payment/CheckoutOrchestrator.php:487
+#: src/Payment/CheckoutOrchestrator.php:494
+#: src/Payment/CheckoutOrchestrator.php:524
+#: src/Payment/CheckoutOrchestrator.php:531
+#: src/Payment/CheckoutOrchestrator.php:535
+#: src/Payment/CheckoutOrchestrator.php:546
+#: src/Payment/CheckoutOrchestrator.php:555
+#: src/Payment/CheckoutOrchestrator.php:559
+#: src/Payment/CheckoutOrchestrator.php:566
+#: src/Payment/CheckoutOrchestrator.php:581
+#: src/Payment/CheckoutOrchestrator.php:586
+#: src/Payment/CheckoutOrchestrator.php:599
+#: src/Payment/CheckoutOrchestrator.php:604
+#: src/Payment/CheckoutOrchestrator.php:615
+#: src/Payment/CheckoutOrchestrator.php:619
+#: src/Payment/CheckoutOrchestrator.php:626
+#: src/Payment/CheckoutOrchestrator.php:649
+#: src/Payment/CheckoutOrchestrator.php:662
+#: src/Payment/CheckoutOrchestrator.php:791
+#: src/Payment/CheckoutOrchestrator.php:851
+#: src/Payment/CheckoutOrchestrator.php:862
+#: src/Payment/CheckoutOrchestrator.php:876
+#: src/Payment/CheckoutOrchestrator.php:887
+#: src/Payment/CheckoutOrchestrator.php:904
+#: src/Payment/CheckoutOrchestrator.php:911
+#: src/Payment/CheckoutOrchestrator.php:923
+#: src/Payment/CheckoutOrchestrator.php:933
+#: src/Payment/CheckoutOrchestrator.php:979
+#: src/Payment/CheckoutOrchestrator.php:989
+#: src/Payment/CheckoutOrchestrator.php:994
+#: src/Payment/CheckoutOrchestrator.php:1000
+#: src/Payment/CheckoutOrchestrator.php:1005
+#: src/Payment/CheckoutOrchestrator.php:1034
+#: src/Payment/CheckoutOrchestrator.php:1123
+#: src/Payment/CheckoutOrchestrator.php:1143
+#: src/Payment/CheckoutOrchestrator.php:1153
+#: src/Payment/CheckoutOrchestrator.php:1159
+#: src/Payment/CheckoutOrchestrator.php:1192
+#: src/Payment/CheckoutOrchestrator.php:1233
+#: src/Payment/CheckoutOrchestrator.php:1311
+#: src/Payment/CheckoutOrchestrator.php:1348
+#: src/Payment/CheckoutOrchestrator.php:1363
+#: src/Payment/CheckoutOrchestrator.php:1392
+#: src/Payment/CheckoutOrchestrator.php:1398
+#: src/Payment/CheckoutOrchestrator.php:1417
+#: src/Payment/CheckoutOrchestrator.php:1422
+#: src/Payment/CheckoutOrchestrator.php:1442
+#: src/Payment/CheckoutOrchestrator.php:1462
+#: src/Payment/CheckoutOrchestrator.php:1479
+#: src/Payment/CheckoutOrchestrator.php:1486
+#: src/Payment/CheckoutOrchestrator.php:1512
+#: src/Payment/CheckoutOrchestrator.php:1526
+#: src/Payment/CheckoutOrchestrator.php:1537
+#: src/Payment/CheckoutOrchestrator.php:1545
+#: src/Payment/CheckoutOrchestrator.php:1553
+#: src/Payment/CheckoutOrchestrator.php:1562
+#: src/Payment/CheckoutOrchestrator.php:1586
+#: src/Payment/CheckoutOrchestrator.php:1601
+#: src/Payment/CheckoutOrchestrator.php:1628
+#: src/Payment/CheckoutOrchestrator.php:1635
+msgid "Payment request could not be completed. Please try again."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:432
+#: src/Payment/CheckoutOrchestrator.php:721
+#: src/Payment/CheckoutOrchestrator.php:731
+#: src/Payment/CheckoutOrchestrator.php:740
+#: src/Payment/CheckoutOrchestrator.php:759
+#: src/Payment/CheckoutOrchestrator.php:1211
+#: src/Payment/CheckoutOrchestrator.php:1294
+msgid "Please select a valid payment type."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:451
+msgid "Payment methods could not be loaded. Please try again."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:655
+#: src/Payment/CheckoutOrchestrator.php:668
+#: src/Payment/CheckoutOrchestrator.php:677
+#: src/Payment/CheckoutOrchestrator.php:696
+#: src/Payment/CheckoutOrchestrator.php:706
+#: src/Payment/CheckoutOrchestrator.php:712
+msgid "Please select a valid UPayments payment method."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:746
+msgid "Please log in to purchase a subscription."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:753
+msgid "Subscription payments require Credit Card."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:766
+msgid "Please Enable Save Card Toggle to Proceed with Subscription Purchase."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:773
+msgid "Please select a valid Billing Interval."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:1206
+#: src/Payment/CheckoutOrchestrator.php:1241
+msgid "Please log in to use a saved card."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:1216
+#: src/Payment/CheckoutOrchestrator.php:1265
+#: src/Payment/CheckoutOrchestrator.php:1277
+msgid "Please select a valid payment method."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:1289
+msgid "Please log in to save a card or purchase a subscription."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:1491
+msgid "Create payment request prepared."
+msgstr ""
+
+#: src/Payment/CheckoutOrchestrator.php:1531
+msgid "Create payment response received."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:265
+msgid "SUPCheckout has not received a UPayments callback for this order. This is usual for an abandoned payment; if the customer reports paying, check the UPayments merchant dashboard before fulfilling the order."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:1037
+msgid "SUPCheckout dropped some queued UPayments payment checks for this order; review the UPayments merchant dashboard."
+msgstr ""
+
+#. translators: %s: comma-separated UPayments track IDs.
+#: src/Payment/PaymentLifecycle.php:1076
+#, php-format
+msgid "SUPCheckout for UPayments could not verify a callback for another payment attempt on this order (track %s). Check the UPayments merchant dashboard for a captured payment."
+msgstr ""
+
+#. translators: %s: comma-separated UPayments track IDs.
+#: src/Payment/PaymentLifecycle.php:1085
+#, php-format
+msgid "UPayments still reports another payment attempt on this order (track %s) as not completed. SUPCheckout stopped checking it automatically; if the UPayments dashboard later shows it captured, review this order."
+msgstr ""
+
+#. translators: %s: UPayments track ID.
+#: src/Payment/PaymentLifecycle.php:1362
+#, php-format
+msgid "UPayments reported a transaction for another payment attempt on this order (track %s), but a plugin changes the order total WooCommerce reports, so SUPCheckout could not confirm the payment amount and did not apply it. Review the order against the UPayments merchant dashboard."
+msgstr ""
+
+#. translators: %s: UPayments track ID.
+#: src/Payment/PaymentLifecycle.php:1365
+#, php-format
+msgid "UPayments reported a transaction for another payment attempt on this order (track %s) whose amount or currency no longer matches the order. SUPCheckout did not apply it. Review it in the UPayments merchant dashboard."
+msgstr ""
+
+#. translators: %s: UPayments track ID.
+#: src/Payment/PaymentLifecycle.php:1379
+#, php-format
+msgid "UPayments reported a transaction for this order (track %s), but a plugin changes the order total WooCommerce reports, so SUPCheckout could not confirm the payment amount and did not mark the order paid. Review the order against the UPayments merchant dashboard before fulfilling it or refunding the payment."
+msgstr ""
+
+#. translators: %s: UPayments track ID.
+#: src/Payment/PaymentLifecycle.php:1382
+#, php-format
+msgid "UPayments reported a transaction for this order (track %s) whose currency does not match the order currency. SUPCheckout did not mark the order paid. Check it in the UPayments merchant dashboard; if it shows as captured, review this order before fulfilling it or refunding the payment."
+msgstr ""
+
+#. translators: %s: UPayments track ID.
+#: src/Payment/PaymentLifecycle.php:1385
+#, php-format
+msgid "UPayments reported a transaction for this order (track %s) whose amount does not match the order total. SUPCheckout did not mark the order paid. Check it in the UPayments merchant dashboard; if it shows as captured, review this order before fulfilling it or refunding the payment."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:1471
+msgid "UPayments confirmed a captured payment for this order, but WooCommerce could not record it. SUPCheckout for UPayments will retry; if the order stays unpaid, review it manually."
+msgstr ""
+
+#. translators: %s: UPayments payment ID.
+#: src/Payment/PaymentLifecycle.php:1526
+#, php-format
+msgid "UPayments captured a payment (payment ID %s) for this order after its payment method was changed. SUPCheckout did not mark the order paid. Check whether the customer also paid another way, and refund in the UPayments merchant dashboard if so."
+msgstr ""
+
+#. translators: %s: UPayments payment ID of the extra capture.
+#: src/Payment/PaymentLifecycle.php:1529
+#, php-format
+msgid "UPayments captured an additional payment (payment ID %s) for this already-paid order. The customer may have been charged twice. Refund it in the UPayments merchant dashboard; SUPCheckout does not refund automatically."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:1687
+msgid "UPayments authenticated payment result is terminal failure."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:1688
+msgid "UPayments authenticated payment result is cancelled."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:1761
+msgid "SUPCheckout could not schedule the automatic UPayments payment check for this order. Verify the payment in the UPayments merchant dashboard before fulfilling it."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:1775
+msgid "SUPCheckout for UPayments reconciliation exhausted without authoritative terminal payment state. Manual review is required."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:2006
+msgid "Your payment was cancelled. You can try again when you are ready."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:2015
+msgid "We are confirming your payment with UPayments. You will receive your order confirmation once it is verified."
+msgstr ""
+
+#: src/Payment/PaymentLifecycle.php:2030
+msgid "Your payment was not completed. Please try again or choose another payment method."
+msgstr ""
+
+#: src/Subscription/Checkout/Fields.php:50
+msgid "Please select a payment type."
+msgstr ""
+
+#: src/Subscription/Checkout/Fields.php:55
+msgid "Invalid payment type selected."
+msgstr ""
+
+#: src/Subscription/Checkout/Fields.php:66
+msgid "Invalid billing interval selected for the chosen plan."
+msgstr ""
+
+#. translators: %s: UPayments payment ID.
+#: src/Subscription/Cron/Scheduler.php:1097
+#, php-format
+msgid "Subscription renewal payment completed via UPayments Auto Deduction. PaymentID: %s"
+msgstr ""
+
+#: src/Subscription/Presentation.php:29
+msgid "Subscription Product"
+msgstr ""
+
+#: src/Subscription/Presentation.php:61
+msgid "Custom Settings"
+msgstr ""
+
+#: src/Subscription/Presentation.php:77
+msgid "Custom Field"
+msgstr ""
+
+#: src/Subscription/Presentation.php:78
+msgid "Enter value here"
+msgstr ""
+
+#: src/Subscription/Presentation.php:80
+msgid "This is a description of the field."
+msgstr ""
+
+#: src/Subscription/Presentation.php:149
+#: src/Subscription/Presentation.php:172
+msgid "Special Feature"
+msgstr ""
+
+#. translators: %d: subscription billing interval multiplier.
+#: src/Subscription/Presentation.php:237
+#, php-format
+msgid "Every %d billing period(s)"
+msgstr ""
+
+#: src/Subscription/Presentation.php:242
+#: src/Subscription/Presentation.php:370
+msgid "Subscription Details"
+msgstr ""
+
+#: src/Subscription/Presentation.php:244
+msgid "Subscription Status"
+msgstr ""
+
+#: src/Subscription/Presentation.php:246
+#: src/Subscription/Presentation.php:373
+msgid "Plan"
+msgstr ""
+
+#: src/Subscription/Presentation.php:247
+#: src/Subscription/Presentation.php:374
+msgid "Interval"
+msgstr ""
+
+#: src/Subscription/Presentation.php:249
+msgid "Auto Deduction Order"
+msgstr ""
+
+#: src/Subscription/Presentation.php:249
+msgid "Yes"
+msgstr ""
+
+#: src/Subscription/Presentation.php:255
+#: src/Subscription/Presentation.php:379
+msgid "Automatic Renewal"
+msgstr ""
+
+#: src/Subscription/Presentation.php:257
+msgid "Paused. An earlier automatic charge could not be confirmed: check the UPayments dashboard before you collect this renewal manually or send a payment link."
+msgstr ""
+
+#: src/Subscription/Presentation.php:258
+msgid "Paused. Collect this renewal manually or send the customer a payment link."
+msgstr ""
+
+#: src/Subscription/Presentation.php:261
+#: src/Subscription/Presentation.php:381
+msgid "Next Billing Date"
+msgstr ""
+
+#: src/Subscription/Presentation.php:264
+msgid "Last Billed at"
+msgstr ""
+
+#: src/Subscription/Presentation.php:288
+msgid "Automatic subscription renewals are paused."
+msgstr ""
+
+#: src/Subscription/Presentation.php:301
+msgid "SUPCheckout does not send automatic renewal charges until a verified UPayments capture contract is approved. Collect renewals manually or by payment link."
+msgstr ""
+
+#: src/Subscription/Presentation.php:317
+msgid "You can only add subscription products to the cart when a subscription item is present."
+msgstr ""
+
+#: src/Subscription/Presentation.php:321
+msgid "Subscription products cannot be added together with normal products. Please complete your current purchase first."
+msgstr ""
+
+#: src/Subscription/Presentation.php:333
+msgid "Subscription"
+msgstr ""
+
+#: src/Subscription/Presentation.php:375
+msgid "Started On"
+msgstr ""
+
+#: src/Subscription/Presentation.php:377
+msgid "Last Billed On"
+msgstr ""
+
+#: src/Subscription/Presentation.php:379
+msgid "Paused. Renewals are not charged to your card automatically."
+msgstr ""
+
+#: src/Subscription/Presentation.php:394
+msgid "Resume Subscription"
+msgstr ""
+
+#: src/Subscription/Presentation.php:395
+msgid "Pause Subscription"
+msgstr ""
+
+#: src/Subscription/Presentation.php:399
+msgid "Unsubscribe"
+msgstr ""
+
+#: src/Subscription/Presentation.php:400
+#: src/Subscription/Presentation.php:406
+msgid "Confirm unsubscribe"
+msgstr ""
+
+#: src/Subscription/Presentation.php:401
+msgid "Are you sure you want to unsubscribe? This stops future scheduled renewals for this subscription."
+msgstr ""
+
+#: src/Subscription/Presentation.php:431
+msgid "Select Order Type:"
+msgstr ""
+
+#: src/Subscription/Presentation.php:433
+msgid "All orders"
+msgstr ""
+
+#: src/Subscription/Presentation.php:434
+msgid "Active subscriptions"
+msgstr ""
+
+#: src/Subscription/Presentation.php:435
+msgid "Paused subscriptions"
+msgstr ""
+
+#: src/Subscription/Presentation.php:436
+msgid "Cancelled subscriptions"
+msgstr ""
+
+#: src/Subscription/Presentation.php:462
+msgid "Type"
+msgstr ""
+
+#: src/Subscription/Presentation.php:463
+msgid "Status"
+msgstr ""
+
+#: src/Subscription/Presentation.php:475
+msgid "Auto Deduction"
+msgstr ""
+
+#: src/Subscription/Presentation.php:476
+msgid "Regular"
+msgstr ""
+
+#: src/Subscription/Presentation.php:495
+msgid "Daily"
+msgstr ""
+
+#: src/Subscription/Presentation.php:496
+msgid "Weekly"
+msgstr ""
+
+#: src/Subscription/Presentation.php:497
+msgid "Monthly"
+msgstr ""
+
+#: src/Subscription/Presentation.php:498
+msgid "Quarterly"
+msgstr ""
+
+#: src/Subscription/Presentation.php:499
+msgid "Yearly"
+msgstr ""
+
+#: src/Subscription/Presentation.php:560
+msgid "Paused"
+msgstr ""
+
+#: src/Subscription/Presentation.php:561
+msgid "Cancelled"
+msgstr ""
+
+#: src/Subscription/Scheduling/LifecycleScheduler.php:137
+msgid "Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. An earlier automatic charge for this subscription could not be confirmed. Check the UPayments dashboard for that payment before you collect this renewal manually or send a payment link, so the customer is not charged twice."
+msgstr ""
+
+#: src/Subscription/Scheduling/LifecycleScheduler.php:138
+msgid "Automatic renewal charges are paused: SUPCheckout cannot yet confirm an automatic UPayments charge. Collect this renewal manually or send the customer a payment link."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:107
+msgid "UPayments accepted the saved API key."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:128
+msgid "The UPayments account mode is unknown until the API key is verified."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:142
+msgid "The payment callback address answered a test request."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:154
+msgid "No cache answered the payment callback test request."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:167
+msgid "The store currency is supported by UPayments."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:171
+#: src/Takeover/Preflight.php:495
+msgid "The store currency is not supported by UPayments. Switch the store to a supported currency first."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:202
+msgid "A WooCommerce Multilingual secondary currency is not supported by UPayments. Orders in it cannot be paid with SUPCheckout; SUPCheckout does not change the multicurrency settings."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:212
+msgid "A multi-merchant charge is a fixed amount and WooCommerce Multilingual multi-currency is on. The fixed amount is sent in the currency of each order, without conversion, so the commission differs by the exchange rate in another currency. Use a percentage charge, or check the amounts for each currency; SUPCheckout does not change the settings."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:298
+msgid "Every supported currency shows no more decimals than it allows."
+msgstr ""
+
+#. translators: 1: ISO 4217 currency code, 2: configured price decimals, 3: decimals the currency allows.
+#: src/Takeover/Onboarding/Checks.php:306
+#, php-format
+msgid "%1$s is set to %2$d price decimals but allows only %3$d. SUPCheckout refuses a payment whose total uses the extra decimals, before UPayments is called. Set each listed currency to its allowed decimals in the WooCommerce or WooCommerce Multilingual currency settings; SUPCheckout does not change them."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:355
+msgid "The WooCommerce Multilingual gateway settings do not have the shape SUPCheckout knows, so they were not checked. Review the payment gateway settings for each currency by hand."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:367
+msgid "WooCommerce Multilingual gateway settings name only the previous UPayments gateway ID. Review the per-currency and location settings and add SUPCheckout; SUPCheckout does not change them."
+msgstr ""
+
+#. translators: 1: a WPML string name such as supcheckout_gateway_description, 2: a language code, 3: the WPML string domain admin_texts_woocommerce_gateways.
+#: src/Takeover/Onboarding/Checks.php:374
+#, php-format
+msgid "WPML String Translation has translations of the previous UPayments gateway text that the SUPCheckout gateway text lacks, for example %1$s in %2$s. Once the gateway uses the SUPCheckout ID, shoppers in those languages see the untranslated text. Translate each listed string in WPML > String Translation, domain %3$s; SUPCheckout does not copy translations."
+msgstr ""
+
+#: src/Takeover/Onboarding/Checks.php:383
+msgid "No multilingual gateway setting needs attention."
+msgstr ""
+
+#: src/Takeover/Onboarding/SelfTest.php:59
+msgid "The SUPCheckout gateway is registered with WooCommerce."
+msgstr ""
+
+#: src/Takeover/Onboarding/SelfTest.php:60
+msgid "The SUPCheckout gateway is not registered with WooCommerce, so customers cannot pick it at checkout."
+msgstr ""
+
+#: src/Takeover/Onboarding/SelfTest.php:62
+msgid "The SUPCheckout gateway is enabled."
+msgstr ""
+
+#: src/Takeover/Onboarding/SelfTest.php:63
+msgid "The SUPCheckout gateway is disabled in its settings, so customers cannot pick it at checkout."
+msgstr ""
+
+#: src/Takeover/Onboarding/SelfTest.php:67
+msgid "The payment event journal is not built yet, so it is not checked."
+msgstr ""
+
+#: src/Takeover/Onboarding/SelfTest.php:78
+msgid "The switch to SUPCheckout is complete."
+msgstr ""
+
+#: src/Takeover/Onboarding/SelfTest.php:81
+msgid "The switch to SUPCheckout has not completed, so the checks below describe a store that is not using it yet."
+msgstr ""
+
+#: src/Takeover/Onboarding/SetupChecks.php:56
+msgid "The optional sandbox test payment is started from the setup screen, so it is not run here."
+msgstr ""
+
+#: src/Takeover/Onboarding/SetupChecks.php:82
+msgid "The Cloudflare plugin is active and has no purge API SUPCheckout can call. Purge the Cloudflare cache by hand after changing the payment settings."
+msgstr ""
+
+#: src/Takeover/Onboarding/SetupChecks.php:84
+msgid "No cache layer needs a manual step."
+msgstr ""
+
+#: src/Takeover/Preflight.php:261
+msgid "The official UPayments plugin is active. SUPCheckout stays paused until the switch deactivates it."
+msgstr ""
+
+#: src/Takeover/Preflight.php:285
+msgid "The official UPayments plugin is network-activated. The switch works one site at a time and deactivating the plugin would turn it off on every site, so it is not supported. Activate the official plugin per site first."
+msgstr ""
+
+#: src/Takeover/Preflight.php:310
+msgid "Gateway settings the switch would copy."
+msgstr ""
+
+#: src/Takeover/Preflight.php:345
+msgid "The takeover journal cannot be read, so the switch cannot tell its own earlier copies from other values. Nothing was changed. Restore the journal options (supcheckout_takeover_journal_v1*) from a backup before switching."
+msgstr ""
+
+#. translators: %s: comma-separated option names.
+#: src/Takeover/Preflight.php:348
+#, php-format
+msgid "SUPCheckout options kept from an earlier switch differ from the UPayments values the switch would copy: %s. The switch would stop at the last step, after copying every order and deactivating the official plugin, so it is blocked now; nothing was changed. Before switching nothing reads these options: reconcile the UPayments gateway settings first if you want to keep a change made after the earlier switch, then delete each listed option (for example: wp option delete woocommerce_supcheckout_settings) and run the preflight again."
+msgstr ""
+
+#. translators: %d: number of orders.
+#: src/Takeover/Preflight.php:384
+#, php-format
+msgid "The switch copies the UPayments data of up to %d orders and saves each changed order once; a rollback or Finalize saves them again. WooCommerce reports every save as an order update, so order.updated webhooks, analytics imports and other order-update automations run for these orders. No payment data or order status changes."
+msgstr ""
+
+#: src/Takeover/Preflight.php:413
+msgid "No UPayments API key is saved in the gateway settings. Save a valid key before switching."
+msgstr ""
+
+#: src/Takeover/Preflight.php:416
+msgid "The saved API key could not be checked because UPayments allows one availability request per minute. Run the preflight again in a minute."
+msgstr ""
+
+#: src/Takeover/Preflight.php:430
+msgid "UPayments did not confirm the saved API key. Check the key and the test-mode setting, wait a minute and run the preflight again before switching."
+msgstr ""
+
+#. translators: %d: HTTP status code UPayments (or its proxy) returned, for example 502.
+#: src/Takeover/Preflight.php:445
+#, php-format
+msgid "UPayments did not answer (HTTP %d)."
+msgstr ""
+
+#: src/Takeover/Preflight.php:446
+msgid "UPayments did not answer (no HTTP response)."
+msgstr ""
+
+#: src/Takeover/Preflight.php:447
+msgid "The UPayments service looks unavailable right now; your key and settings were not judged. Run the preflight again later."
+msgstr ""
+
+#: src/Takeover/Preflight.php:468
+msgid "UPayments account mode and the payment methods it enables."
+msgstr ""
+
+#. translators: %d: number of pending orders.
+#: src/Takeover/Preflight.php:511
+#, php-format
+msgid "%d pending UPayments orders from the last 48 hours may still be paid through an open payment link. Their callbacks keep working after the switch."
+msgstr ""
+
+#. translators: 1: orders whose data differs, 2: orders compared.
+#: src/Takeover/Preflight.php:563
+#, php-format
+msgid "%1$d of %2$d sampled orders hold UPayments data that differs between the order tables and the posts tables. The switch copies the values WooCommerce reads (the order tables)."
+msgstr ""
+
+#. translators: %d: number of orders.
+#: src/Takeover/Preflight.php:610
+#, php-format
+msgid "%d orders hold several UPayments public-status rows. The switch keeps every row."
+msgstr ""
+
+#. translators: %d: number of subscriptions.
+#: src/Takeover/Preflight.php:642
+#, php-format
+msgid "%d subscriptions have more than one renewal order on the same billing date. Review them before switching; the switch never merges or deletes orders."
+msgstr ""
+
+#: src/Takeover/Preflight.php:660
+msgid "The official UPayments plugin left a debug.log file in its plugin folder that can contain your API key. Delete the file and rotate the API key. The switch never reads or copies it."
+msgstr ""
+
+#: src/Takeover/Preflight.php:701
+msgid "WooCommerce gateway settings refer to the UPayments gateway. The switch translates them."
+msgstr ""
+
+#: src/Takeover/Preflight.php:705
+msgid "Settings saved by other plugins refer to the UPayments gateway. Review them: the switch reports them and does not change them."
+msgstr ""
+
+#: src/Takeover/Preflight.php:782
+msgid "The SUPCheckout payment callback address did not answer a test request with success, so UPayments could not reach it either. Check firewalls, maintenance mode, login walls, caches and security plugins."
+msgstr ""
+
+#: src/Takeover/Preflight.php:810
+msgid "A cache answered the payment callback test request. Exclude wc-api requests from page, server and CDN caching so every callback reaches the store."
+msgstr ""
+
+#: src/Takeover/Preflight.php:823
+msgid "Data written only by the official UPayments plugin was found. It is left in place until Finalize."
+msgstr ""
+
+#: src/Takeover/Preflight.php:837
+msgid "An unused UPayments subscriptions table exists. It is reported only and never changed."
+msgstr ""
+
+#: src/Takeover/Preflight.php:854
+msgid "Leftovers from the official UPayments plugin were found. Review them; the switch never deletes pages or changes checkout fields."
+msgstr ""
+
+#: src/Takeover/ReactivationGuard.php:310
+msgid "SUPCheckout kept the UPayments plugin switched off for the network."
+msgstr ""
+
+#: src/Takeover/ReactivationGuard.php:311
+msgid "SUPCheckout kept the UPayments plugin switched off."
+msgstr ""
+
+#: src/Takeover/ReactivationGuard.php:322
+msgid "A network-activated UPayments plugin would pause SUPCheckout on every site of this network, which SUPCheckout does not support. Activate UPayments on individual sites instead."
+msgstr ""
+
+#: src/Takeover/ReactivationGuard.php:324
+msgid "This store has already switched to SUPCheckout. Activating the UPayments plugin again would pause SUPCheckout and strand the payments started after the switch."
+msgstr ""
+
+#: src/Takeover/ReactivationGuard.php:327
+msgid "To go back to UPayments, roll back the switch in SUPCheckout instead."
+msgstr ""
+
+#. translators: %s: order total with its currency, as the store formats prices.
+#: templates/new-design-form.php:212
+#, php-format
+msgid "Continue to secure payment, %s"
+msgstr ""
+
+#: templates/new-design-form.php:237
+msgid "Payment methods are unavailable right now. Please try again in a moment or choose another payment method."
+msgstr ""
+
+#: templates/old-design-form.php:49
+msgid "Select Payment Type:"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Dismiss notification"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Notifications"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Light"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Dark"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Match system"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Appearance"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgctxt "keyboard key"
+msgid "Ctrl"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+#: assets/admin/build/chunks/command-palette.a159e014.js:1
+msgid "Search commands"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Command palette"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Close"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgctxt "keyboard key"
+msgid "Esc"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Skip to content"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "SUPCheckout sections"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "SUPCheckout"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "Nothing to manage here yet"
+msgstr ""
+
+#: assets/admin/build/app.js:1
+msgid "The SUPCheckout dashboard arrives in a later update. Until then, manage UPayments in the WooCommerce payment settings."
+msgstr ""
+
+#: assets/admin/build/chunks/command-palette.a159e014.js:1
+msgid "Commands"
+msgstr ""
+
+#: assets/admin/build/chunks/command-palette.a159e014.js:1
+msgid "Type a command or search…"
+msgstr ""
+
+#: assets/admin/build/chunks/command-palette.a159e014.js:1
+msgid "No commands yet"
+msgstr ""
+
+#: assets/admin/build/chunks/command-palette.a159e014.js:1
+msgid "No matching commands"
+msgstr ""
+
+#: assets/admin/build/chunks/command-palette.a159e014.js:1
+msgid "Use the arrow keys to choose a command, then press Enter."
+msgstr ""

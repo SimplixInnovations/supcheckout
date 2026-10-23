@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Payment;
 
+defined('ABSPATH') || exit;
+
 final class SavedCardSelection {
     private const PREFIX = 'sc1_';
     private const CONTEXT_DOMAIN = 'supcheckout_saved_card_selection_context_v1';

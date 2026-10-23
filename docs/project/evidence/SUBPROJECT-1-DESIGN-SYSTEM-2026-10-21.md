@@ -112,7 +112,7 @@ Work proceeded on these recommendations. On 2026-10-22 the owner accepted the re
 1. The `--sup-*` token prefix, scoped under `.supcheckout-admin`: acknowledged by the owner 2026-10-22.
 2. Light and dark following the system setting by default, with a manual toggle: acknowledged by the owner 2026-10-22.
 3. Shipping the human-readable TypeScript source (`assets/admin/src/**`) in the package: acknowledged by the owner 2026-10-22.
-4. The audit allow-list: braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c (no patched release, development-only, expiring 2027-01-17): acknowledged by the owner 2026-10-22. The bare `npm audit --audit-level=high` alternative is not required.
+4. The audit allow-list: braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c (no patched release, development-only, expiring 2027-01-17): acknowledged by the owner 2026-10-22. The bare `npm audit --audit-level=high` alternative is not required. (Later: the sprintf-js entry was removed in hardening batch 2, #222, after GitHub withdrew the advisory on 2026-10-22; braces remains.)
 5. The darkened colour values: the light strong border `#858B96` (drafted `#8A919C`), the retuned subtle text, and the dark `*-950` status tints (the DESIGN.md "Contrast decisions" bullet): acknowledged by the owner 2026-10-22.
 6. Mod+K yields to WordPress core's command palette, and traps while a SUPCheckout modal is open (DESIGN.md): acknowledged by the owner 2026-10-22.
 7. The `AGENTS.md` diff in the closeout PR: the gate sentence edit, the permanent-controls addition and the "Admin UI Gate green" merge-discipline line: acknowledged by the owner 2026-10-22.
@@ -141,13 +141,14 @@ CI cannot do these. They are External / manual in `docs/COMPATIBILITY.md`.
 6. **Real Arabic copy review:** a native speaker reviews the Arabic strings and their rendering, including Arabic amounts in `Numeric`. The gallery shows English in RTL, and only the `foundations-arabic` specimen shows real Arabic text.
 7. **Live cutover:** confirm the automatic LiteSpeed/Cloudflare purge when the real takeover runs on the live store. The 0c staging copy could not repeat it (its takeover is finalized and LiteSpeed Cache is not active); the real-plugin CI cell covers it (`tests/integration/CachePurgeRuntimeTest.php` with LiteSpeed Cache 7.9.1).
 8. **Store configuration advice:** set the store to use '.' as the decimal separator and AED at 2 decimals, because "1,500 KWD" reads as thousands.
+9. **Bundled Arabic translations (hardening U7, A4-01):** the Arabic in `languages/supcheckout-ar.po` is machine-drafted. A native Arabic speaker reviews it on staging before release: the checkout ("Pay securely with", method labels, notices and the payment button), the thank-you and order pages, the order-totals rows in customer emails, the My Account subscription screens (including the interval line "Every %d billing period(s)", drafted as "كل %d من فترات الفوترة"), and the admin app. Fix the wording in the `.po` and rebuild the `.mo` and the admin JSON files from it.
 
 ## Hardening tracker
 
 Carried into the hardening program:
 
 - **Dependabot #210, the first hardening-program item** (`@wordpress/dependency-extraction-webpack-plugin` 6.57, `@wordpress/dom-ready` 4.57, `@wordpress/element` **9.0 major**, `@wordpress/i18n` 6.30, `globals` 17). Take the minors and `globals` 17; hold the `@wordpress/element` major behind a Dependabot ignore until a deliberate React 19 decision, because it tracks WordPress's React 18 runtime.
-- **Allow-list dates.** braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c expire 2027-01-17; adopt a fix when one is published, otherwise review each entry before it expires. markdown-it is done (#208).
+- **Allow-list dates.** braces GHSA-vfj7-8cjw-p6xm expires 2027-01-17; adopt a fix when one is published, otherwise review the entry before it expires. markdown-it is done (#208); sprintf-js GHSA-hp3w-g68c-fv3c is done (advisory withdrawn upstream 2026-10-22, entry removed in #222).
 - **`wp-scripts lint-js --fix <path>` rewrote files outside its path**, including payment JavaScript, during Sub-project 1. The cause is not explained. The guard so far is documentation only (`CONTRIBUTING.md`: use `npm run lint:js`, never `--fix` with a path); the hardening audit investigates it.
 - **Optional:** `wp transient delete _wc_activation_redirect` in the browser job, for determinism.
 - **CODEOWNERS:** review routing now comes from `.github/CODEOWNERS` (#209); a dedicated entry for the audit directory stays deferred (single-owner repository, review already required).

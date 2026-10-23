@@ -22,6 +22,14 @@ const { registerPaymentMethod } = wc.wcBlocksRegistry;
     const NAMESPACE = typeof settings.extension_namespace === 'string' && settings.extension_namespace !== ''
         ? settings.extension_namespace
         : 'upayments';
+    // The merchant's title and description arrive as plain text with HTML entities
+    // (wp-html-entities decodes them); React renders them as text nodes, never as HTML.
+    const decodeEntities = wp.htmlEntities && typeof wp.htmlEntities.decodeEntities === 'function'
+        ? wp.htmlEntities.decodeEntities
+        : (value) => value;
+    const plainText = (value) => (typeof value === 'string' ? decodeEntities(value).trim() : '');
+    const METHOD_TITLE = plainText(settings.title) || 'UPayments';
+    const METHOD_DESCRIPTION = plainText(settings.description);
     const {
         availability_valid,
         supported_currencies = [],
@@ -186,6 +194,8 @@ const handleSubscriptionChange = (plan, interval) => {
                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'all 0.3s ease'
                 }
             }, toast.message),
+
+            METHOD_DESCRIPTION !== '' && createElement('div', { className: 'supcheckout-description', dir: 'auto' }, METHOD_DESCRIPTION),
 
             // Section AL: Subscription UI requires Whitelabel + CC enabled.
             is_subscription_enabled && hasCustomTypeProduct && is_whitelabled && payment_icons && payment_icons.cc && createElement(
@@ -478,14 +488,14 @@ const handleSubscriptionChange = (plan, interval) => {
 
     registerPaymentMethod({
         name: PAYMENT_METHOD_NAME,
-        label: 'UPayments',
+        label: METHOD_TITLE,
 
         content: wp.element.createElement(Content),
         edit: wp.element.createElement(Content),
 
         canMakePayment: canMakePayment,
 
-        ariaLabel: 'UPayments',
+        ariaLabel: METHOD_TITLE,
 
         supports: {
             features: [ 'products' ],

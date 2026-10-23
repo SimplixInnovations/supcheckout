@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Payment;
 
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
 
+defined('ABSPATH') || exit;
+
 /**
  * Pure checkout request, decimal, payload, and redirect helpers.
  *
@@ -493,6 +495,57 @@ class CheckoutPayload {
             return false;
         }
         return in_array($interval, self::$ALLOWED_INTERVALS[$plan], true);
+    }
+
+    /**
+     * The hosted payment page language for an order (A4-02): 'ar' or 'en', the
+     * two values UPayments documents for the Charge `language` field.
+     *
+     * The order's own language comes first: WPML/WCML stores it in the
+     * `wpml_language` order meta at checkout, so it does not depend on the request.
+     * Then the WPML current language (`wpml_current_language`), then
+     * determine_locale(). The first known value decides.
+     *
+     * @param mixed $order WooCommerce order.
+     * @return string 'ar' or 'en'.
+     */
+    public static function provider_language($order) {
+        $candidates = array();
+        if (is_object($order) && method_exists($order, 'get_meta')) {
+            $candidates[] = $order->get_meta('wpml_language');
+        }
+        if (function_exists('apply_filters')) {
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's documented public API filter for reading the current language (wpml.org/wpml-hook/wpml_current_language/).
+            $candidates[] = apply_filters('wpml_current_language', null);
+        }
+        if (function_exists('determine_locale')) {
+            $candidates[] = determine_locale();
+        }
+        return self::provider_language_code($candidates);
+    }
+
+    /**
+     * Map the first non-empty language code or locale to 'ar' or 'en'.
+     *
+     * Arabic is `ar` and Moroccan Arabic `ary`, alone or with a region (`ar_KW`,
+     * `ar-SA`). Other codes that merely start with "ar" (Aragonese `arg`,
+     * Mapudungun `arn`) and every other language get English.
+     *
+     * @param array<int,mixed> $candidates Language codes or locales, in precedence order.
+     * @return string 'ar' or 'en'.
+     */
+    public static function provider_language_code(array $candidates) {
+        foreach ($candidates as $candidate) {
+            if (!is_string($candidate)) {
+                continue;
+            }
+            $candidate = strtolower(trim($candidate));
+            if ($candidate === '') {
+                continue;
+            }
+            return preg_match('/^ary?(?:[_-][a-z0-9]+)*$/', $candidate) === 1 ? 'ar' : 'en';
+        }
+        return 'en';
     }
 
     /**
@@ -1010,12 +1063,29 @@ class CheckoutPayload {
         if ($str === '') {
             return '';
         }
-        // Remove invalid UTF-8 sequences using PCRE (always available).
-        $str = preg_replace('/[\x00-\x7F][\x80-\xBF]+/u', '', $str);
-        $str = preg_replace('/[\xC0-\xDF](?![\x80-\xBF])/u', '', $str);
-        $str = preg_replace('/[\xE0-\xEF](?![\x80-\xBF]{2})/u', '', $str);
-        $str = preg_replace('/[\xF0-\xF7](?![\x80-\xBF]{3})/u', '', $str);
-        if ($str === '' || $str === null) {
+        // Keep only well-formed UTF-8 sequences (RFC 3629) and drop every other byte.
+        // The pattern runs on bytes, without the /u flag: with /u, \x80-\xFF would
+        // mean code points U+0080-U+00FF, so accented Latin letters and characters
+        // next to a no-break space were deleted, and any invalid byte made PCRE
+        // return null and empty the whole value (A1-10). mb_scrub() is not used: it
+        // substitutes '?' instead of removing the byte.
+        $sequences = array();
+        if (preg_match_all(
+            '/[\x00-\x7F]'
+            . '|[\xC2-\xDF][\x80-\xBF]'
+            . '|\xE0[\xA0-\xBF][\x80-\xBF]'
+            . '|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}'
+            . '|\xED[\x80-\x9F][\x80-\xBF]'
+            . '|\xF0[\x90-\xBF][\x80-\xBF]{2}'
+            . '|[\xF1-\xF3][\x80-\xBF]{3}'
+            . '|\xF4[\x80-\x8F][\x80-\xBF]{2}/',
+            $str,
+            $sequences
+        ) === false) {
+            return '';
+        }
+        $str = implode('', $sequences[0]);
+        if ($str === '') {
             return '';
         }
         // Fast path: mbstring available.

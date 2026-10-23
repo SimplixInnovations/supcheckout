@@ -15,6 +15,15 @@ defined( 'ABSPATH' ) || exit;
 <div id="wc-toast" class="wc-toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <div class="supcheckout form-row form-row-wide">
     <?php
+        // WooCommerce leaves the description to payment_fields(). get_description() applies
+        // woocommerce_gateway_description, where WPML/WCML translate it; dir="auto" keeps an
+        // English sentence's punctuation in place on an RTL checkout.
+        $gateway_description = $gateway->get_description();
+        if (is_string($gateway_description) && trim($gateway_description) !== '') {
+    ?>
+        <div class="supcheckout-description" dir="auto"><?php echo wp_kses_post($gateway_description); ?></div>
+    <?php
+        }
         $icons = array();
         // On pay-for-order the cart is empty: show the order's own total and currency.
         $pay_order = (function_exists('is_wc_endpoint_url') && is_wc_endpoint_url('order-pay'))
@@ -22,12 +31,16 @@ defined( 'ABSPATH' ) || exit;
             : false;
         $total_raw = is_object($pay_order) ? $pay_order->get_total() : WC()->cart->get_total('');
         $currency_code = is_object($pay_order) ? $pay_order->get_currency() : get_woocommerce_currency();
-        $total = wc_format_decimal($total_raw, wc_get_price_decimals());
-        $language = get_locale();
-        $currency = get_woocommerce_currency_symbol($currency_code);
-        if (strpos($language, 'en') === 0) {
-            $currency = $currency_code;
-        }
+        // Display only (provider amounts never read this): the store's own price format,
+        // separators and currency position, bidi-isolated in <bdi> by wc_price().
+        $price_html = wc_price($total_raw, array('currency' => $currency_code));
+        // Exactly the markup wc_price() emits, including translate="no" (WooCommerce 11.1+)
+        // and dir="auto" on the currency symbol.
+        $price_allowed_html = array(
+            'span' => array('class' => true, 'translate' => true, 'dir' => true, 'aria-hidden' => true),
+            'bdi' => array(),
+        );
+        $price_text = trim(html_entity_decode(wp_strip_all_tags($price_html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $whitelabled = false;
         $payment_data = $gateway->getPaymentIcons();
         $payment_data_valid = (
@@ -101,38 +114,27 @@ defined( 'ABSPATH' ) || exit;
             ?>
                 <input id="save_card" type="hidden" name="save_card" value="0"/>
                 <?php
-                $savedCards = $gateway->getSavedCardsForCurrentUser($payment_data);
+                // Display-safe views only (opaque handle, last four, brand), reused for
+                // two minutes across order-review refreshes. Never a provider token.
+                $savedCardViews = $gateway->getSavedCardViewsForCurrentUser($payment_data);
 
-                if (is_array($savedCards) && isset($savedCards['result']) && $savedCards['result'] === 'success' && isset($savedCards['data']) && is_array($savedCards['data']))
+                if (is_array($savedCardViews))
                 {
-                    $cardList = $savedCards['data'];
                 ?>
                     <span class="payment-method-label"><?php esc_html_e('Saved Cards', 'supcheckout'); ?></span>
                     <?php
-                    foreach ($cardList as $cardkey => $cardValue) {
-                        if (!is_array($cardValue)) {
+                    foreach ($savedCardViews as $cardView) {
+                        if (!is_array($cardView) || !isset($cardView['selection'], $cardView['last4']) || !is_string($cardView['selection']) || !is_string($cardView['last4'])) {
                             continue;
                         }
-                        $provider_card_token = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::token($cardValue);
-                        if ($provider_card_token === null) {
-                            continue;
-                        }
-                        $card_selection = \Simplixi\SUPCheckout\Payment\SavedCardSelection::create(
-                            $provider_card_token,
-                            (int) $user_id,
-                            $api_key_classic,
-                            $is_test_mode_classic
-                        );
-                        if ($card_selection === null) {
-                            continue;
-                        }
-                        $card_display_label = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::label($cardValue, __('Saved card', 'supcheckout'));
+                        $card_selection = $cardView['selection'];
+                        $card_display_label = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::label(array('last4' => $cardView['last4']), __('Saved card', 'supcheckout'));
                     ?>
 
                         <button type="button" value="<?php echo esc_attr($card_selection); ?>" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitSavedCard==='function'){window.supCheckout.submitSavedCard(this);}else{window.supcheckoutPendingAction={type:'saved_card',value:this.value};}" class="upay-payment-method">
                         <span class="payment-method-icon"><img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/cc.png'); ?>" alt=""/></span>
                         <span class="payment-method-label"><?php echo esc_html($card_display_label); ?></span>
-                        <span class="payment-method-price"><?php echo esc_html($total); ?> <?php echo wp_kses($currency, array()); ?></span>
+                        <span class="payment-method-price"><?php echo wp_kses($price_html, $price_allowed_html); ?></span>
                         <span class="payment-method-icon2"><span class="upay-chevron" aria-hidden="true">&#8250;</span></span>
                         </button>
 
@@ -180,7 +182,7 @@ defined( 'ABSPATH' ) || exit;
                         ?>
                     </span>
                     <span class="payment-method-label"><?php echo esc_html($value_string); ?></span>
-                    <span class="payment-method-price"><?php echo esc_html($total); ?> <?php echo wp_kses($currency, array()); ?></span>
+                    <span class="payment-method-price"><?php echo wp_kses($price_html, $price_allowed_html); ?></span>
                     <span class="payment-method-icon2"><span class="upay-chevron" aria-hidden="true">&#8250;</span></span>
                 </button>
             
@@ -207,7 +209,7 @@ defined( 'ABSPATH' ) || exit;
         } elseif ($payment_data_valid && !$whitelabled) {
     ?>
         <div class="payment-buttons">
-            <button type="button" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitPaymentMethod==='function'){window.supCheckout.submitPaymentMethod('knet');}else{window.supcheckoutPendingAction={type:'payment_method',value:'knet'};}" class="upay-payment-method" aria-label="<?php echo esc_attr(sprintf(/* translators: 1: order total, 2: currency. */ __('Continue to secure payment, %1$s %2$s', 'supcheckout'), $total, wp_kses($currency, array()))); ?>">
+            <button type="button" onclick="if(window.supCheckout&amp;&amp;typeof window.supCheckout.submitPaymentMethod==='function'){window.supCheckout.submitPaymentMethod('knet');}else{window.supcheckoutPendingAction={type:'payment_method',value:'knet'};}" class="upay-payment-method" aria-label="<?php echo esc_attr(sprintf(/* translators: %s: order total with its currency, as the store formats prices. */ __('Continue to secure payment, %s', 'supcheckout'), $price_text)); ?>">
     <?php
             foreach ($icons as $key => $value) {
                 if (!is_scalar($value)) {
@@ -224,7 +226,7 @@ defined( 'ABSPATH' ) || exit;
                 }
             }
     ?>
-            <span class="payment-method-price"><?php echo esc_html($total); ?> <?php echo wp_kses($currency, array()); ?></span>
+            <span class="payment-method-price"><?php echo wp_kses($price_html, $price_allowed_html); ?></span>
             <span class="payment-method-icon2"><span class="upay-chevron" aria-hidden="true">&#8250;</span></span>
             </button>
         </div>

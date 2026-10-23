@@ -116,9 +116,13 @@ final class PaymentMethodAvailabilityTest extends TestCase {
         $transient = $this->invoke_private($service, 'transient_name');
         self::assertSame($this->canonical(true, 1, 0), $GLOBALS['supcheckout_test_availability']['transients'][$transient]);
         self::assertArrayNotHasKey('providerTrace', $GLOBALS['supcheckout_test_availability']['transients'][$transient]);
+        // U5 (A3-02): this pin used to mean "availability is at most 65 s old anywhere".
+        // It now pins only the authoritative fresh cache that place-order and Charge
+        // read. Shopper renders read the separate ten-minute display copy instead
+        // (test_display_copy_lives_ten_minutes_while_the_rate_gate_stays_at_sixty_five_seconds).
         $ttl = $GLOBALS['supcheckout_test_availability']['transient_ttls'][$transient];
         self::assertGreaterThanOrEqual(1, $ttl);
-        self::assertLessThanOrEqual(65, $ttl);
+        self::assertLessThanOrEqual(65, $ttl, 'the authoritative fresh cache stays tied to the 65-second rate gate');
     }
 
     public function test_cache_hits_failure_sentinels_and_empty_credentials_bypass_mutation(): void {
@@ -322,6 +326,87 @@ final class PaymentMethodAvailabilityTest extends TestCase {
         $GLOBALS['supcheckout_test_options'][$name] = array('saved_at' => time(), 'value' => array('schema' => 3, 'result' => 'success'));
         self::assertSame(array('result' => 'failure'), $good->fetch());
         self::assertSame(1, $transport_calls);
+    }
+
+    /**
+     * A3-02: a shopper render (checkout, order-review refresh, Cart block) no longer
+     * pays a blocking provider call every minute. Within ten minutes of the last
+     * success the display read serves that copy and calls nothing.
+     */
+    public function test_display_read_serves_a_recent_success_without_a_provider_call_after_the_fresh_cache_expires(): void {
+        $transport_calls = 0;
+        $service = $this->service(false, 'display-key', $this->counting_transport($transport_calls, $this->envelope(array('isWhiteLabel' => true, 'payButtons' => array('knet' => 1, 'credit_card' => 1)))));
+        self::assertSame('success', $service->fetch()['result']);
+        self::assertSame(1, $transport_calls);
+
+        // Two minutes later: the 65-second fresh cache and the rate gate have both expired.
+        $this->age_last_known_good($service, 120);
+        $GLOBALS['supcheckout_test_availability']['transients'] = array();
+        $GLOBALS['supcheckout_test_options']['upayments_payment_methods_rate_gate_live'] = time() - 1;
+
+        $locks_before = $GLOBALS['supcheckout_test_availability']['lock_acquires'];
+
+        self::assertSame($this->canonical(true, 1, 1), $service->fetch_for_display());
+        self::assertSame(1, $transport_calls);
+        self::assertSame($locks_before, $GLOBALS['supcheckout_test_availability']['lock_acquires'], 'the display copy takes no lock');
+    }
+
+    public function test_display_read_refreshes_once_its_copy_is_older_than_ten_minutes(): void {
+        $transport_calls = 0;
+        $service = $this->service(false, 'stale-display-key', $this->counting_transport($transport_calls, $this->envelope(array('isWhiteLabel' => false, 'payButtons' => array('knet' => 1)))));
+        $service->fetch();
+
+        $this->age_last_known_good($service, 601);
+        $GLOBALS['supcheckout_test_availability']['transients'] = array();
+        $GLOBALS['supcheckout_test_options']['upayments_payment_methods_rate_gate_live'] = time() - 1;
+
+        self::assertSame('success', $service->fetch_for_display()['result']);
+        self::assertSame(2, $transport_calls);
+        // The refresh went through the 65-second rate gate like any other.
+        self::assertGreaterThanOrEqual(time() + 64, $GLOBALS['supcheckout_test_options']['upayments_payment_methods_rate_gate_live']);
+    }
+
+    public function test_display_read_honours_a_fresh_cache_and_never_calls_without_a_credential(): void {
+        $transport_calls = 0;
+        $service = $this->service(false, 'fresh-display-key', $this->counting_transport($transport_calls, false));
+        $transient = $this->invoke_private($service, 'transient_name');
+        $GLOBALS['supcheckout_test_availability']['transients'][$transient] = $this->canonical(false, 0);
+        self::assertSame($this->canonical(false, 0), $service->fetch_for_display());
+
+        $GLOBALS['supcheckout_test_availability']['transients'][$transient] = array('schema' => 3, 'state' => 'failure');
+        self::assertSame(array('result' => 'failure'), $service->fetch_for_display());
+
+        self::assertNull($this->service(false, '', $this->counting_transport($transport_calls, false))->fetch_for_display());
+        self::assertSame(0, $transport_calls);
+    }
+
+    /**
+     * The display copy must never authorize a payment: the place-order and Charge
+     * paths keep calling fetch(), which ignores it while the rate gate is open.
+     */
+    public function test_authoritative_fetch_ignores_the_display_copy_while_the_rate_gate_is_open(): void {
+        $transport_calls = 0;
+        $service = $this->service(false, 'charge-key', $this->counting_transport($transport_calls, $this->envelope(array('isWhiteLabel' => true, 'payButtons' => array('credit_card' => 1)))));
+        $service->fetch();
+
+        $this->age_last_known_good($service, 120);
+        $GLOBALS['supcheckout_test_availability']['transients'] = array();
+        $GLOBALS['supcheckout_test_options']['upayments_payment_methods_rate_gate_live'] = time() - 1;
+
+        self::assertSame('success', $service->fetch()['result']);
+        self::assertSame(2, $transport_calls);
+    }
+
+    public function test_display_copy_lives_ten_minutes_while_the_rate_gate_stays_at_sixty_five_seconds(): void {
+        $reflection = new \ReflectionClass(PaymentMethodAvailability::class);
+        self::assertSame(65, $reflection->getConstant('RATE_GATE_COOLDOWN'));
+        self::assertSame(600, $reflection->getConstant('DISPLAY_MAX_AGE'));
+        self::assertLessThan($reflection->getConstant('LAST_KNOWN_GOOD_MAX_AGE'), $reflection->getConstant('DISPLAY_MAX_AGE'));
+    }
+
+    private function age_last_known_good(PaymentMethodAvailability $service, int $seconds): void {
+        $name = $this->invoke_private($service, 'last_known_good_name');
+        $GLOBALS['supcheckout_test_options'][$name]['saved_at'] = time() - $seconds;
     }
 
     private function service($test_mode, $api_key, $transport): PaymentMethodAvailability {

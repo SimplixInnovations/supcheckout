@@ -6,7 +6,9 @@ defined('ABSPATH') || exit;
 
 use Simplixi\SUPCheckout\Account\SubscriptionActions;
 use Simplixi\SUPCheckout\Blocks\PaymentMethodRegistration;
+use Simplixi\SUPCheckout\Bootstrap\Deactivation;
 use Simplixi\SUPCheckout\Bootstrap\Requirements;
+use Simplixi\SUPCheckout\Bootstrap\Translations;
 use Simplixi\SUPCheckout\Bootstrap\WooCommerceDeclarations;
 use Simplixi\SUPCheckout\Gateway\GatewayRegistration;
 use Simplixi\SUPCheckout\Release\Identity;
@@ -16,6 +18,7 @@ use Simplixi\SUPCheckout\Subscription\SchedulerBootstrap;
 use Simplixi\SUPCheckout\Takeover\Cli as TakeoverCli;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
 use Simplixi\SUPCheckout\Takeover\Onboarding\AsyncDriver;
+use Simplixi\SUPCheckout\Takeover\ReactivationGuard;
 
 /**
  * Composition root. From Task 3 on, every WordPress hook SUPCheckout registers is
@@ -37,6 +40,8 @@ final class Plugin {
             return;
         }
         self::$main_file = (string) $main_file;
+        // A4-01 (U7): first, so the bundled translations resolve for every later string.
+        Translations::register(self::$main_file);
         GatewayRegistration::register();
         Requirements::register();
         WooCommerceDeclarations::register();
@@ -49,6 +54,10 @@ final class Plugin {
         AsyncDriver::register();
         RestRoutes::register();
         TakeoverCli::register();
+        ReactivationGuard::register(self::$main_file);
+        // A3-08: SUPCheckout's own schedules stop on deactivation. A file hook, not a
+        // runtime hook, so the callbacks above keep their order; ::class loads no file.
+        register_deactivation_hook(self::$main_file, array(Deactivation::class, 'deactivate'));
         self::load_runtime(self::$main_file);
     }
 

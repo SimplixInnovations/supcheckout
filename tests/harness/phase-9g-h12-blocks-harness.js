@@ -495,6 +495,15 @@ function buildSandbox(settings, mockReact) {
                     },
                 },
                 i18n: { __: function (s) { return s; } },
+                // Mirrors @wordpress/html-entities (the `wp-html-entities` script dependency).
+                htmlEntities: {
+                    decodeEntities: function (s) {
+                        return String(s)
+                            .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                            .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+                            .replace(/&amp;/g, '&');
+                    },
+                },
             },
         },
     };
@@ -816,6 +825,72 @@ record(true, 'H-ST-1 harness initializes', 'harness');
     record(typeof reg.content.type === 'function', 'B-REG-9 content.type is Component function', 'runtime');
     record(typeof reg.edit.type === 'function', 'B-REG-10 edit.type is Component function', 'runtime');
     record(reg.content.type === reg.edit.type, 'B-REG-11 content and edit share the same component instance', 'runtime');
+}
+
+// ────────────────────────────────────────────────────────────
+// B-TITLE / B-DESC (A4-03, A4-05, A4-07): the merchant's title (with its WPML/WCML
+// translation) labels the Blocks method, and the description shows as plain text
+// with bidi isolation. 'UPayments' stays the fallback when no title is localized.
+// ────────────────────────────────────────────────────────────
+
+function findDescription(tree) {
+    return findAll(tree, function (n) {
+        return n && n.props && typeof n.props.className === 'string'
+            && n.props.className.split(' ').indexOf('supcheckout-description') !== -1;
+    });
+}
+
+{
+    const scene = buildScene(makeSettings({ title: 'Pay by card &amp; KNET' }));
+    const reg = scene.registered;
+    record(reg && reg.label === 'Pay by card & KNET', 'B-TITLE-1 label is the localized gateway title, entity-decoded', 'runtime');
+    record(reg && reg.ariaLabel === 'Pay by card & KNET', 'B-TITLE-2 ariaLabel is the localized gateway title, entity-decoded', 'runtime');
+
+    const arabic = buildScene(makeSettings({ title: 'ادفع بالبطاقة أو كي نت' })).registered;
+    record(arabic && arabic.label === 'ادفع بالبطاقة أو كي نت' && arabic.ariaLabel === 'ادفع بالبطاقة أو كي نت',
+        'B-TITLE-3 a translated (Arabic) title reaches label and ariaLabel', 'runtime');
+
+    const untitled = buildScene(makeSettings({ title: '' })).registered;
+    record(untitled && untitled.label === 'UPayments' && untitled.ariaLabel === 'UPayments',
+        'B-TITLE-4 an empty title falls back to UPayments', 'runtime');
+
+    const nonString = buildScene(makeSettings({ title: { html: 'x' } })).registered;
+    record(nonString && nonString.label === 'UPayments' && nonString.ariaLabel === 'UPayments',
+        'B-TITLE-5 a non-string title falls back to UPayments', 'runtime');
+}
+
+{
+    const scene = buildScene(makeSettings({ description: 'Pay securely &amp; quickly. <b>No</b> markup.' }));
+    const tree = renderScene(scene);
+    if (tree === null) {
+        record(false, 'B-DESC-0 tree renders with a description', 'runtime');
+    } else {
+        const found = findDescription(tree);
+        record(found.length === 1, 'B-DESC-1 exactly one description element renders', 'runtime');
+        const node = found[0];
+        record(node && node.props.dir === 'auto', 'B-DESC-2 the description is bidi-isolated with dir="auto"', 'runtime');
+        const text = node ? getLeafTextStrings(node).join('') : '';
+        record(text === 'Pay securely & quickly. <b>No</b> markup.',
+            'B-DESC-3 the description is entity-decoded and rendered as a text node', 'runtime');
+        record(node && !Object.prototype.hasOwnProperty.call(node.props, 'dangerouslySetInnerHTML'),
+            'B-DESC-4 the description is never injected as HTML', 'runtime');
+    }
+    const empty = renderScene(buildScene(makeSettings({ description: '' })));
+    record(empty !== null && findDescription(empty).length === 0, 'B-DESC-5 an empty description renders no element', 'runtime');
+    const missing = renderScene(buildScene(makeSettings({})));
+    record(missing !== null && findDescription(missing).length === 0, 'B-DESC-6 an absent description renders no element', 'runtime');
+}
+
+{
+    // The registration still works when wp.htmlEntities is unavailable (raw text, no throw).
+    const mockReact = createMockReact();
+    const built = buildSandbox(makeSettings({ title: 'Card' }), mockReact);
+    delete built.sandbox.window.wp.htmlEntities;
+    const context = vm.createContext(built.sandbox);
+    let threw = false;
+    try { vm.runInContext(blockSource, context, { filename: BLOCK_JS }); } catch (e) { threw = true; }
+    const reg = built.sandbox.window.wc.__lastRegistered;
+    record(!threw && reg && reg.label === 'Card', 'B-TITLE-6 registration survives a missing html-entities package', 'runtime');
 }
 
 // ────────────────────────────────────────────────────────────

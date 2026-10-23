@@ -40,3 +40,4 @@
 /eslint.config.mjs
 /.stylelintrc.json
 /jest.config.js
+/.gitleaksignore

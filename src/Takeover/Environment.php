@@ -228,7 +228,8 @@ final class Environment {
     }
 
     /**
-     * @param string $name One of prefix, options, posts, postmeta, orders, orders_meta.
+     * @param string $name One of prefix, options, posts, postmeta, orders, orders_meta,
+     *                     icl_strings, icl_string_translations.
      * @return string Table name ('' without a database).
      */
     public function table($name) {
@@ -495,6 +496,9 @@ final class Environment {
             'postmeta' => (string) $db->postmeta,
             'orders' => $prefix . 'wc_orders',
             'orders_meta' => $prefix . 'wc_orders_meta',
+            // WPML String Translation; may not exist (Checks::multilingual() checks first).
+            'icl_strings' => $prefix . 'icl_strings',
+            'icl_string_translations' => $prefix . 'icl_string_translations',
         );
     }
 

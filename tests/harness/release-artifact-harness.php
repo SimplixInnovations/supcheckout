@@ -156,6 +156,14 @@ release_assert(
     strpos($verify, '"node_modules/", "tools/"') !== false && strpos($verify, 'forbidden_suffixes = (".map",)') !== false,
     'verifier forbids node_modules/, tools/ and source maps'
 );
+release_assert(
+    strpos($verify, 'allowed_prefixes = ("src/", "assets/", "templates/", "languages/")') !== false,
+    'verifier allows exactly the runtime subtrees, including the bundled languages/ directory (A4-01)'
+);
+release_assert(
+    strpos($verify, 'language_suffixes = (".pot", ".po", ".mo", ".json", ".l10n.php")') !== false,
+    'verifier holds languages/ to translation-data suffixes only (A4-01)'
+);
 
 release_assert(substr_count($build, 'supcheckout') >= 2, 'builder owns canonical SUPCheckout ZIP/root slug');
 release_assert(strpos($build, 'slug = "simplixpay-upayments"') === false, 'builder contains no retired package-root slug');
@@ -277,6 +285,15 @@ if ($version !== '') {
                 );
                 release_assert(in_array($prefix . 'readme.txt', $names, true), 'canonical package contains WordPress.org readme');
                 release_assert(!in_array($prefix . 'composer.json', $names, true), 'canonical package excludes Composer controls');
+                // A4-01 (U7): the bundled translations the Domain Path header names.
+                $language_files = array('supcheckout.pot', 'supcheckout-ar.po', 'supcheckout-ar.mo');
+                // The admin script translations, named by md5 of each script's package path.
+                foreach (array('assets/admin/build/app.js', 'assets/admin/build/chunks/command-palette.a159e014.js') as $translated_script) {
+                    $language_files[] = 'supcheckout-ar-' . md5($translated_script) . '.json';
+                }
+                foreach ($language_files as $language_file) {
+                    release_assert(in_array($prefix . 'languages/' . $language_file, $names, true), 'canonical package ships the bundled translation file: ' . $language_file);
+                }
 
                 $contains_screenshots = false;
                 foreach ($names as $name) {
@@ -348,6 +365,41 @@ if ($version !== '') {
             $tampered_output = '';
             $tampered_code = release_run('cd ' . escapeshellarg($root) . ' && bash scripts/verify-release.sh ' . escapeshellarg($tampered_zip), $tampered_output);
             release_assert($tampered_code !== 0, 'verifier rejects self-consistent artifact bytes that differ from Git HEAD');
+        }
+
+        // A4-01 (U7): a stray PHP file in languages/ is rejected by the languages/ suffix rule
+        // itself. The probe ZIP keeps every deterministic container property (sorted paths,
+        // stored entries, fixed timestamp, mode and creator) so only that rule can fail it.
+        $stray_dir = $tmp . '/stray-language';
+        @mkdir($stray_dir, 0777, true);
+        $stray_zip = $stray_dir . '/' . $zip_name;
+        $stray_script = $tmp . '/stray-language.py';
+        $stray_ready = false !== file_put_contents($stray_script, implode("\n", array(
+            'import sys, zipfile',
+            'with zipfile.ZipFile(sys.argv[1]) as zin:',
+            '    entries = [(i.filename, zin.read(i.filename)) for i in zin.infolist()]',
+            'entries.append(("supcheckout/languages/x.php", b"<?php\n"))',
+            'entries.sort(key=lambda e: e[0])',
+            'with zipfile.ZipFile(sys.argv[2], "w", compression=zipfile.ZIP_STORED) as zout:',
+            '    for name, data in entries:',
+            '        info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))',
+            '        info.create_system = 3',
+            '        info.external_attr = 0o100644 << 16',
+            '        info.compress_type = zipfile.ZIP_STORED',
+            '        zout.writestr(info, data)',
+            '',
+        )));
+        $stray_output = '';
+        $stray_ready = $stray_ready
+            && 0 === release_run('python3 ' . escapeshellarg($stray_script) . ' ' . escapeshellarg($first_zip) . ' ' . escapeshellarg($stray_zip), $stray_output)
+            && release_rewrite_evidence_for_zip($stray_zip, $stray_zip . '.sha256', $stray_dir . '/' . $manifest_name);
+        release_assert($stray_ready, 'negative probe creates a deterministic artifact with a stray languages/x.php: ' . $stray_output);
+        if ($stray_ready) {
+            $stray_code = release_run('cd ' . escapeshellarg($root) . ' && bash scripts/verify-release.sh ' . escapeshellarg($stray_zip), $stray_output);
+            release_assert(
+                $stray_code !== 0 && strpos($stray_output, 'Unexpected file in languages/: languages/x.php') !== false,
+                'verifier rejects a stray languages/x.php through the languages/ suffix rule: ' . $stray_output
+            );
         }
     }
 

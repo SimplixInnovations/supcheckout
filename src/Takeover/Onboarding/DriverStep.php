@@ -27,7 +27,9 @@ defined('ABSPATH') || exit;
  * the state as it was, and the driver re-enters at most that often (AsyncDriver stores the
  * attempt before the work starts). A held lease (`busy`) costs no attempt. BUSY outcomes
  * retry every BUSY_RETRY_DELAY seconds, at most MAX_BUSY_RETRIES in a row without new
- * progress; a provider cooldown retries every COOLDOWN_RETRY_DELAY seconds.
+ * progress; a provider cooldown retries every COOLDOWN_RETRY_DELAY seconds. In the copy
+ * phase an order held by its payment lock (CopyRunner RETRY) is such a retry too, ending
+ * `order_locked` (A5-05), and a moved copy cursor is new progress.
  *
  * Progress is the set of step names: a step an engine replays after a yield (for example
  * `copies_removed` or `legacy_swept` after the settle barrier) is not new progress, and the
@@ -328,7 +330,7 @@ final class DriverStep {
                 $this->next('preflight', self::COOLDOWN_RETRY_DELAY, $report);
                 return;
             }
-            $this->end(Operation::BLOCKED, 'preflight_blocking', DriverHints::PREFLIGHT, $report);
+            $this->end(Operation::BLOCKED, 'preflight_blocking', DriverHints::preflight($report), $report);
             return;
         }
         $copy = $this->onboarding->start_copy();
@@ -347,15 +349,27 @@ final class DriverStep {
      */
     private function switch_copy($status) {
         if ($status === TakeoverState::COPYING) {
+            $before = self::copy_position();
             $deadline = $this->clock() + self::TICK_BUDGET;
             do {
                 $step = $this->onboarding->copy_step();
             } while ($step === CopyRunner::CONTINUE_RUN && $this->clock() < $deadline);
+            if (self::copy_position() !== $before) {
+                // The cursor moved: new progress, so earlier busy retries no longer count.
+                $this->result['busy_retries'] = 0;
+            }
             if ($step === CopyRunner::CONTINUE_RUN) {
                 $this->next('copy', 0);
                 return;
             }
-            if ($step === CopyRunner::RETRY || $step === CopyRunner::BUSY) {
+            if ($step === CopyRunner::RETRY) {
+                // A5-05: an order held by its payment lock. OrderLock recovers a damaged or
+                // expired record itself (OL-1), so this is a lock that is genuinely held; a
+                // holder normally releases it within seconds, and the retries are bounded.
+                $this->busy_retry('copy', 'order_locked', array('copy' => CopyRunner::RETRY, 'locked_order' => $this->onboarding->locked_order()));
+                return;
+            }
+            if ($step === CopyRunner::BUSY) {
                 $this->next('copy', self::BUSY_RETRY_DELAY);
                 return;
             }
@@ -396,7 +410,7 @@ final class DriverStep {
         }
         if ($retired->data()['deactivated'] !== null) {
             // Cutover runs in the next action: a fresh process without the official plugin's code.
-            $this->add_steps(array('official_deactivated'));
+            $this->add_steps(self::deactivation_steps($retired));
             $this->next('cutover', 0);
             return;
         }
@@ -464,7 +478,7 @@ final class DriverStep {
         $report = Bounded::document($report);
         update_option(self::last_report_option(Operation::KIND_SELF_TEST), $report, false);
         $this->add_steps(array('self_test_ran'));
-        $warnings = empty($report['ok']) ? array('self_test_failed') : array();
+        $warnings = array_merge(empty($report['ok']) ? array('self_test_failed') : array(), $this->unrecorded_warning());
         $this->end(Operation::DONE, null, null, array('self_test' => $report, 'warnings' => $warnings));
     }
 
@@ -491,7 +505,7 @@ final class DriverStep {
                     return;
                 }
                 if ($retired->data()['deactivated'] !== null) {
-                    $this->add_steps(array('official_deactivated'));
+                    $this->add_steps(self::deactivation_steps($retired));
                 }
             }
             // The rewind runs in the next action (a fresh process, and its own watchdog).
@@ -545,8 +559,9 @@ final class DriverStep {
         $report = self::outcome_report($outcome);
         $engine = isset($data['result']) && is_array($data['result']) ? $data['result'] : array();
         $warnings = isset($engine['warnings']) && is_array($engine['warnings']) && in_array('official_not_reactivated', $engine['warnings'], true) ? array('official_not_reactivated') : array();
+        $unrecorded = $this->unrecorded_warning();
         if ($outcome->is_ok()) {
-            $this->end(Operation::DONE, null, null, $report + array('warnings' => array()));
+            $this->end(Operation::DONE, null, null, $report + array('warnings' => $unrecorded));
             return;
         }
         $reason = (string) $outcome->reason();
@@ -558,9 +573,10 @@ final class DriverStep {
         } elseif ($outcome->code() === Outcome::CONFLICTS) {
             $list = $conflict_as === 'kept' ? 'kept' : 'conflicts';
             $report[$conflict_as] = isset($engine[$list]) && is_array($engine[$list]) ? $engine[$list] : array();
-            $this->end(Operation::DONE, null, null, $report + array('warnings' => array_merge(array($conflict_as), $warnings)));
+            $hint = isset($engine['report']['settings_diverged']) ? DriverHints::SETTINGS_KEPT : null;
+            $this->end(Operation::DONE, null, $hint, $report + array('warnings' => array_merge(array($conflict_as), $warnings, $unrecorded)));
         } elseif ($outcome->code() === Outcome::OFFICIAL_NOT_REACTIVATED) {
-            $this->end(Operation::DONE, null, null, $report + array('warnings' => array('official_not_reactivated')));
+            $this->end(Operation::DONE, null, null, $report + array('warnings' => array_merge(array('official_not_reactivated'), $unrecorded)));
         } elseif ($outcome->code() === Outcome::BLOCKED) {
             $this->end(Operation::BLOCKED, $reason, DriverHints::OFFICIAL, $report);
         } elseif ($reason === 'stale_claims') {
@@ -679,6 +695,11 @@ final class DriverStep {
         }
         $this->busy = true;
         if (++$this->result['busy_retries'] > self::MAX_BUSY_RETRIES) {
+            if ($reason === 'order_locked') {
+                $order_id = isset($report['locked_order']) ? (int) $report['locked_order'] : 0;
+                $this->end(Operation::FAILED, 'order_locked', DriverHints::order_locked($order_id), $report);
+                return;
+            }
             $this->end(Operation::FAILED, 'busy', DriverHints::BUSY, $report);
             return;
         }
@@ -747,12 +768,51 @@ final class DriverStep {
         return isset($this->op['consent'][$key]) && $this->op['consent'][$key] === true;
     }
 
+    /**
+     * @return list<string> `official_deactivation_unrecorded` when a step of this operation
+     *                      (stored, or in this tick) lost the deactivation record (A5-07).
+     */
+    private function unrecorded_warning() {
+        $steps = array_merge(self::stored_steps($this->op), $this->result['steps']);
+        return in_array('official_deactivation_unrecorded', $steps, true) ? array('official_deactivation_unrecorded') : array();
+    }
+
     /** @return int */
     private function clock() {
         return (int) call_user_func($this->clock);
     }
 
     // --- Pure helpers. ---
+
+    /**
+     * @param Outcome $retired A successful retire_official() that deactivated the plugin.
+     * @return list<string> `official_deactivated`, plus `official_deactivation_unrecorded`
+     *                      when the record for a later reactivation was lost (A5-07).
+     */
+    private static function deactivation_steps(Outcome $retired) {
+        $data = $retired->data();
+        $steps = array('official_deactivated');
+        if (isset($data['recorded']) && $data['recorded'] === false) {
+            $steps[] = 'official_deactivation_unrecorded';
+        }
+        return $steps;
+    }
+
+    /** @return string The copy runner's phase and cursor (fresh read). */
+    private static function copy_position() {
+        TakeoverState::refresh();
+        return self::position_of(TakeoverState::get());
+    }
+
+    /**
+     * @param array<string, mixed> $state TakeoverState::get(); `phase` is a CopyRunner progress field.
+     * @return string
+     */
+    private static function position_of(array $state) {
+        $phase = array_key_exists('phase', $state) && is_scalar($state['phase']) ? (string) $state['phase'] : '';
+        $cursor = array_key_exists('cursor', $state) && is_int($state['cursor']) ? $state['cursor'] : 0;
+        return $phase . ':' . $cursor;
+    }
 
     /**
      * @param array<string, mixed> $op Record.

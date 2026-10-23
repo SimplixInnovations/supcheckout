@@ -1,0 +1,9 @@
+# gitleaks fingerprint allowlist. Each entry is one exact historical finding (commit:file:rule:line),
+# never a path or rule, so any new finding still fails the R6 gitleaks history+tree scan.
+#
+# 9f460bc (A2-01) committed a synthetic test sentinel string as $api_secret in the
+# security threat-model harness, which generic-api-key matches. It was never a credential: the harness
+# only proves the stored API key never echoes. The fixture is now assembled at runtime from plain words,
+# so the current tree has no match; the commit stays in history (no rewrite of pushed branches), and
+# `gitleaks detect` scans every ref.
+9f460bce7d15e956784e97f7d8c3c3fe14a7ce7d:tests/harness/security-threat-model-harness.php:generic-api-key:229

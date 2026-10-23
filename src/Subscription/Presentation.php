@@ -7,6 +7,8 @@ use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
 use Simplixi\SUPCheckout\Subscription\Scheduling\LifecycleScheduler;
 use Simplixi\SUPCheckout\Takeover\Keys;
 
+defined('ABSPATH') || exit;
+
 /**
  * Inherited subscription product, admin and My Account presentation behavior.
  *

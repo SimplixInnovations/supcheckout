@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Subscription;
 
 use Simplixi\SUPCheckout\Takeover\Keys;
 
+defined('ABSPATH') || exit;
+
 /**
  * Decimal-safe billing-cycle economics.
  *

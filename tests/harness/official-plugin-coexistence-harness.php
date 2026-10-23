@@ -105,9 +105,14 @@ coexistence_assert(strpos($alone['out'], 'NOTICES:0') !== false, 'SUPCheckout al
 // Fix A1-01 review M3: the paused-renewal notice is counted on its own: one registration on
 // a booted SUPCheckout, none while it is paused next to the official plugin.
 coexistence_assert(strpos($alone['out'], 'PAUSED_RENEWAL_NOTICES:1') !== false, 'SUPCheckout alone registers the paused-renewal notice once');
+// Hardening T2 (A5-01): the official-reactivation guard (two option filters, the activate_plugin hook neutraliser and its notice
+// on admin_notices and network_admin_notices) is a booted SUPCheckout's own and is counted
+// on its own, never as a conflict notice; a paused SUPCheckout registers none of it.
+coexistence_assert(strpos($alone['out'], 'REACTIVATION_GUARD_HOOKS:5') !== false, 'SUPCheckout alone registers the official-reactivation guard once');
 foreach (array('stale', 'unrelated', 'shim') as $booted_scenario) {
     $booted = coexistence_run($root, $booted_scenario, $official_stub);
     coexistence_assert(strpos($booted['out'], 'PAUSED_RENEWAL_NOTICES:1') !== false, "booted ({$booted_scenario}): the paused-renewal notice is registered once");
+    coexistence_assert(strpos($booted['out'], 'REACTIVATION_GUARD_HOOKS:5') !== false, "booted ({$booted_scenario}): the official-reactivation guard is registered once");
 }
 
 $official_first = coexistence_run($root, 'official_first', $official_stub);
@@ -178,6 +183,7 @@ foreach (array(
     coexistence_assert(strpos($result['out'], 'OFFICIAL_LOADED') !== false, "paused ({$scenario}): the official plugin's global surface loads");
     coexistence_assert(strpos($result['out'], 'SUPCHECKOUT_VERSION:undefined') !== false && strpos($result['out'], 'NOTICES:1') !== false, "paused ({$scenario}): SUPCheckout stays paused with one conflict notice");
     coexistence_assert(strpos($result['out'], 'PAUSED_RENEWAL_NOTICES:0') !== false, "paused ({$scenario}): no paused-renewal notice is registered");
+    coexistence_assert(strpos($result['out'], 'REACTIVATION_GUARD_HOOKS:0') !== false, "paused ({$scenario}): no official-reactivation guard is registered");
     coexistence_assert(strpos($result['out'], 'CLASSES:official=yes,ours=yes') !== false, "paused ({$scenario}): official UPayments\\Subscription and SUPCheckout Simplixi\\SUPCheckout\\Subscription classes resolve in one process");
     coexistence_assert(strpos($result['out'], 'UP_PLUGIN_URL:official') !== false && strpos($result['out'], 'UP_PLUGIN_PATH:official') !== false, "paused ({$scenario}): the official plugin's path constants are its own");
     coexistence_assert(strpos($result['out'], 'DIAGNOSTICS:[]') !== false, "paused ({$scenario}): no PHP warning, notice or deprecation");
@@ -273,6 +279,9 @@ $paused_lazy_driver = '"action_scheduler_before_process_queue=Simplixi\\\\SUPChe
 $paused_driver = '"supcheckout_onboarding_drive=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Onboarding\\\\AsyncDriver::handle","supcheckout_onboarding_watchdog=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Onboarding\\\\AsyncDriver::watchdog"';
 $paused_driver_files = 'SRC_FILES:["Autoloader.php","Bootstrap/WooCommerceDeclarations.php","Gateway/OfficialPluginConflict.php","Takeover/Cli.php","Takeover/LegacyCallbackListener.php","Takeover/Onboarding/AsyncDriver.php","Takeover/PausedBoot.php"]';
 $cli_command = '"supcheckout takeover=Simplixi\\\\SUPCheckout\\\\Takeover\\\\Cli"';
+// A3-08 (U8): the paused boot also registers the deactivation cleanup on the main file, so a
+// store that deactivates SUPCheckout while paused still drops SUPCheckout's own schedules.
+$paused_deactivation = 'DEACTIVATION_HOOKS:["supcheckout.php=Simplixi\\\\SUPCheckout\\\\Bootstrap\\\\Deactivation::deactivate"]';
 foreach (array(
     'official_first' => $official_first,
     'ours_first' => $ours_first,
@@ -284,11 +293,13 @@ foreach (array(
     coexistence_assert(strpos($result['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',' . $paused_rest . ',' . $paused_lazy_driver . ']') !== false, "paused ({$scenario}): a web request registers nothing but the conflict notice, the WooCommerce feature declarations, the takeover REST routes and the lazy driver registration");
     coexistence_assert(strpos($result['out'], 'CLI_COMMANDS:[]') !== false, "paused ({$scenario}): no command outside WP-CLI");
     coexistence_assert(strpos($result['out'], 'GLOBALS_ADDED:[]') !== false, "paused ({$scenario}): no global function or class is declared");
+    coexistence_assert(strpos($result['out'], $paused_deactivation) !== false, "paused ({$scenario}): exactly the main file's deactivation cleanup is registered");
 }
 coexistence_assert(strpos($official_first['out'], $paused_files) !== false, 'paused: only the autoloader, the conflict guard, the WooCommerce feature declarations and takeover classes load (the route callback and the driver are named by ::class, so neither loads)');
 $paused_cli = coexistence_run($root, 'paused_cli', $official_stub);
 coexistence_assert($paused_cli['code'] === 0 && strpos($paused_cli['out'], 'DIAGNOSTICS:[]') !== false, 'paused under WP-CLI: loads without error or diagnostic');
 coexistence_assert(strpos($paused_cli['out'], 'CLI_COMMANDS:[' . $cli_command . ']') !== false, 'paused under WP-CLI: exactly the `wp supcheckout takeover` command is registered');
+coexistence_assert(strpos($paused_cli['out'], $paused_deactivation) !== false, "paused under WP-CLI: exactly the main file's deactivation cleanup is registered");
 coexistence_assert(
     strpos($paused_cli['out'], 'OTHER_HOOKS:[' . $paused_declarations . ',' . $paused_rest . ',' . $paused_driver . ']') !== false && strpos($paused_cli['out'], 'GATEWAY_HOOKS:[]') !== false && strpos($paused_cli['out'], 'COPY_RUNNER_HOOKS:0') !== false,
     'paused under WP-CLI: no gateway, payment route, payment cron or other hook beyond the WooCommerce feature declarations, the takeover REST routes and the two onboarding driver hooks'
@@ -395,6 +406,7 @@ function coexistence_child($root, $scenario, $official_stub) {
         'can_manage' => $scenario !== 'notice_shopper',
         'actions' => array(),
         'filters' => array(),
+        'deactivation' => array(),
     );
 
     coexistence_define_wordpress_stubs($root);
@@ -510,6 +522,12 @@ function coexistence_child($root, $scenario, $official_stub) {
 
     $notices = 0;
     $paused_renewal_notices = 0;
+    $reactivation_guard_hooks = 0;
+    foreach (array_merge($GLOBALS['coexistence']['actions'], $GLOBALS['coexistence']['filters']) as $registration) {
+        if (is_array($registration[1]) && $registration[1][0] === 'Simplixi\\SUPCheckout\\Takeover\\ReactivationGuard') {
+            $reactivation_guard_hooks++;
+        }
+    }
     foreach ($GLOBALS['coexistence']['actions'] as $action) {
         // The paused-renewal notice (fix A1-01) is a booted SUPCheckout's own store notice,
         // registered on every boot and rendered only when subscriptions are enabled; it is
@@ -518,7 +536,8 @@ function coexistence_child($root, $scenario, $official_stub) {
         if ($action[0] === 'admin_notices' && $paused_renewal_notice) {
             $paused_renewal_notices++;
         }
-        if ($action[0] === 'admin_notices' && !$paused_renewal_notice) {
+        $reactivation_notice = is_array($action[1]) && $action[1] === array('Simplixi\\SUPCheckout\\Takeover\\ReactivationGuard', 'render_notice');
+        if ($action[0] === 'admin_notices' && !$paused_renewal_notice && !$reactivation_notice) {
             $notices++;
             if (strpos($scenario, 'notice_') === 0) {
                 call_user_func($action[1]);
@@ -527,10 +546,12 @@ function coexistence_child($root, $scenario, $official_stub) {
     }
     echo "\nNOTICES:{$notices}\n";
     echo "PAUSED_RENEWAL_NOTICES:{$paused_renewal_notices}\n";
+    echo "REACTIVATION_GUARD_HOOKS:{$reactivation_guard_hooks}\n";
     echo 'DECLARED:' . ($declared ? 'yes' : 'no') . "\n";
     echo 'GATEWAY_HOOKS:' . json_encode($gateway_hooks) . "\n";
     echo 'COPY_RUNNER_HOOKS:' . $copy_runner_hooks . "\n";
     echo 'OTHER_HOOKS:' . json_encode($other_hooks, JSON_UNESCAPED_SLASHES) . "\n";
+    echo 'DEACTIVATION_HOOKS:' . json_encode($GLOBALS['coexistence']['deactivation'], JSON_UNESCAPED_SLASHES) . "\n";
     echo 'CLI_COMMANDS:' . json_encode($cli_commands, JSON_UNESCAPED_SLASHES) . "\n";
     echo 'REST_ENDPOINTS:' . array_sum(array_column($GLOBALS['coexistence']['rest_routes'], 1)) . "\n";
     echo 'REST_ROUTES:' . json_encode(array_column($GLOBALS['coexistence']['rest_routes'], 0), JSON_UNESCAPED_SLASHES) . "\n";
@@ -566,7 +587,7 @@ function wp_doing_cron() { return defined('DOING_CRON') && DOING_CRON; }
 function wp_doing_ajax() { return false; }
 function register_rest_route($route_namespace, $route, $args = array(), $override = false) { $GLOBALS['coexistence']['rest_routes'][] = array((string) $route_namespace . (string) $route, count($args)); return true; }
 function register_activation_hook($file, $callback) { return true; }
-function register_deactivation_hook($file, $callback) { return true; }
+function register_deactivation_hook($file, $callback) { $GLOBALS['coexistence']['deactivation'][] = basename((string) $file) . '=' . (is_array($callback) && is_string($callback[0]) ? $callback[0] . '::' . $callback[1] : 'callable'); return true; }
 function __($text, $domain = 'default') { return $text; }
 function esc_html__($text, $domain = 'default') { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
 function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }

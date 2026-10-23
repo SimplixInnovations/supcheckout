@@ -2,6 +2,8 @@
 
 namespace Simplixi\SUPCheckout\Provider;
 
+defined('ABSPATH') || exit;
+
 /**
  * Pure UPayments multi-merchant lexical contract.
  *

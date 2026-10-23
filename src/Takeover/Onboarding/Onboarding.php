@@ -272,6 +272,11 @@ final class Onboarding {
         return $this->runner->run();
     }
 
+    /** @return int|null The order the last copy_step() found locked (CopyRunner::RETRY), if any. */
+    public function locked_order() {
+        return $this->runner === null ? null : $this->runner->locked_order();
+    }
+
     /** @return Outcome|null Null while copying; OK once verified; a refusal otherwise. */
     public function copy_result() {
         TakeoverState::refresh();
@@ -317,9 +322,13 @@ final class Onboarding {
             $message = 'the official UPayments plugin (' . $official . ') could not be deactivated; ' . ($switch ? 'the store was not switched' : 'nothing was rolled back');
             return Outcome::fail(Outcome::ERROR, 'deactivate_failed', $message, array('deactivated' => null, 'official_plugin' => $official));
         }
-        Rollback::record_official_deactivated($official);
-        $line = 'official plugin deactivated: ' . $official . ($switch ? ' (SUPCheckout serves the store from the next request)' : '');
-        return Outcome::ok('official plugin deactivated', array('deactivated' => $official), array($line));
+        $recorded = Rollback::record_official_deactivated($official);
+        $lines = array('official plugin deactivated: ' . $official . ($switch ? ' (SUPCheckout serves the store from the next request)' : ''));
+        if (!$recorded) {
+            // A5-07: the plugin is off either way; only the later consented reactivation is lost.
+            $lines[] = 'warning: official_deactivation_not_recorded (a rollback will not reactivate ' . $official . '; activate it yourself afterwards)';
+        }
+        return Outcome::ok('official plugin deactivated', array('deactivated' => $official, 'recorded' => $recorded), $lines);
     }
 
     /**
@@ -419,6 +428,10 @@ final class Onboarding {
         $lines = array_merge(array('takeover ' . $mode . ' steps: ' . implode(', ', $result['steps'])), Lines::cache_purge_lines($result));
         foreach ($result['conflicts'] as $conflict) {
             $lines[] = 'conflict: seq ' . $conflict['seq'] . ' ' . $conflict['target'] . ' ' . $conflict['path'] . ' (kept; the owner decides)';
+        }
+        if (isset($result['report']['settings_diverged']['hint'])) {
+            // A5-04: the kept settings block the next switch's preflight until cleared.
+            $lines[] = 'next: ' . (string) $result['report']['settings_diverged']['hint'];
         }
         $not_reactivated = in_array('official_not_reactivated', $result['warnings'], true);
         if ($not_reactivated) {

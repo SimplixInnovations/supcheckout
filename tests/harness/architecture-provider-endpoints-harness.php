@@ -5,6 +5,12 @@
 
 use Simplixi\SUPCheckout\Provider\EndpointResolver;
 
+// The production service opens with `defined('ABSPATH') || exit;`. Without this definition
+// the require below exits the process silently with status 0 and no assertion ever runs.
+if (!defined('ABSPATH')) {
+    define('ABSPATH', dirname(__DIR__, 2) . '/');
+}
+
 // Exercise the pure service before the shared bootstrap defines any WP/Woo stubs.
 require_once dirname(__DIR__, 2) . '/src/Provider/EndpointResolver.php';
 
@@ -25,6 +31,10 @@ function arch4_assert($condition, $message)
 
 function arch4_purity_violations($source)
 {
+    // A2-03 pin, changed on purpose: the resolver now opens with the repository-wide direct-access
+    // guard. That one canonical statement (and nothing else) is exempt from the "no global calls"
+    // rule; any other global call, including a second or altered `defined()`, still fails.
+    $source = preg_replace('/^defined\(\'ABSPATH\'\) \|\| exit;\R/m', '', $source, 1);
     $tokens = token_get_all($source);
     $superglobals = array(
         '$GLOBALS',

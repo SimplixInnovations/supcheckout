@@ -27,6 +27,10 @@ defined('ABSPATH') || exit;
  * - a new option present while its legacy option is absent is reported: after cutover it
  *   would become visible although nothing pre-cutover reads it.
  * No settings source at all is reported as `settings_missing` (fail closed).
+ *
+ * foreign_targets() runs the same plan read-only, so Preflight can refuse a switch whose
+ * Cutover would refuse the targets (A5-04: a `settings_diverged` rollback keeps the new
+ * settings) before the copy runs and before the official plugin is deactivated.
  */
 final class SettingsCopier {
     public const MISSING_SETTINGS = 'settings_missing';
@@ -38,7 +42,7 @@ final class SettingsCopier {
      * @throws \RuntimeException When a journal entry cannot be stored (nothing more is written).
      */
     public static function copy() {
-        $plan = self::plan();
+        $plan = self::plan(self::wordpress_reader());
         if ($plan['mismatches'] !== array()) {
             return array('ok' => false, 'written' => array(), 'mismatches' => $plan['mismatches']);
         }
@@ -67,7 +71,7 @@ final class SettingsCopier {
      */
     public static function verify() {
         $mismatches = array();
-        $source = self::settings_source();
+        $source = self::settings_source(self::wordpress_reader());
         if ($source === null) {
             $mismatches[] = self::MISSING_SETTINGS;
         } elseif (get_option(Keys::SETTINGS_OPTION, self::missing()) !== $source['value']) {
@@ -83,17 +87,41 @@ final class SettingsCopier {
     }
 
     /**
+     * The targets copy() would refuse to write, by option name (the gateway settings as
+     * Keys::SETTINGS_OPTION). Writes nothing. A missing settings source is not a target:
+     * Preflight reports it as credential_unverified.
+     *
+     * @param callable|null $read_option function (string $name, mixed $default): mixed; get_option() by default.
+     *                                   The journal is read through Journal::entries().
+     * @return list<string>
+     * @throws \RuntimeException When the journal is unreadable.
+     */
+    public static function foreign_targets($read_option = null) {
+        $plan = self::plan($read_option === null ? self::wordpress_reader() : $read_option);
+        $targets = array();
+        foreach ($plan['mismatches'] as $mismatch) {
+            if ($mismatch === self::FOREIGN_SETTINGS) {
+                $targets[] = Keys::SETTINGS_OPTION;
+            } elseif ($mismatch !== self::MISSING_SETTINGS) {
+                $targets[] = $mismatch;
+            }
+        }
+        return $targets;
+    }
+
+    /**
+     * @param callable $read function (string $name, mixed $default): mixed.
      * @return array{writes:list<array{name:string, source:string, value:mixed, before:mixed, exists:bool, autoload:string}>, mismatches:list<string>}
      * @throws \RuntimeException When the journal is unreadable.
      */
-    private static function plan() {
+    private static function plan($read) {
         $writes = array();
         $mismatches = array();
-        $source = self::settings_source();
+        $source = self::settings_source($read);
         if ($source === null) {
             $mismatches[] = self::MISSING_SETTINGS;
         } else {
-            $step = self::step(Keys::SETTINGS_OPTION, $source['name'], $source['value'], 'yes');
+            $step = self::step($read, Keys::SETTINGS_OPTION, $source['name'], $source['value'], 'yes');
             if ($step === false) {
                 $mismatches[] = self::FOREIGN_SETTINGS;
             } elseif ($step !== null) {
@@ -101,14 +129,14 @@ final class SettingsCopier {
             }
         }
         foreach (Keys::options() as $legacy => $new_name) {
-            $legacy_value = get_option($legacy, self::missing());
+            $legacy_value = call_user_func($read, $legacy, self::missing());
             if ($legacy_value === self::missing()) {
-                if (get_option($new_name, self::missing()) !== self::missing()) {
+                if (call_user_func($read, $new_name, self::missing()) !== self::missing()) {
                     $mismatches[] = $new_name;
                 }
                 continue;
             }
-            $step = self::step($new_name, $legacy, $legacy_value, 'no');
+            $step = self::step($read, $new_name, $legacy, $legacy_value, 'no');
             if ($step === false) {
                 $mismatches[] = $new_name;
             } elseif ($step !== null) {
@@ -119,15 +147,16 @@ final class SettingsCopier {
     }
 
     /**
-     * @param string $name     Target option.
-     * @param string $source   Source option.
-     * @param mixed  $value    Source value.
-     * @param string $autoload Autoload flag for a created target.
+     * @param callable $read     Option reader.
+     * @param string   $name     Target option.
+     * @param string   $source   Source option.
+     * @param mixed    $value    Source value.
+     * @param string   $autoload Autoload flag for a created target.
      * @return array{name:string, source:string, value:mixed, before:mixed, exists:bool, autoload:string}|null|false
      *         The write, null when already equal, false for a foreign target.
      */
-    private static function step($name, $source, $value, $autoload) {
-        $current = get_option($name, self::missing());
+    private static function step($read, $name, $source, $value, $autoload) {
+        $current = call_user_func($read, $name, self::missing());
         if ($current === $value) {
             return null;
         }
@@ -138,15 +167,25 @@ final class SettingsCopier {
         return array('name' => $name, 'source' => $source, 'value' => $value, 'before' => $exists ? $current : null, 'exists' => $exists, 'autoload' => $autoload);
     }
 
-    /** @return array{name:string, value:array<mixed>}|null The first non-empty settings source. */
-    private static function settings_source() {
+    /**
+     * @param callable $read Option reader.
+     * @return array{name:string, value:array<mixed>}|null The first non-empty settings source.
+     */
+    private static function settings_source($read) {
         foreach (Keys::settings_sources() as $name) {
-            $value = get_option($name, null);
+            $value = call_user_func($read, $name, null);
             if (is_array($value) && $value !== array()) {
                 return array('name' => $name, 'value' => $value);
             }
         }
         return null;
+    }
+
+    /** @return callable get_option(). */
+    private static function wordpress_reader() {
+        return static function ($name, $default) {
+            return get_option($name, $default);
+        };
     }
 
     /** @var \stdClass|null */

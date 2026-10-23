@@ -35,7 +35,7 @@ The React admin app (`assets/admin/`) is built with npm, but the release builder
 - **Toolchain pins.** Node 24.21.0 (`.nvmrc`) and npm 11.19.0 (`engines`, `packageManager`, `engine-strict=true`); `@wordpress/scripts` 36.0.0; every dependency pinned exactly (`save-exact=true`) and at least 14 days old (`min-release-age=14`); newer pins arrive only through Dependabot. CI installs with `npm ci --ignore-scripts`. React, `react-dom`, the JSX runtime and `@wordpress/*` are runtime externals from WordPress; only MIT/ISC/BSD/0BSD/CC0 code (today `@base-ui/react`, `@base-ui/utils`, `@floating-ui/utils`, `lucide-react` and `use-sync-external-store`) is bundled, listed in `THIRD-PARTY-NOTICES.txt` and in the runtime SBOM.
 - **Source shipping.** The human-readable source `assets/admin/src/**` (TypeScript, CSS and token JSON) ships in the package (WordPress.org guideline 4), and `readme.txt` "Source code and build" names the repository and the build command. Shipping TypeScript source is acknowledged by the owner 2026-10-22. The build has no source maps and no `sourceMappingURL`; minification is not obfuscation, and translator functions and comments survive, so strings stay extractable.
 - **Never shipped.** The toolchain and its configs (`package.json`, `package-lock.json`, `.nvmrc`, `.npmrc`, every build/lint/type/test config), `tools/`, `tests/` (the gallery, the visual baselines), `node_modules/` (including the `@fontsource` test fonts), and any `*.map`. The verifier rejects them, and a Release Artifact harness check asserts the package ships no web font.
-- **Dependency audit.** `npm audit --omit=dev` must report nothing at any level (bundled tree). `npm run audit:full` blocks every advisory rated low or above in the full tree unless `tools/admin-ui/audit/audit-allowlist.json` lists it by GHSA id and package with an unexpired date, the advisory is still reported (a stale entry fails) and it does not reach the bundled tree. Allow-listed today, both development-only: braces GHSA-vfj7-8cjw-p6xm and sprintf-js GHSA-hp3w-g68c-fv3c (no patched release; expire 2027-01-17). The two markdown-it entries were removed when #208 adopted markdown-it 14.3.3. `npm run audit:lock-age` (#209) enforces the 14-day floor on the lockfile itself. The allow-list is acknowledged by the owner 2026-10-22.
+- **Dependency audit.** `npm audit --omit=dev` must report nothing at any level (bundled tree). `npm run audit:full` blocks every advisory rated low or above in the full tree unless `tools/admin-ui/audit/audit-allowlist.json` lists it by GHSA id and package with an unexpired date, the advisory is still reported (a stale entry fails) and it does not reach the bundled tree. Allow-listed today, development-only: braces GHSA-vfj7-8cjw-p6xm (no patched release; expires 2027-01-17). The two markdown-it entries were removed when #208 adopted markdown-it 14.3.3; the sprintf-js GHSA-hp3w-g68c-fv3c entry was removed in hardening batch 2 (#222) after GitHub withdrew the advisory on 2026-10-22 and the gate reported it stale. `npm run audit:lock-age` (#209) enforces the 14-day floor on the lockfile itself. The allow-list is acknowledged by the owner 2026-10-22.
 
 ### Dependency hygiene
 
@@ -54,12 +54,11 @@ The React admin app (`assets/admin/`) is built with npm, but the release builder
 | `react-dom-19` → `react`: `$react` | Satisfies the React 19 alias's `react` peer with the root pin, so `npm ci` has no peer conflict; the React 19 test lane maps `react` and `react-dom` to the aliases itself | Remove when the runtime and the development copy move to React 19 and the alias lane is retired |
 
 - **Audit allow-list rules** (`tools/admin-ui/audit/audit-allowlist.json`, enforced by `audit-policy.mjs`): each entry names a GHSA id, package, severity, reason and an expiry at most 90 days away; an entry the audit no longer reports fails (stale), and an entry whose advisory reaches the production tree or whose package is bundled is refused. `npm audit --omit=dev` stays unconditional.
-- **Current entries** (all development-only, none bundled; the two markdown-it entries were removed by #208):
+- **Current entries** (all development-only, none bundled; the two markdown-it entries were removed by #208, and the sprintf-js GHSA-hp3w-g68c-fv3c entry by #222 after the advisory was withdrawn upstream):
 
 | Advisory | Package | Severity | Expires | Planned action |
 |---|---|---|---|---|
 | GHSA-vfj7-8cjw-p6xm | braces | high | 2027-01-17 | No patched release exists; adopt a fix when one is published, otherwise review the entry before it expires |
-| GHSA-hp3w-g68c-fv3c | sprintf-js | moderate | 2027-01-17 | No patched release exists; adopt a fix when one is published, otherwise review the entry before it expires |
 
 ### Reverting a Sub-project 1 change
 
@@ -169,6 +168,39 @@ The main file is `supcheckout.php` since Sub-project 0a (owner decision 2026-10-
 Each migrating path asserts that `supcheckout/supcheckout.php` is active once, that no `supcheckout/UPayments.php` entry remains, and that merchant state and the subscription schedule are unchanged.
 
 Pre-rename installs: update by zip upload ("Replace current with uploaded"), WP-CLI, or the Plugins-screen / Updates-screen one-click and bulk updates (`bulk_upgrade()`). These keep the stored `supcheckout/UPayments.php` entry, and the shim moves it on the next request. The classic single-plugin Update-now flow (`wp-admin/update.php?action=upgrade-plugin`, `Plugin_Upgrader::upgrade()`, used without JavaScript) deactivates the plugin before installing and then reactivates it by the old basename. Validation rejects the header-less shim, so the install ends **deactivated**: no SUPCheckout code runs, merchant data is unchanged, and one activation of `supcheckout/supcheckout.php` recovers it. Any future update channel must key updates to `supcheckout/supcheckout.php`.
+
+## Bundled translations (hardening A4-01)
+
+The package ships `languages/` (header `Domain Path: /languages`):
+
+- `supcheckout.pot`;
+- the Arabic `supcheckout-ar.po` and `supcheckout-ar.mo`;
+- one `supcheckout-ar-<md5 of the script path>.json` per admin script with strings.
+
+`Bootstrap\Translations` points WordPress at `languages/` through `lang_dir_for_domain` only when no language pack exists for the locale. The verifier accepts only flat `supcheckout*` files ending in `.pot`, `.po`, `.mo`, `.json` or `.l10n.php` there.
+
+`tests/unit/Bootstrap/TranslationFilesConsistencyTest.php` fails when the files drift from each other or from the source. To regenerate them with WP-CLI 2.12.0 from the repository root (`$TMP` is any scratch directory outside the repository):
+
+```bash
+EXCLUDE=tests,vendor,docs,scripts,tools,node_modules,assets/admin/src,.cache,.github,languages
+# 1. Template from the packaged PHP and the committed admin build.
+wp i18n make-pot . languages/supcheckout.pot --slug=supcheckout --domain=supcheckout \
+  --exclude="$EXCLUDE" --skip-audit \
+  --headers='{"Report-Msgid-Bugs-To":"https://github.com/SimplixInnovations/supcheckout/issues"}'
+# 2. Merge the template into the Arabic catalogue, then translate the new or changed entries.
+wp i18n update-po languages/supcheckout.pot languages/supcheckout-ar.po
+# 3. Admin script JSON. The shipped .po must keep its script strings, so never purge it.
+#    Current WP-CLI purges by default and needs --no-purge; WP-CLI 2.12.0 never purges and rejects the flag.
+wp i18n make-json languages/supcheckout-ar.po languages/ --no-purge
+# 4. The .mo holds only the entries used from PHP: compile it from a copy merged with a PHP-only template.
+wp i18n make-pot . "$TMP/supcheckout-php.pot" --slug=supcheckout --domain=supcheckout \
+  --exclude="$EXCLUDE,assets/admin/build" --skip-audit
+cp languages/supcheckout-ar.po "$TMP/supcheckout-ar.po"
+wp i18n update-po "$TMP/supcheckout-php.pot" "$TMP/supcheckout-ar.po"
+wp i18n make-mo "$TMP/supcheckout-ar.po" languages/supcheckout-ar.mo
+```
+
+A rebuild of the admin app changes the chunk file names, and so the JSON names. Rerun step 3 and delete the stale JSON files. The files are committed, so the release build stays byte-for-byte deterministic.
 
 ## Deterministic artifact contract
 

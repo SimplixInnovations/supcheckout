@@ -25,4 +25,7 @@ namespace {
 
     /** @return string */
     function plugin_dir_url($file) { return ''; }
+
+    /** @return string */
+    function wp_strip_all_tags($text, $remove_breaks = false) { return ''; }
 }

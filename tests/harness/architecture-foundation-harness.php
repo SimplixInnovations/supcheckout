@@ -567,7 +567,9 @@ $gatewaySize = is_file($gatewayPath) ? filesize($gatewayPath) : false;
 // line saying so.
 // Sub-project 0c Task 8 adds 65 bytes: the pause-guard comment now names the takeover REST
 // routes and the onboarding driver (comment only, no code).
-$acceptedGatewayBytes = 1163;
+// Hardening U7 (A4-01) adds 27 bytes: the `Domain Path: /languages` header line naming the
+// bundled translations (header only, no code).
+$acceptedGatewayBytes = 1190;
 arch_assert(is_int($gatewaySize) && $gatewaySize === $acceptedGatewayBytes, 'supcheckout.php matches current exact architecture ratchet');
 // Sub-project 0a Task 5: on top of the exact ratchet, the main file is held to the
 // bootstrap shape itself, so it can never grow responsibilities again.

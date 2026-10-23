@@ -12,6 +12,7 @@ use Simplixi\SUPCheckout\Provider\EndpointResolver;
 use Simplixi\SUPCheckout\Provider\PaymentMethodAvailability;
 use Simplixi\SUPCheckout\Payment\CheckoutPayload;
 use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
+use Simplixi\SUPCheckout\Payment\SavedCardDisplayCache;
 use Simplixi\SUPCheckout\Subscription\Composition as SubscriptionComposition;
 use Simplixi\SUPCheckout\Subscription\Presentation as SubscriptionPresentation;
 use Simplixi\SUPCheckout\Takeover\Keys;
@@ -43,6 +44,21 @@ class Gateway extends \WC_Payment_Gateway {
     public $saveCardEnabled;
     public $charge;
     public $autoDeduction;
+
+    /** Seconds any provider call may take (pinned by the HTTP transport harness). */
+    private const PROVIDER_REQUEST_TIMEOUT = 15;
+    /** Seconds the saved-card listing may hold up a shopper render (A3-01). */
+    private const DISPLAY_REQUEST_TIMEOUT = 5;
+    /**
+     * The only route that gets the display budget. Never Charge, token or status calls,
+     * and never availability: a render that timed out early would write the shared
+     * failure sentinel that place-order and Charge read (the ten-minute display copy
+     * already bounds render-triggered availability calls).
+     */
+    private const DISPLAY_ROUTES = array('retrieve-customer-cards');
+
+    /** @var int Nesting depth of read_for_display() calls in progress. */
+    private $display_reads = 0;
 
     /** Checkout payload compatibility delegates. */
     private static function field_present($source, $key) {
@@ -237,18 +253,12 @@ class Gateway extends \WC_Payment_Gateway {
                 WC()->session->set('chosen_payment_method', null);
             }
         }, 5);
-        // Save Card & Subscriptions validation
-        add_filter('woocommerce_settings_api_sanitized_fields_' . $this->id, function ($settings) {
-            $normalized = GatewaySettings::normalize_dependencies($settings);
-            if ($normalized['forced_save_card']) {
-                wc_add_notice(
-                    __('Save Card must be enabled when Subscriptions are enabled.', 'supcheckout'),
-                    'error'
-                );
-            }
-
-            return $normalized['settings'];
-        });
+        // Save Card & Subscriptions validation (an admin settings message, never a storefront notice: A6-02)
+        add_filter('woocommerce_settings_api_sanitized_fields_' . $this->id, array(GatewaySettings::class, 'sanitize_saved_settings'));
+        // The API key is write-only over the WooCommerce REST API too (A2-01).
+        add_filter('woocommerce_rest_prepare_payment_gateway', array(GatewaySettings::class, 'mask_rest_api_key'), 10, 2);
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce REST API defines this dynamic core hook name.
+        add_filter('woocommerce_gateway_' . $this->id . '_settings_values', array(GatewaySettings::class, 'keep_saved_api_key_on_rest_save'), 10, 2);
 
         add_filter('woocommerce_default_gateway', function ($default) {
             if ($this->get_option('make_default_gateway') === 'yes') {
@@ -269,6 +279,15 @@ class Gateway extends \WC_Payment_Gateway {
         );
     }
 
+    /**
+     * The logged-in customer's billing phone (legacy helper).
+     *
+     * @deprecated No runtime caller (A6-07). The Charge payload's customer mobile comes from
+     *             the order's billing phone through CheckoutPayload::provider_mobile(), called by
+     *             CheckoutOrchestrator. Kept for third-party callers; removal is recorded for
+     *             Sub-project 5.
+     * @return mixed
+     */
     public function get_logged_in_user_phone_number() {
 
         // Check if the user is logged in
@@ -364,6 +383,12 @@ class Gateway extends \WC_Payment_Gateway {
             <?php
     }
 
+    /**
+     * @deprecated No runtime caller (A6-07). The public order-status endpoint is
+     *             Security\PublicOrderStatus::handle(), which this only forwards to. Kept for
+     *             third-party callers; removal is recorded for Sub-project 5.
+     * @return void
+     */
     public function get_payment_staus()
     {
         \Simplixi\SUPCheckout\Security\PublicOrderStatus::handle();
@@ -384,7 +409,8 @@ class Gateway extends \WC_Payment_Gateway {
      *   - redirects disabled (no redirect requirement is established;
      *     preserve endpoint identity; avoid method/body ambiguity on
      *     cross-host hops);
-     *   - finite 15-second request timeout;
+     *   - finite 15-second request timeout; inside read_for_display(), the
+     *     saved-card listing route gets 5 seconds instead;
      *   - Bearer Authorization applied for the entire call.
      *
      * SECURITY: This helper does NOT log raw request bodies, raw response
@@ -411,9 +437,10 @@ class Gateway extends \WC_Payment_Gateway {
             return $outcome;
         }
 
+        $is_display_read = $this->display_reads > 0 && in_array($route, self::DISPLAY_ROUTES, true);
         $request_args = array(
             'method'      => $method,
-            'timeout'             => 15,
+            'timeout'             => $is_display_read ? self::DISPLAY_REQUEST_TIMEOUT : self::PROVIDER_REQUEST_TIMEOUT,
             'limit_response_size' => 1048576,
             'redirection'         => 0,
             'sslverify'   => true,
@@ -564,12 +591,38 @@ class Gateway extends \WC_Payment_Gateway {
         // Check setting for design toggle
         $use_new_design = ($this->get_option('use_new_design') === 'yes');
 
-        wc_get_template(
-            $use_new_design ? 'new-design-form.php' : 'old-design-form.php',
-            $template_args,
-            '', // Preserve WooCommerce's default theme template override path.
-            untrailingslashit( plugin_dir_path( Plugin::main_file() ) ) . '/templates/'
-        );
+        // The payment box renders on the checkout page and on every order-review
+        // refresh: its provider reads are display-only.
+        $this->read_for_display(function () use ($use_new_design, $template_args) {
+            wc_get_template(
+                $use_new_design ? 'new-design-form.php' : 'old-design-form.php',
+                $template_args,
+                '', // Preserve WooCommerce's default theme template override path.
+                untrailingslashit( plugin_dir_path( Plugin::main_file() ) ) . '/templates/'
+            );
+        });
+    }
+
+    /**
+     * Run $read as a display-only provider read: rendering the payment box, an
+     * order-review refresh or the Blocks payment data (A3-01, A3-02).
+     *
+     * Inside it, availability may be served from the recent display copy
+     * (PaymentMethodAvailability::fetch_for_display()), and the saved-card listing call
+     * waits at most 5 seconds instead of 15. Availability, Charge, token and status
+     * calls keep 15 seconds even here, and the place-order check and the Charge path
+     * never run inside it.
+     *
+     * @param callable $read Zero-argument callback.
+     * @return mixed What $read returns.
+     */
+    public function read_for_display(callable $read) {
+        ++$this->display_reads;
+        try {
+            return $read();
+        } finally {
+            --$this->display_reads;
+        }
     }
 
     /**
@@ -598,8 +651,8 @@ class Gateway extends \WC_Payment_Gateway {
             if ($this->autoDeduction === 'yes'
                 && \Simplixi\SUPCheckout\Subscription\Helpers\Utils::cartHasCustomType()
             ) {
-                wp_enqueue_script('supcheckout-subscription-checkout', $plugin_url . 'assets/js/subscription-checkout.js', array('jquery'), SUPCHECKOUT_VERSION, true);
-                wp_localize_script('supcheckout-subscription-checkout', 'wcUser', array(
+                wp_enqueue_script('supcheckout-subscription-checkout', $plugin_url . 'assets/js/subscription-checkout.js', array('jquery'), CheckoutAssets::asset_version('assets/js/subscription-checkout.js'), true);
+                wp_localize_script('supcheckout-subscription-checkout', 'supCheckoutSubscription', array(
                     'isLoggedIn' => is_user_logged_in(),
                     'i18n' => CheckoutAssets::subscription_i18n(),
                 ));
@@ -673,9 +726,40 @@ class Gateway extends \WC_Payment_Gateway {
     public function custom_payment_gateway_icons($icon, $gateway_id)
     {
         if (Keys::is_our_gateway($gateway_id)){
-            $icon = '<span>' . esc_html__('Pay securely with', 'supcheckout') . ' <img src="' . esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/upayment.png') . '" alt="" style="height: 24px !important; padding-left:4px;"/></span>';
+            $icon = '<span>' . esc_html__('Pay securely with', 'supcheckout') . ' <img src="' . esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/upayment.png') . '" alt="" style="height: 24px !important; padding-inline-start:4px;"/></span>';
         }
         return $icon;
+    }
+
+    /**
+     * The settings screen never renders the stored API key (A2-01): the `api_key` field is
+     * drawn by WooCommerce's own password renderer with the loaded value blanked for that
+     * one call, then the loaded settings are restored. Every other password field renders
+     * as WooCommerce renders it.
+     *
+     * @param string $key  Field key.
+     * @param array  $data Field data.
+     * @return string
+     */
+    public function generate_password_html($key, $data) {
+        if ($key !== 'api_key') {
+            return parent::generate_password_html($key, $data);
+        }
+        if (empty($this->settings)) {
+            $this->init_settings();
+        }
+        $loaded = $this->settings;
+        $data = GatewaySettings::api_key_field(
+            (array) $data,
+            $this->get_field_key($key),
+            GatewaySettings::has_api_key(isset($loaded['api_key']) ? $loaded['api_key'] : null)
+        );
+        $this->settings['api_key'] = '';
+        try {
+            return parent::generate_password_html($key, $data);
+        } finally {
+            $this->settings = $loaded;
+        }
     }
 
     /**
@@ -684,7 +768,11 @@ class Gateway extends \WC_Payment_Gateway {
     public function process_admin_options()
     {
         $this->init_settings();
-        $prepared = GatewaySettings::prepare_post_data($this->get_post_data(), $this->id);
+        // The API key field is write-only (A2-01): a blank submission keeps the stored key.
+        $prepared = GatewaySettings::prepare_post_data(
+            GatewaySettings::keep_saved_api_key($this->get_post_data(), $this->id, $this->get_option('api_key')),
+            $this->id
+        );
         if ($prepared['api_key_missing'] || $prepared['multimerchant_missing']) {
             \WC_Admin_Settings::add_error($prepared['api_key_missing']
                 ? __('Please enter UPayments API Key', 'supcheckout')
@@ -701,6 +789,20 @@ class Gateway extends \WC_Payment_Gateway {
         return update_option($this->get_option_key(), apply_filters("woocommerce_settings_api_sanitized_fields_" . $this->id, $this->settings));
     }
 
+    /**
+     * Legacy credential lookup from rules this plugin never writes.
+     *
+     * @deprecated No runtime caller and not the routing authority (A6-07). It reads
+     *             `multimerchant_accounts` rules with `condition_type`, `merchant_id` and
+     *             `api_key` keys and the `default_merchant_id` / `default_api_key` options,
+     *             none of which SUPCheckout stores, and it does no currency or country
+     *             routing. Every Charge authenticates with the gateway `api_key`, and the one
+     *             additional merchant comes from the five scalar allocation settings in
+     *             CheckoutOrchestrator. Kept for third-party callers; removal is recorded for
+     *             Sub-project 5.
+     * @param mixed $order Unused.
+     * @return array{merchant_id:mixed, api_key:mixed}
+     */
     public function get_multimerchant_credentials( $order ) {
         // 1. Check if Multimerchant is enabled at all
         if ($this->get_option( 'enable_multimerchant' ) == 'no') {
@@ -732,13 +834,13 @@ class Gateway extends \WC_Payment_Gateway {
 
             switch ( $condition_type ) {
                 case 'fixed':
-                    // Check if the order currency matches the rule value (e.g., USD, EUR)
+                    // Matches only the literal value 'fixed'; no order currency is read.
                     if ($condition_value === 'fixed') {
                         $match_found = true;
                     }
                     break;
                 case 'percentage':
-                    // Check if the billing country matches the rule value (e.g., US, DE)
+                    // Matches only the literal value 'percentage'; no billing country is read.
                     if ($condition_value === 'percentage') {
                         $match_found = true;
                     }
@@ -761,8 +863,14 @@ class Gateway extends \WC_Payment_Gateway {
         return $this->get_default_credentials();
     }
 
+    /**
+     * @deprecated No runtime caller (A6-07). Reads `default_merchant_id` and
+     *             `default_api_key`, options SUPCheckout never writes; the gateway `api_key`
+     *             setting is the only credential. Removal is recorded for Sub-project 5.
+     * @return array{merchant_id:mixed, api_key:mixed}
+     */
     public function get_default_credentials() {
-        // Assuming your default credentials are stored as standard gateway options
+        // Reads options SUPCheckout never writes (see the @deprecated note).
         return [
             'merchant_id' => $this->get_option( 'default_merchant_id' ),
             'api_key'     => $this->get_option( 'default_api_key' ),
@@ -848,7 +956,7 @@ class Gateway extends \WC_Payment_Gateway {
      *
      * @deprecated Retained temporarily to avoid undefined-method breakage for
      *             third-party customizations. New code must use CustomerTokenIdentity.
-     *             Future code-quality/public-API phase will decide final removal.
+     *             No runtime caller (A6-07); removal is recorded for Sub-project 5.
      * @param string $phone Unused. Previously used as customer token.
      * @return string Empty string. Phone is no longer used as token identity.
      */
@@ -866,13 +974,16 @@ class Gateway extends \WC_Payment_Gateway {
                 return $this->execute_upayments_request('check-payment-button-status', 'GET');
             }
         );
-        $result = $availability->fetch();
+        $result = $this->display_reads > 0 ? $availability->fetch_for_display() : $availability->fetch();
 
+        // A failure keeps the legacy shape but queues no notice (A6-01): this getter runs on
+        // render paths (the payment box, every order-review refresh, the Blocks payment data),
+        // where a storefront notice became an error banner for every shopper. Place order
+        // reports the failure once (CheckoutOrchestrator).
         if (is_array($result)
             && isset($result['result'])
             && $result['result'] === 'failure'
         ) {
-            wc_add_notice(__("Payment methods could not be loaded. Please try again.", 'supcheckout'), "error");
             return array('result' => 'failure', 'redirect' => wc_get_checkout_url());
         }
 
@@ -952,36 +1063,7 @@ class Gateway extends \WC_Payment_Gateway {
     public function getSavedCardsForCurrentUser($payment_data)
     {
         $user_id = get_current_user_id();
-        if ($user_id <= 0) {
-            return null;
-        }
-
-        if ($this->saveCardEnabled !== 'yes') {
-            return null;
-        }
-
-        // Strict structural validation of the supplied normalized state.
-        // Must be array; whitelabled MUST be exactly boolean true;
-        // payment MUST be array; payment['cc'] MUST be present (CC enabled).
-        if (!is_array($payment_data)) {
-            return null;
-        }
-        if (!array_key_exists('whitelabled', $payment_data)
-            || $payment_data['whitelabled'] !== true
-        ) {
-            return null;
-        }
-        if (!array_key_exists('payment', $payment_data)
-            || !is_array($payment_data['payment'])
-        ) {
-            return null;
-        }
-        // CC must be EXPLICITLY enabled (key present, scalar non-empty).
-        if (!array_key_exists('cc', $payment_data['payment'])) {
-            return null;
-        }
-        $cc_value = $payment_data['payment']['cc'];
-        if (!is_string($cc_value) || $cc_value === '') {
+        if (!$this->may_list_saved_cards($user_id, $payment_data)) {
             return null;
         }
 
@@ -994,6 +1076,158 @@ class Gateway extends \WC_Payment_Gateway {
                 return $gateway->getSavedCards($token);
             }
         );
+    }
+
+    /**
+     * The current shopper's saved cards as display-safe views for the checkout page
+     * (A3-01): the opaque selection handle, the last four digits and the brand. Never
+     * a provider token.
+     *
+     * Same gates as getSavedCardsForCurrentUser(), plus valid token identity and
+     * provenance, checked on every call. The list is kept for two minutes in the
+     * WooCommerce session (SavedCardDisplayCache), so order-review refreshes and
+     * Blocks checkout loads stop calling UPayments each time; a miss lists the cards
+     * through getSavedCardsForCurrentUser() inside a display read (5-second budget).
+     * A failed listing is not cached. Paying with a saved card still verifies it
+     * against a fresh, uncached Retrieve.
+     *
+     * @param array|null $payment_data Already-normalized availability state.
+     * @return list<array{selection: string, last4: string, brand: string}>|null Null
+     *         when the shopper may not list saved cards or the listing failed.
+     */
+    public function getSavedCardViewsForCurrentUser($payment_data)
+    {
+        $user_id = get_current_user_id();
+        if (!$this->may_list_saved_cards($user_id, $payment_data)) {
+            return null;
+        }
+
+        $api_key = is_string($this->apiKey) ? $this->apiKey : '';
+        $is_test_mode = (bool) $this->getMode();
+        $ctx = CustomerTokenIdentity::read_existing_identity_context($api_key, $is_test_mode);
+        if (!is_array($ctx)
+            || ($ctx['state'] ?? null) !== CustomerTokenIdentity::SECRET_VALID
+            || !is_string($ctx['scope'] ?? null)
+            || !is_string($ctx['generation_id'] ?? null)
+        ) {
+            return null;
+        }
+        $provenance = CustomerTokenIdentity::read_provenance($user_id, $ctx['scope'], $ctx['generation_id']);
+        if (!is_array($provenance)
+            || ($provenance['state'] ?? null) !== CustomerTokenIdentity::STATE_VALID
+            || !isset($provenance['record']['token'])
+            || !is_string($provenance['record']['token'])
+        ) {
+            return null;
+        }
+
+        $cache = $this->saved_card_display_cache();
+        $key = SavedCardDisplayCache::key(
+            (int) $user_id,
+            $api_key,
+            $is_test_mode,
+            $ctx['scope'],
+            $ctx['generation_id'],
+            $provenance['record']['token']
+        );
+        if ($cache !== null && $key !== null) {
+            $cached = $cache->get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+
+        $saved_cards = $this->read_for_display(function () use ($payment_data) {
+            return $this->getSavedCardsForCurrentUser($payment_data);
+        });
+        if (!is_array($saved_cards)
+            || !isset($saved_cards['result'], $saved_cards['data'])
+            || $saved_cards['result'] !== 'success'
+            || !is_array($saved_cards['data'])
+        ) {
+            return null;
+        }
+
+        $views = SavedCardDisplayCache::views($saved_cards['data'], (int) $user_id, $api_key, $is_test_mode);
+        if ($cache !== null && $key !== null) {
+            $cache->put($key, $views);
+        }
+        return $views;
+    }
+
+    /**
+     * Drop the current shopper's cached saved-card list (after a save-card Charge).
+     *
+     * @return void
+     */
+    public function forget_saved_card_views()
+    {
+        $cache = $this->saved_card_display_cache();
+        if ($cache !== null) {
+            $cache->forget();
+        }
+    }
+
+    /**
+     * The saved-card display cache over the current WooCommerce session, or null
+     * when there is no session (nothing is cached then).
+     *
+     * @return SavedCardDisplayCache|null
+     */
+    private function saved_card_display_cache()
+    {
+        if (!function_exists('WC')) {
+            return null;
+        }
+        $woocommerce = WC();
+        $session = is_object($woocommerce) && isset($woocommerce->session) ? $woocommerce->session : null;
+        if (!is_object($session) || !method_exists($session, 'get') || !method_exists($session, 'set')) {
+            return null;
+        }
+        return new SavedCardDisplayCache($session);
+    }
+
+    /**
+     * Section AH gates for listing saved cards: logged in, Save Card on, and the
+     * caller's already-normalized availability says white-label with Credit Card.
+     * This helper NEVER makes availability calls itself.
+     *
+     * @param int        $user_id Current user ID.
+     * @param array|null $payment_data Already-normalized availability state.
+     * @return bool
+     */
+    private function may_list_saved_cards($user_id, $payment_data)
+    {
+        if ($user_id <= 0) {
+            return false;
+        }
+
+        if ($this->saveCardEnabled !== 'yes') {
+            return false;
+        }
+
+        // Strict structural validation of the supplied normalized state.
+        // Must be array; whitelabled MUST be exactly boolean true;
+        // payment MUST be array; payment['cc'] MUST be present (CC enabled).
+        if (!is_array($payment_data)) {
+            return false;
+        }
+        if (!array_key_exists('whitelabled', $payment_data)
+            || $payment_data['whitelabled'] !== true
+        ) {
+            return false;
+        }
+        if (!array_key_exists('payment', $payment_data)
+            || !is_array($payment_data['payment'])
+        ) {
+            return false;
+        }
+        // CC must be EXPLICITLY enabled (key present, scalar non-empty).
+        if (!array_key_exists('cc', $payment_data['payment'])) {
+            return false;
+        }
+        $cc_value = $payment_data['payment']['cc'];
+        return is_string($cc_value) && $cc_value !== '';
     }
 
     /**
@@ -1149,8 +1383,10 @@ class Gateway extends \WC_Payment_Gateway {
     /**
      * Render subscription summary in admin order view
      *
+     * @deprecated No runtime caller (A6-07). Use SubscriptionPresentation::render_admin_summary().
+     *             Removal is recorded for Sub-project 5.
      * @param \WC_Order $order
-     * @return array
+     * @return void It echoes the summary and returns nothing (A6-06).
      */
     public function render_subscription_summary($order)
     {
@@ -1163,7 +1399,7 @@ class Gateway extends \WC_Payment_Gateway {
      * @param  mixed $passed
      * @param  mixed $product_id
      * @param  mixed $quantity
-     * @return void
+     * @return mixed The `woocommerce_add_to_cart_validation` value: $passed, or false to refuse (A6-06).
      */
     public function restrictMixedCartProducts($passed, $product_id, $quantity)
     {

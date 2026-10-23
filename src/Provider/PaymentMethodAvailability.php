@@ -4,6 +4,8 @@ namespace Simplixi\SUPCheckout\Provider;
 
 use Simplixi\SUPCheckout\Takeover\Keys;
 
+defined('ABSPATH') || exit;
+
 /**
  * UPayments payment-method availability client and cache coordinator.
  *
@@ -16,6 +18,9 @@ final class PaymentMethodAvailability {
     private const RATE_GATE_COOLDOWN = 65;
     // How long a successful result may stand in when a refresh is blocked or fails.
     private const LAST_KNOWN_GOOD_MAX_AGE = 21600;
+    // How old a successful result may be and still be shown on a shopper render
+    // without asking UPayments (fetch_for_display()). Payment paths never use it.
+    private const DISPLAY_MAX_AGE = 600;
 
     private const KNOWN_BUTTONS = array(
         'knet',
@@ -203,17 +208,28 @@ final class PaymentMethodAvailability {
      * @return array
      */
     private function failure_or_last_known_good() {
+        $stored = $this->last_known_good(self::LAST_KNOWN_GOOD_MAX_AGE);
+        return $stored !== null ? $stored : array('result' => 'failure');
+    }
+
+    /**
+     * The stored canonical success when it is at most $max_age seconds old, else null.
+     *
+     * @param int $max_age Maximum age in seconds.
+     * @return array|null
+     */
+    private function last_known_good($max_age) {
         $stored = get_option($this->last_known_good_name(), null);
         if (is_array($stored)
             && isset($stored['saved_at'], $stored['value'])
             && is_int($stored['saved_at'])
             && $stored['saved_at'] <= time()
-            && time() - $stored['saved_at'] <= self::LAST_KNOWN_GOOD_MAX_AGE
+            && time() - $stored['saved_at'] <= $max_age
             && self::classify_cached($stored['value']) === 'success'
         ) {
             return $stored['value'];
         }
-        return array('result' => 'failure');
+        return null;
     }
     /** @return array|null The first cached array under the names in use. */
     private function cached() {
@@ -406,6 +422,42 @@ final class PaymentMethodAvailability {
         $this->cache($canonical, $new_not_before);
         $this->remember_last_known_good($canonical);
         return $payment_methods;
+    }
+
+    /**
+     * Availability for a shopper render only: the checkout page, an order-review
+     * refresh or the Blocks payment data (A3-02).
+     *
+     * The fresh cache lives 65 seconds because UPayments allows one availability
+     * request a minute, so without this every render a minute after the last refresh
+     * paid a blocking provider call. Here a success at most ten minutes old (the
+     * last-known-good copy, same credential and mode) is shown without a call; only
+     * an older one goes through fetch() and its rate gate.
+     *
+     * Never use it to decide a payment. The place-order check (validate_fields())
+     * and the Charge path call fetch(), which ignores this copy while the rate gate
+     * is open.
+     *
+     * @return array|null Same shapes as fetch().
+     */
+    public function fetch_for_display() {
+        if (empty($this->api_key)) {
+            return null;
+        }
+
+        $cached = $this->cached();
+        if ($cached !== null) {
+            $status = self::classify_cached($cached);
+            if ($status === 'success') {
+                return $cached;
+            }
+            if ($status === 'failure') {
+                return $this->failure_or_last_known_good();
+            }
+        }
+
+        $recent = $this->last_known_good(self::DISPLAY_MAX_AGE);
+        return $recent !== null ? $recent : $this->fetch();
     }
 
     /**

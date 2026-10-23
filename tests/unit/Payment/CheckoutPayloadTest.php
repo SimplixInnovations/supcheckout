@@ -296,6 +296,68 @@ final class CheckoutPayloadTest extends TestCase {
         }
     }
 
+    public function test_a4_02_provider_language_is_arabic_only_for_arabic_language_codes(): void {
+        foreach (array('ar', 'AR', 'ar_KW', 'ar-SA', 'ary', 'ary_MA', ' ar ') as $arabic) {
+            self::assertSame('ar', CheckoutPayload::provider_language_code(array($arabic)), $arabic);
+        }
+        // Aragonese (arg), Mapudungun (arn) and every other language get English.
+        foreach (array('en', 'en_US', 'fr_FR', 'arg', 'arn', 'ara', 'x-ar', '') as $other) {
+            self::assertSame('en', CheckoutPayload::provider_language_code(array($other)), $other);
+        }
+    }
+
+    public function test_a4_02_provider_language_uses_the_first_known_language_in_order(): void {
+        // The order's own language decides; a request locale never overrides it.
+        self::assertSame('en', CheckoutPayload::provider_language_code(array('en', 'ar', 'ar')));
+        self::assertSame('ar', CheckoutPayload::provider_language_code(array('ar', 'en', 'en_US')));
+        // Unknown order language: the WPML current language, then the locale.
+        self::assertSame('ar', CheckoutPayload::provider_language_code(array('', 'ar', 'en_US')));
+        self::assertSame('ar', CheckoutPayload::provider_language_code(array(null, null, 'ar')));
+        self::assertSame('en', CheckoutPayload::provider_language_code(array(null, array('ar'), false)));
+        self::assertSame('en', CheckoutPayload::provider_language_code(array()));
+    }
+
+    public function test_a4_02_provider_language_reads_the_order_wpml_language(): void {
+        $arabic_order = new class() {
+            public function get_meta($key) { return $key === 'wpml_language' ? 'ar' : ''; }
+        };
+        $plain_order = new class() {
+            public function get_meta($key) { return ''; }
+        };
+
+        self::assertSame('ar', CheckoutPayload::provider_language($arabic_order));
+        self::assertSame('en', CheckoutPayload::provider_language($plain_order));
+        self::assertSame('en', CheckoutPayload::provider_language(null));
+    }
+
+    public function test_a1_10_provider_text_keeps_accented_latin_and_nbsp_text(): void {
+        foreach (array(
+            'Café Crème Zoë',
+            "Café 10\u{00A0}cm",
+            'Size 10 cm ©',
+            'Ærøskøbing Straße ½',
+            'سلام Café',
+        ) as $text) {
+            self::assertSame($text, CheckoutPayload::truncate_provider_text($text, 255), $text);
+        }
+        self::assertSame('Café', CheckoutPayload::truncate_provider_text('Café Crème', 4));
+    }
+
+    public function test_a1_10_provider_text_drops_only_invalid_utf8_bytes(): void {
+        // A sequence cut off before its continuation bytes is removed; the rest stays.
+        self::assertSame('a', CheckoutPayload::truncate_provider_text("a\xC3", 255));
+        self::assertSame('ab', CheckoutPayload::truncate_provider_text("a\xE2\x82b", 255));
+        self::assertSame('Café', CheckoutPayload::truncate_provider_text("Café\xF0\x9F\x98", 255));
+        // Stray continuation bytes, bytes that never occur in UTF-8, overlong forms and
+        // UTF-16 surrogates are removed too, so the output is always valid UTF-8.
+        self::assertSame('Café', CheckoutPayload::truncate_provider_text("Caf\xC3\xA9\x80", 255));
+        self::assertSame('ab', CheckoutPayload::truncate_provider_text("a\xFF\xFEb", 255));
+        self::assertSame('ab', CheckoutPayload::truncate_provider_text("a\xC0\xAFb", 255));
+        self::assertSame('ab', CheckoutPayload::truncate_provider_text("a\xED\xA0\x80b", 255));
+        self::assertSame('', CheckoutPayload::truncate_provider_text("\xFF", 255));
+        self::assertSame('😀', CheckoutPayload::truncate_provider_text("\xF0\x9F\x98\x80", 255));
+    }
+
     public function test_provider_text_truncation_is_scalar_only_and_utf8_safe(): void {
         self::assertSame('abc', CheckoutPayload::truncate_provider_text('abcdef', 3));
         self::assertSame('سلا', CheckoutPayload::truncate_provider_text('سلام', 3));

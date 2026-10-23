@@ -11,6 +11,16 @@ use Simplixi\SUPCheckout\Takeover\Keys;
  */
 final class StatusVerifier {
     /**
+     * Order meta holding the exact amount of the latest successful Charge:
+     * array{requested_order_id:string, amount:string, currency:string}.
+     *
+     * First-party only: it is born under its SUPCheckout name, has no legacy
+     * counterpart and is not in Takeover\Keys, so the takeover never copies,
+     * removes or finalizes it.
+     */
+    public const CHARGE_AMOUNT_META = '_supcheckout_charge_amount_v1';
+
+    /**
      * @param mixed $gateway  Defensive active-gateway boundary value.
      * @param mixed $order    Defensive WooCommerce order boundary value.
      * @param mixed $track_id Provider status cursor.
@@ -209,11 +219,37 @@ final class StatusVerifier {
         // This comparison never casts the validated decimal to float.
         $verified_canonical = self::canonical_decimal($verified_amount);
         $local_canonical = self::canonical_decimal($local_amount);
+        if ($local_canonical !== null) {
+            $charged = self::charged_amount($order, $local_upay_order_id, $expected_currency, $local_canonical);
+            if ($charged === false) {
+                $result['reason'] = self::amount_mismatch_reason($order, $verified_canonical);
+                return $result;
+            }
+            if ($charged !== null) {
+                $local_canonical = $charged;
+            }
+        }
         if ($verified_canonical === null
             || $local_canonical === null
             || !hash_equals($local_canonical, $verified_canonical)
         ) {
-            $result['reason'] = 'binding_amount';
+            $result['reason'] = self::amount_mismatch_reason($order, $verified_canonical);
+            return $result;
+        }
+        // R-1: get_total() is re-rounded to this request's price decimals, so an edit
+        // made at higher precision (12.34 charged, edited to 12.344) still reads 12.34
+        // here. Every bind therefore also needs the provider amount to equal the
+        // persisted order total exactly. This is the only persisted read per bind
+        // attempt. An unreadable total fails closed with its own reason: it may be a
+        // passing database error rather than a mismatch, so the lifecycle keeps
+        // its bounded re-check instead of treating it as final like binding_amount.
+        $persisted = self::persisted_order_total($order->get_id());
+        if ($persisted === null) {
+            $result['reason'] = 'binding_persisted_total_unreadable';
+            return $result;
+        }
+        if (!hash_equals($persisted, $verified_canonical)) {
+            $result['reason'] = self::amount_mismatch_reason($order, $verified_canonical, $persisted);
             return $result;
         }
 
@@ -233,6 +269,165 @@ final class StatusVerifier {
         $result['transaction'] = $transaction;
         $result['reason'] = strtolower($classification);
         return $result;
+    }
+
+    /**
+     * Why an authenticated amount did not bind (batch 2 final review M-2).
+     *
+     * A woocommerce_order_get_total filter makes get_total() report a total that differs
+     * from the order's own one. When the provider amount equals either the stored total
+     * or that filtered total, the order did not change: the filter makes the two totals
+     * disagree, so SUPCheckout cannot confirm which amount is owed. That is
+     * `binding_total_filtered`, which fails closed exactly like `binding_amount` but tells
+     * the merchant why. An amount that matches neither total, or any mismatch on an
+     * unfiltered order, stays `binding_amount`. At most one stored-total read per bind:
+     * it is read here only when the caller has not read it and a filter is active.
+     *
+     * @param object      $order              Order.
+     * @param string|null $verified_canonical Canonical provider amount.
+     * @param string|null $persisted          Canonical stored total when already read.
+     * @return string Binding reason.
+     */
+    private static function amount_mismatch_reason($order, $verified_canonical, $persisted = null) {
+        if ($verified_canonical === null) {
+            return 'binding_amount';
+        }
+        $reported = self::canonical_decimal($order->get_total());
+        $own = self::canonical_decimal($order->get_total('edit'));
+        if ($reported === null || $own === null || hash_equals($own, $reported)) {
+            return 'binding_amount';
+        }
+        if (hash_equals($reported, $verified_canonical)) {
+            return 'binding_total_filtered';
+        }
+        if ($persisted === null) {
+            $persisted = self::persisted_order_total($order->get_id());
+        }
+        return $persisted !== null && hash_equals($persisted, $verified_canonical)
+            ? 'binding_total_filtered'
+            : 'binding_amount';
+    }
+
+    /**
+     * The snapshot value for CHARGE_AMOUNT_META.
+     *
+     * @param string $requested_order_id Provider order identity of the Charge.
+     * @param string $amount             The exact amount token sent as order.amount.
+     * @param string $currency           The currency sent with it.
+     * @return array{requested_order_id:string, amount:string, currency:string}
+     */
+    public static function charge_amount_snapshot($requested_order_id, $amount, $currency) {
+        return array(
+            'requested_order_id' => (string) $requested_order_id,
+            'amount'             => (string) $amount,
+            'currency'           => (string) $currency,
+        );
+    }
+
+    /**
+     * The exact amount charged for the attempt being bound (A1-07).
+     *
+     * WooCommerce re-rounds the order total to the current request's
+     * wc_get_price_decimals() on every load, so a 3-decimal Charge reloaded in a
+     * 2-decimal request (a webhook or cron with no client currency) no longer
+     * equals what was charged. The snapshot recorded at Charge time is that exact
+     * amount. It is used only while the order is unedited: rounded the way
+     * WooCommerce rounds this request's total, it must equal get_total(). The
+     * rounding is a comparison only; the bound amount is the snapshot itself.
+     *
+     * @param object $order              Order.
+     * @param string $requested_order_id Provider order identity being bound.
+     * @param string $currency           Expected provider currency.
+     * @param string $local_canonical    Canonical get_total() of this request.
+     * @return string|false|null The canonical charged amount; false when the order
+     *                           changed since the Charge; null when no usable
+     *                           snapshot exists (orders charged before it), so the
+     *                           order total is compared exactly, as before.
+     */
+    private static function charged_amount($order, $requested_order_id, $currency, $local_canonical) {
+        $snapshot = $order->get_meta(self::CHARGE_AMOUNT_META);
+        if (!is_array($snapshot)
+            || !isset($snapshot['requested_order_id'], $snapshot['amount'], $snapshot['currency'])
+            || !is_string($snapshot['requested_order_id'])
+            || !is_string($snapshot['currency'])
+            || $snapshot['requested_order_id'] !== (string) $requested_order_id
+            || strtoupper(trim($snapshot['currency'])) !== $currency
+            || !function_exists('wc_format_decimal')
+            || !function_exists('wc_get_price_decimals')
+        ) {
+            return null;
+        }
+        $charged = self::canonical_decimal($snapshot['amount']);
+        if ($charged === null) {
+            return null;
+        }
+        // Same precision as the Charge: exact equality, exactly as without a snapshot.
+        if (hash_equals($local_canonical, $charged)) {
+            return $charged;
+        }
+        // This request has fewer decimals than the Charge. Matching the request's
+        // rounding is necessary but not enough: an edit inside the same rounding
+        // bucket (12.341 -> 12.344, both 12.34 at 2 decimals) still matches. So the
+        // snapshot must also equal the persisted order total exactly, read without
+        // the request's decimals. bind_transaction() makes that check for every bind
+        // (R-1): the provider amount must equal both the snapshot returned here and
+        // the persisted total. Anything unreadable fails closed there.
+        $as_loaded = self::canonical_decimal((string) wc_format_decimal($charged, wc_get_price_decimals()));
+        if ($as_loaded === null || !hash_equals($local_canonical, $as_loaded)) {
+            return false;
+        }
+        return $charged;
+    }
+
+    /**
+     * The order total as stored, canonicalized, independent of the request's price
+     * decimals: HPOS `total_amount` (decimal(26,8)) in the orders table, or the CPT
+     * `_order_total` post meta, whichever store is authoritative.
+     *
+     * @param mixed $order_id Order ID.
+     * @return string|null Canonical decimal, or null when it cannot be read.
+     */
+    private static function persisted_order_total($order_id) {
+        $order_id = is_numeric($order_id) ? (int) $order_id : 0;
+        if ($order_id <= 0) {
+            return null;
+        }
+        if (class_exists(\Automattic\WooCommerce\Utilities\OrderUtil::class)
+            && \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled()
+        ) {
+            global $wpdb;
+            if (!is_object($wpdb) || !isset($wpdb->prefix) || !method_exists($wpdb, 'prepare') || !method_exists($wpdb, 'get_var')) {
+                return null;
+            }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The binding needs the stored row, not a cached or request-rounded copy.
+            $stored = $wpdb->get_var($wpdb->prepare(
+                'SELECT total_amount FROM %i WHERE id = %d LIMIT 1',
+                $wpdb->prefix . 'wc_orders',
+                $order_id
+            ));
+        } else {
+            if (!function_exists('get_post_meta')) {
+                return null;
+            }
+            $stored = get_post_meta($order_id, '_order_total', true);
+        }
+        if (!is_string($stored) && !is_int($stored)) {
+            return null;
+        }
+        $stored = trim((string) $stored);
+        if (!preg_match('/^[0-9]+(?:\.[0-9]+)?$/', $stored)) {
+            return null;
+        }
+        // Strip insignificant zeros before the length-bounded canonicalizer, so the
+        // HPOS form (12.34100000) compares like the CPT form (12.341).
+        $stored = ltrim($stored, '0');
+        if ($stored === '' || $stored[0] === '.') {
+            $stored = '0' . $stored;
+        }
+        if (strpos($stored, '.') !== false) {
+            $stored = rtrim(rtrim($stored, '0'), '.');
+        }
+        return self::canonical_decimal($stored);
     }
 
     private static function normalize_track_id($track_id) {

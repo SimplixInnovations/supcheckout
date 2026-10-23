@@ -2,7 +2,10 @@
 
 namespace Simplixi\SUPCheckout\Tests\Takeover;
 
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
+use Simplixi\SUPCheckout\Payment\ReconciliationSweep;
 use Simplixi\SUPCheckout\Takeover\BudgetedSystem;
 use Simplixi\SUPCheckout\Takeover\CopyRemoval;
 use Simplixi\SUPCheckout\Takeover\CopyRunner;
@@ -96,8 +99,52 @@ final class RollbackTest extends TestCase {
         return $paid;
     }
 
+    /**
+     * Make TakeoverState compare-and-swaps lose: before an UPDATE of the state option,
+     * another process rewrites the record (same status, another field).
+     *
+     * @param int $times Lost swaps; PHP_INT_MAX for every one.
+     */
+    private static function lose_state_swaps(int $times): void {
+        $left = $times;
+        $GLOBALS['wpdb']->before_query = static function (array $statement) use (&$left) {
+            if ($left <= 0 || strpos($statement['query'], 'UPDATE ') !== 0 || $statement['args'][1] !== TakeoverState::OPTION) {
+                return;
+            }
+            --$left;
+            $state = json_decode((string) $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION], true);
+            $state['noise'] = isset($state['noise']) ? $state['noise'] + 1 : 1;
+            $GLOBALS['supcheckout_test_options'][TakeoverState::OPTION] = (string) json_encode($state);
+        };
+    }
+
     private function rollback(): Rollback {
         return new Rollback($this->store, $this->system);
+    }
+
+    /**
+     * A5-07: a concurrent state patch (the cache-purge marker, a CLI command) made the single
+     * compare-and-swap lose and the deactivation record was dropped silently, so a consented
+     * reactivation later reported not_deactivated_by_takeover.
+     */
+    public function test_a5_07_the_official_deactivation_record_survives_a_lost_compare_and_swap(): void {
+        self::lose_state_swaps(2);
+
+        self::assertTrue(Rollback::record_official_deactivated('upayments/UPayments.php'));
+
+        TakeoverState::refresh();
+        $state = TakeoverState::get();
+        self::assertSame('upayments/UPayments.php', $state[Rollback::OFFICIAL_RECORD]);
+        self::assertSame(2, $state['noise'], 'the concurrent writes are kept');
+    }
+
+    public function test_a5_07_an_official_deactivation_record_that_cannot_be_stored_is_reported(): void {
+        self::lose_state_swaps(PHP_INT_MAX);
+
+        self::assertFalse(Rollback::record_official_deactivated('upayments/UPayments.php'));
+
+        TakeoverState::refresh();
+        self::assertArrayNotHasKey(Rollback::OFFICIAL_RECORD, TakeoverState::get());
     }
 
     public function test_a5_02_the_back_sync_flushes_the_runtime_cache_once_per_order_batch(): void {
@@ -339,6 +386,14 @@ final class RollbackTest extends TestCase {
         self::assertSame($legacy_edit, get_option('woocommerce_upayments_settings'), 'legacy kept');
         self::assertSame($merchant_settings, get_option(Keys::SETTINGS_OPTION), 'the merchant edit is kept for the owner to reconcile');
         self::assertStringNotContainsString('test-api-key-123', (string) json_encode(array($result, Journal::entries())));
+        // A5-04: the kept option blocks the next switch's preflight; the result says how to resolve it.
+        self::assertSame(array(
+            'kept' => array(Keys::SETTINGS_OPTION),
+            'legacy' => 'woocommerce_upayments_settings',
+            'hint' => Rollback::SETTINGS_DIVERGED_HINT,
+        ), $result['report']['settings_diverged']);
+        self::assertStringContainsString(Keys::SETTINGS_OPTION, Rollback::SETTINGS_DIVERGED_HINT);
+        self::assertStringContainsString('delete', Rollback::SETTINGS_DIVERGED_HINT);
     }
 
     public function test_back_sync_never_regresses_a_legacy_value_written_outside_supcheckout(): void {
@@ -899,6 +954,76 @@ final class RollbackTest extends TestCase {
             self::assertSame(array('official_not_reactivated'), $result['warnings'], $case);
             self::assertSame(array(), $this->system->activated, $case);
             self::assertSame(TakeoverState::PREFLIGHT_OK, TakeoverState::get()['status'], $case . ': the rollback itself completed');
+        }
+    }
+
+    /**
+     * Batch 2 final review M-3: a reactivated official plugin pauses SUPCheckout, which then
+     * registers no sweep callback. The hourly sweep action used to stay pending and fail every
+     * hour, and its 12 h throttle marker kept a resumed SUPCheckout from re-ensuring it at once.
+     */
+    private static function seed_sweep(): void {
+        require_once dirname(__DIR__, 2) . '/support/action-scheduler-stubs.php';
+        $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
+        $GLOBALS['supcheckout_as_calls']['scheduled'][] = array('timestamp' => self::T0 + 300, 'hook' => ReconciliationSweep::HOOK, 'args' => array(), 'group' => 'supcheckout', 'unique' => false);
+        $GLOBALS['supcheckout_as_calls']['scheduled'][] = array('timestamp' => self::T0 + 300, 'hook' => 'woocommerce_cleanup_draft_orders', 'args' => array(), 'group' => 'woocommerce-db-updates', 'unique' => false);
+        $GLOBALS['supcheckout_test_options']['supcheckout_sweep_ensured_at'] = self::T0 - 60;
+    }
+
+    /** @return list<string> */
+    private static function pending_actions(): array {
+        return array_map(static function ($row) {
+            return $row['group'] . ':' . $row['hook'];
+        }, $GLOBALS['supcheckout_as_calls']['scheduled']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_m3_reactivating_the_official_plugin_stops_the_hourly_sweep(): void {
+        $this->seed_cut_over();
+        self::seed_sweep();
+
+        $result = $this->rollback()->run(true);
+
+        self::assertTrue($result['ok'], (string) json_encode($result));
+        self::assertSame(array('upayments/UPayments.php'), $this->system->activated);
+        self::assertSame(array('woocommerce-db-updates:woocommerce_cleanup_draft_orders'), self::pending_actions(), 'only the sweep is removed');
+        self::assertContains(array(ReconciliationSweep::HOOK, array(), 'supcheckout'), $GLOBALS['supcheckout_as_calls']['unscheduled_all'], 'exact hook, arguments and group');
+        self::assertArrayNotHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options'], 'a resumed SUPCheckout re-ensures the sweep at once');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_m3_an_abort_that_reactivates_the_official_plugin_stops_the_hourly_sweep(): void {
+        foreach (array('reactivated', 'already active') as $case) {
+            $this->setUp();
+            $this->seed_verified();
+            self::seed_sweep();
+            if ($case === 'already active') {
+                $this->system->official = 'upayments/UPayments.php';
+            }
+
+            $result = $this->rollback()->abort(true);
+
+            self::assertTrue($result['ok'], $case . ' ' . (string) json_encode($result));
+            self::assertSame(array('woocommerce-db-updates:woocommerce_cleanup_draft_orders'), self::pending_actions(), $case);
+            self::assertArrayNotHasKey('supcheckout_sweep_ensured_at', $GLOBALS['supcheckout_test_options'], $case);
+        }
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_m3_the_sweep_keeps_running_while_supcheckout_stays_active(): void {
+        foreach (array('no consent', 'activation failed') as $case) {
+            $this->setUp();
+            $this->seed_cut_over();
+            self::seed_sweep();
+            $this->system->activate_fails = $case === 'activation failed';
+
+            $this->rollback()->run($case !== 'no consent');
+
+            self::assertContains('supcheckout:' . ReconciliationSweep::HOOK, self::pending_actions(), $case);
+            self::assertSame(self::T0 - 60, $GLOBALS['supcheckout_test_options']['supcheckout_sweep_ensured_at'], $case);
         }
     }
 

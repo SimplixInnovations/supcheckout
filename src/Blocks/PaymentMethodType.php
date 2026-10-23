@@ -94,6 +94,7 @@ class PaymentMethodType extends AbstractPaymentMethodType {
                 'wp-element',
                 'wp-data',
                 'wp-i18n',
+                'wp-html-entities',
                 'wc-blocks-data-store',
             ],
             \Simplixi\SUPCheckout\Release\Identity::VERSION,
@@ -130,7 +131,12 @@ class PaymentMethodType extends AbstractPaymentMethodType {
         // 1. Get payment icons and whitelabeled status — produce ONE canonical availability state.
         $availability = null;
         if ( $this->gateway ) {
-            $availability = $this->gateway->getPaymentIcons();
+            // Blocks payment data is display-only: availability may come from the recent
+            // ten-minute display copy (A3-02); the saved-card listing waits at most 5 s.
+            $gateway = $this->gateway;
+            $availability = $gateway->read_for_display( function () use ( $gateway ) {
+                return $gateway->getPaymentIcons();
+            } );
             if ( is_array( $availability )
                 && isset( $availability['payment'] )
                 && is_array( $availability['payment'] )
@@ -205,42 +211,29 @@ class PaymentMethodType extends AbstractPaymentMethodType {
             }
 
             if ( $can_retrieve_saved_cards ) {
-                $savedCards = $this->gateway->getSavedCardsForCurrentUser( $availability );
-                if (is_array($savedCards)
-                    && isset($savedCards['result'])
-                    && $savedCards['result'] === 'success'
-                    && isset($savedCards['data'])
-                    && is_array($savedCards['data'])
-                ) {
-                    // Saved-card presentation is normalized server-side so
-                    // provider number/last4 source fields never enter Blocks settings.
+                // Display-safe views only (opaque handle, last four, brand), reused for
+                // two minutes across checkout loads (A3-01). Provider number/last4 source
+                // fields and provider tokens never enter Blocks settings.
+                $views = $this->gateway->getSavedCardViewsForCurrentUser( $availability );
+                if ( is_array( $views ) ) {
                     $sanitized = array();
-                    foreach ($savedCards['data'] as $card) {
-                        if (!is_array($card)) {
+                    foreach ( $views as $view ) {
+                        if ( ! is_array( $view )
+                            || ! isset( $view['selection'], $view['last4'], $view['brand'] )
+                            || ! is_string( $view['selection'] )
+                            || ! is_string( $view['last4'] )
+                            || ! is_string( $view['brand'] )
+                        ) {
                             continue;
                         }
-                        $provider_token = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::token($card);
-                        if ($provider_token === null) {
-                            continue;
-                        }
-                        $selection = \Simplixi\SUPCheckout\Payment\SavedCardSelection::create(
-                            $provider_token,
-                            (int) $user_id,
-                            $api_key,
-                            $is_test_mode
+                        $sanitized[] = array(
+                            'selection' => $view['selection'],
+                            'label'     => \Simplixi\SUPCheckout\Payment\SavedCardPresentation::label(
+                                array( 'last4' => $view['last4'] ),
+                                __( 'Saved card', 'supcheckout' )
+                            ),
+                            'brand'     => $view['brand'],
                         );
-                        if ($selection === null) {
-                            continue;
-                        }
-                        $presented = \Simplixi\SUPCheckout\Payment\SavedCardPresentation::for_blocks(
-                            $card,
-                            __('Saved card', 'supcheckout'),
-                            $selection
-                        );
-                        if ($presented === null) {
-                            continue;
-                        }
-                        $sanitized[] = $presented;
                     }
                     $saved_cards = $sanitized;
                 }
@@ -260,6 +253,11 @@ class PaymentMethodType extends AbstractPaymentMethodType {
         // SUPCheckout passes only gateway-specific state and a compatibility
         // fallback product-type snapshot for environments without live props.
         return [
+            // The merchant's title and description, through the woocommerce_gateway_title /
+            // woocommerce_gateway_description filters where WPML/WCML translate them, as
+            // plain text: the client decodes entities and renders text nodes only.
+            'title'                      => $this->gateway ? wp_strip_all_tags( (string) $this->gateway->get_title() ) : '',
+            'description'                => $this->gateway ? wp_strip_all_tags( (string) $this->gateway->get_description() ) : '',
             'availability_valid'         => $availability_valid,
             'supported_currencies'       => GatewaySettings::supported_currencies(),
             'is_whitelabled'            => $whitelabled,

@@ -131,6 +131,121 @@ $result = $gateway->call_transport('charge', 'DELETE', null);
 sut_assert(count($transport_calls) === 0, 'unsupported HTTP method performs no request');
 sut_assert($result['transport_ok'] === false && $result['http_status'] === 0, 'unsupported HTTP method fails closed');
 
+// U5 (A3-01): a shopper render may wait at most 5 seconds for the saved-card listing.
+// The 15-second default above is unchanged. Availability keeps 15 seconds even on a
+// render (review round 1, I-1): a render that timed out early would write the shared
+// failure sentinel that place-order and Charge read. Charge, token and status calls
+// never get the shorter budget, even when they run inside a display read.
+$display_routes = array(
+    array('check-payment-button-status', 'GET', null),
+    array('retrieve-customer-cards', 'POST', '{}'),
+    array('charge', 'POST', '{}'),
+    array('create-customer-unique-token', 'POST', '{}'),
+    array('get-payment-status/abc', 'GET', null),
+);
+$transport_calls = array();
+$transport_response = array('response' => array('code' => 201), 'body' => '{}');
+$display_return = $gateway->read_for_display(function () use ($gateway, $display_routes) {
+    foreach ($display_routes as $route) {
+        $gateway->call_transport($route[0], $route[1], $route[2]);
+    }
+    return 'display-result';
+});
+$display_timeouts = array_map(static function ($call) {
+    return isset($call['args']['timeout']) ? (int) $call['args']['timeout'] : null;
+}, $transport_calls);
+sut_assert($display_return === 'display-result', 'a display read returns what its callback returns');
+sut_assert($display_timeouts === array(15, 5, 15, 15, 15), 'only the saved-card listing gets the 5-second display budget; availability, Charge, token and status calls keep 15 seconds');
+
+$transport_calls = array();
+$gateway->call_transport('check-payment-button-status', 'GET');
+$gateway->call_transport('retrieve-customer-cards', 'POST', '{}');
+sut_assert(
+    count($transport_calls) === 2
+        && (int) $transport_calls[0]['args']['timeout'] === 15
+        && (int) $transport_calls[1]['args']['timeout'] === 15,
+    'outside a display read, availability and card listing keep the 15-second budget'
+);
+
+$transport_calls = array();
+try {
+    $gateway->read_for_display(function () {
+        throw new RuntimeException('render failed');
+    });
+} catch (RuntimeException $e) {
+    // Expected: the display read rethrows.
+}
+$gateway->call_transport('check-payment-button-status', 'GET');
+sut_assert(isset($transport_calls[0]) && (int) $transport_calls[0]['args']['timeout'] === 15, 'a display read that throws still ends its shorter budget');
+
+// The gateway's own availability read uses the display copy and the shorter budget
+// only inside a display read. The place-order and Charge paths call it outside one.
+$availability_gateway = new SUPCheckout_Production_Transport_Testable();
+$availability_gateway->apiKey = 'availability-secret';
+$availability_service = new \Simplixi\SUPCheckout\Provider\PaymentMethodAvailability(false, 'availability-secret', static function () {
+    return null;
+});
+$lkg_reader = new ReflectionMethod($availability_service, 'last_known_good_name');
+if (\PHP_VERSION_ID < 80100) {
+    $lkg_reader->setAccessible(true);
+}
+$lkg_name = $lkg_reader->invoke($availability_service);
+$state =& upay_test_state();
+$state['transients'] = array();
+$state['options']['upayments_payment_methods_rate_gate_live'] = time() - 1;
+$state['options'][$lkg_name] = array(
+    'saved_at' => time() - 120,
+    'value'    => array(
+        'schema'       => 3,
+        'result'       => 'success',
+        'isWhiteLabel' => false,
+        'payButtons'   => array('knet' => 1, 'credit_card' => 0, 'apple_pay_knet' => 0, 'apple_pay' => 0, 'samsung_pay' => 0, 'google_pay' => 0),
+    ),
+);
+$transport_calls = array();
+$display_availability = $availability_gateway->read_for_display(function () use ($availability_gateway) {
+    return $availability_gateway->getUpayPaymentMethods();
+});
+sut_assert(count($transport_calls) === 0, 'a render inside the display window makes no availability call');
+sut_assert(is_array($display_availability) && ($display_availability['result'] ?? null) === 'success', 'the render is served the recent display copy');
+
+$transport_response = array('response' => array('code' => 201), 'body' => '{"status":true,"data":{"isWhiteLabel":false,"payButtons":{"knet":1}}}');
+$authoritative = $availability_gateway->getUpayPaymentMethods();
+sut_assert(count($transport_calls) === 1 && $transport_calls[0]['url'] === 'https://sandboxapi.upayments.com/api/v1/check-payment-button-status', 'the authoritative read ignores the display copy and asks UPayments');
+sut_assert(isset($transport_calls[0]['args']['timeout']) && (int) $transport_calls[0]['args']['timeout'] === 15, 'the authoritative availability read keeps the 15-second budget');
+sut_assert(is_array($authoritative) && ($authoritative['result'] ?? null) === 'success', 'the authoritative read succeeds');
+
+$state['transients'] = array();
+$state['options']['upayments_payment_methods_rate_gate_live'] = time() - 1;
+$state['options'][$lkg_name]['saved_at'] = time() - 601;
+$transport_calls = array();
+$availability_gateway->read_for_display(function () use ($availability_gateway) {
+    return $availability_gateway->getUpayPaymentMethods();
+});
+sut_assert(count($transport_calls) === 1, 'a render past the display window refreshes availability once');
+sut_assert(isset($transport_calls[0]['args']['timeout']) && (int) $transport_calls[0]['args']['timeout'] === 15, 'a render-triggered availability refresh uses the default 15-second timeout, never 5');
+
+// Hardening T5 (A6-01): the availability getter runs on render paths (the payment box, every
+// order-review refresh, the Blocks payment data), so a failure must not queue a storefront
+// notice there. It keeps the legacy failure shape; the place-order path reports the error
+// once (CheckoutOrchestrator).
+$state['transients'] = array();
+$state['notices'] = array();
+$state['options']['upayments_payment_methods_rate_gate_live'] = time() + 65;
+unset($state['options'][$lkg_name]);
+$transport_calls = array();
+$failed_display = $availability_gateway->read_for_display(function () use ($availability_gateway) {
+    return $availability_gateway->getUpayPaymentMethods();
+});
+$failed_authoritative = $availability_gateway->getUpayPaymentMethods();
+sut_assert(count($transport_calls) === 0, 'a closed rate gate with no last-known-good copy makes no availability call');
+sut_assert(
+    $failed_display === array('result' => 'failure', 'redirect' => 'https://example.test/checkout/')
+        && $failed_authoritative === array('result' => 'failure', 'redirect' => 'https://example.test/checkout/'),
+    'an availability failure keeps the legacy failure shape on render and authoritative reads'
+);
+sut_assert($state['notices'] === array(), 'an availability failure queues no WooCommerce notice from the getter');
+
 echo "\nSUPCheckout Production HTTP Transport: {$pass} PASS / {$fail} FAIL\n";
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
 exit($fail === 0 ? 0 : 1);

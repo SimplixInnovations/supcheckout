@@ -23,6 +23,7 @@ use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Payment\CheckoutOrchestrator;
+use Simplixi\SUPCheckout\Payment\StatusVerifier;
 
 final class CheckoutOrchestratorGateway {
     public $domain = 'upayments';
@@ -122,6 +123,29 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertSame(array('attempt-p0', 'attempt-b'), $fresh->get_meta('_simplixpay_upayments_prior_requested_v1'));
     }
 
+    public function test_a_new_charge_attempt_unparks_the_order_for_the_hourly_sweep(): void {
+        // U2 review M-2: an order parked out of the sweep (its trusted transaction did
+        // not bind) is unparked by the next Charge, under the attempt lock.
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order(array(
+            'UPayments_order_id' => 'attempt-p0',
+            '_supcheckout_sweep_parked_v1' => 'track-t',
+        ));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            $this->charge_success_executor(static function () {}),
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('success', $result['result']);
+        self::assertSame('', $order->get_meta('_supcheckout_sweep_parked_v1'));
+        self::assertSame(array('attempt-p0'), $order->get_meta('_simplixpay_upayments_prior_requested_v1'));
+    }
+
     public function test_a_busy_order_lock_fails_closed_without_touching_the_order(): void {
         \supcheckout_test_reset_wp_options();
         $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
@@ -163,6 +187,122 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertSame('', $fresh->get_meta('_simplixpay_upayments_prior_requested_v1'));
         self::assertSame('success', $result['result']);
         self::assertStringNotContainsString('sandbox.upayments.com', $result['redirect']);
+        self::assertSame('', $fresh->get_meta(StatusVerifier::CHARGE_AMOUNT_META));
+    }
+
+    public function test_a1_07_a_successful_charge_records_the_exact_charged_amount_for_its_attempt(): void {
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $sent = array();
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$sent) {
+                if ($route !== 'charge') {
+                    return array();
+                }
+                $sent[] = $body;
+                return array(
+                    'transport_ok' => true,
+                    'http_status' => 201,
+                    'curl_errno' => 0,
+                    'body' => json_encode(array('status' => true, 'data' => array('link' => 'https://sandbox.upayments.com/pay/attempt-a'))),
+                );
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('success', $result['result']);
+        self::assertCount(1, $sent);
+        self::assertStringContainsString('"amount":10.000', $sent[0]);
+        self::assertSame(
+            array(
+                'requested_order_id' => $order->get_meta('UPayments_order_id'),
+                'amount'             => '10.000',
+                'currency'           => 'KWD',
+            ),
+            $order->get_meta(StatusVerifier::CHARGE_AMOUNT_META)
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $meta Order meta.
+     * @return array<string,mixed> The decoded Charge payload.
+     */
+    private function captured_charge_payload(array $meta): array {
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order($meta);
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $sent = array();
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$sent) {
+                if ($route === 'charge') {
+                    $sent[] = $body;
+                }
+                return array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $orchestrator->process(42);
+
+        self::assertCount(1, $sent);
+        $payload = json_decode($sent[0], true);
+        self::assertIsArray($payload);
+        return $payload;
+    }
+
+    public function test_a4_02_an_arabic_order_requests_the_arabic_hosted_page(): void {
+        $payload = $this->captured_charge_payload(array('wpml_language' => 'ar'));
+
+        self::assertSame('ar', $payload['language']);
+        // The static device fingerprint is left as it is.
+        self::assertSame('en', $payload['device']['browserDetails']['language']);
+    }
+
+    public function test_a4_02_the_wpml_current_language_is_used_when_the_order_has_none(): void {
+        if (!function_exists('apply_filters')) {
+            eval('function apply_filters($hook, $value = null) {
+                return $hook === "wpml_current_language" && isset($GLOBALS["supcheckout_test_wpml_language"])
+                    ? $GLOBALS["supcheckout_test_wpml_language"]
+                    : $value;
+            }');
+        }
+        $GLOBALS['supcheckout_test_wpml_language'] = 'ar';
+
+        self::assertSame('ar', $this->captured_charge_payload(array())['language']);
+
+        $GLOBALS['supcheckout_test_wpml_language'] = 'en';
+        self::assertSame('en', $this->captured_charge_payload(array())['language']);
+        // The order's own language wins over the request's.
+        self::assertSame('en', $this->captured_charge_payload(array('wpml_language' => 'en'))['language']);
+    }
+
+    public function test_a4_02_other_languages_keep_the_english_hosted_page(): void {
+        self::assertSame('en', $this->captured_charge_payload(array())['language']);
+        self::assertSame('en', $this->captured_charge_payload(array('wpml_language' => 'fr'))['language']);
+    }
+
+    public function test_a1_07_a_rejected_charge_records_no_amount_snapshot(): void {
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutOrchestratorGateway(),
+            static function () { return ''; },
+            static function () { return array(); },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame('', $order->get_meta(StatusVerifier::CHARGE_AMOUNT_META));
     }
     protected function setUp(): void {
         require_once dirname(__DIR__, 2) . '/support/wordpress-payment-runtime.php';
@@ -469,6 +609,37 @@ final class CheckoutOrchestratorTest extends TestCase {
         self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $provider_order_ids[0]);
         self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $provider_order_ids[1]);
         self::assertNotSame($provider_order_ids[0], $provider_order_ids[1]);
+    }
+
+    /**
+     * Hardening T5 (A6-01): the availability getter no longer queues a notice, so place
+     * order is the one place an outage is reported, exactly once, before any Charge.
+     */
+    public function test_place_order_during_an_availability_outage_reports_the_failure_exactly_once(): void {
+        $gateway = new CheckoutOrchestratorGateway();
+        $gateway->paymentData = null;
+        $order = new \WC_Order(42, 'KWD', '10.000', array(new \WC_Order_Item_Product(new \WC_Product('simple'))));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $provider_requests = array();
+
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$provider_requests) {
+                $provider_requests[] = $route;
+                return array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+
+        $result = $orchestrator->process(42);
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame(array(), $provider_requests, 'no Charge is sent');
+        self::assertSame(
+            array(array('Payment methods could not be loaded. Please try again.', 'error')),
+            $GLOBALS['supcheckout_test_subscription_presentation']['notices']
+        );
     }
 
     public function test_rejected_charge_leaves_a_private_order_note_with_the_sanitized_provider_reason(): void {

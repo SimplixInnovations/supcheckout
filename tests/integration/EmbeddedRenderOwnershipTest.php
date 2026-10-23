@@ -130,8 +130,8 @@ supcheckout_cert_assert(
     'Repeated embedded subscription render does not duplicate or mutate localization payload'
 );
 supcheckout_cert_assert(
-    substr_count((string) $localized_twice, 'var wcUser = ') === 1,
-    'Repeated embedded subscription localization owns exactly one wcUser declaration'
+    substr_count((string) $localized_twice, 'var supCheckoutSubscription = ') === 1 && strpos((string) $localized_twice, 'var wcUser = ') === false,
+    'Repeated embedded subscription localization owns exactly one supCheckoutSubscription declaration and no generic wcUser global (A6-09)'
 );
 supcheckout_cert_assert(
     strpos((string) $localized_twice, 'userId') === false,

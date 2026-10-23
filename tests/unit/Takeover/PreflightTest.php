@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Tests\Takeover;
 
 use PHPUnit\Framework\TestCase;
 use Simplixi\SUPCheckout\Takeover\Environment;
+use Simplixi\SUPCheckout\Takeover\Journal;
 use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\LegacyCallbackListener;
 use Simplixi\SUPCheckout\Takeover\Preflight;
@@ -49,6 +50,9 @@ final class PreflightTest extends TestCase {
             'official_only_names' => 'fact',
             'upay_subscriptions_table_present' => 'fact',
             'leftovers' => 'fact',
+            // A5-04 and the A5-03 disclosure: added, every earlier code is unchanged.
+            'settings_target_foreign' => 'blocking',
+            'orders_to_copy' => 'fact',
         ), Preflight::codes());
     }
 
@@ -524,6 +528,122 @@ final class PreflightTest extends TestCase {
         $none = Preflight::run_with(PreflightFixtures::env(array('option_values' => array())));
         self::assertNull(PreflightFixtures::find($none['facts'], 'settings_source')['data']['source']);
         self::assertSame('missing', PreflightFixtures::find($none['blocking'], 'credential_unverified')['data']['reason']);
+    }
+
+    /**
+     * A5-04: a `settings_diverged` rollback keeps woocommerce_supcheckout_settings. The next
+     * switch copied the whole store and deactivated the official plugin before Cutover's
+     * SettingsCopier refused the kept, foreign target (`settings_mismatch`), every time.
+     * Preflight now runs the copier's plan read-only and blocks before anything changes.
+     */
+    public function test_a5_04_a_kept_foreign_settings_target_blocks_preflight_with_a_hint(): void {
+        // Cycle 1 copied A; the merchant edited the copy to B after cutover; the legacy source is C.
+        $copied = array('enabled' => 'yes', 'api_key' => 'test-api-key-123', 'title' => 'A');
+        Journal::record('option', Keys::SETTINGS_OPTION, null, $copied, 'option:woocommerce_upayments_settings');
+        $kept = array('enabled' => 'yes', 'api_key' => 'test-api-key-123', 'title' => 'B');
+        $source = array('enabled' => 'yes', 'api_key' => 'test-api-key-123', 'title' => 'C');
+        $options_before = $GLOBALS['supcheckout_test_options'];
+
+        $report = Preflight::run_with(PreflightFixtures::env(array('option_values' => array(
+            'woocommerce_upayments_settings' => $source,
+            Keys::SETTINGS_OPTION => $kept,
+        ))));
+
+        $blocking = PreflightFixtures::find($report['blocking'], 'settings_target_foreign');
+        self::assertNotNull($blocking, (string) json_encode($report));
+        self::assertSame(array('targets' => array(Keys::SETTINGS_OPTION), 'journal_unreadable' => false), $blocking['data']);
+        self::assertStringContainsString(Keys::SETTINGS_OPTION, $blocking['message']);
+        self::assertStringContainsString('delete', $blocking['message'], 'the hint names the way out');
+        self::assertStringNotContainsString('test-api-key-123', (string) json_encode($report), 'names only, never values');
+        self::assertSame($options_before, $GLOBALS['supcheckout_test_options'], 'read-only: nothing written');
+
+        // Control: the kept target is still the takeover's own copy, which Cutover overwrites.
+        $own = Preflight::run_with(PreflightFixtures::env(array('option_values' => array(
+            'woocommerce_upayments_settings' => $source,
+            Keys::SETTINGS_OPTION => $copied,
+        ))));
+        self::assertSame(array(), $own['blocking'], (string) json_encode($own['blocking']));
+    }
+
+    public function test_a5_04_a_foreign_copied_option_target_also_blocks_preflight(): void {
+        $report = Preflight::run_with(PreflightFixtures::env(array('option_values' => array(
+            'woocommerce_upayments_settings' => array('enabled' => 'yes', 'api_key' => 'test-api-key-123'),
+            'upayments_token_identity_secret_v2' => hash('sha256', 'legacy'),
+            'supcheckout_token_identity_secret_v2' => hash('sha256', 'other'),
+        ))));
+
+        $blocking = PreflightFixtures::find($report['blocking'], 'settings_target_foreign');
+        self::assertNotNull($blocking);
+        self::assertSame(array('supcheckout_token_identity_secret_v2'), $blocking['data']['targets']);
+        self::assertStringNotContainsString(hash('sha256', 'other'), (string) json_encode($report));
+    }
+
+    public function test_a5_04_an_unreadable_journal_blocks_preflight_fail_closed(): void {
+        $GLOBALS['supcheckout_test_options'][Journal::OPTION] = 'not a journal';
+        Journal::flush_cache();
+
+        $report = Preflight::run_with(PreflightFixtures::env(array('option_values' => array(
+            'woocommerce_upayments_settings' => array('enabled' => 'yes', 'api_key' => 'test-api-key-123', 'title' => 'C'),
+            Keys::SETTINGS_OPTION => array('enabled' => 'yes', 'title' => 'B'),
+        ))));
+
+        $blocking = PreflightFixtures::find($report['blocking'], 'settings_target_foreign');
+        self::assertNotNull($blocking);
+        self::assertSame(array('targets' => array(), 'journal_unreadable' => true), $blocking['data']);
+    }
+
+    /**
+     * Review round 1, I-2: after a full rollback every target is absent, so the copier's plan
+     * never reads the journal; Cutover's Journal::record() would still fail on it.
+     */
+    public function test_a5_04_an_unreadable_journal_blocks_preflight_even_with_every_target_absent(): void {
+        $GLOBALS['supcheckout_test_options'][Journal::OPTION] = 'not a journal';
+        Journal::flush_cache();
+
+        $report = Preflight::run_with(PreflightFixtures::env());
+
+        $blocking = PreflightFixtures::find($report['blocking'], 'settings_target_foreign');
+        self::assertNotNull($blocking, (string) json_encode($report['blocking']));
+        self::assertSame(array('targets' => array(), 'journal_unreadable' => true), $blocking['data']);
+    }
+
+    public function test_a5_04_the_settings_target_check_is_skipped_once_the_store_is_cut_over(): void {
+        foreach (array(TakeoverState::PREFLIGHT_OK, TakeoverState::COPYING, TakeoverState::VERIFIED, TakeoverState::CUT_OVER) as $to) {
+            self::assertTrue(TakeoverState::transition($to), $to);
+        }
+        // After cutover the merchant edits the SUPCheckout settings: expected, not foreign.
+        $report = Preflight::run_with(PreflightFixtures::env(array('option_values' => array(
+            'woocommerce_upayments_settings' => array('enabled' => 'yes', 'api_key' => 'test-api-key-123', 'title' => 'C'),
+            Keys::SETTINGS_OPTION => array('enabled' => 'yes', 'api_key' => 'test-api-key-123', 'title' => 'Edited'),
+        ))));
+
+        self::assertNull(PreflightFixtures::find($report['blocking'], 'settings_target_foreign'));
+    }
+
+    /**
+     * A5-03 (verify-T ruling: record, plus a disclosure): the copy, a rollback's removal and
+     * Finalize each save every UPayments order once, and WooCommerce reports every save as an
+     * order update (order.updated webhooks, analytics imports). Preflight says so up front.
+     */
+    public function test_a5_03_orders_to_copy_discloses_that_every_order_save_reports_an_order_update(): void {
+        $db = PreflightFixtures::db(array('AS orders_to_copy' => '42'));
+        $report = Preflight::run_with(PreflightFixtures::env(array('db' => $db)));
+
+        $fact = PreflightFixtures::find($report['facts'], 'orders_to_copy');
+        self::assertNotNull($fact, (string) json_encode($report['facts']));
+        self::assertSame(array('count' => 42, 'updates_orders' => true), $fact['data']);
+        self::assertStringContainsString('42', $fact['message']);
+        self::assertStringContainsString('webhooks', $fact['message']);
+        $query = $db->executed_matching('AS orders_to_copy')[0];
+        self::assertStringContainsString('_payment_method', $query['query']);
+        self::assertSame(array_merge(array('wp_posts', 'shop_order', 'wp_postmeta'), Keys::gateway_ids(), array_keys(Keys::order_meta())), $query['args']);
+
+        $hpos_db = PreflightFixtures::db();
+        $none = Preflight::run_with(PreflightFixtures::env(array('db' => $hpos_db, 'hpos' => true)));
+        self::assertNull(PreflightFixtures::find($none['facts'], 'orders_to_copy'), 'no UPayments order, no fact');
+        $hpos_query = $hpos_db->executed_matching('AS orders_to_copy')[0];
+        self::assertStringContainsString('o.payment_method IN', $hpos_query['query']);
+        self::assertSame(array_merge(array('wp_wc_orders', 'shop_order'), Keys::gateway_ids(), array('wp_wc_orders_meta'), array_keys(Keys::order_meta())), $hpos_query['args']);
     }
 
     public function test_official_only_names_reports_existing_official_options_transients_and_cron_hooks(): void {
