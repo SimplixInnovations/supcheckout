@@ -146,11 +146,11 @@ Other observations carried to the revamp: O4 ("UPayments payment ID" copy) and O
 
 ## Gates at the close
 
-Local gates on the batch 3 head (Windows, Git Bash):
+Local gates at the batch 3 head with this record (Windows, Git Bash):
 
-- full `vendor/bin/phpunit`;
-- `composer quality`;
-- every PHP harness and every JS harness;
-- two deterministic builds.
+- `vendor/bin/phpunit`: OK, 1450 tests and 14705 assertions. 7 tests are skipped by design (the A1-01 gate-open companions).
+- `composer quality`: exit 0.
+- All 61 PHP harnesses and all 6 JS harnesses: 0 failures. The security threat-model harness reports 106 PASS / 0 FAIL.
+- Two deterministic builds: byte-identical, 233 files, the SHA-256 above. `scripts/verify-release.sh` verified the archive.
 
-The exact counts are in the batch 3 PR body. Exact-head CI runs at the batch 3 PR, and the merge gate in `AGENTS.md` applies unchanged.
+Exact-head CI runs at the batch 3 PR, and the merge gate in `AGENTS.md` applies unchanged.
