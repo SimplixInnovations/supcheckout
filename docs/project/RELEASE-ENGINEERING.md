@@ -23,7 +23,22 @@ Sections below labeled Historical are retained audit evidence and are not curren
 **Accepted package:** `supcheckout-0.1.0.zip` — **62 files**, SHA-256 `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`
 **Historical Approach 3 (superseded):** `146d65a1c182630c1acc651cacafe30cff5f6b79` / 62 files / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
 **Historical Approach 2 (superseded):** `0c883d609906676966002eb022a82a9656eeacc5` / 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
-**Revamp development package (NOT owner accepted):** Sub-project 1 design system: **224 files**, SHA-256 `2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4`, built with `scripts/build-release.sh` twice (byte-identical) and verified with `scripts/verify-release.sh` at the Sub-project 1 close. The last commit that changes distributable bytes is the #211 merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5` (the earlier 224-file builds of Task 8 and #209 are superseded). Sub-project 1 adds 90 files to the 134 of 0c: the 9 committed build files under `assets/admin/build/`, the 80 source files under `assets/admin/src/` and `src/Admin/AdminAssets.php`. See "Admin UI build contract (Sub-project 1)".
+**Revamp development package (NOT owner accepted):** Hardening program (batch 3): **233 files**, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8`.
+
+- **Build:** `scripts/build-release.sh`, run twice from Git Bash at the `hardening/batch-3` head. The two archives are byte-identical.
+- **Last commit that changes distributable bytes:** `bab56a8` (R1-1, R1-2).
+- **Files added since Sub-project 1 (9):**
+  - the five `languages/` translation files (A4-01);
+  - `src/Bootstrap/Translations.php` (A4-01);
+  - `src/Bootstrap/Deactivation.php` (A3-08);
+  - `src/Payment/SavedCardDisplayCache.php` (A3-01);
+  - `src/Takeover/ReactivationGuard.php` (A5-01).
+- **Verifier:** it allows `languages/` for translation files only.
+- **Evidence:** [`evidence/HARDENING-PROGRAM-2026-10-23.md`](evidence/HARDENING-PROGRAM-2026-10-23.md).
+
+Historical hardening batch 2 package (#222, superseded by batch 3): **233 files**, SHA-256 `8b441501d52d3abcde176eebffda5e4261e9a1dcda0209290fcda878c26c0196`, from two byte-identical builds.
+
+Historical Sub-project 1 package (superseded by the hardening program): Sub-project 1 design system: **224 files**, SHA-256 `2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4`, built with `scripts/build-release.sh` twice (byte-identical) and verified with `scripts/verify-release.sh` at the Sub-project 1 close. The last commit that changes distributable bytes is the #211 merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5` (the earlier 224-file builds of Task 8 and #209 are superseded). Sub-project 1 adds 90 files to the 134 of 0c: the 9 committed build files under `assets/admin/build/`, the 80 source files under `assets/admin/src/` and `src/Admin/AdminAssets.php`. See "Admin UI build contract (Sub-project 1)".
 Historical Sub-project 0c package (superseded by Sub-project 1): **134 files** (114 before 0c), SHA-256 `914cca32cfc2ea4b60ba1fc32e61205d12e0d443e2ab55b08167436033600bba`, built with `scripts/build-release.sh` (twice, byte-identical) and verified with `scripts/verify-release.sh` at `8f7b2cf394e596a0bd937052df6ed5c683d33a56`, the PR #194 review fix and the last commit that changes distributable bytes (a switch always ends with its self-test; only a started operation keeps its rate slot). 0c adds 20 source files: `src/Rest/` (5), `src/Takeover/CachePurger.php`, `src/Takeover/BudgetedSystem.php` and 13 under `src/Takeover/Onboarding/`. The plan estimated 131; the extracted helpers `Checks.php`, `Lines.php` and `DriverHints.php` (final review: keeps `DriverStep.php` under the 800-line ceiling) make it 134. The earlier builds are superseded: 134 files `55ff2a95d984f5327c5a4f4a4deabbe9601cf5feb67541b8d853b00f06f24be1` (at `ab866d00f0bf5790ccd3ecd30583339c189f08f1`, before the PR #194 review fix) and 133 files `eb341df39a87a42eecc964c33f22c3f2e6843fc6a9e4adfb3246d13d1cd75d7c`. PR #194 merged as `5dce3f1d1397d455baa4b4bfe64ef3f89184de6e` after the Release Artifact job succeeded at its head `b48badf1f1c81284546ac4c3be62ca211201676f` (run 39205662707), and again on `main` (run 39209893592).
 
 ## Admin UI build contract (Sub-project 1)

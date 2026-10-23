@@ -81,7 +81,7 @@ E3 does not certify paid/licensed themes/plugins, Cloudflare/Rocket Loader/serve
 
 ## Current execution order
 
-Current executable gate: **Hardening program: full functionality, security and performance audit and fix loop — NEXT** (see "Active engineering program" below). Release gate (open): **external certification & release readiness**. Next release dependency: **fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe `PRODUCTION-AUTH-ACCOUNT-PROBE.md`, 2026-10-13, `evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md`). Release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released. Release Candidate 1 is owner accepted (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`)), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
+Current executable gate: **Owner staging verification of the hardened package — NEXT** (see "Active engineering program" below). Release gate (open): **external certification & release readiness**. Next release dependency: **fresh owner acceptance of a package containing PR #138**, then live one-time acceptance. Production auth is `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY` (owner-run account probe `PRODUCTION-AUTH-ACCOUNT-PROBE.md`, 2026-10-13, `evidence/PRODUCTION-AUTH-ACCOUNT-PROBE-2026-10-13.md`). Release Candidate 1, and every package before PR #138, sends a non-white-label Charge that this production account rejects (HTTP 422, `paymentGateway.src` missing), so it must not be released. Release Candidate 1 is owner accepted (`OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`)), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains NOT AUTHORIZED.
 
 `main` now carries post-acceptance runtime: PR #133 payment lifecycle hardening, merged at `35ea66d4cb9c8395b264cd24b4844eaa268aa470`, package 62 files SHA-256 `bbb40cb2bc6bec557195689ea9335bff514082ad3353dd2e40f2057501681730`; PR #138 (non-white-label Charge fix) then changes the package to `961aa4727d030d317ec892e8d3ee47e10b209bbabfc53a8fbba8ee6ece8f3133`. Neither is **owner accepted**. Before any live evidence, the owner runs `LOCAL-FINAL-VERIFICATION.md` on an exact `main` SHA and records a fresh technical acceptance (or keeps Release Candidate 1); the production-auth probe and live acceptance must then use that accepted package. See the owner action queue in `START-HERE.md`.
 
@@ -116,7 +116,7 @@ R5 is closed at certified head `6fc225fc736da107de533ba8e19a12dc5c37227d` / merg
 
 The production-auth blocker can be cleared without waiting for a provider reply (owner decision, 2026-10-08): run the owner-only account probe in `PRODUCTION-AUTH-ACCOUNT-PROBE.md`. The full ordered owner action queue, the PHP 8.4 CI watch item and the contributor commit-email requirement are in `START-HERE.md` §13 "Owner action queue".
 
-## Active engineering program: SUPCheckout revamp (reconciled 2026-10-21)
+## Active engineering program: SUPCheckout revamp (reconciled 2026-10-23)
 
 Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-projects 0–5; Sub-project 5 holds final owner acceptance, live acceptance and release).
 
@@ -128,8 +128,21 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-proj
 - Sub-project 0c owner staging review — **DONE / OWNER-VERIFIED** (2026-10-22) (all seven setup checks passed, with the optional sandbox test payment deferred to the setup screen, on the My Organic World staging copy, WCML per-currency checkout visibility passed, and a sandbox AED card order completed as Processing with Payment Status CAPTURED; the automatic LiteSpeed purge on a REST switch or rollback is covered by the real-plugin CI cell, and confirming it on the live store's real takeover is on the owner manual test list). Evidence: `docs/project/evidence/SUBPROJECT-0C-OWNER-STAGING-REVIEW-2026-10-22.md`.
 - Sub-project 1 design-token system and admin component library — **DONE / VERIFIED** (plan `docs/superpowers/plans/2026-10-19-subproject-1-design-system.md`; PRs #195–#197, #199, #200, #202–#209 and #211; last merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5`). Brand-ready, not branded: the `--sup-*` token system and the accessible React component library, with a committed deterministic build and the permanent Admin UI Certification (`.github/workflows/admin-ui-certification.yml`). Package 224 files, SHA-256 `2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4` (not owner accepted). Evidence, the SP2 rules carried from SP1 and the owner manual test list: `evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md`.
 - Owner decision 2026-10-20 (binding): the owner shares the full revamp, branding and information architecture only once functionality, security and performance are verified. The program after Sub-project 1 is therefore a hardening program: a full audit of functionality, security and performance, then a fix loop. Sub-project 2 screens, the wizard IA, the menu structure and the visual checkout redesign wait for the owner's information architecture and branding.
-- Current executable gate: **Hardening program: full functionality, security and performance audit and fix loop — NEXT**.
-- Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding; then Sub-projects 3–5.
+- Hardening program (repository-executable fix loop) — **DONE / VERIFIED** (2026-10-23).
+  - **Audit:** six audits A1 to A6 (payment, security, performance, compatibility, takeover/onboarding, code quality) found 50 findings before dedupe: 2 Critical, 3 High, 18 Medium, 27 Low. Each was verified adversarially.
+  - **Fixes:**
+    - #215 `376c482` (A1-02);
+    - batch 1 #221 `e3884ca`;
+    - batch 2 #222 `3575721`, with 97/97 checks at exact head `1302568`;
+    - batch 3 on `hardening/batch-3` (R1-1, R1-2);
+    - OL-1 and R-1, raised during the loop, fixed in batch 2.
+  - **Owner decision 2026-10-22 "Block auto-charges" (A1-01):** no auto-deduct is sent until success can be verified.
+  - **Parked:** A2-02 waits on UPayments support question 12.
+  - **Package:** 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8` (not owner accepted).
+  - **Evidence:** the units, the recorded-not-fixed items and the owner items: `evidence/HARDENING-PROGRAM-2026-10-23.md`.
+  - **Threat model:** the dated entry-point census addendum is in `SECURITY-THREAT-MODEL.md`.
+- Current executable gate: **Owner staging verification of the hardened package — NEXT**.
+- Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding; then Sub-projects 3–5.
 
 ## Permanent invariants
 
