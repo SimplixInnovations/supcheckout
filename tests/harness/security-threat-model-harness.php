@@ -226,7 +226,9 @@ if (!function_exists('esc_html__')) {
     function esc_html__($text, $domain = 'default') { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
 }
 require_once dirname(__DIR__, 2) . '/src/Admin/GatewaySettings.php';
-$api_secret = 'SEC_SENTINEL_API_KEY_7f3a';
+// A unique, obviously fake sentinel, assembled at runtime so no secret-shaped literal is
+// committed (gitleaks generic-api-key). The checks below only need it to be unique.
+$api_secret = implode('-', array('fixture', 'sentinel', 'never', 'echoed'));
 $kept_post = \Simplixi\SUPCheckout\Admin\GatewaySettings::keep_saved_api_key(array('woocommerce_upayments_api_key' => ''), 'upayments', $api_secret);
 sec_assert(isset($kept_post['woocommerce_upayments_api_key']) && $kept_post['woocommerce_upayments_api_key'] === $api_secret, 'a blank API key submission keeps the stored key (write-only field)');
 $replaced_post = \Simplixi\SUPCheckout\Admin\GatewaySettings::keep_saved_api_key(array('woocommerce_upayments_api_key' => 'replacement'), 'upayments', $api_secret);
