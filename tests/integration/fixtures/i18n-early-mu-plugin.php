@@ -9,7 +9,7 @@
  *   (tests/integration/checkout-request-context-http.sh reads the response header).
  *
  * When opted in, at `muplugins_loaded` (before any plugin loads) it forces the Arabic
- * locale, so the bundled languages/supcheckout-ar.mo is the only translation source, and
+ * site and request locale (`locale` and `pre_determine_locale`), so the bundled languages/supcheckout-ar.mo is the only translation source, and
  * records every `_doing_it_wrong('_load_textdomain_just_in_time')` notice WordPress 6.7+
  * raises for the `supcheckout` domain. That notice means a supcheckout string was
  * translated before `after_setup_theme`, which loads the translation too early.
@@ -38,9 +38,17 @@ add_action('muplugins_loaded', static function () {
     }
     $GLOBALS['supcheckout_cert_i18n_early_enabled'] = true;
 
-    add_filter('pre_determine_locale', static function () {
+    // Model a real Arabic store, where the site locale and the request locale agree. Forcing
+    // only determine_locale() leaves get_locale() on en_US, and every later
+    // load_textdomain(..., get_locale()) then switches WP_Translation_Controller back to
+    // en_US (WP 6.5+ sets the controller locale on each load): WP-CLI does exactly that when
+    // it requires wp-admin/includes/admin.php after the boot, which hid the loaded
+    // supcheckout-ar strings from every later __() call.
+    $force_ar = static function () {
         return 'ar';
-    });
+    };
+    add_filter('pre_determine_locale', $force_ar);
+    add_filter('locale', $force_ar);
 
     add_action('doing_it_wrong_run', static function ($function_name, $message) {
         if ('_load_textdomain_just_in_time' === $function_name && false !== strpos((string) $message, '<code>supcheckout</code>')) {

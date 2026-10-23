@@ -22,6 +22,10 @@ supcheckout_cert_assert(in_array($phase, array('canary', 'verify'), true), 'SUPC
 supcheckout_cert_assert('1' === getenv('SUPCHECKOUT_I18N_EARLY_PROBE'), 'the early-loading probe is opted in for this boot');
 supcheckout_cert_assert(!empty($GLOBALS['supcheckout_cert_i18n_early_enabled']), 'the i18n-early fixture mu-plugin ran at muplugins_loaded');
 supcheckout_cert_assert('ar' === determine_locale(), 'the boot ran under the ar locale');
+// A real Arabic store: the site locale agrees, so WP-CLI's post-boot admin.php include
+// (load_textdomain(..., get_locale())) keeps WP_Translation_Controller on ar.
+supcheckout_cert_assert('ar' === get_locale(), 'the site locale is ar too, as on a real Arabic store');
+supcheckout_cert_assert('ar' === WP_Translation_Controller::get_instance()->get_locale(), 'the translation controller is on the ar locale after the WP-CLI boot');
 supcheckout_cert_assert(
     !is_readable(WP_LANG_DIR . '/plugins/supcheckout-ar.mo') && is_readable(dirname(SUPCHECKOUT_PLUGIN_FILE) . '/languages/supcheckout-ar.mo'),
     'only the bundled Arabic file exists, so the bundled-translation fallback is what loads'
