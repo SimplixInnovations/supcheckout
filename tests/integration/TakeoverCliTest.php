@@ -123,14 +123,16 @@ function supcheckout_takeover_cert_equal_order_meta() {
 /**
  * The hooks the paused boot may own in this WP-CLI process: the conflict notice, the
  * WooCommerce feature declarations, the takeover REST routes and the two onboarding driver
- * hooks. Once `rest_api_init` has fired (in a WP-CLI process WooCommerce builds the REST server to
+ * hooks, plus the deactivation cleanup hook on the main file (A3-08 / U8: PausedBoot registers
+ * Bootstrap\Deactivation so a store deactivating SUPCheckout while paused still drops
+ * SUPCheckout's own schedules). Once `rest_api_init` has fired (in a WP-CLI process WooCommerce builds the REST server to
  * generate its `wp wc` commands), Routes::register_takeover() has also added its two
  * supcheckout/v1-scoped filters, guard() and no_store().
  *
  * @return list<string>
  */
 function supcheckout_takeover_cert_paused_hooks() {
-    $hooks = array('admin_notices', 'before_woocommerce_init', 'rest_api_init', 'supcheckout_onboarding_drive', 'supcheckout_onboarding_watchdog');
+    $hooks = array('admin_notices', 'before_woocommerce_init', 'deactivate_supcheckout/supcheckout.php', 'rest_api_init', 'supcheckout_onboarding_drive', 'supcheckout_onboarding_watchdog');
     if (did_action('rest_api_init') > 0) {
         $hooks[] = 'rest_post_dispatch';
         $hooks[] = 'rest_request_before_callbacks';
@@ -149,7 +151,7 @@ if ($phase === 'paused') {
     // features" (owner staging rehearsal).
     supcheckout_cert_assert(
         supcheckout_takeover_cert_own_hooks() === supcheckout_takeover_cert_paused_hooks(),
-        'the paused boot registered no gateway, Blocks, WC-API route, payment cron or other hook (only the conflict notice, the WooCommerce feature declarations, the takeover REST routes and, under WP-CLI, the two onboarding driver hooks, plus the two supcheckout/v1 route filters once rest_api_init fired): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
+        'the paused boot registered no gateway, Blocks, WC-API route, payment cron or other hook (only the conflict notice, the WooCommerce feature declarations, the takeover REST routes, the deactivation cleanup hook and, under WP-CLI, the two onboarding driver hooks, plus the two supcheckout/v1 route filters once rest_api_init fired): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
     );
     $own_basename = '';
     foreach ((array) get_option('active_plugins', array()) as $active_plugin) {
@@ -232,7 +234,7 @@ if ($phase === 'paused') {
     supcheckout_cert_assert($in_process['blocking'] === array(), 'an in-process paused Preflight reports nothing blocking');
     supcheckout_cert_assert(
         supcheckout_takeover_cert_own_hooks() === supcheckout_takeover_cert_paused_hooks(),
-        'after a paused Preflight, SUPCheckout still has no woocommerce_api_wc_upayments, reconcile cron or other hook (only the conflict notice, the WooCommerce feature declarations, the takeover REST routes and, under WP-CLI, the two onboarding driver hooks, plus the two supcheckout/v1 route filters once rest_api_init fired): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
+        'after a paused Preflight, SUPCheckout still has no woocommerce_api_wc_upayments, reconcile cron or other hook (only the conflict notice, the WooCommerce feature declarations, the takeover REST routes, the deactivation cleanup hook and, under WP-CLI, the two onboarding driver hooks, plus the two supcheckout/v1 route filters once rest_api_init fired): ' . wp_json_encode(supcheckout_takeover_cert_own_hooks())
     );
     supcheckout_cert_assert(!class_exists('Simplixi\\SUPCheckout\\Payment\\PaymentLifecycle', false), 'the payment lifecycle was never loaded while paused');
 
