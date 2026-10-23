@@ -10,6 +10,17 @@
  * Jed 1.x file for assets/admin/build/app.js and one per lazy chunk listed in
  * app.chunks.json, from tests/admin-ui/wp/fixtures/ar-strings.json. Never
  * shipped; no network language pack is needed.
+ *
+ * It also writes wp-content/languages/plugins/supcheckout-ar.mo with the same
+ * strings, so the fixture is a complete language pack. WP_Textdomain_Registry
+ * keys a pack on its .mo (or .l10n.php) file, and load_script_textdomain()
+ * reads the JSON from the directory the registry returns. Without the .mo the
+ * registry finds no pack, the A4-01 `lang_dir_for_domain` fallback points
+ * WordPress at the bundled languages/ folder, and the bundled JSON replaces the
+ * fixture JSON. With it, the pack wins, as an installed pack does on a real
+ * store. The bundled fallback itself is covered by tests/unit/Bootstrap/
+ * TranslationsTest.php and the Compatibility ReleaseMetadataTest and
+ * I18nEarlyLoadingTest runs, which install no pack.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -120,3 +131,25 @@ foreach ($files as $relative => $strings) {
     }
     echo 'wrote ' . basename($target) . ' for ' . $relative . PHP_EOL;
 }
+
+// The pack's .mo, written with WordPress's own MO writer from the target install.
+$pomo = rtrim($argv[1], '/\\') . '/wp-includes/pomo/mo.php';
+if (!is_file($pomo)) {
+    supcheckout_fixture_fail("WordPress MO writer missing: $pomo");
+}
+require_once $pomo;
+$mo = new MO();
+$mo->set_header('Language', SUPCHECKOUT_FIXTURE_LOCALE);
+$mo->set_header('Content-Type', 'text/plain; charset=UTF-8');
+$mo->set_header('Plural-Forms', 'nplurals=6; plural=(n == 0) ? 0 : ((n == 1) ? 1 : ((n == 2) ? 2 : ((n % 100 >= 3 && n % 100 <= 10) ? 3 : ((n % 100 >= 11 && n % 100 <= 99) ? 4 : 5))));');
+foreach (array_merge($fixture['app'], $fixture['chunks']) as $source => $translation) {
+    $mo->add_entry(new Translation_Entry(array(
+        'singular' => (string) $source,
+        'translations' => array((string) $translation),
+    )));
+}
+$mo_target = sprintf('%s/%s-%s.mo', $languages, SUPCHECKOUT_FIXTURE_DOMAIN, SUPCHECKOUT_FIXTURE_LOCALE);
+if (!$mo->export_to_file($mo_target)) {
+    supcheckout_fixture_fail("cannot write $mo_target");
+}
+echo 'wrote ' . basename($mo_target) . ' (the language pack the registry keys on)' . PHP_EOL;
