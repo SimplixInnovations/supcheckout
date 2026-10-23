@@ -515,6 +515,7 @@ class CheckoutPayload {
             $candidates[] = $order->get_meta('wpml_language');
         }
         if (function_exists('apply_filters')) {
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's documented public API filter for reading the current language (wpml.org/wpml-hook/wpml_current_language/).
             $candidates[] = apply_filters('wpml_current_language', null);
         }
         if (function_exists('determine_locale')) {

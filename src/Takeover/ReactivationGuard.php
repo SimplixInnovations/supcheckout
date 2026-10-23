@@ -171,7 +171,9 @@ final class ReactivationGuard {
                 . esc_html(self::heading($reason))
                 . '</strong> '
                 . esc_html(self::explanation($reason))
-                . ' ' . implode(', ', $names)
+                // Each basename is esc_html()-escaped above; wp_kses_post() escapes the
+                // joined list at output and keeps only the <code> wrappers.
+                . ' ' . wp_kses_post(implode(', ', $names))
                 . '</p></div>';
         }
     }
