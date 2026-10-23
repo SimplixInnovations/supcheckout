@@ -1789,6 +1789,10 @@ final class PaymentLifecycle {
             Keys::delete_order_meta($order, self::RECONCILE_ATTEMPT_META);
             Keys::delete_order_meta($order, self::RECONCILE_REASON_META);
             Keys::delete_order_meta($order, self::RECONCILE_EXHAUSTED_META);
+            // Batch 2 final review R1-1: the shared "could not schedule" flag belongs to one
+            // failure episode. A cleared reconciliation ends it, so a later and independent
+            // refused schedule (a late second-attempt track) is reported again.
+            $order->delete_meta_data(self::RECONCILE_SCHEDULE_FAILED_META);
             $order->save();
         }
     }

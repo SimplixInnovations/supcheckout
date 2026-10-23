@@ -1837,6 +1837,21 @@ namespace {
     same(count($order->notes), 1, 'U1 A6-03 C16 a second refused secondary schedule adds no second note');
     \Simplixi\SUPCheckout\Payment\state()['schedule_fails'] = false;
 
+    // R1-1 (batch-2 final review round 1): the shared "could not schedule" flag belongs to one
+    // failure episode. Clearing the reconciliation (the order is paid, or the track is done)
+    // ends the episode, so a later and unrelated refused schedule is reported again; inside one
+    // episode the flag still keeps the note to one.
+    list($gateway, $order) = reset_fixture(720);
+    private_call(PaymentLifecycle::class, 'note_reconciliation_unschedulable', array($order));
+    private_call(PaymentLifecycle::class, 'note_reconciliation_unschedulable', array($order));
+    same(count($order->notes), 1, 'R1-1 two refused schedules inside one failure episode add one note');
+    private_call(PaymentLifecycle::class, 'clear_reconciliation', array($order));
+    same((string) $order->get_meta('_supcheckout_reconcile_schedule_failed_v1'), '', 'R1-1 clearing the reconciliation ends the episode and deletes the shared flag');
+    private_call(PaymentLifecycle::class, 'note_reconciliation_unschedulable', array($order));
+    same(count($order->notes), 2, 'R1-1 a later, independent refused schedule is noted again after the reconciliation cleared');
+    private_call(PaymentLifecycle::class, 'note_reconciliation_unschedulable', array($order));
+    same(count($order->notes), 2, 'R1-1 and that new episode is again noted only once');
+
     // C17 (StatusVerifier :55-57): status_rate_limited from verify() is a
     // retryable reason, so a matching cursor schedules reconciliation.
     list($gateway, $order) = reset_fixture(719);

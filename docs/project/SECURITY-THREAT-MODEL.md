@@ -282,3 +282,107 @@ This record is a required clean-chat source after implementation merges. A new c
 - current next gate: **Enterprise Compatibility Certification**, after verified closure of Quality Platform Q1-Q19.
 
 `PROJECT-STATUS.md` remains the first current-state authority, with `NEW-CHAT-HANDOFF.md` as the concise operational restart. The Master Engineering Playbook living state must agree with both while dated historical sections remain historical.
+
+## Addendum 2026-10-23: current entry-point census
+
+> Dated addendum (hardening program, finding A2-04). The sections above are the historical closure record and stay unchanged. This census lists the entry points in `src/` at the hardening close (branch `hardening/batch-3`). An external pentest is scoped from this census and `docs/security/PENTEST-SCOPE.md`. A governance test (`tests/unit/Governance/CurrentProjectStateRegressionTest.php`) fails when a `supcheckout/v1` route in `src/Rest/Routes.php` is missing from it.
+
+Current security harness (`tests/harness/security-threat-model-harness.php`): **106 PASS / 0 FAIL**. The historical 81 PASS above is the closure-time count.
+
+One correction to "Security principles" above: the API key was echoed into the settings HTML and the gateway REST read (A2-01). It is now write-only. The settings field renders blank, a blank save keeps the stored key, and the WooCommerce payment-gateway REST response blanks it.
+
+### REST: `supcheckout/v1` (`src/Rest/Routes.php`)
+
+Every route:
+- requires `manage_woocommerce` (`RequestGuard::can_manage`);
+- runs capability, nonce and unknown-parameter checks at `rest_request_before_callbacks`, before core reports a schema error, including on the namespace index;
+- returns `Cache-Control: no-store, private`, and never sends an exception message.
+
+Every write also:
+- requires the explicit `wp_rest` `X-WP-Nonce`, so Application Passwords alone cannot write;
+- takes only typed JSON-schema arguments, with consent flags as booleans that must be strictly `true`;
+- is rate limited through a CAS bucket;
+- only starts one single-flight Operation, which Action Scheduler runs.
+
+Consent to deactivate or reactivate the official plugin, and a real finalize, additionally require `activate_plugins`. No route marks, unmarks or re-verifies a payment.
+
+| Route | Paused boot | Rate bucket |
+|---|---|---|
+| `GET /supcheckout/v1/onboarding/status` | yes | none |
+| `GET /supcheckout/v1/onboarding/preflight` | yes | none |
+| `POST /supcheckout/v1/onboarding/preflight` | yes | `provider_probe` |
+| `POST /supcheckout/v1/onboarding/switch` | yes | `switch` |
+| `POST /supcheckout/v1/onboarding/rollback` | yes | `rollback` |
+| `POST /supcheckout/v1/onboarding/abort` | yes | `abort` |
+| `POST /supcheckout/v1/onboarding/finalize` | yes | `finalize` (`confirm` enum `FINALIZE`) |
+| `POST /supcheckout/v1/onboarding/stale-claims/release` | yes | `stale_claims` (at most 500 rows under the lease) |
+| `GET /supcheckout/v1/onboarding/self-test` | no | none |
+| `POST /supcheckout/v1/onboarding/self-test` | no | `provider_probe` |
+| `GET /supcheckout/v1/setup/checks` | no | none |
+| `POST /supcheckout/v1/setup/checks` | no | `provider_probe` |
+
+The Store API (Blocks checkout) is WooCommerce's REST surface. SUPCheckout adds its payment-method data, and the `StaleGatewayChoice` filter at `rest_request_before_callbacks` maps a stale legacy gateway choice on checkout requests.
+
+### WC-API (public, unauthenticated)
+
+| Hook | Listeners | Notes |
+|---|---|---|
+| `woocommerce_api_wc_upayments` (route `wc_upayments`, permanent) | `PaymentLifecycle::handle_callback` at priority 5; the inherited `Gateway::check_ipn_response` at 10 | Browser return, provider webhook and the historical status poll (`PublicOrderStatus`). Callback data is a lookup cursor only. Paid state needs authenticated Get Payment Status, bound to the order, track, amount, currency and the persisted order total (R-1). Not registered while SUPCheckout is paused. |
+| `woocommerce_api_supcheckout` (route `supcheckout`) | `LegacyCallbackListener` mirrors the same pair at 5 and 10 | Same treatment as the legacy route. Registered before cutover, so Preflight can prove it reachable. |
+| `supcheckout_probe=1` on `woocommerce_api_supcheckout` | `LegacyCallbackListener::handle_probe` at 5, on the full and the paused boot | Unauthenticated. Reads only that argument. Returns a 200 with no-store and `X-SUPCheckout-Probe`, then exits. It touches no order, writes nothing, calls no provider and schedules nothing. |
+
+### AJAX and admin-post
+
+- No `wp_ajax_*` or `wp_ajax_nopriv_*` handler is registered.
+- No `admin_post_*` handler is registered.
+
+### Other request handlers (front end and wp-admin)
+
+| Surface | Guard |
+|---|---|
+| Classic checkout POST (`process_payment`) and `woocommerce_checkout_posted_data` (`StaleGatewayChoice`) | WooCommerce checkout nonce. The finalized order amount and currency are the payment authority. A1-03 fails closed on too many decimals before the Charge. |
+| My Account subscription pause, resume and unsubscribe (`SubscriptionActions` on `init`, POST `upay_action`) | POST only, logged-in order owner, nonce, and only manual UPayments subscription orders. |
+| Gateway settings save (`woocommerce_update_options_payment_gateways_upayments`) | WooCommerce settings capability and nonce. The API key is write-only (A2-01), and the save result shows as an admin notice (A6-02). |
+| Product subscription metadata save (`woocommerce_process_product_meta`) | Explicit product edit authorization (SEC-05). |
+| Migration admin submenu (`manage_woocommerce`) | `check_admin_referer`. |
+| Plugin activation (`ReactivationGuard`: `pre_update_option_active_plugins`, `pre_update_site_option_active_sitewide_plugins`, `activate_plugin`, `activated_plugin`) | Refuses reactivating the official plugin on a switched store, and refuses network activation on multisite (A5-01). For an activation it lets through, it stops SUPCheckout's sweep (R1-2). |
+| Deactivation hook (`Bootstrap\Deactivation`) | Removes only SUPCheckout's own schedules. It never touches `upay_process_subscriptions` and deletes no data. |
+
+### WP-CLI
+
+- `wp supcheckout takeover` (`src/Takeover/Cli.php`): `preflight`, `run`, `status`, `release-stale-claims`, `rollback`, `abort` and `finalize`. Registered on the full and the paused boot.
+- `wp simplixpay-upayments migration` (`MigrationBootstrap`, the frozen Phase 9I command).
+
+### WP-Cron
+
+| Hook | Kind | Notes |
+|---|---|---|
+| `upay_process_subscriptions` (protected; twin `supcheckout_process_subscriptions` from `copying` on) | hourly | Subscription scheduler. Under the A1-01 gate, `Scheduler::process_parent_order()` sends no auto-deduct. |
+| `simplixpay_upayments_reconcile_order` (twin `supcheckout_reconcile_order`) | single event | Bounded payment-status reconciliation (at most 4 attempts). |
+| `simplixpay_upayments_reconcile_secondary` (twin `supcheckout_reconcile_secondary`) | single event | Bounded capture-only check of an earlier attempt's track. |
+
+### Action Scheduler (group `supcheckout`)
+
+| Hook | Kind | Notes |
+|---|---|---|
+| `supcheckout_reconciliation_sweep` | recurring, hourly | Fair-rotation sweep of unverified orders (U2). Ensured from `admin_init` and `action_scheduler_init` behind a 12 h throttle. Unscheduled on deactivation, on rollback and abort, and on a manual official-plugin activation. |
+| `supcheckout_onboarding_drive` | single | Drives one single-flight onboarding Operation. |
+| `supcheckout_onboarding_watchdog` | single | Finishes a stalled operation as `scheduler_unavailable`. |
+| `supcheckout_takeover_copy_batch` | single | Bounded copy batch, with a 20 s budget per action. |
+| `supcheckout_process_due_parent` | single | Due-parent subscription worker, under the A1-01 gate. |
+
+SUPCheckout also listens on two of Action Scheduler's own hooks:
+- `action_scheduler_init`: the copy watchdog and the sweep ensure;
+- `action_scheduler_before_process_queue`: the lazy registration of the onboarding driver on the paused boot.
+
+### Outbound
+
+These are the UPayments transports:
+- Charge;
+- Create Customer Token;
+- Retrieve Cards;
+- Get Payment Status;
+- check-payment-button-status;
+- auto-deduct.
+
+The host, TLS, redirect and Bearer controls are unchanged. A2-02 (an https-only live payment link) is parked on UPayments support question 12.

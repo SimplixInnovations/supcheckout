@@ -14,14 +14,25 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
     private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
     /**
-     * The current executable gate (reconciled 2026-10-21): the hardening program. Owner decision
-     * 2026-10-20: the full revamp, branding and information architecture follow only once
-     * functionality, security and performance are verified, so a full audit and fix loop comes
-     * next. Sub-project 1 is done and the 0c owner staging review is owner-verified.
+     * The current executable gate (reconciled 2026-10-23): the owner verifies the hardened package
+     * on staging. The hardening program's repository-executable fix loop is done (batches 1-3);
+     * the revamp information architecture and branding (Sub-project 2+) follow, per the owner
+     * decision of 2026-10-20.
      */
-    private const CURRENT_GATE = '**Hardening program: full functionality, security and performance audit and fix loop — NEXT**';
-    /** What follows the hardening program (owner decision 2026-10-20). */
-    private const NEXT_AFTER_GATE = 'Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding';
+    private const CURRENT_GATE = '**Owner staging verification of the hardened package — NEXT**';
+    /** What follows the owner staging verification (owner decision 2026-10-20). */
+    private const NEXT_AFTER_GATE = 'Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding';
+    /** The superseded hardening gate (reconciled 2026-10-21, superseded 2026-10-23). */
+    private const SUPERSEDED_HARDENING_GATE = '**Hardening program: full functionality, security and performance audit and fix loop — NEXT**';
+    /** The superseded "next after" wording of the hardening gate. */
+    private const SUPERSEDED_NEXT_AFTER_HARDENING = 'Next after the hardening program: Sub-project 2 admin screens';
+    /** The hardening program status in every living record. */
+    private const HARDENING_DONE = 'Hardening program (repository-executable fix loop) — **DONE / VERIFIED**';
+    /** The hardening program evidence record. */
+    private const HARDENING_EVIDENCE = 'docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md';
+    /** Deterministic package at the hardening close (batch 3 head; built twice, byte-identical). */
+    private const HARDENING_PACKAGE_FILES = 233;
+    private const HARDENING_PACKAGE_SHA256 = 'f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8';
     /** Sub-project 1 status in every living record. */
     private const SUBPROJECT_1_DONE = 'Sub-project 1 design-token system and admin component library — **DONE / VERIFIED**';
     /** The 0c owner staging review passed on the My Organic World staging copy (2026-10-22). */
@@ -41,7 +52,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
     private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
     /** The same current gate as a machine identifier (architecture contract). */
-    private const CURRENT_GATE_ID = 'hardening_program_audit_fix_loop';
+    private const CURRENT_GATE_ID = 'owner_staging_verification_hardened_package';
+    /** The superseded hardening gate as a machine identifier. */
+    private const SUPERSEDED_HARDENING_GATE_ID = 'hardening_program_audit_fix_loop';
     /** The Sub-project 1 evidence record. */
     private const SUBPROJECT_1_EVIDENCE = 'docs/project/evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md';
     /** Last SP1 runtime-bearing merge (PR #211, the whole-SP1 UI and accessibility hardening). */
@@ -86,7 +99,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $content = self::read_repository_file('docs/project/START-HERE.md');
 
         self::assertStringContainsString('docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Hardening program (full functionality, security and performance audit and fix loop)**', $content);
+        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Owner staging verification of the hardened package**', $content);
+        self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Hardening program', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c exit gate', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 1', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0b takeover**', $content);
@@ -221,6 +235,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('release_gate: external_certification_release_readiness', $contract);
         self::assertStringContainsString('current_gate: ' . self::CURRENT_GATE_ID, $contract);
         self::assertStringNotContainsString('current_gate: external_certification_release_readiness', $contract);
+        self::assertStringNotContainsString('current_gate: ' . self::SUPERSEDED_HARDENING_GATE_ID, $contract);
         self::assertStringContainsString('approach3_status: owner_accepted', $contract);
         self::assertStringContainsString('owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=' . self::RC1_ACCEPTANCE_TOKEN, $contract);
         self::assertStringContainsString('historical_approach3_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $contract);
@@ -257,7 +272,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('Current state (authoritative)', $road);
         $start = self::read_repository_file('docs/project/START-HERE.md');
         self::assertStringContainsString('external-certification-release-readiness', $start);
-        self::assertStringContainsString('**Last reconciled:** 2026-10-21', $status_hdr);
+        self::assertStringContainsString('**Last reconciled:** 2026-10-23', $status_hdr);
         self::assertStringContainsString('Plan: `docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md`', $handoff);
         self::assertStringContainsString('Next release dependency: **fresh owner acceptance of a package containing PR #138**', $handoff);
         // Owner decision 2026-10-08: the account probe is an accepted resolution path, so every
@@ -422,6 +437,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringNotContainsString(self::SUPERSEDED_0C_GATE, $content, $path);
             self::assertStringNotContainsString(self::PREMATURE_SUBPROJECT_1_GATE, $content, $path);
             self::assertStringNotContainsString($label . self::SUPERSEDED_0C_EXIT_GATE, $content, $path);
+            self::assertStringNotContainsString($label . self::SUPERSEDED_HARDENING_GATE, $content, $path);
             self::assertStringNotContainsString('Current executable gate: **R6', $content, $path);
             self::assertStringNotContainsString('Current operational gate | **external certification & release readiness** |', $content, $path);
         }
@@ -447,6 +463,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringNotContainsString('Next after the 0c exit gate:', $content, $path);
             self::assertStringNotContainsString(self::PREMATURE_SUBPROJECT_1_GATE, $content, $path);
             self::assertStringNotContainsString(self::SUPERSEDED_0C_EXIT_GATE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_HARDENING_GATE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_NEXT_AFTER_HARDENING, $content, $path);
+            self::assertStringContainsString(self::HARDENING_DONE, $content, $path);
+            self::assertStringContainsString(basename(self::HARDENING_EVIDENCE), $content, $path);
         }
         self::assertStringContainsString('Current executable gate: ' . self::CURRENT_GATE, self::read_repository_file('docs/project/OWNER-HANDOFF.md'));
 
@@ -455,6 +475,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString(self::SUBPROJECT_1_DONE, $agents);
         self::assertStringContainsString(self::SUBPROJECT_0C_REVIEW_DONE, $agents);
         self::assertStringNotContainsString(self::SUPERSEDED_0C_REVIEW_PENDING, $agents);
+        self::assertStringContainsString(self::HARDENING_DONE, $agents);
+        self::assertStringContainsString(self::HARDENING_EVIDENCE, $agents);
+        self::assertStringNotContainsString(self::SUPERSEDED_HARDENING_GATE, $agents);
         self::assertStringContainsString('Admin UI token, contrast, build-contract, accessibility and visual-regression suites', $agents);
         self::assertStringContainsString('.github/workflows/admin-ui-certification.yml', $agents);
     }
@@ -677,6 +700,99 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('are pending on the PR head', $status);
         self::assertStringNotContainsString('package 133 files', $status);
         self::assertStringNotContainsString('package 133 files', self::read_repository_file('docs/project/START-HERE.md'));
+    }
+
+    public function test_the_hardening_program_close_is_recorded(): void {
+        $evidence = self::read_repository_file(self::HARDENING_EVIDENCE);
+        foreach (array(
+            // Owner decision and the audit.
+            self::OWNER_DECISION_HARDENING,
+            'full audit then fix loop',
+            '2 Critical, 3 High, 18 Medium, 27 Low',
+            // Batches and their merges.
+            '#215', '376c482', '#221', 'e3884ca', '#222', '3575721', '1302568', '97/97', 'hardening/batch-3', 'R1-1', 'R1-2',
+            // Findings raised during the fix loop.
+            'OL-1', 'R-1',
+            // Owner decisions.
+            'Block auto-charges', 'RELEASE-SCOPE-DECISION.md', 'GitHub Free',
+            // Parked.
+            'A2-02', 'question 12',
+            // Recorded, not fixed.
+            'A1-08', 'A3-04', 'A1-11', 'A3-05', 'A3-09', 'A4-08', 'A4-09', 'A5-03', 'A6-06', 'A6-08', 'A3-07', 'divergence hold',
+            // Owner manual and staging items.
+            '2 decimals', 'admin_texts_woocommerce_gateways', 'email blocking', 'native Arabic review', 'LiteSpeed/Cloudflare purge', '14 UPayments support questions',
+            // Package record.
+            '**' . self::HARDENING_PACKAGE_FILES . ' files**', self::HARDENING_PACKAGE_SHA256, 'byte-identical',
+        ) as $fact) {
+            self::assertStringContainsString($fact, $evidence, 'hardening evidence missing: ' . $fact);
+        }
+        self::assertStringContainsString('NOT AUTHORIZED', $evidence);
+
+        // The package record sits next to the historical ones; the SP1 record stays.
+        $release = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
+        self::assertStringContainsString(
+            'Hardening program (batch 3): **' . self::HARDENING_PACKAGE_FILES . ' files**, SHA-256 `' . self::HARDENING_PACKAGE_SHA256 . '`',
+            $release
+        );
+        self::assertStringContainsString('Historical Sub-project 1 package (superseded by the hardening program)', $release);
+        foreach (array('docs/project/START-HERE.md', 'docs/project/PROJECT-STATUS.md', 'docs/project/NEW-CHAT-HANDOFF.md', 'docs/project/OWNER-HANDOFF.md') as $living) {
+            self::assertStringContainsString(self::HARDENING_PACKAGE_SHA256, self::read_repository_file($living), $living);
+        }
+
+        $contract = self::read_repository_file('.ai-architect/architecture-contract.yaml');
+        self::assertStringContainsString('    hardening_status: done_verified', $contract);
+        self::assertStringContainsString('    hardening_evidence: ' . self::HARDENING_EVIDENCE, $contract);
+        self::assertStringContainsString('    hardening_package_files: ' . self::HARDENING_PACKAGE_FILES, $contract);
+        self::assertStringContainsString('    hardening_package_sha256: ' . self::HARDENING_PACKAGE_SHA256, $contract);
+    }
+
+    public function test_the_threat_model_census_names_every_current_entry_point(): void {
+        // A2-04: the census is what an external pentest is scoped from, so every
+        // supcheckout/v1 route and every WC-API route in src/ must be named in the addendum.
+        $threat_model = self::read_repository_file('docs/project/SECURITY-THREAT-MODEL.md');
+        $marker = '## Addendum 2026-10-23: current entry-point census';
+        self::assertStringContainsString($marker, $threat_model);
+        $addendum = (string) substr($threat_model, (int) strpos($threat_model, $marker));
+        // The historical census stays in place above the addendum.
+        self::assertStringContainsString('## Entry-point census', $threat_model);
+        self::assertStringContainsString('**Status:** DONE / VERIFIED', $threat_model);
+
+        $routes = self::read_repository_file('src/Rest/Routes.php');
+        self::assertSame(12, preg_match_all("/array\\('(GET|POST)', '(\\/[a-z\\/-]+)'/", $routes, $found, PREG_SET_ORDER));
+        foreach ($found as $row) {
+            self::assertStringContainsString('`' . $row[1] . ' /supcheckout/v1' . $row[2] . '`', $addendum, 'census missing route ' . $row[1] . ' ' . $row[2]);
+        }
+        foreach (array('woocommerce_api_wc_upayments', 'woocommerce_api_supcheckout', 'supcheckout_probe') as $wc_api) {
+            self::assertStringContainsString($wc_api, $addendum, 'census missing ' . $wc_api);
+        }
+        foreach (array(
+            'supcheckout_reconciliation_sweep',
+            'supcheckout_onboarding_drive',
+            'supcheckout_onboarding_watchdog',
+            'supcheckout_takeover_copy_batch',
+            'supcheckout_process_due_parent',
+            'simplixpay_upayments_reconcile_order',
+            'simplixpay_upayments_reconcile_secondary',
+            'upay_process_subscriptions',
+            'supcheckout_reconcile_order',
+            'supcheckout_reconcile_secondary',
+            'supcheckout_process_subscriptions',
+            'wp supcheckout takeover',
+            'ReactivationGuard',
+            'StaleGatewayChoice',
+            'No `wp_ajax_*`',
+            'No `admin_post_*`',
+        ) as $surface) {
+            self::assertStringContainsString($surface, $addendum, 'census missing ' . $surface);
+        }
+        self::assertStringContainsString('106 PASS / 0 FAIL', $addendum);
+
+        $pentest = self::read_repository_file('docs/security/PENTEST-SCOPE.md');
+        self::assertStringContainsString('threat model 106/0', $pentest);
+        self::assertStringNotContainsString('threat model 86/0', $pentest);
+        foreach (array('supcheckout/v1', 'woocommerce_api_supcheckout', 'supcheckout_probe', 'SECURITY-THREAT-MODEL.md') as $scope) {
+            self::assertStringContainsString($scope, $pentest, 'pentest scope missing ' . $scope);
+        }
     }
 
     private static function read_repository_file(string $path): string {

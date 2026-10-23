@@ -53,8 +53,14 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-proj
 - Sub-project 0c owner staging review — **DONE / OWNER-VERIFIED** (2026-10-22) (all seven setup checks passed, with the optional sandbox test payment deferred to the setup screen, on the My Organic World staging copy, WCML per-currency checkout visibility passed, and a sandbox AED card order completed as Processing with Payment Status CAPTURED; the automatic LiteSpeed purge on a REST switch or rollback is covered by the real-plugin CI cell, and confirming it on the live store's real takeover is on the owner manual test list). Evidence: [`docs/project/evidence/SUBPROJECT-0C-OWNER-STAGING-REVIEW-2026-10-22.md`](../docs/project/evidence/SUBPROJECT-0C-OWNER-STAGING-REVIEW-2026-10-22.md).
 - Sub-project 1 design-token system and admin component library — **DONE / VERIFIED** (plan `docs/superpowers/plans/2026-10-19-subproject-1-design-system.md`; PRs #195–#197, #199, #200, #202–#209 and #211; last merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5`). Brand-ready, not branded: the `--sup-*` token system and the accessible React component library, with a committed deterministic build and the permanent Admin UI Certification (`.github/workflows/admin-ui-certification.yml`). Package 224 files, SHA-256 `2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4` (not owner accepted). Evidence, the SP2 rules carried from SP1 and the owner manual test list: `docs/project/evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md`.
 - Owner decision 2026-10-20 (binding): the owner shares the full revamp, branding and information architecture only once functionality, security and performance are verified. The program after Sub-project 1 is therefore a hardening program: a full audit of functionality, security and performance, then a fix loop. Sub-project 2 screens, the wizard IA, the menu structure and the visual checkout redesign wait for the owner's information architecture and branding.
-- Current executable gate: **Hardening program: full functionality, security and performance audit and fix loop — NEXT**.
-- Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding; then Sub-projects 3–5.
+- Hardening program (repository-executable fix loop) — **DONE / VERIFIED** (2026-10-23).
+  - **Audit:** six audits (A1 to A6).
+  - **Fixes:** #215 `376c482`; batch 1 #221 `e3884ca`; batch 2 #222 `3575721`; batch 3 on `hardening/batch-3` (R1-1, R1-2).
+  - **Package:** 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8` (not owner accepted).
+  - **Parked:** A2-02 waits on UPayments support question 12.
+  - **Evidence:** [`docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md`](../docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md).
+- Current executable gate: **Owner staging verification of the hardened package — NEXT**.
+- Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding; then Sub-projects 3–5.
 
 Release gate (open): **external certification & release readiness**. Public release authorization remains false.
 

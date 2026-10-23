@@ -6,6 +6,11 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Payments and takeover: batch 3 follow-ups to the batch 2 final review (hardening batch 3, R1-1, R1-2)
+
+- **A later, unrelated "could not schedule" failure is reported again (R1-1).** `_supcheckout_reconcile_schedule_failed_v1`, the flag the primary and the capture-only check share so an order gets one "could not schedule the automatic UPayments payment check" note, was never cleared. After an order was paid, or its reconciliation otherwise cleared, a later refused schedule (a late second-attempt track) added no note. Clearing the reconciliation now deletes the flag, so each failure episode is noted once and a new one is noted again.
+- **Reactivating the official plugin by hand stops the hourly sweep (R1-2).** The reactivation guard lets an administrator activate the official UPayments plugin before any switch or after a rollback. SUPCheckout is then paused and runs no sweep, so its pending sweep action failed every hour until Action Scheduler gave up after five failures, and the 12-hour throttle marker could delay a resumed sweep. The guard now handles `activated_plugin`: for an activation it let through, it removes SUPCheckout's own sweep action and the `supcheckout_sweep_ensured_at` marker, the step Rollback and Abort already take. A refused activation changes nothing, a failure is isolated and never blocks the activation, and no payment hook or data is touched. The guard registers one more hook (6 instead of 5), recorded in `tests/fixtures/public-surface.json` and the coexistence harness.
+
 ### Payments: batch 2 final review fixes (hardening batch 2, I-1, I-2, M-1 to M-5)
 
 - **No "no callback received" note on an order that got a callback.** The hourly sweep resets the cursor of an earlier payment attempt when the customer has started a new one, and queues that attempt's track on the capture-only check. The same run then saw an order with no cursor and noted "SUPCheckout has not received a UPayments callback for this order", next to a callback SUPCheckout did receive. The order-level `_supcheckout_no_callback_noted_v1` flag now also means "a callback arrived": it is set when a callback first stores a cursor and whenever a cursor is reset, so such an order is never given that note.

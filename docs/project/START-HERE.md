@@ -139,7 +139,7 @@ The remaining provider-related areas are deliberately outside the first-release 
 
 Authoritative public-evidence analysis: `docs/project/evidence/UPAYMENTS-PUBLIC-CONTRACT-RESEARCH-2026-09-27.md`.
 
-### Active engineering program: SUPCheckout revamp (reconciled 2026-10-21)
+### Active engineering program: SUPCheckout revamp (reconciled 2026-10-23)
 
 Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (§9 delivery, Sub-projects 0–5). The release-readiness gate above stays open; spec §9 places the final owner technical acceptance and live acceptance in Sub-project 5.
 
@@ -150,8 +150,14 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (§9 deli
 - Sub-project 0c owner staging review — **DONE / OWNER-VERIFIED** (2026-10-22) (all seven setup checks passed, with the optional sandbox test payment deferred to the setup screen, on the My Organic World staging copy, WCML per-currency checkout visibility passed, and a sandbox AED card order completed as Processing with Payment Status CAPTURED; the automatic LiteSpeed purge on a REST switch or rollback is covered by the real-plugin CI cell, and confirming it on the live store's real takeover is on the owner manual test list). Evidence: `docs/project/evidence/SUBPROJECT-0C-OWNER-STAGING-REVIEW-2026-10-22.md`.
 - Sub-project 1 design-token system and admin component library — **DONE / VERIFIED** (plan `docs/superpowers/plans/2026-10-19-subproject-1-design-system.md`; PRs #195–#197, #199, #200, #202–#209 and #211; last runtime-bearing merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5`). The brand-neutral `--sup-*` token system and the accessible React component library, with a committed deterministic build and the permanent Admin UI Certification (`.github/workflows/admin-ui-certification.yml`). Package 224 files, SHA-256 `2e1f7c0349db7a6ab6709de35dc47099609a8a8c761f4a577b2006555fbe4af4` (not owner accepted). Post-merge verification on `main`: at the Task 8 merge `ef9a101ec0ce2d106e1a0418523ed01a6d77ac9a` every workflow succeeded, including Admin UI Certification run 39575252375 (its gate covers static, Windows drift, both browser cells and visual), Compatibility Certification 39575252634 and Release Artifact 39575252360. At the final SP1 merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5` (#211, recorded 2026-10-21) the WordPress.org Submission Check 39660030118 and Supply Chain Evidence 39660030107 had succeeded and the rest (Admin UI Certification 39660030227, Quality Gates, Compatibility, Ecosystem, Release Artifact, CodeQL) were still queued; they are not claimed here. `Admin UI Gate` is a required status check in the `Main Rule` ruleset (owner approval 2026-10-21). Boundary: `docs/COMPATIBILITY.md` "Admin UI boundary (Sub-project 1)"; evidence, the SP2 rules carried from SP1 and the owner manual test list: [`evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md`](evidence/SUBPROJECT-1-DESIGN-SYSTEM-2026-10-21.md).
 - Owner decision 2026-10-20 (binding): the owner shares the full revamp, branding and information architecture only once functionality, security and performance are verified. The program after Sub-project 1 is therefore a hardening program: a full audit of functionality, security and performance, then a fix loop. Sub-project 2 screens, the wizard IA, the menu structure and the visual checkout redesign wait for the owner's information architecture and branding.
-- Current executable gate: **Hardening program: full functionality, security and performance audit and fix loop — NEXT**.
-- Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding; then Sub-projects 3–5 per the spec.
+- Hardening program (repository-executable fix loop) — **DONE / VERIFIED** (2026-10-23).
+  - **Audit:** six audits (A1 to A6) found 50 findings before dedupe.
+  - **Fixes:** A1-02 #215 `376c482`; batch 1 #221 `e3884ca`; batch 2 #222 `3575721`; batch 3 on `hardening/batch-3` (R1-1, R1-2).
+  - **Package:** 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8` (not owner accepted).
+  - **Parked:** A2-02 waits on UPayments support question 12.
+  - **Evidence:** the units, the recorded-not-fixed items with their reasons and the owner items are in [`evidence/HARDENING-PROGRAM-2026-10-23.md`](evidence/HARDENING-PROGRAM-2026-10-23.md).
+- Current executable gate: **Owner staging verification of the hardened package — NEXT**.
+- Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding; then Sub-projects 3–5 per the spec.
 
 
 ## 6. Post-T3 execution sequence
@@ -184,13 +190,13 @@ external certification: core production-auth — `PRODUCTION_AUTH_CONTRACT_FOR_C
 explicit version/publication decision only after remaining release gates
 ```
 
-R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used its own architecture decision (Option B / ADR-003) and is complete. **R6 is DONE / VERIFIED.** Release gate (open): **external certification & release readiness**; the current executable gate is the revamp's hardening program (§5).
+R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used its own architecture decision (Option B / ADR-003) and is complete. **R6 is DONE / VERIFIED.** Release gate (open): **external certification & release readiness**; the current executable gate is the owner staging verification of the hardened package (§5).
 
 ## 7. Active-work ledger
 
 | Field | Current value |
 |---|---|
-| Program phase | **SUPCheckout revamp — Hardening program (full functionality, security and performance audit and fix loop)** (spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`); release program external certification & release readiness stays open |
+| Program phase | **SUPCheckout revamp — Owner staging verification of the hardened package** (hardening program fix loop done; spec `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md`); release program external certification & release readiness stays open |
 | Approach 3 | **DONE / VERIFIED / OWNER ACCEPTED — HISTORICAL, superseded by Release Candidate 1** |
 | Release Candidate 1 | **CURRENT OWNER-ACCEPTED TECHNICAL BASELINE** |
 | Frozen accepted baseline | `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (Release Candidate 1; supersedes Approach 3 `146d65a1c182630c1acc651cacafe30cff5f6b79`) |
@@ -198,7 +204,7 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | T2 | **DONE / VERIFIED / runtime-bearing** |
 | T3 | **DONE / VERIFIED / runtime-neutral** |
 | Latest integrated post-T3 milestone main | `d69377d3e26831270a00151025d24cc64be9d36b` |
-| Active task | **Hardening program audit** (functionality, security and performance), then its fix loop |
+| Active task | **Hardening batch 3** on `hardening/batch-3` (R1-1, R1-2 and the close record), then the owner staging verification of its 233-file package |
 | Latest repository-executable E3 runtime checkpoint | `540b733c29656758f2392817649fc3d4a4db585d` |
 | Latest candidate package at that checkpoint | 55 files / SHA-256 `01dbf672f9e18898a642a216b16fbf79dcc08511a617af9a8553d7341d87478c` |
 | R0 / R1 / E1 | **DONE / VERIFIED and integrated through PR #108** |
@@ -209,13 +215,14 @@ R0-R5 are bounded evidence-first work under the approved post-T3 plan. R5 used i
 | R4 | **DONE / VERIFIED** — certified PR #114 head `1f48d0669af2a8e9fd9559a35568b6ce33ce4a6a`, squash-merged main `10a33b4d10e7ec4e45ba5d7a01139ce0777bf382`; package 62 files SHA-256 `2543c2a0bfdba53e8968bd1a09b263a3a2b7bd02a11eabd41c102aa5d6dc7b8b` (NOT owner accepted) |
 | R5 | **DONE / VERIFIED** — Option B / ADR-003; certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, squash-merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`; package 62 files SHA-256 `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd` (NOT owner accepted) |
 | R6 | **DONE / VERIFIED** — exact-head qualification and owner technical re-acceptance complete |
-| Current operational gate | **Hardening program: full functionality, security and performance audit and fix loop — NEXT** (owner decision 2026-10-20). Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding |
+| Current operational gate | **Owner staging verification of the hardened package — NEXT** (hardening program done; owner decision 2026-10-20). Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding |
 | Release gate | **external certification & release readiness — open** (owner acceptance and live acceptance in Sub-project 5) |
 | Next release gate step | **Fresh owner acceptance of a package containing PR #138, then live one-time acceptance** (production auth `PRODUCTION_AUTH_CONTRACT_FOR_CHARGE_AND_TRACK_ID_STATUS=RESOLVED_ACCOUNT_SCOPED_BEARER_ONLY`, 2026-10-13) |
 | Sub-project 0a clean core | **DONE / VERIFIED, staging-rehearsed** 2026-10-17 (last merge `0cef28dbcf35d3ec5e669f3c0b46f580069c4c31`) |
 | Sub-project 0b takeover engine | **Tasks 1–12 merged** (PRs #173–#177, #179–#184); Takeover Migration Matrix green on `main` `86c65ba73bd8cc7adba18dea47b46b7dcd8ac41b` |
 | Sub-project 0c onboarding backend | **Tasks 1–10 merged** (PR #194 `5dce3f1d1397d455baa4b4bfe64ef3f89184de6e`) — services + admin-only `supcheckout/v1` REST API, no UI; its 134-file package is historical, superseded by Sub-project 1; owner staging review **DONE / OWNER-VERIFIED** (2026-10-22) |
 | Sub-project 1 design system | **DONE / VERIFIED** — PRs #195–#197, #199, #200, #202–#209 and #211, last merge `453e103bd5dc2c81f35e65520ac29dfa9182fbc5`; package 224 files (`RELEASE-ENGINEERING.md`); Admin UI Certification a permanent quality control |
+| Hardening program | Hardening program (repository-executable fix loop) — **DONE / VERIFIED** — #215, #221, #222 merged; batch 3 on `hardening/batch-3`; package 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8` (not owner accepted); [evidence](evidence/HARDENING-PROGRAM-2026-10-23.md) |
 | Public release authorization | **NOT GRANTED** |
 | Source of live truth | **GitHub + exact source/check/package evidence** |
 
@@ -320,7 +327,7 @@ If any of these are unknown, the session is **not bootstrapped yet**.
 
 ## 13. Immediate next step
 
-**Revamp (active engineering):** Sub-project 1 design-token system and admin component library — **DONE / VERIFIED**. Current executable gate: **Hardening program: full functionality, security and performance audit and fix loop — NEXT** (owner decision 2026-10-20). Sub-project 0c owner staging review — **DONE / OWNER-VERIFIED** (2026-10-22) ([evidence](evidence/SUBPROJECT-0C-OWNER-STAGING-REVIEW-2026-10-22.md)). Next after the hardening program: Sub-project 2 admin screens, once the owner shares the information architecture and branding. See §5 "Active engineering program".
+**Revamp (active engineering):** Sub-project 1 design-token system and admin component library — **DONE / VERIFIED**. Sub-project 0c owner staging review — **DONE / OWNER-VERIFIED** (2026-10-22) ([evidence](evidence/SUBPROJECT-0C-OWNER-STAGING-REVIEW-2026-10-22.md)). Hardening program (repository-executable fix loop) — **DONE / VERIFIED** (owner decision 2026-10-20; [evidence](evidence/HARDENING-PROGRAM-2026-10-23.md)). Current executable gate: **Owner staging verification of the hardened package — NEXT**. Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding. See §5 "Active engineering program".
 
 R3 is DONE / VERIFIED (PR #112 / main e1ad338). R4 is DONE / VERIFIED (PR #114 / main `10a33b4`). R5 is DONE / VERIFIED (PR #116 / main `50170ea`). R6 is **DONE / VERIFIED**. Owner technical acceptance recorded: `OWNER_TECHNICAL_ACCEPTANCE=RELEASE_CANDIDATE_1` at `8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243` (package `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`), superseding Approach 3 (`146d65a1c182630c1acc651cacafe30cff5f6b79`). Publication remains **NOT AUTHORIZED**. Automatic recurring `VERIFIED_SUCCESS` remains **FAIL-CLOSED / UNREACHABLE**.
 
