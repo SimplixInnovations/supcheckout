@@ -29,6 +29,7 @@ if (PHP_SAPI !== 'cli') {
 
 const SUPCHECKOUT_FIXTURE_DOMAIN = 'supcheckout';
 const SUPCHECKOUT_FIXTURE_LOCALE = 'ar';
+const SUPCHECKOUT_FIXTURE_PLURAL_FORMS = 'nplurals=6; plural=(n == 0) ? 0 : ((n == 1) ? 1 : ((n == 2) ? 2 : ((n % 100 >= 3 && n % 100 <= 10) ? 3 : ((n % 100 >= 11 && n % 100 <= 99) ? 4 : 5))));';
 const SUPCHECKOUT_FIXTURE_CHUNK = '#^chunks/[a-z0-9-]+\.[a-f0-9]{8}\.js\z#';
 
 /**
@@ -65,7 +66,7 @@ function supcheckout_fixture_jed(array $strings) {
         '' => array(
             'domain' => 'messages',
             'lang' => SUPCHECKOUT_FIXTURE_LOCALE,
-            'plural-forms' => 'nplurals=6; plural=(n == 0) ? 0 : ((n == 1) ? 1 : ((n == 2) ? 2 : ((n % 100 >= 3 && n % 100 <= 10) ? 3 : ((n % 100 >= 11 && n % 100 <= 99) ? 4 : 5))));',
+            'plural-forms' => SUPCHECKOUT_FIXTURE_PLURAL_FORMS,
         ),
     );
     foreach ($strings as $source => $translation) {
@@ -77,6 +78,39 @@ function supcheckout_fixture_jed(array $strings) {
         'domain' => 'messages',
         'locale_data' => array('messages' => $messages),
     );
+}
+
+/**
+ * A GNU gettext .mo file (little-endian, revision 0, no hash table) of singular entries.
+ *
+ * @param array<string, string> $entries Source string => translation; '' is the header.
+ * @return string The file bytes.
+ */
+function supcheckout_fixture_mo(array $entries) {
+    $sorted = array();
+    foreach ($entries as $source => $translation) {
+        $sorted[(string) $source] = (string) $translation;
+    }
+    // gettext readers binary-search the originals, so they are sorted bytewise.
+    ksort($sorted, SORT_STRING);
+    $count = count($sorted);
+    $originals_offset = 28;
+    $translations_offset = $originals_offset + 8 * $count;
+    $pool_offset = $translations_offset + 8 * $count;
+    $originals = '';
+    $translations = '';
+    $pool = '';
+    foreach (array_keys($sorted) as $source) {
+        $originals .= pack('VV', strlen($source), $pool_offset + strlen($pool));
+        $pool .= $source . "\0";
+    }
+    foreach ($sorted as $translation) {
+        $translations .= pack('VV', strlen($translation), $pool_offset + strlen($pool));
+        $pool .= $translation . "\0";
+    }
+    // Magic, revision, count, originals table, translations table, hash size, hash offset.
+    return pack('VVVVVVV', 0x950412de, 0, $count, $originals_offset, $translations_offset, 0, $pool_offset)
+        . $originals . $translations . $pool;
 }
 
 if ($argc !== 2 || !is_dir($argv[1])) {
@@ -132,24 +166,15 @@ foreach ($files as $relative => $strings) {
     echo 'wrote ' . basename($target) . ' for ' . $relative . PHP_EOL;
 }
 
-// The pack's .mo, written with WordPress's own MO writer from the target install.
-$pomo = rtrim($argv[1], '/\\') . '/wp-includes/pomo/mo.php';
-if (!is_file($pomo)) {
-    supcheckout_fixture_fail("WordPress MO writer missing: $pomo");
-}
-require_once $pomo;
-$mo = new MO();
-$mo->set_header('Language', SUPCHECKOUT_FIXTURE_LOCALE);
-$mo->set_header('Content-Type', 'text/plain; charset=UTF-8');
-$mo->set_header('Plural-Forms', 'nplurals=6; plural=(n == 0) ? 0 : ((n == 1) ? 1 : ((n == 2) ? 2 : ((n % 100 >= 3 && n % 100 <= 10) ? 3 : ((n % 100 >= 11 && n % 100 <= 99) ? 4 : 5))));');
-foreach (array_merge($fixture['app'], $fixture['chunks']) as $source => $translation) {
-    $mo->add_entry(new Translation_Entry(array(
-        'singular' => (string) $source,
-        'translations' => array((string) $translation),
-    )));
-}
+// The pack's .mo, written byte for byte here rather than with WordPress's POMO classes:
+// before PHP 8.5 those need WordPress's compat.php polyfills (array_last()), which this
+// standalone CLI script does not load, and the .mo format is small and stable.
 $mo_target = sprintf('%s/%s-%s.mo', $languages, SUPCHECKOUT_FIXTURE_DOMAIN, SUPCHECKOUT_FIXTURE_LOCALE);
-if (!$mo->export_to_file($mo_target)) {
+$mo_entries = array_merge($fixture['app'], $fixture['chunks']);
+$mo_entries[''] = 'Language: ' . SUPCHECKOUT_FIXTURE_LOCALE . "\n"
+    . "Content-Type: text/plain; charset=UTF-8\n"
+    . 'Plural-Forms: ' . SUPCHECKOUT_FIXTURE_PLURAL_FORMS . "\n";
+if (false === file_put_contents($mo_target, supcheckout_fixture_mo($mo_entries))) {
     supcheckout_fixture_fail("cannot write $mo_target");
 }
 echo 'wrote ' . basename($mo_target) . ' (the language pack the registry keys on)' . PHP_EOL;
