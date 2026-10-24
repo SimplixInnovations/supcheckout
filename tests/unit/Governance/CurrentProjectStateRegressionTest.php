@@ -14,14 +14,21 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const RC1_SOURCE_SHA = '8f2b8af5ec1ed8bc8bc5b69417455b1c680c0243';
     private const RC1_PACKAGE_SHA256 = '8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156';
     /**
-     * The current executable gate (reconciled 2026-10-23): the owner verifies the hardened package
-     * on staging. The hardening program's repository-executable fix loop is done (batches 1-3);
-     * the revamp information architecture and branding (Sub-project 2+) follow, per the owner
-     * decision of 2026-10-20.
+     * The current executable gate (reconciled 2026-10-24): the owner verified the hardened package
+     * on staging, so the next executable step waits on the owner's revamp information architecture
+     * and branding (Sub-project 2+), per the owner decision of 2026-10-20.
      */
-    private const CURRENT_GATE = '**Owner staging verification of the hardened package — NEXT**';
-    /** What follows the owner staging verification (owner decision 2026-10-20). */
-    private const NEXT_AFTER_GATE = 'Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding';
+    private const CURRENT_GATE = '**Revamp information architecture and branding from the owner (Sub-project 2+) — NEXT (owner input)**';
+    /** What the current gate unlocks (owner decision 2026-10-20). */
+    private const NEXT_AFTER_GATE = 'Sub-project 2 admin screens begin only after the owner shares the information architecture and branding';
+    /** The owner staging verification of the hardened package, recorded as done in every living record. */
+    private const STAGING_VERIFICATION_DONE = 'Owner staging verification of the hardened package — **DONE / OWNER-VERIFIED** (2026-10-24)';
+    /** The superseded staging-verification gate (reconciled 2026-10-23, superseded 2026-10-24). */
+    private const SUPERSEDED_STAGING_GATE = '**Owner staging verification of the hardened package — NEXT**';
+    /** The superseded "next after" wording of the staging-verification gate. */
+    private const SUPERSEDED_NEXT_AFTER_STAGING = 'Next after the owner staging verification:';
+    /** The owner staging verification evidence record. */
+    private const STAGING_VERIFICATION_EVIDENCE = 'docs/project/evidence/OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md';
     /** The superseded hardening gate (reconciled 2026-10-21, superseded 2026-10-23). */
     private const SUPERSEDED_HARDENING_GATE = '**Hardening program: full functionality, security and performance audit and fix loop — NEXT**';
     /** The superseded "next after" wording of the hardening gate. */
@@ -52,7 +59,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     /** The release gate stays open until Sub-project 5; it is no longer the current executable gate. */
     private const RELEASE_GATE = 'Release gate (open): **external certification & release readiness**';
     /** The same current gate as a machine identifier (architecture contract). */
-    private const CURRENT_GATE_ID = 'owner_staging_verification_hardened_package';
+    private const CURRENT_GATE_ID = 'revamp_ia_and_branding_from_owner';
+    /** The superseded staging-verification gate as a machine identifier. */
+    private const SUPERSEDED_STAGING_GATE_ID = 'owner_staging_verification_hardened_package';
     /** The superseded hardening gate as a machine identifier. */
     private const SUPERSEDED_HARDENING_GATE_ID = 'hardening_program_audit_fix_loop';
     /** The Sub-project 1 evidence record. */
@@ -99,7 +108,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         $content = self::read_repository_file('docs/project/START-HERE.md');
 
         self::assertStringContainsString('docs/superpowers/plans/2026-09-26-external-certification-release-readiness.md', $content);
-        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Owner staging verification of the hardened package**', $content);
+        self::assertStringContainsString('Program phase | **SUPCheckout revamp — Revamp information architecture and branding from the owner (Sub-project 2+)**', $content);
+        self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Owner staging verification', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Hardening program', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 0c exit gate', $content);
         self::assertStringNotContainsString('Program phase | **SUPCheckout revamp — Sub-project 1', $content);
@@ -236,6 +246,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('current_gate: ' . self::CURRENT_GATE_ID, $contract);
         self::assertStringNotContainsString('current_gate: external_certification_release_readiness', $contract);
         self::assertStringNotContainsString('current_gate: ' . self::SUPERSEDED_HARDENING_GATE_ID, $contract);
+        self::assertStringNotContainsString('current_gate: ' . self::SUPERSEDED_STAGING_GATE_ID, $contract);
         self::assertStringContainsString('approach3_status: owner_accepted', $contract);
         self::assertStringContainsString('owner_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=' . self::RC1_ACCEPTANCE_TOKEN, $contract);
         self::assertStringContainsString('historical_approach3_acceptance_token: OWNER_TECHNICAL_ACCEPTANCE=APPROACH_3', $contract);
@@ -438,6 +449,7 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringNotContainsString(self::PREMATURE_SUBPROJECT_1_GATE, $content, $path);
             self::assertStringNotContainsString($label . self::SUPERSEDED_0C_EXIT_GATE, $content, $path);
             self::assertStringNotContainsString($label . self::SUPERSEDED_HARDENING_GATE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_STAGING_GATE, $content, $path);
             self::assertStringNotContainsString('Current executable gate: **R6', $content, $path);
             self::assertStringNotContainsString('Current operational gate | **external certification & release readiness** |', $content, $path);
         }
@@ -465,6 +477,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringNotContainsString(self::SUPERSEDED_0C_EXIT_GATE, $content, $path);
             self::assertStringNotContainsString(self::SUPERSEDED_HARDENING_GATE, $content, $path);
             self::assertStringNotContainsString(self::SUPERSEDED_NEXT_AFTER_HARDENING, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_STAGING_GATE, $content, $path);
+            self::assertStringNotContainsString(self::SUPERSEDED_NEXT_AFTER_STAGING, $content, $path);
+            self::assertStringContainsString(self::STAGING_VERIFICATION_DONE, $content, $path);
+            self::assertStringContainsString(basename(self::STAGING_VERIFICATION_EVIDENCE), $content, $path);
             self::assertStringContainsString(self::HARDENING_DONE, $content, $path);
             self::assertStringContainsString(basename(self::HARDENING_EVIDENCE), $content, $path);
         }
@@ -477,6 +493,9 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString(self::SUPERSEDED_0C_REVIEW_PENDING, $agents);
         self::assertStringContainsString(self::HARDENING_DONE, $agents);
         self::assertStringContainsString(self::HARDENING_EVIDENCE, $agents);
+        self::assertStringContainsString(self::STAGING_VERIFICATION_DONE, $agents);
+        self::assertStringContainsString(self::STAGING_VERIFICATION_EVIDENCE, $agents);
+        self::assertStringNotContainsString(self::SUPERSEDED_STAGING_GATE, $agents);
         self::assertStringNotContainsString(self::SUPERSEDED_HARDENING_GATE, $agents);
         self::assertStringContainsString('Admin UI token, contrast, build-contract, accessibility and visual-regression suites', $agents);
         self::assertStringContainsString('.github/workflows/admin-ui-certification.yml', $agents);
@@ -700,6 +719,45 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('are pending on the PR head', $status);
         self::assertStringNotContainsString('package 133 files', $status);
         self::assertStringNotContainsString('package 133 files', self::read_repository_file('docs/project/START-HERE.md'));
+    }
+
+    public function test_the_owner_staging_verification_of_the_hardened_package_is_recorded(): void {
+        $evidence = self::read_repository_file(self::STAGING_VERIFICATION_EVIDENCE);
+        foreach (array(
+            '2026-10-24',
+            'f3e207d',
+            '#223',
+            '233 files',
+            self::HARDENING_PACKAGE_SHA256,
+            'f236d64d7655254cb4b77c48a9d240020aa9f5184c51d6ba3432689722cb172d',
+            'currency_decimals',
+            'AED',
+            'SAR',
+            'QAR',
+            'woocommerce_price_decimal_sep',
+            'CAPTURED',
+            'write-only',
+            'automatic renewals are paused',
+            'switch is final',
+            'early-loading',
+            'FunnelKit',
+            'native Arabic review',
+            'NOT AUTHORIZED',
+            'not owner accepted',
+        ) as $fact) {
+            self::assertStringContainsString($fact, $evidence, 'staging verification evidence missing: ' . $fact);
+        }
+        // Order numbers, payment IDs, e-mail addresses and URLs never belong in the record.
+        self::assertSame(0, preg_match('/[\w.+-]+@[\w-]+\.[\w.-]+/', $evidence), 'no e-mail address in the evidence');
+        self::assertSame(0, preg_match('#https?://#', $evidence), 'no URL in the evidence');
+
+        $contract = self::read_repository_file('.ai-architect/architecture-contract.yaml');
+        self::assertStringContainsString('    owner_staging_verification_hardened: done_owner_verified', $contract);
+        self::assertStringContainsString('    owner_staging_verification_hardened_evidence: ' . self::STAGING_VERIFICATION_EVIDENCE, $contract);
+        self::assertStringContainsString('    current_gate_status: next_owner_input', $contract);
+        self::assertStringContainsString('    superseded_gate_2026_10_24: ' . self::SUPERSEDED_STAGING_GATE_ID, $contract);
+        self::assertStringContainsString('    hardening_package_owner_accepted: false', $contract);
+        self::assertStringContainsString('publication_authorized: false', $contract);
     }
 
     public function test_the_hardening_program_close_is_recorded(): void {

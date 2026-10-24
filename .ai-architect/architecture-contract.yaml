@@ -256,8 +256,11 @@ tranches:
     hardening_package_owner_accepted: false
     hardening_parked: a2_02_https_only_live_redirect_waits_on_provider_question_12
     superseded_gate_2026_10_23: hardening_program_audit_fix_loop
-    current_gate: owner_staging_verification_hardened_package
-    current_gate_status: next
+    superseded_gate_2026_10_24: owner_staging_verification_hardened_package
+    owner_staging_verification_hardened: done_owner_verified
+    owner_staging_verification_hardened_evidence: docs/project/evidence/OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md
+    current_gate: revamp_ia_and_branding_from_owner
+    current_gate_status: next_owner_input
     next: subproject_2_after_owner_ia_and_branding
 
 r2_contract:

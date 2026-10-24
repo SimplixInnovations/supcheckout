@@ -59,8 +59,9 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-proj
   - **Package:** 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8` (not owner accepted).
   - **Parked:** A2-02 waits on UPayments support question 12.
   - **Evidence:** [`docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md`](../docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md).
-- Current executable gate: **Owner staging verification of the hardened package — NEXT**.
-- Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding; then Sub-projects 3–5.
+- Owner staging verification of the hardened package — **DONE / OWNER-VERIFIED** (2026-10-24): the owner installed the 233-file package (`main` @ `f3e207d`, installed-tree fingerprint `f236d64d7655254cb4b77c48a9d240020aa9f5184c51d6ba3432689722cb172d`) on the My Organic World staging copy; setup checks, English and Arabic checkout in KWD, AED and OMR, two sandbox payments (CAPTURED), the write-only API key, the paused-renewals note and the final-switch refusal of the official plugin all passed; the new `currency_decimals` check warned once and passed after the owner set AED, SAR and QAR to 2 decimals. The package is not owner accepted as a release. [Evidence](../docs/project/evidence/OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md).
+- Current executable gate: **Revamp information architecture and branding from the owner (Sub-project 2+) — NEXT (owner input)**.
+- Sub-project 2 admin screens begin only after the owner shares the information architecture and branding; then Sub-projects 3–5.
 
 Release gate (open): **external certification & release readiness**. Public release authorization remains false.
 
