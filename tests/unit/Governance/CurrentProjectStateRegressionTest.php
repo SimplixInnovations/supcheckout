@@ -623,7 +623,6 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             'sockjs',
             'react-dom-19',
             '90 days',
-            '2027-01-17',
             'audit:lock-age',
             '### Reverting a Sub-project 1 change',
             'git revert',
@@ -644,8 +643,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             self::assertStringContainsString($floor, $compatibility, 'admin UI browser floor missing: ' . $floor);
         }
         self::assertStringNotContainsString('| GHSA-gfr2-rv44-r23c |', $release, 'markdown-it was adopted in #208');
-        foreach (array(
-            'Playwright 1.63.0',
+        self::assertStringNotContainsString('| GHSA-vfj7-8cjw-p6xm |', $release, 'the braces allow-list entry was removed');        foreach (array(
+            'Playwright 1.64.0',
             'WP 6.9.10 / WC 10.8.1',
             'WP 7.1.3 / WC 11.1.2',
             'React 18.3.1',
