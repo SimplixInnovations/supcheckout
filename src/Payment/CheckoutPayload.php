@@ -554,10 +554,17 @@ class CheckoutPayload {
      * Accepts only absolute http/https URLs with a non-empty host.
      * Does NOT force same-origin — UPayments payment URLs are external.
      *
-     * @param mixed $value Raw redirect value from provider response.
+     * Live mode (A2-02, provider answer Q12) accepts only https: an http link whose
+     * host is upayments.com or one of its subdomains is upgraded to https (UPayments
+     * documents http white-label wallet links, and that host 301-redirects to https);
+     * any other non-https link is rejected. Sandbox keeps http links unchanged. There
+     * is no host allowlist for https links: live hosted-page hosts are not documented.
+     *
+     * @param mixed $value     Raw redirect value from provider response.
+     * @param bool  $live_mode Enforce https (anything but an explicit sandbox setting).
      * @return string|null Normalized URL or null if invalid.
      */
-    public static function normalize_upayments_redirect_url($value) {
+    public static function normalize_upayments_redirect_url($value, $live_mode = false) {
         if (!is_string($value)) {
             return null;
         }
@@ -587,7 +594,30 @@ class CheckoutPayload {
         if ($scheme !== 'http' && $scheme !== 'https') {
             return null;
         }
-        return $url;
+        if (!$live_mode || $scheme === 'https') {
+            return $url;
+        }
+        return self::upgrade_upayments_http_url($url, (string) $parts['host']);
+    }
+
+    /**
+     * Live mode: rewrite an http link on upayments.com or a subdomain to https, or
+     * reject it (null). The host must be a plain DNS name, so a parser/browser split
+     * (a backslash, an encoded character) cannot pass a foreign host off as UPayments.
+     *
+     * @param string $url  Validated absolute http URL (scheme is exactly 4 bytes).
+     * @param string $host Its parsed host.
+     * @return string|null
+     */
+    private static function upgrade_upayments_http_url($url, $host) {
+        $host = strtolower($host);
+        if (preg_match('/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/D', $host) !== 1
+            || ($host !== 'upayments.com' && substr($host, -strlen('.upayments.com')) !== '.upayments.com')
+        ) {
+            return null;
+        }
+        $upgraded = 'https' . substr($url, 4);
+        return strlen($upgraded) > 250 ? null : $upgraded;
     }
 
     /**

@@ -87,9 +87,11 @@ Before dedupe they found 50 findings: **2 Critical, 3 High, 18 Medium, 27 Low**.
 
 ## Parked
 
-| Finding | Why it waits |
-|---|---|
-| A2-02 (https-only live redirect link) | It waits on UPayments support question 12. The sandbox Apple Pay link is `http`, so if live is too, an https-only rule would block all live Apple Pay. The change (T10) was reverted from the charge-path unit. The host allowlist is recorded until UPayments confirms its hosted-page hosts. |
+None. A2-02 was the only parked finding, and batch 4 fixed it.
+
+| Finding | Was parked because | Fixed |
+|---|---|---|
+| A2-02 (https-only live redirect link) | It waited on UPayments support question 12. The sandbox Apple Pay link is `http`, so an https-only rule could block all live Apple Pay. The change (T10) was reverted from the charge-path unit. | Batch 4, revised by the Q12 evidence (`.superpowers/hardening/upayments-answers.md`, Q12): every sandbox hosted-page link was https; the documented white-label wallet links are `http://sandboxapi.upayments.com/get-pay-by-*`, and that host 301-redirects to https. In live mode `CheckoutPayload::normalize_upayments_redirect_url()` now accepts https, upgrades an http link on `upayments.com` or a subdomain to https, and rejects any other non-https link with the generic failure and no recorded attempt. Live mode is anything but an explicit sandbox `getMode() === true`. Sandbox is unchanged. There is still no host allowlist for https links, because the live hosted-page hosts are not documented. |
 
 ## Recorded, not fixed
 
@@ -131,7 +133,7 @@ Before dedupe they found 50 findings: **2 Critical, 3 High, 18 Medium, 27 Low**.
 - Confirm staging email blocking (O6, "New order failed to send").
 - Do a native Arabic review of the bundled translations (U7 drafted them by machine).
 - At the live cutover, check the LiteSpeed/Cloudflare purge. The automatic purge is covered by the real-plugin CI cell (`CachePurgeRuntimeTest`).
-- Send the 14 UPayments support questions (questions 11 to 14 were added during the fix loop). Question 12 unparks A2-02.
+- Send the 14 UPayments support questions (questions 11 to 14 were added during the fix loop). Question 12 has an evidence-based answer, which batch 4 used to fix A2-02; the live hosted-page and wallet hosts remain worth confirming.
 
 Other observations carried to the revamp: O4 ("UPayments payment ID" copy) and O7 (FunnelKit upsell support, a payment-sensitive feature that needs owner approval).
 

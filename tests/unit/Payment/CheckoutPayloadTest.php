@@ -125,6 +125,54 @@ final class CheckoutPayloadTest extends TestCase {
         );
     }
 
+    /**
+     * A2-02 revised (Q12 evidence): in live mode a Charge redirect must be https. An http
+     * link on upayments.com or a subdomain is upgraded (UPayments documents http
+     * white-label wallet links, and the host 301-redirects to https); any other non-https
+     * link is rejected. No host allowlist for https links. Sandbox is unchanged.
+     */
+    public function test_a2_02_live_mode_accepts_an_https_redirect_on_any_host(): void {
+        self::assertSame('https://pay.example/redirect', CheckoutPayload::normalize_upayments_redirect_url(' https://pay.example/redirect ', true));
+        self::assertSame('HTTPS://pay.example/redirect', CheckoutPayload::normalize_upayments_redirect_url('HTTPS://pay.example/redirect', true));
+        self::assertSame('https://www.kpay.com.kw/kpg/PaymentHTTP.htm?x=1', CheckoutPayload::normalize_upayments_redirect_url('https://www.kpay.com.kw/kpg/PaymentHTTP.htm?x=1', true));
+    }
+
+    public function test_a2_02_live_mode_upgrades_an_http_upayments_link_to_https(): void {
+        self::assertSame(
+            'https://sandboxapi.upayments.com/get-pay-by-apple?session_id=abc',
+            CheckoutPayload::normalize_upayments_redirect_url('http://sandboxapi.upayments.com/get-pay-by-apple?session_id=abc', true)
+        );
+        self::assertSame('https://x.upayments.com/pay', CheckoutPayload::normalize_upayments_redirect_url('http://x.upayments.com/pay', true));
+        self::assertSame('https://upayments.com/pay', CheckoutPayload::normalize_upayments_redirect_url('http://upayments.com/pay', true));
+        self::assertSame('https://X.UPayments.COM/pay', CheckoutPayload::normalize_upayments_redirect_url('HTTP://X.UPayments.COM/pay', true));
+    }
+
+    public function test_a2_02_live_mode_rejects_every_other_non_https_link(): void {
+        foreach (array(
+            'http://evil.example/pay',
+            'http://upayments.com.evil.example/pay',
+            'http://evilupayments.com/pay',
+            'http://evil.example\\.upayments.com/pay',
+            'javascript:alert(1)',
+            'ftp://x.upayments.com/pay',
+            'http://user@x.upayments.com/pay',
+        ) as $link) {
+            self::assertNull(CheckoutPayload::normalize_upayments_redirect_url($link, true), $link);
+        }
+        // An upgrade never lets the URL past the 250-character production cap.
+        $long = 'http://x.upayments.com/' . str_repeat('a', 250 - strlen('http://x.upayments.com/'));
+        self::assertSame(250, strlen($long));
+        self::assertNull(CheckoutPayload::normalize_upayments_redirect_url($long, true));
+    }
+
+    public function test_a2_02_sandbox_keeps_http_payment_links(): void {
+        self::assertSame(
+            'http://sandboxapi.upayments.com/get-pay-by-apple',
+            CheckoutPayload::normalize_upayments_redirect_url('http://sandboxapi.upayments.com/get-pay-by-apple', false)
+        );
+        self::assertSame('http://pay.example/redirect', CheckoutPayload::normalize_upayments_redirect_url('http://pay.example/redirect', false));
+    }
+
     public function test_field_presence_distinguishes_absent_from_explicit_null(): void {
         self::assertTrue(CheckoutPayload::field_present(array('save' => null), 'save'));
         self::assertFalse(CheckoutPayload::field_present(array(), 'save'));

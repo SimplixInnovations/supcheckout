@@ -38,7 +38,12 @@ final class CheckoutOrchestratorGateway {
     public $knetChargeType = 'fixed';
     public $ccChargeType = 'fixed';
     public $apiKey = 'test-api-key';
+    public $testMode = 'no';
     public $logs = array();
+
+    public function getMode() {
+        return $this->testMode === 'yes';
+    }
 
     public function getPaymentIcons() {
         $this->paymentIconCalls++;
@@ -286,6 +291,82 @@ final class CheckoutOrchestratorTest extends TestCase {
     public function test_a4_02_other_languages_keep_the_english_hosted_page(): void {
         self::assertSame('en', $this->captured_charge_payload(array())['language']);
         self::assertSame('en', $this->captured_charge_payload(array('wpml_language' => 'fr'))['language']);
+    }
+
+    /**
+     * @param string $test_mode Gateway test-mode setting ('yes' is sandbox).
+     * @param array<string,mixed> $data Charge response data.
+     * @return array{0:array, 1:\WC_Order, 2:CheckoutOrchestratorGateway}
+     */
+    private function process_with_charge_response($test_mode, array $data): array {
+        \supcheckout_test_reset_wp_options();
+        $order = $this->stateful_order(array('UPayments_order_id' => 'attempt-p0'));
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        $gateway = new CheckoutOrchestratorGateway();
+        $gateway->testMode = $test_mode;
+        $orchestrator = new CheckoutOrchestrator(
+            $gateway,
+            static function () { return ''; },
+            static function ($route) use ($data) {
+                if ($route !== 'charge') {
+                    return array();
+                }
+                return array(
+                    'transport_ok' => true,
+                    'http_status' => 201,
+                    'curl_errno' => 0,
+                    'body' => json_encode(array('status' => true, 'data' => $data)),
+                );
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+        return array($orchestrator->process(42), $order, $gateway);
+    }
+
+    public function test_a2_02_live_mode_rejects_a_foreign_http_payment_link_without_recording_an_attempt(): void {
+        $links = array(
+            'link'         => array('link' => 'http://evil.example/pay/attempt-a'),
+            'redirect_url' => array('transactionData' => array('redirect_url' => 'http://upayments.com.evil.example/pay/attempt-a')),
+        );
+        foreach ($links as $label => $data) {
+            list($result, $order, $gateway) = $this->process_with_charge_response('no', $data);
+
+            self::assertSame('failure', $result['result'], $label);
+            self::assertStringNotContainsString('evil.example', $result['redirect'], $label);
+            self::assertSame('attempt-p0', $order->get_meta('UPayments_order_id'), $label);
+            self::assertSame('', $order->get_meta(StatusVerifier::CHARGE_AMOUNT_META), $label);
+            self::assertContains(array('warning', 'Charge response: no valid redirect URL found.'), $gateway->logs, $label);
+        }
+    }
+
+    public function test_a2_02_live_mode_upgrades_an_http_upayments_wallet_link(): void {
+        list($result, $order) = $this->process_with_charge_response('no', array(
+            'link' => 'http://sandboxapi.upayments.com/get-pay-by-apple?session_id=abc',
+        ));
+
+        self::assertSame('success', $result['result']);
+        self::assertSame('https://sandboxapi.upayments.com/get-pay-by-apple?session_id=abc', $result['redirect']);
+        self::assertNotSame('attempt-p0', $order->get_meta('UPayments_order_id'));
+    }
+
+    public function test_a2_02_live_mode_falls_back_to_an_https_redirect_url(): void {
+        list($result) = $this->process_with_charge_response('no', array(
+            'link' => 'http://evil.example/pay/attempt-a',
+            'transactionData' => array('redirect_url' => 'https://pay.example/pay/attempt-a'),
+        ));
+
+        self::assertSame('success', $result['result']);
+        self::assertSame('https://pay.example/pay/attempt-a', $result['redirect']);
+    }
+
+    public function test_a2_02_sandbox_mode_keeps_http_payment_links(): void {
+        list($result, $order) = $this->process_with_charge_response('yes', array(
+            'link' => 'http://evil.example/get-pay-by-apple',
+        ));
+
+        self::assertSame('success', $result['result']);
+        self::assertSame('http://evil.example/get-pay-by-apple', $result['redirect']);
+        self::assertNotSame('attempt-p0', $order->get_meta('UPayments_order_id'));
     }
 
     public function test_a1_07_a_rejected_charge_records_no_amount_snapshot(): void {
