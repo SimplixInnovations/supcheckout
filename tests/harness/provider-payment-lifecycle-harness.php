@@ -2146,6 +2146,28 @@ namespace {
     $u2_sweep();
     same(array(count($paid_pending->notes), $paid_pending->get_meta('_supcheckout_no_callback_noted_v1')), array(0, 1), 'U2 review I-2 S5b a rejected candidate gets no note but is flagged, so it is not selected again');
 
+    // S5d (batch 4, N-2): a run where the gateway is unavailable skips the note for a
+    // transient reason. The order must stay eligible (no flag), so a later run inside
+    // the 30 min to 48 h window still notes it exactly once.
+    $gateway = $u2_reset();
+    $transient = $u2_order(838);
+    $transient->created = time() - 7200;
+    \Simplixi\SUPCheckout\Payment\state()['gateway'] = null;
+    $u2_sweep();
+    same(array(count($transient->notes), $transient->get_meta('_supcheckout_no_callback_noted_v1')), array(0, ''), 'batch 4 N-2 S5d a run without the gateway adds no note and leaves the order unflagged');
+    \Simplixi\SUPCheckout\Payment\state()['gateway'] = $gateway;
+    $u2_sweep();
+    $u2_sweep();
+    same(array(count($transient->notes), $transient->get_meta('_supcheckout_no_callback_noted_v1')), array(1, 1), 'batch 4 N-2 S5d once the gateway is back the order is noted exactly once and flagged');
+    // A permanent non-qualification is still flagged on the first call (S5b covers a
+    // verified capture through the sweep; the sweep query never selects another
+    // gateway's order, so the entry point is called directly).
+    $foreign = $u2_order(839);
+    $foreign->created = time() - 7200;
+    $foreign->payment_method = 'cod';
+    PaymentLifecycle::note_missing_callback(839);
+    same(array(count($foreign->notes), $foreign->get_meta('_supcheckout_no_callback_noted_v1')), array(0, 1), 'batch 4 N-2 S5d an order paid by another gateway is a permanent rejection: flagged, no note');
+
     // S5c (U2 review M-3): an order whose reconcile event is not overdue is marked
     // swept without a lookup, so it does not hold a never-swept slot; an event overdue
     // by more than an hour is treated as lost and the order is swept.
