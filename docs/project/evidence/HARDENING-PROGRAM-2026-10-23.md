@@ -175,7 +175,12 @@ Other observations carried to the revamp: O7 (FunnelKit upsell support, a paymen
 
 Local gates at the batch 4 head (Windows, Git Bash):
 
-GATES_B4_PLACEHOLDER
+- `vendor/bin/phpunit`: OK, 1469 tests and 14909 assertions. 7 tests are skipped by design (the A1-01 gate-open companions). `tests/unit/Subscription` alone: OK, 132 tests.
+- `composer quality`: exit 0 (PHPStan no errors, phpcs clean).
+- All 61 PHP harnesses and all 6 JS harnesses: 0 failures. Release Artifact 125/0 (run from Git Bash), H12 PHP 2010/0, Phase 9I preflight 129/0 and executor 59/0, provider payment lifecycle 618/0, security threat model 106/0, takeover identity coverage 27/0, public surface PASS, H12 Blocks FAIL 0.
+- `npm run quality` and `npm run audit:full` with the pinned Node 24.21.0: exit 0 (the audit gate passes, with 7 advisories, all allow-listed development-only).
+- Two deterministic builds: byte-identical, 233 files, the SHA-256 above. `scripts/verify-release.sh` verified the archive.
+- Not run locally: real-WordPress integration (including `HistoricalMetaCardinalityRuntimeTest`), the Compatibility, Ecosystem, Admin UI, Takeover and Provider Sandbox workflows, and CodeQL.
 
 Exact-head CI runs at the batch 4 PR, and the merge gate in `AGENTS.md` applies unchanged.
 
