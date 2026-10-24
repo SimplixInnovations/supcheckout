@@ -285,7 +285,19 @@ final class OrderLock {
         return true;
     }
 
-    private static function delete_if_current($name, $expected) {
+    /**
+     * Compare-and-delete an option row: delete it only if it still holds $expected.
+     *
+     * The release half of the option CAS: a holder whose lock was stolen (the row
+     * now holds another worker's record) deletes nothing. Flushes the option cache
+     * after a successful delete. Fails closed (false) when the database handle is
+     * unavailable.
+     *
+     * @param mixed $name     Option name; anything but a non-empty string fails closed.
+     * @param mixed $expected Exact stored value (compared bytewise) the delete is conditional on.
+     * @return bool True only for the single worker whose delete removed the row.
+     */
+    public static function delete_if_current($name, $expected) {
         global $wpdb;
         if (!is_object($wpdb)
             || !isset($wpdb->options)
@@ -293,6 +305,8 @@ final class OrderLock {
             || $wpdb->options === ''
             || !method_exists($wpdb, 'prepare')
             || !method_exists($wpdb, 'query')
+            || !is_string($name)
+            || $name === ''
             || !is_string($expected)
         ) {
             return false;
