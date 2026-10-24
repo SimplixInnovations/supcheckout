@@ -7772,6 +7772,71 @@ upay_assert_eq(get_user_meta($tok_user, $tok_key8, false), ['concurrent-writer']
 upay_reset_state();
 
 // ---------------------------------------------------------------------------
+// H12-META: get_historical_meta_cardinality() against real WooCommerce shapes.
+// WC_Data::get_meta($key, false) keeps each row's position in the order's whole
+// meta list (array_intersect_key()), and WC_Meta_Data exposes the row through
+// __get/get_data() only (no get_value()). Checked against WooCommerce 11.1.2.
+// ---------------------------------------------------------------------------
+upay_reset_state();
+$meta_cti = 'Simplixi\SUPCheckout\Token\CustomerTokenIdentity';
+$meta_card = function ($order, $key) use ($meta_cti) {
+    try {
+        $r = call_user_func([$meta_cti, 'get_historical_meta_cardinality'], $order, $key);
+        return [$r['status'], $r['value']];
+    } catch (\Throwable $e) {
+        return 'threw ' . get_class($e) . ': ' . $e->getMessage();
+    }
+};
+$meta_one = constant($meta_cti . '::META_EXACTLY_ONE');
+$meta_bad = constant($meta_cti . '::META_DUPLICATE_OR_INVALID');
+$meta_none = constant($meta_cti . '::META_ABSENT');
+$meta_rows_order = function (array $rows) {
+    return new class($rows) {
+        private $rows;
+        public function __construct(array $rows) { $this->rows = $rows; }
+        public function meta_exists($key) { return $key === '_upay_customer_unique_token'; }
+        public function get_meta($key, $single = true, $context = 'view') { return $single ? '' : $this->rows; }
+    };
+};
+
+upay_assert_eq(method_exists('WC_Meta_Data', 'get_value'), false, 'H12-META the WC_Meta_Data double has no get_value(), like WooCommerce', 'harness_self_test');
+
+// META-1: one row of the key, after other meta rows (array index is not 0).
+$meta_order = new FakeWCOrder(91001);
+$meta_order->meta_store = ['_billing_note' => ['x'], '_order_source' => ['web'], '_upay_customer_unique_token' => ['1234567890']];
+upay_assert_eq($meta_card($meta_order, '_upay_customer_unique_token'), [$meta_one, '1234567890'], 'H12-META-1 a single row at a non-zero array index is EXACTLY_ONE with its value', 'helper_unit_runtime');
+
+// META-2: one row of the key, as the order's first meta row (array index 0).
+$meta_order = new FakeWCOrder(91002);
+$meta_order->meta_store = ['_upay_customer_unique_token' => ['1234567890'], '_billing_note' => ['x']];
+upay_assert_eq($meta_card($meta_order, '_upay_customer_unique_token'), [$meta_one, '1234567890'], 'H12-META-2 a single row at array index 0 is EXACTLY_ONE with its value and does not throw', 'helper_unit_runtime');
+
+// META-3: two rows stay DUPLICATE_OR_INVALID.
+$meta_order = new FakeWCOrder(91003);
+$meta_order->meta_store = ['_billing_note' => ['x'], '_upay_customer_unique_token' => ['1234567890', '1234567890']];
+upay_assert_eq($meta_card($meta_order, '_upay_customer_unique_token'), [$meta_bad, null], 'H12-META-3 two rows of the key stay DUPLICATE_OR_INVALID', 'helper_unit_runtime');
+
+// META-4: an absent key stays ABSENT.
+$meta_order = new FakeWCOrder(91004);
+$meta_order->meta_store = ['_billing_note' => ['x']];
+upay_assert_eq($meta_card($meta_order, '_upay_customer_unique_token'), [$meta_none, null], 'H12-META-4 an absent key stays ABSENT', 'helper_unit_runtime');
+
+// META-5: a single non-scalar row stays DUPLICATE_OR_INVALID.
+$meta_order = new FakeWCOrder(91005);
+$meta_order->meta_store = ['_billing_note' => ['x'], '_upay_customer_unique_token' => [['nested' => '1234567890']]];
+upay_assert_eq($meta_card($meta_order, '_upay_customer_unique_token'), [$meta_bad, null], 'H12-META-5 a single non-scalar row stays DUPLICATE_OR_INVALID', 'helper_unit_runtime');
+
+// META-6: the array-shaped row fallback still reads its value at any index.
+upay_assert_eq($meta_card($meta_rows_order([4 => ['key' => '_upay_customer_unique_token', 'value' => '1234567890']]), '_upay_customer_unique_token'), [$meta_one, '1234567890'], 'H12-META-6 an array-shaped single row at a non-zero index is EXACTLY_ONE', 'helper_unit_runtime');
+
+// META-7: a WC_Meta_Data row with no value fails closed.
+upay_assert_eq($meta_card($meta_rows_order([2 => new WC_Meta_Data(['id' => 3, 'key' => '_upay_customer_unique_token'])]), '_upay_customer_unique_token'), [$meta_bad, null], 'H12-META-7 a WC_Meta_Data row without a value fails closed', 'helper_unit_runtime');
+
+// META-8: an unrecognised row shape fails closed.
+upay_assert_eq($meta_card($meta_rows_order([1 => new \stdClass()]), '_upay_customer_unique_token'), [$meta_bad, null], 'H12-META-8 an unrecognised row shape fails closed', 'helper_unit_runtime');
+upay_reset_state();
+
+// ---------------------------------------------------------------------------
 // SEMANTIC LEDGER — exact family breakdown for auditability
 // ---------------------------------------------------------------------------
 // Residual Correction #28: this ledger is populated automatically at runtime
@@ -7971,12 +8036,12 @@ $_expected_family_baseline = array(
 //                                                   TOTAL       = 21
 $_expected_categories = array(
     'semantic_runtime'    => 399,    // 379 + 20 U5 (A3-01) saved-card display-cache assertions
-    'helper_unit_runtime' => 876,    // 854 + 22 A6-05-TOK characterization assertions
+    'helper_unit_runtime' => 884,    // 854 + 22 A6-05-TOK characterization + 8 H12-META cardinality assertions
     'static_source'       => 46,
-    'harness_self_test'   => 662,    // 641 baseline + 21 §4/§5/§7 probes
+    'harness_self_test'   => 663,    // 641 baseline + 21 §4/§5/§7 probes + 1 H12-META WC_Meta_Data double shape
     'lint_tooling'        => 10,
 );
-$_expected_total_pass    = 1993;    // 399 + 876 + 46 + 662 + 10
+$_expected_total_pass    = 2002;    // 399 + 884 + 46 + 663 + 10
 $_expected_total_fail    = 0;
 $_family_mismatch        = 0;
 $_category_mismatch      = 0;

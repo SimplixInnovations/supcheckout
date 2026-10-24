@@ -1,0 +1,95 @@
+<?php
+/**
+ * Real-runtime H12-META certification: CustomerTokenIdentity::get_historical_meta_cardinality()
+ * against real WooCommerce order metadata.
+ *
+ * WC_Data::get_meta($key, false) returns array_intersect_key() over the order's whole
+ * re-indexed meta list, so a single row of a key keeps its position in that list (index 0
+ * only when it is the order's first meta row), and WC_Meta_Data exposes the row through
+ * __get/get_data() with no get_value() method. The helper must report exactly one row as
+ * META_EXACTLY_ONE with its scalar value wherever the row sits, and must still report two
+ * rows as META_DUPLICATE_OR_INVALID.
+ */
+
+require_once __DIR__ . '/bootstrap.php';
+
+use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
+
+supcheckout_cert_assert(function_exists('wc_create_order'), 'WooCommerce order API is available');
+supcheckout_cert_assert(class_exists('WC_Meta_Data'), 'WooCommerce WC_Meta_Data is loaded');
+supcheckout_cert_assert(!method_exists('WC_Meta_Data', 'get_value'), 'real WC_Meta_Data has no get_value() method');
+
+$token_key = '_upay_customer_unique_token';
+$created_orders = array();
+
+/**
+ * Reload an order from storage exactly as the production inspectors do.
+ *
+ * @param int $order_id Order ID.
+ * @return WC_Order
+ */
+function supcheckout_cert_meta_reload($order_id) {
+    $order = wc_get_order($order_id);
+    supcheckout_cert_assert($order instanceof WC_Order, 'order ' . $order_id . ' reloads from storage');
+    supcheckout_cert_assert(CustomerTokenIdentity::force_refresh_order_meta($order), 'order ' . $order_id . ' meta force-refreshes');
+    return $order;
+}
+
+// Case 1: one row of the key written after other meta rows (array index is not 0).
+$order = wc_create_order();
+supcheckout_cert_assert($order instanceof WC_Order, 'single-row certification order is created');
+$created_orders[] = $order->get_id();
+$order->add_meta_data('_supcheckout_cert_filler_a', 'a');
+$order->add_meta_data('_supcheckout_cert_filler_b', 'b');
+$order->save();
+$order->add_meta_data($token_key, '1234567890');
+$order->save();
+
+$order = supcheckout_cert_meta_reload($order->get_id());
+$rows = $order->get_meta($token_key, false, 'edit');
+supcheckout_cert_assert(is_array($rows) && count($rows) === 1, 'real get_meta(false) returns exactly one row for the key');
+$row_index = key($rows);
+supcheckout_cert_assert($row_index !== 0, 'real get_meta(false) keeps the row position in the order meta list (index ' . var_export($row_index, true) . ', not 0)');
+
+$result = CustomerTokenIdentity::get_historical_meta_cardinality($order, $token_key);
+supcheckout_cert_assert(CustomerTokenIdentity::META_EXACTLY_ONE === $result['status'], 'one row at a non-zero index is META_EXACTLY_ONE');
+supcheckout_cert_assert('1234567890' === $result['value'], 'one row at a non-zero index returns its scalar value');
+
+// Case 2: two rows of the key stay duplicate.
+$order->add_meta_data($token_key, '1234567890');
+$order->save();
+$order = supcheckout_cert_meta_reload($order->get_id());
+$rows = $order->get_meta($token_key, false, 'edit');
+supcheckout_cert_assert(is_array($rows) && count($rows) === 2, 'real get_meta(false) returns both rows for the key');
+$result = CustomerTokenIdentity::get_historical_meta_cardinality($order, $token_key);
+supcheckout_cert_assert(CustomerTokenIdentity::META_DUPLICATE_OR_INVALID === $result['status'], 'two rows of the key stay META_DUPLICATE_OR_INVALID');
+supcheckout_cert_assert(null === $result['value'], 'two rows of the key return no value');
+
+// Case 3: the key written as early as possible (index 0 where the order has no earlier meta row).
+$order = wc_create_order();
+supcheckout_cert_assert($order instanceof WC_Order, 'first-row certification order is created');
+$created_orders[] = $order->get_id();
+$order->add_meta_data($token_key, '9876543210');
+$order->save();
+$order->add_meta_data('_supcheckout_cert_filler_c', 'c');
+$order->save();
+$order = supcheckout_cert_meta_reload($order->get_id());
+$rows = $order->get_meta($token_key, false, 'edit');
+supcheckout_cert_assert(is_array($rows) && count($rows) === 1, 'first-row order returns exactly one row for the key');
+supcheckout_cert_note('first-row order key index: ' . var_export(key($rows), true));
+$result = CustomerTokenIdentity::get_historical_meta_cardinality($order, $token_key);
+supcheckout_cert_assert(CustomerTokenIdentity::META_EXACTLY_ONE === $result['status'], 'one early row is META_EXACTLY_ONE and does not throw');
+supcheckout_cert_assert('9876543210' === $result['value'], 'one early row returns its scalar value');
+
+// Case 4: an absent key stays absent.
+$result = CustomerTokenIdentity::get_historical_meta_cardinality($order, '_upay_customer_token_kind_v1');
+supcheckout_cert_assert(CustomerTokenIdentity::META_ABSENT === $result['status'], 'an absent key stays META_ABSENT');
+
+foreach ($created_orders as $created_order_id) {
+    $created_order = wc_get_order($created_order_id);
+    if ($created_order) {
+        $created_order->delete(true);
+    }
+}
+
+supcheckout_cert_note('historical order meta cardinality runtime certification complete');
