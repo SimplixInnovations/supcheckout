@@ -12,6 +12,9 @@ defined('ABSPATH') || exit;
  * No provider transport, credentials, order mutation, or token storage.
  */
 class CheckoutPayload {
+    /** Registrable domain of UPayments' payment pages; live http links on it are upgraded to https (A2-02). */
+    private const PROVIDER_PAYMENT_DOMAIN = 'upayments.com';
+
     /**
      * Static allowlist of plugin-supported whitelabel payment sources.
      * Does NOT include 'create-invoice' — this plugin does not expose
@@ -612,7 +615,8 @@ class CheckoutPayload {
     private static function upgrade_upayments_http_url($url, $host) {
         $host = strtolower($host);
         if (preg_match('/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/D', $host) !== 1
-            || ($host !== 'upayments.com' && substr($host, -strlen('.upayments.com')) !== '.upayments.com')
+            || ($host !== self::PROVIDER_PAYMENT_DOMAIN
+                && substr($host, -strlen('.' . self::PROVIDER_PAYMENT_DOMAIN)) !== '.' . self::PROVIDER_PAYMENT_DOMAIN)
         ) {
             return null;
         }
