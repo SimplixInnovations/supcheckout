@@ -1,9 +1,51 @@
 [
 	{
-		"id": "GHSA-vfj7-8cjw-p6xm",
-		"package": "braces",
+		"id": "GHSA-27r3-jxmh-p828",
+		"package": "body-parser",
 		"severity": "high",
-		"expires": "2027-01-17",
-		"reason": "Stack-exhaustion DoS through deeply nested brace patterns (published 2026-09-18). Every braces release (<=3.0.3) is affected and no patched version exists. It reaches only development tooling (micromatch via fast-glob, webpack-dev-server/chokidar and stylelint inside @wordpress/scripts), which expands globs written in this repository, never user input; nothing from it is bundled. Remove this entry when a patched braces is published and adopted."
+		"expires": "2026-11-15",
+		"reason": "Dev-only tooling, not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); the fixed release is younger than the 14-day release-age floor; owner decision 2026-10-24: allow-list until the fix ages, then upgrade and remove this entry."
+	},
+	{
+		"id": "GHSA-mrhx-c7xc-m3w5",
+		"package": "zod",
+		"severity": "high",
+		"expires": "2026-11-15",
+		"reason": "Dev-only tooling, not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); the fixed release is younger than the 14-day release-age floor; owner decision 2026-10-24: allow-list until the fix ages, then upgrade and remove this entry."
+	},
+	{
+		"id": "GHSA-w74x-v6f9-j3xg",
+		"package": "fast-uri",
+		"severity": "moderate",
+		"expires": "2026-11-15",
+		"reason": "Dev-only tooling, not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); the fixed release is younger than the 14-day release-age floor; owner decision 2026-10-24: allow-list until the fix ages, then upgrade and remove this entry."
+	},
+	{
+		"id": "GHSA-wjr9-j795-jxcr",
+		"package": "fast-uri",
+		"severity": "moderate",
+		"expires": "2026-11-15",
+		"reason": "Dev-only tooling, not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); the fixed release is younger than the 14-day release-age floor; owner decision 2026-10-24: allow-list until the fix ages, then upgrade and remove this entry."
+	},
+	{
+		"id": "GHSA-xhq7-xmqj-769h",
+		"package": "fast-uri",
+		"severity": "low",
+		"expires": "2026-11-15",
+		"reason": "Dev-only tooling, not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); the fixed release is younger than the 14-day release-age floor; owner decision 2026-10-24: allow-list until the fix ages, then upgrade and remove this entry."
+	},
+	{
+		"id": "GHSA-333x-w4r6-6crp",
+		"package": "fast-uri",
+		"severity": "low",
+		"expires": "2026-11-15",
+		"reason": "Dev-only tooling, not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); the fixed release is younger than the 14-day release-age floor; owner decision 2026-10-24: allow-list until the fix ages, then upgrade and remove this entry."
+	},
+	{
+		"id": "GHSA-m5mm-p8h7-m29v",
+		"package": "serialize-javascript",
+		"severity": "low",
+		"expires": "2026-11-15",
+		"reason": "Dev-only tooling, not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); the fixed release is younger than the 14-day release-age floor; owner decision 2026-10-24: allow-list until the fix ages, then upgrade and remove this entry."
 	}
 ]

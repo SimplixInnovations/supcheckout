@@ -2,6 +2,8 @@
  * Policy behind `npm run audit:full`: allow-list validation and the
  * full-tree high/critical decision, tested without touching the registry.
  */
+import { readFileSync } from 'node:fs';
+
 import {
 	advisoriesOf,
 	evaluateAudit,
@@ -41,8 +43,31 @@ function evaluate( overrides = {} ) {
 }
 
 describe( 'validateAllowlist', () => {
-	test( 'accepts the committed braces entry exactly 90 days out', () => {
+	test( 'accepts a well-formed entry exactly 90 days out', () => {
 		expect( validateAllowlist( [ ENTRY ], TODAY ) ).toEqual( [] );
+	} );
+
+	test( 'accepts an empty allow-list', () => {
+		expect( validateAllowlist( [], TODAY ) ).toEqual( [] );
+		expect( evaluate( { full: [], allowlist: [] } ) ).toEqual( [] );
+	} );
+
+	test( 'accepts the committed allow-list file', () => {
+		const committed = JSON.parse(
+			readFileSync(
+				new URL(
+					'../../../tools/admin-ui/audit/audit-allowlist.json',
+					import.meta.url
+				),
+				'utf8'
+			)
+		);
+		expect(
+			validateAllowlist(
+				committed,
+				new Date().toISOString().slice( 0, 10 )
+			)
+		).toEqual( [] );
 	} );
 
 	test( 'rejects a non-array allow-list', () => {
