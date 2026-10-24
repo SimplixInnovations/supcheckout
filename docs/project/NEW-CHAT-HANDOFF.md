@@ -137,7 +137,7 @@ Spec: `docs/superpowers/specs/2026-10-16-supcheckout-revamp-design.md` (Sub-proj
     - batch 3 on `hardening/batch-3` (R1-1, R1-2);
     - OL-1 and R-1, raised during the loop, fixed in batch 2.
   - **Owner decision 2026-10-22 "Block auto-charges" (A1-01):** no auto-deduct is sent until success can be verified.
-  - **Parked:** A2-02 waits on UPayments support question 12.
+  - **Parked:** none. A2-02 (https-only live redirect) is fixed in hardening batch 4 (`hardening/batch-4`), revised by the UPayments question 12 evidence: in live mode an https link passes, an http link on `upayments.com` or a subdomain is upgraded to https, and any other non-https link fails closed. Nothing is parked.
   - **Package:** 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8` (not owner accepted).
   - **Evidence:** the units, the recorded-not-fixed items and the owner items: `evidence/HARDENING-PROGRAM-2026-10-23.md`.
   - **Threat model:** the dated entry-point census addendum is in `SECURITY-THREAT-MODEL.md`.

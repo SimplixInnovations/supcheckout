@@ -70,8 +70,12 @@ Before dedupe they found 50 findings: **2 Critical, 3 High, 18 Medium, 27 Low**.
 | 3 | R1-1 | final-review residual | `clear_reconciliation()` deletes the shared could-not-schedule flag, so a later, unrelated refused schedule is noted again: one note per failure episode. |
 | 3 | R1-2 | final-review residual | `ReactivationGuard::after_activation()` (`activated_plugin`) unschedules SUPCheckout's hourly sweep and its throttle marker when an official-plugin activation is let through. Failures are isolated. |
 | 3 | T12 | A2-04 | This record, the dated threat-model entry-point census addendum and the pentest scope update. Documentation only. |
+| 4 | Residuals | A1-03 note, note-lock token, N-2, N-3, M-5 rest, O4 | One minor-unit refusal note per order and currency/decimals fact. The paused-renewal note lock is released by compare-and-delete of its own token. A transient gateway miss leaves the missing-callback note eligible. The public-surface harness attributes `action_scheduler_init` by callback. Every front-end asset is content-versioned. The payment ID label reads "UPayments payment ID" (Arabic «معرّف دفع يوبيمنتس»). |
+| 4 | A2-02 revised | A2-02 (Q12) | Live mode requires https Charge redirect links, upgrading http links on `upayments.com` or a subdomain; sandbox unchanged. |
 
 ## New findings raised during the fix loop
+
+- **H12-META (batch 4, from the A6-06 stub run; open).** `CustomerTokenIdentity::get_historical_meta_cardinality()` reads `$all_meta[0]` and calls `WC_Meta_Data::get_value()`. Real WooCommerce (checked against 11.2.1 source) returns the meta entries with their original array keys, and `WC_Meta_Data` has no `get_value()` method. So on a real store a present key usually reads as duplicate/invalid (fail closed), and throws an `Error` when the entry is the order's first meta row. The test fixtures define a `get_value()` that WooCommerce lacks. It changes H12 token classification, so it needs its own characterized unit and review; it was not changed in batch 4.
 
 - **OL-1** (from the verify-T A5-05 referral). A corrupt or never-expiring order-lock record blocked that order's payment lifecycle forever. Fixed in batch 2: exact-value CAS recovery, and a live lease is never stolen. OL-1 overrode the T4 premise that a corrupt record is held forever; the T4 tests were retargeted to a held lock.
 - **R-1** (pre-existing, MEDIUM). A 2-dp Charge later edited at 3 dp bound through `get_total()` in a 2-dp request. Fixed in batch 2: every bind confirms the persisted total (HPOS `total_amount` or CPT `_order_total`).
@@ -105,7 +109,7 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 | A4-08 | Nothing writes `_upay_disable_subscription`, subscriptions are gated, and a new packaged file would change the deterministic package for a theory-only chain. |
 | A4-09 | The owner deferred it to the revamp. |
 | A5-03 (full `save()` during copy, removal and finalize) | The proposed meta-only save is unsafe on HPOS with compatibility sync. Only its disclosure was done (T3): preflight reports that each order is saved once. |
-| A6-06 (PHPStan scope and stubs) | No runtime defect. Stubs change `composer.json`/`composer.lock` and trigger every workflow, so they come as one tooling PR. |
+| A6-06 (PHPStan scope and stubs) | No runtime defect. Stubs change `composer.json`/`composer.lock` and trigger every workflow, so they come as one tooling PR. Batch 4 attempted it and stopped under its own rule (no level drop, no large baseline): with `php-stubs/wordpress-stubs` 6.9.4 and `php-stubs/woocommerce-stubs` 10.8.1 at level 5, the current scope alone reports 70 errors and all of `src/` reports about 200, mostly defensive checks the real stubs prove redundant, in PaymentLifecycle, CheckoutOrchestrator, CustomerTokenIdentity and Scheduler. The run also surfaced one real H12 defect, recorded as a new finding below. |
 | A6-08 (Classic lists a dead option) | It changes Classic gateway listing behaviour that FunnelKit and the compatibility cells exercise. After A6-01 it fails closed with one notice. To be revisited at the revamp. |
 | A5-01 Scheduler divergence hold | It must land with any future gate-opening change. While the A1-01 gate is closed, `Scheduler::process_parent_order()` sends nothing. |
 | A3-07 autoload change | It touches the raw-SQL CAS writers and the `alloptions` invalidation. One non-autoloaded `SELECT` is not worth that risk. The decode memo was fixed (#219). |
@@ -115,16 +119,16 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 
 | Residual | Source | Reason recorded |
 |---|---|---|
-| Customer retries add duplicate merchant notes | A1-03 (#220) review | LOW: note noise only, no paid-state effect. |
-| Lock release deletes the lock without a token check | A1-01 (#216) review | LOW: the worst case is one duplicate note. |
+| Customer retries add duplicate merchant notes | A1-03 (#220) review | Fixed in batch 4: one note per order for the same currency and decimals (`_supcheckout_minor_unit_noted_v1`). |
+| Lock release deletes the lock without a token check | A1-01 (#216) review | Fixed in batch 4: compare-and-delete of the holder's own record (`OrderLock::delete_if_current()`). |
 | Unreadable stored total under the lock gave `binding_changed_under_lock` | OL-1 + R-1 review | Resolved in batch 2 by final-review M-1: it is now retryable on both paths. |
 | A lost event freezes the retry budget (N-1) | U2 review | Bounded: the sweep re-checks every 6 h. |
-| A transient gateway miss skips the A1-09 note forever (N-2) | U2 review | Accepted: the note is informational only. |
-| The snapshot harness counts by hook name (N-3) | U2 review | Test nit, still open. No runtime effect. |
+| A transient gateway miss skips the A1-09 note forever (N-2) | U2 review | Fixed in batch 4: the flag is set only on permanent outcomes. |
+| The snapshot harness counts by hook name (N-3) | U2 review | Fixed in batch 4: attributed by callback. |
 | A third party that renders `payment_fields()` in the same request as `process_payment()` reuses the display availability (up to 10 min old) | U5 report | WooCommerce's Classic and Blocks flows don't do this. Same behaviour as before, with older freshness. |
 | Per-order reconcile events are kept on deactivation | U8 ruling | Removing them would orphan queued one-shot secondary checks. |
 | A4-05 rest (physical offsets, chevron, save-card switch) | U6 | The revamp replaces this checkout UI. |
-| Other front-end assets still version by `Identity::VERSION` | final-review M-5 | Only `subscription-checkout.js` needed content versioning. The helper makes each move a one-line change. |
+| Other front-end assets still version by `Identity::VERSION` | final-review M-5 | Fixed in batch 4: every front-end enqueue site uses `CheckoutAssets::asset_version()`. The wp-admin gateway-settings assets keep the plugin version. |
 
 ## Owner manual and staging items
 
