@@ -6,6 +6,10 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Hardening batch 4: the last fixable residuals
+
+- **One minor-unit refusal note per order (A1-03 residual).** When the order total has more decimals than its currency allows, or the currency is unsupported, SUPCheckout refuses the Charge and adds a private merchant note. Each customer retry added the same note again. The note is now added at most once per order for the same currency and decimals, through the order-meta flag `_supcheckout_minor_unit_noted_v1` (HPOS order CRUD). A different decimals count is a new fact and is noted once more. The shopper still gets the same failure notice on every attempt, and no provider call is made. The flag is never copied by the takeover.
+
 ### Payments and takeover: batch 3 follow-ups to the batch 2 final review (hardening batch 3, R1-1, R1-2)
 
 - **A later, unrelated "could not schedule" failure is reported again (R1-1).** `_supcheckout_reconcile_schedule_failed_v1`, the flag the primary and the capture-only check share so an order gets one "could not schedule the automatic UPayments payment check" note, was never cleared. After an order was paid, or its reconciliation otherwise cleared, a later refused schedule (a late second-attempt track) added no note. Clearing the reconciliation now deletes the flag, so each failure episode is noted once and a new one is noted again.
