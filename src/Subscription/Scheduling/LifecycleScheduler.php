@@ -110,7 +110,9 @@ final class LifecycleScheduler
      *
      * Idempotent under concurrency: a per-parent option-row lock taken with the plugin's
      * atomic option CAS (acquire_note_lock(); add_option() is not atomic), the flag re-read
-     * on a freshly loaded order under that lock, and the lock released in `finally`. The
+     * on a freshly loaded order under that lock, and the lock released in `finally` by a
+     * compare-and-delete of this holder's own record, so a pass whose lock was stolen
+     * never deletes the stealer's lock. The
      * flag is saved before the note: a later pass finds it and adds no second note, and a
      * note that fails after the flag is never retried into a duplicate. Never throws.
      *
@@ -122,7 +124,8 @@ final class LifecycleScheduler
             return false;
         }
         $parent_id = (int) $order->get_id();
-        if ($parent_id <= 0 || !self::acquire_note_lock($parent_id)) {
+        $lock_record = $parent_id > 0 ? self::acquire_note_lock($parent_id) : null;
+        if ($lock_record === null) {
             return false;
         }
         try {
@@ -146,7 +149,7 @@ final class LifecycleScheduler
             }
             return false;
         } finally {
-            delete_option(self::NOTE_LOCK_PREFIX . $parent_id);
+            OrderLock::delete_if_current(self::NOTE_LOCK_PREFIX . $parent_id, $lock_record);
         }
     }
 
@@ -208,18 +211,20 @@ final class LifecycleScheduler
      * CopyRunner use it). The record is "<acquired_at>:<token>". A lock older than
      * NOTE_LOCK_TTL (a crashed pass) is stolen only by a compare-and-swap of the exact
      * stale value read, so two stealers of the same stale lock never both win.
+     *
+     * @return string|null This holder's record (its release token), or null when not acquired.
      */
-    private static function acquire_note_lock(int $parent_id): bool
+    private static function acquire_note_lock(int $parent_id): ?string
     {
         $lock = self::NOTE_LOCK_PREFIX . $parent_id;
         $now = time();
         try {
             $record = $now . ':' . bin2hex(random_bytes(8));
         } catch (\Throwable $e) {
-            return false;
+            return null;
         }
         if (OrderLock::insert_if_absent($lock, $record)) {
-            return true;
+            return $record;
         }
         OrderLock::flush_option_cache($lock);
         $existing = get_option($lock, null);
@@ -227,9 +232,9 @@ final class LifecycleScheduler
             || preg_match('/^([0-9]{1,12})(?::[a-z0-9]+)?$/D', $existing, $matches) !== 1
             || (int) $matches[1] > $now - self::NOTE_LOCK_TTL
         ) {
-            return false;
+            return null;
         }
-        return OrderLock::replace_if_current($lock, $existing, $record);
+        return OrderLock::replace_if_current($lock, $existing, $record) ? $record : null;
     }
 
     /**

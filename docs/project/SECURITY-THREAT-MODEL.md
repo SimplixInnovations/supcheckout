@@ -386,3 +386,5 @@ These are the UPayments transports:
 - auto-deduct.
 
 The host, TLS, redirect and Bearer controls are unchanged. A2-02 (an https-only live payment link) is parked on UPayments support question 12.
+
+Update 2026-10-24 (hardening batch 4): A2-02 is fixed. In live mode the Charge redirect link must be https; an http link on `upayments.com` or a subdomain (the documented white-label wallet links, whose host 301-redirects to https) is upgraded to https, and any other non-https link fails closed with no attempt recorded. Sandbox keeps http links. There is still no host allowlist for https links (UPayments question 12).

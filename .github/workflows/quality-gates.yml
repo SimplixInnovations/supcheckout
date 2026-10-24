@@ -64,6 +64,7 @@ jobs:
             tests/integration/HposCompatibilityTest.php
             tests/integration/ReleaseMetadataTest.php
             tests/integration/SavedCardRuntimeTest.php
+            tests/integration/HistoricalMetaCardinalityRuntimeTest.php
             tests/integration/SubscriptionRuntimeTest.php
             tests/integration/MultiMerchantRuntimeTest.php
             tests/integration/OperationsRuntimeTest.php

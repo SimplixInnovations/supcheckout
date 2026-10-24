@@ -33,7 +33,7 @@ final class SchedulingRetryIsolationTest extends TestCase
             'unscheduled_all' => array(),
             'did_action' => array(),
         );
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         HistoricalEnrollment::reset_cursor();
     }
 

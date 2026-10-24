@@ -92,21 +92,36 @@ if ($violations !== array()) {
 // (action_scheduler_init) only while the takeover is copying: every other state boots
 // without them, so idle stores add nothing at runtime. These boots are checked, never recorded.
 // ReconciliationSweep also hooks action_scheduler_init in every state (U2 review I-1: its
-// background ensure must wait for Action Scheduler), so that one entry is discounted.
-foreach (array('idle' => 0, 'preflight_ok' => 0, 'copying' => 2, 'verified' => 0, 'cut_over' => 0) as $takeover_status => $expected) {
-    $registered = -1;
+// background ensure must wait for Action Scheduler). Both are identified by their callback
+// (batch 4, N-3), never by a count of the shared hook name.
+$copy_runner = 'Simplixi\\SUPCheckout\\Takeover\\CopyRunner';
+$sweep_ensure = 'action_scheduler_init@Simplixi\\SUPCheckout\\Payment\\ReconciliationSweep::ensure_scheduled_in_background';
+foreach (array('idle' => false, 'preflight_ok' => false, 'copying' => true, 'verified' => false, 'cut_over' => false) as $takeover_status => $copying) {
+    $copy_hooks = array();
+    $sweep_ensures = 0;
     foreach (surface_run_child('frontend', $mains[0], $takeover_status) as $entry) {
-        if ($entry['kind'] === 'action' && in_array($entry['hook'], array('supcheckout_takeover_copy_batch', 'action_scheduler_init'), true)) {
-            $registered++;
+        if ($entry['kind'] !== 'action' || !in_array($entry['hook'], array('supcheckout_takeover_copy_batch', 'action_scheduler_init'), true)) {
+            continue;
+        }
+        $label = $entry['hook'] . '@' . (isset($entry['callback']) ? $entry['callback'] : '?');
+        if ($label === $sweep_ensure) {
+            $sweep_ensures++;
+        } else {
+            $copy_hooks[] = $label;
         }
     }
-    if ($registered !== $expected) {
-        echo "FAIL: a {$takeover_status} boot registers {$registered} copy runner hook(s), expected {$expected}.\n";
+    sort($copy_hooks);
+    $expected = $copying
+        ? array('action_scheduler_init@' . $copy_runner . '::watchdog', 'supcheckout_takeover_copy_batch@' . $copy_runner . '::handle_action')
+        : array();
+    if ($copy_hooks !== $expected || $sweep_ensures !== 1) {
+        echo "FAIL: a {$takeover_status} boot registers copy runner hooks " . json_encode($copy_hooks, JSON_UNESCAPED_SLASHES)
+            . " and {$sweep_ensures} sweep ensure(s), expected " . json_encode($expected, JSON_UNESCAPED_SLASHES) . " and exactly 1.\n";
         echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";
         exit(1);
     }
 }
-echo "Takeover copy runner: batch hook and watchdog registered once each while copying, never in idle, preflight_ok, verified or cut_over boots.\n";
+echo "Takeover copy runner: batch hook and watchdog registered once each while copying, never in idle, preflight_ok, verified or cut_over boots (identified by callback; the sweep ensure exactly once in every boot).\n";
 // Both WC-API callback routes (0b Task 8) carry the same pair in every takeover state, the
 // legacy route permanently (finalized included): the lifecycle at priority 5 from the
 // load phase and the gateway's fallback at priority 10 from its constructor.
@@ -537,7 +552,22 @@ function surface_define_wordpress_stubs($with_woocommerce) {
 function supcheckout_surface_hook($type, $hook, $callable, $priority, $accepted_args) {
     $seq = $GLOBALS['surface']['seq']++;
     $GLOBALS['surface']['callbacks'][$seq] = array('hook' => (string) $hook, 'callable' => $callable, 'priority' => (int) $priority, 'accepted_args' => (int) $accepted_args, 'seq' => $seq);
-    return supcheckout_surface_record(array('kind' => $type, 'hook' => (string) $hook, 'priority' => (int) $priority, 'accepted_args' => (int) $accepted_args, 'registered_in' => $GLOBALS['surface']['phase']));
+    $entry = array('kind' => $type, 'hook' => (string) $hook, 'priority' => (int) $priority, 'accepted_args' => (int) $accepted_args, 'registered_in' => $GLOBALS['surface']['phase']);
+    // Takeover-state boots are checked, never recorded: they also name each callback so a
+    // shared hook (action_scheduler_init) is attributed exactly. The snapshot shape is unchanged.
+    if ($GLOBALS['surface']['takeover_status'] !== '') {
+        $entry['callback'] = supcheckout_surface_callback_label($callable);
+    }
+    return supcheckout_surface_record($entry);
+}
+function supcheckout_surface_callback_label($callable) {
+    if (is_string($callable)) {
+        return $callable;
+    }
+    if (is_array($callable) && count($callable) === 2 && is_string($callable[1])) {
+        return (is_object($callable[0]) ? get_class($callable[0]) : (string) $callable[0]) . '::' . $callable[1];
+    }
+    return $callable instanceof Closure ? 'closure' : (is_object($callable) ? get_class($callable) . '::__invoke' : 'unknown');
 }
 function supcheckout_surface_file_hook($type, $file) {
     // Either root main file (supcheckout.php or a UPayments.php shim) is the plugin file.

@@ -4,12 +4,14 @@
  * Mirrors bundled AS contracts: 5th unique flag, has_scheduled includes in-progress.
  */
 
-if (!class_exists('Action_Scheduler', false)) {
-    class Action_Scheduler
+if (!class_exists('ActionScheduler', false)) {
+    // The real bundled class is ActionScheduler (classes/abstracts/ActionScheduler.php),
+    // with is_initialized( $function_name = null ). There is no Action_Scheduler class.
+    class ActionScheduler
     {
         public static $initialized = true;
 
-        public static function is_initialized(): bool
+        public static function is_initialized($function_name = null): bool
         {
             return self::$initialized;
         }

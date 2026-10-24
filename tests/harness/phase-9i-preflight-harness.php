@@ -10,10 +10,15 @@
 $root = realpath(__DIR__ . '/../..');
 define('ABSPATH', $root . '/');
 
+// Shaped like WooCommerce's real WC_Meta_Data (checked against 11.1.2): an
+// id/key/value row behind __get/__isset and get_data(), with no get_value().
 class WC_Meta_Data {
-    private $value;
-    public function __construct($value) { $this->value = $value; }
-    public function get_value() { return $this->value; }
+    protected $current_data;
+    protected $data;
+    public function __construct($meta = array()) { $this->current_data = $meta; $this->data = $meta; }
+    public function __isset($key) { return array_key_exists($key, $this->current_data); }
+    public function __get($key) { return array_key_exists($key, $this->current_data) ? $this->current_data[$key] : null; }
+    public function get_data() { return $this->data; }
 }
 
 class Phase9IFakeOrder {
@@ -35,8 +40,18 @@ class Phase9IFakeOrder {
         if ($single) {
             return count($values) ? $values[0] : '';
         }
+        // Like WC_Data::get_meta($key, false): rows keep their position in the
+        // order's whole meta list (index 0 only for the order's first meta row).
         $out = array();
-        foreach ($values as $value) { $out[] = new WC_Meta_Data($value); }
+        $position = 0;
+        foreach ($this->meta as $meta_key => $meta_values) {
+            foreach ($meta_values as $meta_value) {
+                if ((string) $meta_key === (string) $key) {
+                    $out[$position] = new WC_Meta_Data(array('id' => $position + 1, 'key' => (string) $meta_key, 'value' => $meta_value));
+                }
+                $position++;
+            }
+        }
         return $out;
     }
     public function read_meta_data($force = false) {
@@ -384,6 +399,15 @@ p9_run('P9I-19 provenance/history conflict', function () {
     p9_provenance(1, $scope, $secret['generation_id'], CustomerTokenIdentity::KIND_LEGACY_COMPAT, '12345678');
     p9_order(10, 1, '87654321');
 }, MigrationPreflight::BLOCKED, 'historical_token_conflicts_with_provenance');
+
+// H12-META: empty-string token and card rows (each a single real-shaped row, after
+// another meta row) carry no identity, so there is nothing to migrate.
+p9_run('P9I-21 empty token and empty card', function () {
+    $o = p9_order(10, 1, null);
+    $o->meta['_billing_note'] = array('x');
+    $o->meta['_upay_customer_unique_token'] = array('');
+    $o->meta['_upay_credit_card_token'] = array('');
+}, MigrationPreflight::CLEAN, 'no_migration_required');
 
 // DB uncertainty is indeterminate and still write-free.
 p9_run('P9I-20 DB uncertainty', function () { p9_state()['db_failure'] = true; }, MigrationPreflight::INDETERMINATE, 'provenance_query_failed');

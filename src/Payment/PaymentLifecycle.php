@@ -252,10 +252,16 @@ final class PaymentLifecycle {
             ) {
                 return;
             }
-            // Every candidate is flagged, noted or not: a rejected one would otherwise
-            // be selected again every run for 48 h.
+            // The gateway missing from this run is transient (N-2): no note and no flag,
+            // so a later run inside the 30 min to 48 h window still notes the order.
+            $gateway = self::gateway();
+            if (!is_object($gateway)) {
+                return;
+            }
+            // Every other outcome is permanent and flagged, noted or not: a rejected
+            // order would otherwise be selected again every run for 48 h.
             $order->update_meta_data(self::NO_CALLBACK_NOTED_META, 1);
-            if (self::basic_order_preflight($order, self::gateway())
+            if (self::basic_order_preflight($order, $gateway)
                 && (string) $order->get_status() === 'pending'
                 && !self::is_verified_capture($order)
                 && !self::trusted_cursor_present($order)

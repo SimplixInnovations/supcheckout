@@ -596,10 +596,20 @@ if (!class_exists('WC_Payment_Gateway')) {
     }
 }
 if (!class_exists('WC_Meta_Data')) {
+    /**
+     * Shaped like WooCommerce's real WC_Meta_Data (includes/class-wc-meta-data.php,
+     * checked against 11.1.2): one id/key/value row exposed through the magic
+     * __get/__isset and get_data(). It has NO get_value() method; a double that
+     * invents one hides production code that calls it (H12-META).
+     */
     class WC_Meta_Data {
-        private $value;
-        public function __construct($value = null) { $this->value = $value; }
-        public function get_value() { return $this->value; }
+        protected $current_data;
+        protected $data;
+        public function __construct($meta = array()) { $this->current_data = $meta; $this->data = $meta; }
+        public function __set($key, $value) { $this->current_data[$key] = $value; }
+        public function __isset($key) { return array_key_exists($key, $this->current_data); }
+        public function __get($key) { return array_key_exists($key, $this->current_data) ? $this->current_data[$key] : null; }
+        public function get_data() { return $this->data; }
     }
 }
 if (!class_exists('WooCommerce')) {
@@ -770,13 +780,28 @@ class FakeWCOrder extends \WC_Order {
      * WC_Meta_Data objects wrapping every stored value, mirroring WooCommerce
      * order metadata cardinality so history-inspection paths can see exactly
      * 0 / 1 / duplicate / non-scalar tuples.
+     *
+     * Like WC_Data::get_meta($key, false) (array_intersect_key() over the
+     * order's whole re-indexed meta list), the returned array keeps each row's
+     * position in the order's meta: a row of $key sits at index 0 only when it
+     * is the order's first meta row.
      */
     public function get_meta($key, $single = false, $context = 'view') {
         $values = array_key_exists($key, $this->meta_store) ? $this->meta_store[$key] : [];
         if ($single) {
             return count($values) > 0 ? $values[0] : '';
         }
-        return array_map(function($vv) { return new WC_Meta_Data($vv); }, $values);
+        $rows = [];
+        $position = 0;
+        foreach ($this->meta_store as $meta_key => $meta_values) {
+            foreach ($meta_values as $meta_value) {
+                if ((string) $meta_key === (string) $key) {
+                    $rows[$position] = new WC_Meta_Data(['id' => $position + 1, 'key' => (string) $meta_key, 'value' => $meta_value]);
+                }
+                $position++;
+            }
+        }
+        return $rows;
     }
     public function meta_exists($key) {
         return array_key_exists($key, $this->meta_store)

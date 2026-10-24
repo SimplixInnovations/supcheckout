@@ -92,7 +92,7 @@ Control-plane/tests only. No production source or package-byte change.
 - Frozen owner-accepted Approach 2 baseline remains `0c883d609906676966002eb022a82a9656eeacc5` with accepted package SHA-256 `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`.
 - Historical next gate at the R5 checkpoint: **R6 final qualification** (R5 **DONE / VERIFIED**, Option B / ADR-003, certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`). R6 is since DONE / VERIFIED.
 - Current state (2026-10-23): the SUPCheckout revamp program is active.
-  - The hardening program's repository-executable fix loop is **DONE / VERIFIED** (batches 1 to 3; [`docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md`](../docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md)).
+  - The hardening program's repository-executable fix loop is **DONE / VERIFIED** (batches 1 to 3, #221 to #223; batch 4 on `hardening/batch-4` closes the last fixable residuals, A2-02, AS-1 and H12-META, the real WooCommerce historical-meta read defect; [`docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md`](../docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md)).
   - Owner staging verification of the hardened package — **DONE / OWNER-VERIFIED** (2026-10-24); evidence in [`docs/project/evidence/OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md`](../docs/project/evidence/OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md).
   - The current executable gate is **Revamp information architecture and branding from the owner (Sub-project 2+) — NEXT (owner input)**.
   - The current gate is owned by `docs/project/START-HERE.md` and `implementation-plan.md`.

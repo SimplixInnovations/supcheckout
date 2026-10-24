@@ -24,7 +24,8 @@ final class CheckoutAssets {
 
     /**
      * Cache-busting version of a plugin asset that follows its content (batch 2 final
-     * review M-5): the plugin version plus the first 12 hex digits of the file's SHA-256.
+     * review M-5; every front-end asset since batch 4): the plugin version plus the first
+     * 12 hex digits of the file's SHA-256.
      * A browser or CDN copy of an older script is then never served against a newer
      * localized contract. Deterministic: the same file always yields the same version.
      * An unreadable file, or a path that leaves the plugin, falls back to the plugin
@@ -109,7 +110,7 @@ final class CheckoutAssets {
             'supcheckout-customer',
             $plugin_url . 'assets/css/customer.css',
             array(),
-            Identity::VERSION
+            self::asset_version('assets/css/customer.css')
         );
 
         if ($template_name === 'new-design-form.php') {
@@ -117,13 +118,13 @@ final class CheckoutAssets {
                 'supcheckout-checkout-new-style',
                 $plugin_url . 'assets/css/new-design.css',
                 array(),
-                Identity::VERSION
+                self::asset_version('assets/css/new-design.css')
             );
             wp_enqueue_script(
                 'supcheckout-checkout-new-script',
                 $plugin_url . 'assets/js/new-upay.js',
                 array('jquery'),
-                Identity::VERSION,
+                self::asset_version('assets/js/new-upay.js'),
                 true
             );
             wp_localize_script(
