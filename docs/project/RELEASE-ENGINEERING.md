@@ -213,7 +213,7 @@ wp i18n make-pot . languages/supcheckout.pot --slug=supcheckout --domain=supchec
 # 2. Merge the template into the Arabic catalogue, then translate the new or changed entries.
 wp i18n update-po languages/supcheckout.pot languages/supcheckout-ar.po
 # 3. Admin script JSON. The shipped .po must keep its script strings, so never purge it.
-#    Current WP-CLI purges by default and needs --no-purge; WP-CLI 2.12.0 never purges and rejects the flag.
+#    WP-CLI purges by default (2.12.0 included: `wp i18n make-json --help`), so always pass --no-purge.
 wp i18n make-json languages/supcheckout-ar.po languages/ --no-purge
 # 4. The .mo holds only the entries used from PHP: compile it from a copy merged with a PHP-only template.
 wp i18n make-pot . "$TMP/supcheckout-php.pot" --slug=supcheckout --domain=supcheckout \

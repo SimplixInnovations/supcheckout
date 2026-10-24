@@ -705,7 +705,7 @@ class Gateway extends \WC_Payment_Gateway {
                                 </td>
                             </tr>
                             <tr>
-                <td class="label"><h3 style="margin:0"><?php esc_html_e('UPayment ID', 'supcheckout'); ?>:</h3></td>
+                <td class="label"><h3 style="margin:0"><?php esc_html_e('UPayments payment ID', 'supcheckout'); ?>:</h3></td>
                 <td width="1%"></td>
                 <td class="total">
                                     <span class="woocommerce-Price-amount amount">

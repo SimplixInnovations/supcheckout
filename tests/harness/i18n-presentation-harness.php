@@ -48,7 +48,10 @@ $rows = \Simplixi\SUPCheckout\Gateway\OrderPresentation::add_order_item_totals(
     'upayments'
 );
 i18n_assert(isset($rows['payment_status']) && $rows['payment_status']['label'] === '[ar] Payment Status:', 'order-totals payment status label is translatable in the supcheckout domain');
-i18n_assert(isset($rows['upayment_id']) && $rows['upayment_id']['label'] === '[ar] UPayment ID:', 'order-totals payment ID label is translatable in the supcheckout domain');
+i18n_assert(isset($rows['upayment_id']) && $rows['upayment_id']['label'] === '[ar] UPayments payment ID:', 'order-totals payment ID label reads "UPayments payment ID" (O4) and is translatable in the supcheckout domain');
+$gateway_source = (string) file_get_contents($root . '/src/Gateway/Gateway.php');
+i18n_assert(strpos($gateway_source, "esc_html_e('UPayments payment ID', 'supcheckout')") !== false && strpos($gateway_source, "'UPayment ID'") === false, 'admin order payment ID label reads "UPayments payment ID" (O4)');
+i18n_assert(strpos($gateway_source, "esc_html_e('Payment Status', 'supcheckout')") !== false, 'admin order "Payment Status" label is unchanged (O4)');
 i18n_assert(isset($rows['payment_status']) && $rows['payment_status']['value'] === 'CAPTURED', 'provider status value itself is unchanged');
 
 $template = (string) file_get_contents($root . '/templates/old-design-form.php');
