@@ -97,7 +97,7 @@ class PaymentMethodType extends AbstractPaymentMethodType {
                 'wp-html-entities',
                 'wc-blocks-data-store',
             ],
-            \Simplixi\SUPCheckout\Release\Identity::VERSION,
+            \Simplixi\SUPCheckout\Gateway\CheckoutAssets::asset_version('assets/js/upayments-block.js'),
             true
         );
         return [ 'supcheckout-block-checkout' ];

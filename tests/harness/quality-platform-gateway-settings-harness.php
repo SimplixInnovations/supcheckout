@@ -94,7 +94,11 @@ q6_assert(q6_contains($settings, "\$screen_id === 'woocommerce_page_wc-settings'
 q6_assert(q6_contains($settings, "\$query['tab'] === 'checkout'"), 'admin logic remains checkout-tab scoped');
 q6_assert(!q6_contains($settings, "'3.0.0'"), 'admin asset version is not frozen to the inherited release');
 q6_assert(q6_contains($settings, '\\Simplixi\\SUPCheckout\\Release\\Identity::VERSION'), 'admin assets bind directly to canonical SUPCheckout release identity');
-q6_assert(q6_contains($gateway, 'SUPCHECKOUT_VERSION'), 'gateway binds first-party asset versions to canonical SUPCheckout identity');
+// Batch 4 (M-5 rest): the gateway's front-end assets follow their content, which still
+// starts with the canonical SUPCheckout version (CheckoutAssets::asset_version()).
+q6_assert(q6_contains($gateway, "CheckoutAssets::asset_version('assets/css/customer.css')")
+    && q6_contains($gateway, "CheckoutAssets::asset_version('assets/js/new-upay.js')")
+    && !q6_contains($gateway, 'SUPCHECKOUT_VERSION'), 'gateway binds first-party asset versions to canonical SUPCheckout identity plus content');
 q6_assert(!q6_contains($settings, '$asset_version'), 'admin asset versioning does not widen the established public method boundary');
 
 q6_assert(
