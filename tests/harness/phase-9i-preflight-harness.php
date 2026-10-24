@@ -400,6 +400,15 @@ p9_run('P9I-19 provenance/history conflict', function () {
     p9_order(10, 1, '87654321');
 }, MigrationPreflight::BLOCKED, 'historical_token_conflicts_with_provenance');
 
+// H12-META: empty-string token and card rows (each a single real-shaped row, after
+// another meta row) carry no identity, so there is nothing to migrate.
+p9_run('P9I-21 empty token and empty card', function () {
+    $o = p9_order(10, 1, null);
+    $o->meta['_billing_note'] = array('x');
+    $o->meta['_upay_customer_unique_token'] = array('');
+    $o->meta['_upay_credit_card_token'] = array('');
+}, MigrationPreflight::CLEAN, 'no_migration_required');
+
 // DB uncertainty is indeterminate and still write-free.
 p9_run('P9I-20 DB uncertainty', function () { p9_state()['db_failure'] = true; }, MigrationPreflight::INDETERMINATE, 'provenance_query_failed');
 

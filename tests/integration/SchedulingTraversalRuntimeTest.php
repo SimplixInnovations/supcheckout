@@ -101,8 +101,9 @@ supcheckout_cert_assert($last_id > 0, 'last parent id available');
 
 // --- Action Scheduler readiness on real Woo ---
 supcheckout_cert_assert(ASBridge::is_ready() === true || ASBridge::is_ready() === false, 'bridge readiness is boolean on real Woo');
-if (class_exists('Action_Scheduler') && method_exists('Action_Scheduler', 'is_initialized')) {
-    if (Action_Scheduler::is_initialized()) {
+// Bundled Action Scheduler's class is ActionScheduler (there is no Action_Scheduler).
+if (class_exists('ActionScheduler') && method_exists('ActionScheduler', 'is_initialized')) {
+    if (ActionScheduler::is_initialized()) {
         supcheckout_cert_assert(ASBridge::is_ready(), 'initialized AS yields is_ready true');
     }
 }

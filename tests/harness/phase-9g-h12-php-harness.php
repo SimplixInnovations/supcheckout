@@ -7836,6 +7836,97 @@ upay_assert_eq($meta_card($meta_rows_order([2 => new WC_Meta_Data(['id' => 3, 'k
 upay_assert_eq($meta_card($meta_rows_order([1 => new \stdClass()]), '_upay_customer_unique_token'), [$meta_bad, null], 'H12-META-8 an unrecognised row shape fails closed', 'helper_unit_runtime');
 upay_reset_state();
 
+// H12-META empty-string paths. With real single rows now read as EXACTLY_ONE, an
+// empty-string token or card row reaches the presence logic of every caller.
+$meta_history_order = function ($oid, array $meta_store) {
+    $state =& upay_test_state();
+    $o = new FakeWCOrder($oid);
+    $o->meta_store = $meta_store;
+    $state['orders_fixture'] = [$oid => $o];
+    $state['history_pages'] = [1 => [$oid]];
+    $state['history_total'] = 1;
+    $state['history_max_pages'] = 1;
+};
+$meta_customer_history = function () {
+    $r = \Simplixi\SUPCheckout\Token\CustomerTokenIdentity::inspect_customer_history(1, str_repeat('a', 32), str_repeat('b', 32));
+    return [$r['classification'], $r['reason']];
+};
+
+// (a) token '' and card '' with no snapshot carry no identity: history is clear.
+upay_reset_state();
+$meta_history_order(92001, ['_billing_note' => ['x'], '_upay_customer_unique_token' => [''], '_upay_credit_card_token' => ['']]);
+upay_assert_eq($meta_customer_history(), ['none', 'no_blocking_history'], "H12-META-EMPTY-1 history with token '' and card '' and no snapshot is none", 'helper_unit_runtime');
+
+// (b) token '' beside a snapshot kind row is an orphan snapshot.
+upay_reset_state();
+$meta_history_order(92002, ['_billing_note' => ['x'], '_upay_customer_unique_token' => [''], '_upay_customer_token_kind_v1' => ['canonical']]);
+upay_assert_eq($meta_customer_history(), ['malformed_scoped', 'malformed_snapshot'], "H12-META-EMPTY-2 token '' with a kind row is malformed_scoped", 'helper_unit_runtime');
+
+// (c) token '' beside a non-empty card is a card without customer identity.
+upay_reset_state();
+$meta_history_order(92003, ['_billing_note' => ['x'], '_upay_customer_unique_token' => [''], '_upay_credit_card_token' => ['card_x']]);
+upay_assert_eq($meta_customer_history(), ['card_without_customer_identity', 'card_without_customer_identity'], "H12-META-EMPTY-3 token '' with card 'card_x' is card_without_customer_identity", 'helper_unit_runtime');
+
+// (d) the bootstrap census treats any present row, even '', as blocking evidence.
+foreach (['_upay_customer_unique_token' => 4, '_upay_credit_card_token' => 5] as $meta_empty_key => $meta_empty_n) {
+    upay_reset_state();
+    $state =& upay_test_state();
+    $state['current_user_id'] = 93;
+    $meta_history_order(92000 + $meta_empty_n, ['_billing_note' => ['x'], $meta_empty_key => ['']]);
+    $meta_boot = upay_call_static('Simplixi\SUPCheckout\Token\CustomerTokenIdentity', 'inspect_bootstrap_history', [93]);
+    upay_assert_eq([$meta_boot['classification'], $meta_boot['reason']], ['indeterminate', 'bootstrap_blocked_by_history'], "H12-META-EMPTY-$meta_empty_n bootstrap census with a lone '' $meta_empty_key row stays blocked", 'helper_unit_runtime');
+}
+
+// (e) residual gate in real process_payment for a token-dependent (save-card) checkout.
+// Classic save-card checkout with saved cards enabled, a Create Token stub that
+// echoes the candidate production sends (as the Store API child does) and a
+// successful Charge. No identity secret exists, so the bootstrap census and the
+// Create/provenance/Section M readback all run for real.
+$meta_residual_run = function ($oid, array $meta_store) {
+    upay_reset_state();
+    $state =& upay_test_state();
+    $state['current_user_id'] = 94;
+    $state['options']['woocommerce_test_api_key'] = 'test_api_key';
+    $state['options']['woocommerce_live_api_key'] = '';
+    $state['options']['woocommerce_upayments_settings'] = [
+        'enable_save_card' => 'yes', 'enable_subscriptions' => 'no',
+        'testmode' => 'no', 'test_mode' => 'no', 'api_key' => 'test_api_key',
+    ];
+    $state['availability_response'] = [
+        'result' => 'success', 'isWhiteLabel' => true,
+        'payButtons' => ['knet' => 1, 'apple_pay_knet' => 0, 'credit_card' => 1, 'apple_pay' => 0, 'samsung_pay' => 0, 'google_pay' => 0],
+    ];
+    $state['transport_responses_per_route'] = [
+        'create-customer-unique-token' => function ($outbound_body) {
+            $decoded = json_decode((string) $outbound_body, true);
+            $candidate = is_array($decoded) && isset($decoded['customerUniqueToken']) ? $decoded['customerUniqueToken'] : null;
+            return ['transport_ok' => true, 'http_status' => 201, 'curl_errno' => 0,
+                'body' => json_encode(['status' => true, 'data' => ['customerUniqueToken' => $candidate]])];
+        },
+        'charge' => ['transport_ok' => true, 'http_status' => 201, 'curl_errno' => 0,
+            'body' => json_encode(['status' => true, 'data' => ['link' => 'https://upayments.com/r?o=' . $oid]])],
+    ];
+    $order = new FakeWCOrder($oid);
+    $order->items_meta = [new FakeWCOrderItem_Product(new FakeWCProduct(1, 'Test Product', 'simple'), 1, '12.50')];
+    $order->meta_store = $meta_store;
+    $state['orders_fixture'][$oid] = $order;
+    upay_setup_request(false, '/checkout/', 'POST');
+    upay_set_post(['payment_method' => 'upayments', 'upayment_payment_type' => 'cc', 'save_card' => '1']);
+    try {
+        $res = (new WC_Upayments_Testable())->process_payment($oid);
+    } catch (\Throwable $e) {
+        $res = null;
+    }
+    $state =& upay_test_state();
+    $out = [is_array($res) && isset($res['result']) ? $res['result'] : null, $state['create_token_calls'], $state['charge_calls']];
+    upay_set_post([]);
+    return $out;
+};
+upay_assert_eq($meta_residual_run(92101, ['_billing_note' => ['x']]), ['success', 1, 1], 'PE-H12META-RESIDUAL-1 control: a save-card checkout with no H12 order meta passes the residual gate to Create and Charge', 'semantic_runtime');
+upay_assert_eq($meta_residual_run(92102, ['_billing_note' => ['x'], '_upay_credit_card_token' => ['']]), ['success', 1, 1], "PE-H12META-RESIDUAL-2 a lone '' card-token row is not residual evidence and the save-card checkout proceeds", 'semantic_runtime');
+upay_assert_eq($meta_residual_run(92103, ['_billing_note' => ['x'], '_upay_customer_unique_token' => ['']]), ['failure', 0, 0], "PE-H12META-RESIDUAL-3 a lone '' customer-token row is residual evidence and blocks before Create and Charge", 'semantic_runtime');
+upay_reset_state();
+
 // ---------------------------------------------------------------------------
 // SEMANTIC LEDGER — exact family breakdown for auditability
 // ---------------------------------------------------------------------------
@@ -7999,7 +8090,7 @@ if ($_taxonomy_violations > 0) {
 //
 // Expected exact semantic family baseline (#32):
 $_expected_family_baseline = array(
-    'PE'                  => 18,
+    'PE'                  => 21,    // 18 + 3 PE-H12META-RESIDUAL residual-gate assertions
     'WL'                  => 26,
     'MM'                  => 100,
     'OW'                  => 11,
@@ -8035,13 +8126,13 @@ $_expected_family_baseline = array(
 //   PROBE-RECOVERY (§5):     2 snapshot/restoration assertions =  2
 //                                                   TOTAL       = 21
 $_expected_categories = array(
-    'semantic_runtime'    => 399,    // 379 + 20 U5 (A3-01) saved-card display-cache assertions
-    'helper_unit_runtime' => 884,    // 854 + 22 A6-05-TOK characterization + 8 H12-META cardinality assertions
+    'semantic_runtime'    => 402,    // 379 + 20 U5 (A3-01) saved-card display-cache + 3 PE-H12META-RESIDUAL assertions
+    'helper_unit_runtime' => 889,    // 854 + 22 A6-05-TOK characterization + 8 H12-META cardinality + 5 H12-META-EMPTY assertions
     'static_source'       => 46,
     'harness_self_test'   => 663,    // 641 baseline + 21 §4/§5/§7 probes + 1 H12-META WC_Meta_Data double shape
     'lint_tooling'        => 10,
 );
-$_expected_total_pass    = 2002;    // 399 + 884 + 46 + 663 + 10
+$_expected_total_pass    = 2010;    // 402 + 889 + 46 + 663 + 10
 $_expected_total_fail    = 0;
 $_family_mismatch        = 0;
 $_category_mismatch      = 0;
