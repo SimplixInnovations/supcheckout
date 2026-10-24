@@ -23,10 +23,10 @@ Sections below labeled Historical are retained audit evidence and are not curren
 **Accepted package:** `supcheckout-0.1.0.zip` — **62 files**, SHA-256 `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`
 **Historical Approach 3 (superseded):** `146d65a1c182630c1acc651cacafe30cff5f6b79` / 62 files / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
 **Historical Approach 2 (superseded):** `0c883d609906676966002eb022a82a9656eeacc5` / 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
-**Revamp development package (NOT owner accepted):** Hardening program (batch 3): **233 files**, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8`.
+**Revamp development package (NOT owner accepted):** Hardening program (batch 4): **233 files**, SHA-256 `2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db`.
 
-- **Build:** `scripts/build-release.sh`, run twice from Git Bash at the `hardening/batch-3` head. The two archives are byte-identical.
-- **Last commit that changes distributable bytes:** `bab56a8` (R1-1, R1-2).
+- **Build:** `scripts/build-release.sh`, run twice from Git Bash at the `hardening/batch-4` head (rebased onto `main` `dfa461e`). The two archives are byte-identical, and `scripts/verify-release.sh` verified the archive.
+- **Last commit that changes distributable bytes:** `46cf129` (AS-1). Batch 4 adds no file; it changes bytes in `src/` (A1-03 note, note-lock token, N-2, M-5 rest, A2-02, O4, H12-META, AS-1) and `languages/` (O4).
 - **Files added since Sub-project 1 (9):**
   - the five `languages/` translation files (A4-01);
   - `src/Bootstrap/Translations.php` (A4-01);
@@ -35,6 +35,8 @@ Sections below labeled Historical are retained audit evidence and are not curren
   - `src/Takeover/ReactivationGuard.php` (A5-01).
 - **Verifier:** it allows `languages/` for translation files only.
 - **Evidence:** [`evidence/HARDENING-PROGRAM-2026-10-23.md`](evidence/HARDENING-PROGRAM-2026-10-23.md).
+
+Historical hardening batch 3 package (#223, superseded by batch 4): **233 files**, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8`, from two byte-identical builds at the batch 3 code commit `bab56a8`. This is the package the owner verified on staging on 2026-10-24 (`main` @ `f3e207d`).
 
 Historical hardening batch 2 package (#222, superseded by batch 3): **233 files**, SHA-256 `8b441501d52d3abcde176eebffda5e4261e9a1dcda0209290fcda878c26c0196`, from two byte-identical builds.
 

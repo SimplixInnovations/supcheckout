@@ -1,10 +1,10 @@
 # Hardening program: close record (2026-10-23)
 
-**Status:** repository-executable fix loop **DONE / VERIFIED** (batches 1 to 3).
-**Next gate:** owner staging verification of the hardened package.
+**Status:** repository-executable fix loop **DONE / VERIFIED** (batches 1 to 3); batch 4 (`hardening/batch-4`) closes the last fixable residuals.
+**Next gate at the close:** owner staging verification of the hardened package. It is done (2026-10-24, [evidence](OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md)); the current gate is the revamp information architecture and branding from the owner (Sub-project 2+).
 **Publication:** NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
 
-This record closes the hardening program that the owner put before the revamp. The per-unit ledgers (scope, RED/GREEN evidence, review rounds) are in the PR bodies of #215, #221 and #222 and in the batch 3 commit. This file keeps the program-level facts.
+This record closes the hardening program that the owner put before the revamp. The per-unit ledgers (scope, RED/GREEN evidence, review rounds) are in the PR bodies of #215, #221, #222, #223 and the batch 4 PR. This file keeps the program-level facts.
 
 ## Why the program ran
 
@@ -41,7 +41,8 @@ Before dedupe they found 50 findings: **2 Critical, 3 High, 18 Medium, 27 Low**.
 | A1-02 (alone) | #215 | `376c482` | 96/96 including CodeQL |
 | Batch 1 | #221 | `e3884ca` | 97/97 at exact head `36c62fd` |
 | Batch 2 | #222 | `3575721` | 97/97 at exact head `1302568` |
-| Batch 3 | branch `hardening/batch-3` (R1-1, R1-2 and this close record) | pending its PR | runs at its PR |
+| Batch 3 | #223 (branch `hardening/batch-3`: R1-1, R1-2 and this close record) | `f3e207d` | 97/97 at exact head `8a8306c` |
+| Batch 4 | branch `hardening/batch-4` (the last fixable residuals, A2-02, H12-META, AS-1) | pending its PR | runs at its PR |
 
 **Why the PRs were batched.** GitHub Free allows 20 concurrent jobs, and one PR runs about 80. So each unit was reviewed on its own branch or PR, verified locally, and then shipped in one integration PR per batch. The original PRs #216 to #220 were closed as superseded, and their ledgers stay in their PR bodies.
 
@@ -72,10 +73,12 @@ Before dedupe they found 50 findings: **2 Critical, 3 High, 18 Medium, 27 Low**.
 | 3 | T12 | A2-04 | This record, the dated threat-model entry-point census addendum and the pentest scope update. Documentation only. |
 | 4 | Residuals | A1-03 note, note-lock token, N-2, N-3, M-5 rest, O4 | One minor-unit refusal note per order and currency/decimals fact. The paused-renewal note lock is released by compare-and-delete of its own token. A transient gateway miss leaves the missing-callback note eligible. The public-surface harness attributes `action_scheduler_init` by callback. Every front-end asset is content-versioned. The payment ID label reads "UPayments payment ID" (Arabic «معرّف دفع يوبيمنتس»). |
 | 4 | A2-02 revised | A2-02 (Q12) | Live mode requires https Charge redirect links, upgrading http links on `upayments.com` or a subdomain; sandbox unchanged. |
+| 4 | H12-META | new (from the A6-06 stub run) | `CustomerTokenIdentity::get_historical_meta_cardinality()` reads the single historical order meta row the way real WooCommerce returns it (`reset()` and `WC_Meta_Data->value`), so save-card, selected-card and subscription checkout and Phase 9I work on real stores. The doubles model real WooCommerce, and a real-WooCommerce integration test runs in every Compatibility cell. |
+| 4 | AS-1 and test isolation | new (LOW) | `ActionSchedulerBridge::is_ready()` probes the real `\ActionScheduler` class. The Subscription scheduling tests own their `$wpdb` and option store, so `tests/unit/Subscription` passes on its own. |
 
 ## New findings raised during the fix loop
 
-- **H12-META (batch 4, from the A6-06 stub run; open).** `CustomerTokenIdentity::get_historical_meta_cardinality()` reads `$all_meta[0]` and calls `WC_Meta_Data::get_value()`. Real WooCommerce (checked against 11.2.1 source) returns the meta entries with their original array keys, and `WC_Meta_Data` has no `get_value()` method. So on a real store a present key usually reads as duplicate/invalid (fail closed), and throws an `Error` when the entry is the order's first meta row. The test fixtures define a `get_value()` that WooCommerce lacks. It changes H12 token classification, so it needs its own characterized unit and review; it was not changed in batch 4.
+- **H12-META (batch 4, from the A6-06 stub run; opened, then resolved in batch 4 below).** `CustomerTokenIdentity::get_historical_meta_cardinality()` reads `$all_meta[0]` and calls `WC_Meta_Data::get_value()`. Real WooCommerce (checked against 11.2.1 source) returns the meta entries with their original array keys, and `WC_Meta_Data` has no `get_value()` method. So on a real store a present key usually reads as duplicate/invalid (fail closed), and throws an `Error` when the entry is the order's first meta row. The test fixtures define a `get_value()` that WooCommerce lacks. It changes H12 token classification, so it needs its own characterized unit and review; it was not changed in batch 4.
   - **Resolved later in batch 4 (H12 contract repair, not a widening).**
     - **Verification version.** The fix was verified against WooCommerce 11.1.2, the version the Compatibility matrix pins, from the official package. The "11.2.1" in the finding above is kept as originally recorded.
     - **Fix.** The helper now takes the single entry with `reset()` and reads `WC_Meta_Data->value`. It keeps the array-row fallback and stays fail closed on duplicate, non-scalar and unrecognised rows.
@@ -154,21 +157,29 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 - Do a native Arabic review of the bundled translations (U7 drafted them by machine).
 - At the live cutover, check the LiteSpeed/Cloudflare purge. The automatic purge is covered by the real-plugin CI cell (`CachePurgeRuntimeTest`).
 - Send the 14 UPayments support questions (questions 11 to 14 were added during the fix loop). Question 12 has an evidence-based answer, which batch 4 used to fix A2-02; the live hosted-page and wallet hosts remain worth confirming.
+- After batch 4 (H12-META), check save-card, selected-card and subscription checkout on staging. These flows need UPayments white-label, so the check is deferred until UPayments enables white-label on the merchant account. Until then the H12-META evidence is the unit, harness and real-WooCommerce integration tests.
 
-Other observations carried to the revamp: O4 ("UPayments payment ID" copy) and O7 (FunnelKit upsell support, a payment-sensitive feature that needs owner approval).
+Other observations carried to the revamp: O7 (FunnelKit upsell support, a payment-sensitive feature that needs owner approval). O4 ("UPayments payment ID" copy) is fixed in batch 4.
 
-## Package at the batch 3 head
+## Package at the batch 4 head
 
-`supcheckout-0.1.0.zip`: **233 files**, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8`.
+`supcheckout-0.1.0.zip`: **233 files**, SHA-256 `2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db`.
 
-- **Build:** `bash scripts/build-release.sh` from Git Bash, run twice. The two archives are byte-identical.
-- **Scope:** this close record changes no distributable byte, because `docs/`, `tests/`, `.ai-architect/` and `AGENTS.md` are distignored. So the package equals the one built at the batch 3 code commit `bab56a8`.
+- **Build:** `bash scripts/build-release.sh` from Git Bash, run twice at the batch 4 head after the rebase onto `main` `dfa461e`. The two archives are byte-identical, and `scripts/verify-release.sh` verified the archive.
+- **Last commit that changes distributable bytes:** `46cf129` (AS-1). Batch 4 adds no file; it changes bytes in `src/` and `languages/`.
+- **Batch 3 package (#223, historical):** 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8`, built at the batch 3 code commit `bab56a8`. The owner verified it on staging on 2026-10-24. It is superseded by the batch 4 runtime change.
 - **Batch 2 package:** 233 files, SHA-256 `8b441501d52d3abcde176eebffda5e4261e9a1dcda0209290fcda878c26c0196`. It is superseded by the batch 3 runtime change.
 - **Acceptance:** not owner accepted. Release Candidate 1 remains the owner-accepted technical baseline.
 
 ## Gates at the close
 
-Local gates at the batch 3 head with this record (Windows, Git Bash):
+Local gates at the batch 4 head (Windows, Git Bash):
+
+GATES_B4_PLACEHOLDER
+
+Exact-head CI runs at the batch 4 PR, and the merge gate in `AGENTS.md` applies unchanged.
+
+Historical: local gates at the batch 3 head with this record (Windows, Git Bash):
 
 - `vendor/bin/phpunit`: OK, 1450 tests and 14705 assertions. 7 tests are skipped by design (the A1-01 gate-open companions).
 - `composer quality`: exit 0.
