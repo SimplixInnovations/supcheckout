@@ -20,8 +20,22 @@ final class SchedulingBridgeEnrollmentTest extends TestCase
         require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/HistoricalEnrollment.php';
     }
 
+    /** @var mixed The $wpdb installed before this test, restored in tearDown(). */
+    private $saved_wpdb;
+
+    /** @var mixed The option store before this test, restored in tearDown(). */
+    private $saved_options;
+
     protected function setUp(): void
     {
+        // Own $wpdb double (the shared option store): the paused-parent note lock is an
+        // INSERT IGNORE / compare-and-delete on wp_options, so these tests must not lean on a
+        // $wpdb some earlier test file happened to leave behind.
+        $this->saved_wpdb = $GLOBALS['wpdb'] ?? null;
+        $this->saved_options = $GLOBALS['supcheckout_test_options'] ?? null;
+        \supcheckout_test_reset_wp_options();
+        \ActionScheduler::$initialized = true;
+
         $GLOBALS['supcheckout_test_status_orders'] = array();
         $GLOBALS['supcheckout_as_calls'] = array(
             'scheduled' => array(),
@@ -31,6 +45,12 @@ final class SchedulingBridgeEnrollmentTest extends TestCase
         if (!function_exists('as_schedule_single_action')) {
             // defined in fixture below via eval-free stubs file
         }
+    }
+
+    protected function tearDown(): void
+    {
+        $GLOBALS['wpdb'] = $this->saved_wpdb;
+        $GLOBALS['supcheckout_test_options'] = $this->saved_options;
     }
 
     private function make_parent(array $attrs = array()): \WC_Order

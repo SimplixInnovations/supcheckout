@@ -49,7 +49,7 @@ final class AsyncDriverTest extends TestCase {
         $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
         $GLOBALS['supcheckout_test_request_context'] = array('cron' => false, 'ajax' => false);
         $GLOBALS['supcheckout_test_time_limits'] = array();
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         // Real Action Scheduler: `unique` compares only hook and group.
         $GLOBALS['supcheckout_test_unique_hook_group_only'] = true;
         $this->deferred = array();
@@ -62,7 +62,7 @@ final class AsyncDriverTest extends TestCase {
         \supcheckout_test_reset_public_order_status();
         TakeoverState::flush_cache();
         Journal::flush_cache();
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         $GLOBALS['supcheckout_test_unique_hook_group_only'] = false;
     }
 
@@ -222,7 +222,7 @@ final class AsyncDriverTest extends TestCase {
     public function test_an_unavailable_scheduler_finishes_the_operation_scheduler_unavailable(): void {
         // Plan review amendment: never an orphaned running operation (the REST layer answers 503).
         $op = self::start(Operation::KIND_SWITCH);
-        \Action_Scheduler::$initialized = false;
+        \ActionScheduler::$initialized = false;
 
         self::assertFalse(AsyncDriver::enqueue($op['id']));
 
@@ -481,7 +481,7 @@ final class AsyncDriverTest extends TestCase {
      */
     public function test_a5_06_a_watchdog_without_a_scheduler_finishes_an_overdue_operation(): void {
         $op = self::start(Operation::KIND_SWITCH);
-        \Action_Scheduler::$initialized = false;
+        \ActionScheduler::$initialized = false;
 
         self::update($op, array('next_at' => time() - AsyncDriver::RUNNER_STALL_SECONDS + 5));
         self::assertFalse(AsyncDriver::watchdog());
@@ -504,7 +504,7 @@ final class AsyncDriverTest extends TestCase {
             TakeoverState::flush_cache();
             CutoverTest::state($status);
             $op = self::start(Operation::KIND_SWITCH);
-            \Action_Scheduler::$initialized = false;
+            \ActionScheduler::$initialized = false;
             self::update($op, array('next_at' => time() - AsyncDriver::RUNNER_STALL_SECONDS - 1));
 
             self::assertFalse(AsyncDriver::watchdog());
@@ -512,7 +512,7 @@ final class AsyncDriverTest extends TestCase {
             $current = Operation::current();
             self::assertSame(array('done', null), array($current['outcome'], $current['error']), $status);
             self::assertSame(array('self_test_skipped'), $current['report']['warnings'], $status);
-            \Action_Scheduler::$initialized = true;
+            \ActionScheduler::$initialized = true;
         }
     }
 

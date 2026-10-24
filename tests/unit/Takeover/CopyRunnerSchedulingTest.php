@@ -124,12 +124,12 @@ final class CopyRunnerSchedulingTest extends TestCase {
 
     public function test_the_watchdog_waits_for_action_scheduler_to_be_initialized(): void {
         self::state('copying');
-        \Action_Scheduler::$initialized = false;
+        \ActionScheduler::$initialized = false;
         try {
             self::assertFalse(CopyRunner::watchdog());
             self::assertSame(array(), $GLOBALS['supcheckout_as_calls']['scheduled']);
         } finally {
-            \Action_Scheduler::$initialized = true;
+            \ActionScheduler::$initialized = true;
         }
     }
 

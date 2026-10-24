@@ -13,17 +13,10 @@ function supcheckout_deactivation_test_reset() {
     $GLOBALS['supcheckout_test_cron_unscheduled'] = array();
     $GLOBALS['supcheckout_test_cron_throws'] = false;
     $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
-    \Action_Scheduler::$initialized = true;
+    \ActionScheduler::$initialized = true;
 }
-
-if (!class_exists('ActionScheduler', false)) {
-    // The real class ReconciliationSweep checks, kept in step with the Action_Scheduler stub.
-    final class ActionScheduler {
-        public static function is_initialized($function_name = null) {
-            return \Action_Scheduler::$initialized;
-        }
-    }
-}
+// ActionScheduler (the real class ReconciliationSweep and ActionSchedulerBridge check)
+// comes from action-scheduler-stubs.php, which this file is loaded after.
 
 if (!function_exists('wp_unschedule_hook')) {
     function wp_unschedule_hook($hook, $wp_error = false) {

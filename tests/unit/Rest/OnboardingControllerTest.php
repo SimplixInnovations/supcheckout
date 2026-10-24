@@ -97,7 +97,7 @@ final class OnboardingControllerTest extends RestTestCase {
     }
 
     public function test_a_failed_enqueue_leaves_no_running_operation_and_returns_503(): void {
-        \Action_Scheduler::$initialized = false;
+        \ActionScheduler::$initialized = false;
 
         $response = self::serve('POST', '/onboarding/switch', array('confirm' => true));
 
@@ -107,7 +107,7 @@ final class OnboardingControllerTest extends RestTestCase {
         self::assertSame(array('failed', 'scheduler_unavailable'), array($failed['outcome'], $failed['error']));
         self::assertSame($failed['id'], self::body($response)['data']['operation_id']);
 
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         $retry = self::serve('POST', '/onboarding/switch', array('confirm' => true));
 
         self::assertSame(202, $retry->get_status(), 'the rate slot was released');
@@ -368,7 +368,7 @@ final class OnboardingControllerTest extends RestTestCase {
 
     public function test_a5_06_status_finishes_an_overdue_operation_when_action_scheduler_is_gone(): void {
         $op = Operation::start(Operation::KIND_SWITCH, array(), 1, time() - 120);
-        \Action_Scheduler::$initialized = false;
+        \ActionScheduler::$initialized = false;
 
         $data = self::body(self::serve('GET', '/onboarding/status'))['data'];
 

@@ -42,7 +42,7 @@ abstract class RestTestCase extends TestCase {
         TakeoverState::flush_cache();
         $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
         $GLOBALS['supcheckout_test_unique_hook_group_only'] = true;
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         $GLOBALS['supcheckout_test_subscription_presentation_active'] = false;
         $GLOBALS['supcheckout_test_migration_admin']['capability_allowed'] = true;
         $GLOBALS['supcheckout_test_migration_admin']['denied_capabilities'] = array();
@@ -71,7 +71,7 @@ abstract class RestTestCase extends TestCase {
         $GLOBALS['supcheckout_test_unique_hook_group_only'] = false;
         $GLOBALS['supcheckout_test_migration_admin']['capability_allowed'] = true;
         $GLOBALS['supcheckout_test_migration_admin']['denied_capabilities'] = array();
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
     }
 
     protected function onboarding(): Onboarding {

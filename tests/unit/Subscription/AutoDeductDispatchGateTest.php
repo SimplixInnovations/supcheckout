@@ -40,7 +40,7 @@ final class AutoDeductDispatchGateTest extends TestCase {
         $GLOBALS['supcheckout_test_status_orders'] = array();
         $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
         $GLOBALS['supcheckout_test_logged'] = array();
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         HistoricalEnrollment::reset_cursor();
         \update_option('woocommerce_upayments_settings', array('enabled' => 'yes', 'enable_subscriptions' => 'yes'));
         \update_option('upay_billing_cycle_schema_version', '2');

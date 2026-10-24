@@ -201,7 +201,7 @@ final class DeactivationTest extends TestCase {
     }
 
     public function test_without_a_ready_action_scheduler_it_only_deletes_the_marker(): void {
-        \Action_Scheduler::$initialized = false;
+        \ActionScheduler::$initialized = false;
         self::action(ReconciliationSweep::HOOK, array(), 'supcheckout');
         $GLOBALS['supcheckout_test_options'][self::MARKER] = time();
 

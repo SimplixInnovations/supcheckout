@@ -51,7 +51,7 @@ final class SchedulingQuiesceTest extends TestCase {
         \supcheckout_test_reset_wp_options();
         $GLOBALS['supcheckout_test_status_orders'] = array();
         $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         HistoricalEnrollment::reset_cursor();
         if (!function_exists('wc_get_logger')) {
             eval('function wc_get_logger() { return new class() {
