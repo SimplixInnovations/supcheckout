@@ -52,15 +52,15 @@ Hardening program (repository-executable fix loop) — **DONE / VERIFIED** (2026
 - **Your decision 2026-10-22 ("Block auto-charges"):** no automatic renewal charge is sent until its success can be verified.
 - **Package:** 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8` (not owner accepted).
 
-Current executable gate: **Owner staging verification of the hardened package — NEXT**. Install that package on staging and work through the owner items in the evidence file:
-- set AED to 2 decimals, with '.' as the decimal separator;
-- translate the gateway description in WPML String Translation (`admin_texts_woocommerce_gateways`);
-- confirm staging email blocking;
+Owner staging verification of the hardened package — **DONE / OWNER-VERIFIED** (2026-10-24). [Evidence](evidence/OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md). Package: 233 files, SHA-256 `f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8` (not owner accepted).
+
+Current executable gate: **Revamp information architecture and branding from the owner (Sub-project 2+) — NEXT (owner input)**. Share the information architecture and branding when ready. Still owner-side and not blocking:
+- confirm whether staging email is blocked on purpose;
 - do a native Arabic review of the bundled translations;
 - check the LiteSpeed/Cloudflare purge at the live cutover;
 - send the 14 UPayments support questions.
 
-Next after the owner staging verification: Sub-project 2 admin screens, once the owner shares the information architecture and branding. Details: `PROJECT-STATUS.md` "Revamp program".
+Sub-project 2 admin screens begin only after the owner shares the information architecture and branding. Details: `PROJECT-STATUS.md` "Revamp program".
 
 ## 2. Golden identity
 

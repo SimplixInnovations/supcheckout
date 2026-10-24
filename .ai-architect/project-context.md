@@ -93,6 +93,7 @@ Control-plane/tests only. No production source or package-byte change.
 - Historical next gate at the R5 checkpoint: **R6 final qualification** (R5 **DONE / VERIFIED**, Option B / ADR-003, certified PR #116 head `6fc225fc736da107de533ba8e19a12dc5c37227d`, merged main `50170ea7f0d17b792e133a70beee48da7e2b6326`). R6 is since DONE / VERIFIED.
 - Current state (2026-10-23): the SUPCheckout revamp program is active.
   - The hardening program's repository-executable fix loop is **DONE / VERIFIED** (batches 1 to 3; [`docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md`](../docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md)).
-  - The current executable gate is **Owner staging verification of the hardened package — NEXT**.
+  - Owner staging verification of the hardened package — **DONE / OWNER-VERIFIED** (2026-10-24); evidence in [`docs/project/evidence/OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md`](../docs/project/evidence/OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md).
+  - The current executable gate is **Revamp information architecture and branding from the owner (Sub-project 2+) — NEXT (owner input)**.
   - The current gate is owned by `docs/project/START-HERE.md` and `implementation-plan.md`.
 - R5 callback consolidation is complete: legacy public compatibility methods retained; financial lifecycle is PaymentLifecycle only; explicit browser/webhook adapters; legacy private verifier retired; provider egress unchanged.
