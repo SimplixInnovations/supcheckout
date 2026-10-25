@@ -1,10 +1,10 @@
 # Hardening program: close record (2026-10-23)
 
-**Status:** repository-executable fix loop **DONE / VERIFIED** (batches 1 to 3); batch 4 (`hardening/batch-4`) closes the last fixable residuals.
+**Status:** repository-executable fix loop **DONE / VERIFIED** (batches 1 to 3); batch 4 (#226) closed the last fixable residuals; batch 5 (`hardening/batch-5`) fixes the safe "left on purpose" items.
 **Next gate at the close:** owner staging verification of the hardened package. It is done (2026-10-24, [evidence](OWNER-STAGING-VERIFICATION-HARDENED-2026-10-24.md)); the current gate is the revamp information architecture and branding from the owner (Sub-project 2+).
 **Publication:** NOT AUTHORIZED. Automatic recurring `VERIFIED_SUCCESS` stays FAIL-CLOSED.
 
-This record closes the hardening program that the owner put before the revamp. The per-unit ledgers (scope, RED/GREEN evidence, review rounds) are in the PR bodies of #215, #221, #222, #223 and the batch 4 PR. This file keeps the program-level facts.
+This record closes the hardening program that the owner put before the revamp. The per-unit ledgers (scope, RED/GREEN evidence, review rounds) are in the PR bodies of #215, #221, #222, #223, #226 and the batch 5 PR. This file keeps the program-level facts.
 
 ## Why the program ran
 
@@ -42,8 +42,8 @@ Before dedupe they found 50 findings: **2 Critical, 3 High, 18 Medium, 27 Low**.
 | Batch 1 | #221 | `e3884ca` | 97/97 at exact head `36c62fd` |
 | Batch 2 | #222 | `3575721` | 97/97 at exact head `1302568` |
 | Batch 3 | #223 (branch `hardening/batch-3`: R1-1, R1-2 and this close record) | `f3e207d` | 97/97 at exact head `8a8306c` |
-| Batch 4 | branch `hardening/batch-4` (the last fixable residuals, A2-02, H12-META, AS-1) | pending its PR | runs at its PR |
-| Batch 5 | branch `hardening/batch-5` (owner instruction 2026-10-25: the safe "left on purpose" items A1-11, A4-05 rest, A4-08, U2 N-1; A6-08 stopped) | pending its PR | runs at its PR |
+| Batch 4 | #226 (branch `hardening/batch-4`: the last fixable residuals, A2-02, H12-META, AS-1) | `eed5bbd` | 97/97 at exact head `1e4cee3` |
+| Batch 5 | branch `hardening/batch-5` (owner instruction 2026-10-25: the safe "left on purpose" items A1-11, A4-05 rest, A4-08, U2 N-1; A6-08 closed by design) | pending its PR | runs at its PR |
 
 **Why the PRs were batched.** GitHub Free allows 20 concurrent jobs, and one PR runs about 80. So each unit was reviewed on its own branch or PR, verified locally, and then shipped in one integration PR per batch. The original PRs #216 to #220 were closed as superseded, and their ledgers stay in their PR bodies.
 
@@ -123,14 +123,14 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 |---|---|
 | A1-08 (new-card subscriptions never renew) | Moot under the A1-01 gate. It must be part of any design that opens the gate. |
 | A3-04 (historical enrollment scans every paid order with OFFSET) | Moot under the A1-01 gate, which gates enrollment. Re-raise to MEDIUM in the gate-opening design. |
-| A1-11 | Fixed in batch 5 (owner instruction 2026-10-25): the field default is `no`, so only a genuinely fresh install (no settings option) sends paid orders to Processing. A stored option keeps its value; one without the key keeps the official 3.1.1 `yes`, shown as such on the settings screen. Upgraded and taken-over stores are unchanged. |
+| A1-11 | Fixed in batch 5 (owner instruction 2026-10-25): the field default is `no`, so only a genuinely fresh install (no settings option) sends paid orders to Processing. A stored option keeps its value; one without the key keeps the official 3.1.1 `yes`, shown as such on the settings screen. No stored value changes meaning. A whole-array settings write (the settings screen's Save, or code that saves the gateway settings array) stores that `yes` explicitly. Upgraded and taken-over stores are unchanged. |
 | A3-05 | The proposed lazy gateway resolution is unsafe: the gateway constructor registers runtime hooks, and Blocks `initialize()` guarantees the gateway exists on every request. A compatibility-sensitive refactor for a few ms. |
 | A3-09 | The `wp_cache_flush()` after raw-SQL option writes is a deliberate correctness measure. It is rare and owner-initiated. "Run off-peak" copy goes to the revamp. |
 | A4-08 | Fixed in batch 5 with no new packaged file: one restrict-only reader, `Utils::productDisablesSubscription()`, also reads the opt-out on the WPML original product (`wpml_original_element_id`). No `wpml-config.xml`. |
 | A4-09 | The owner deferred it to the revamp. |
 | A5-03 (full `save()` during copy, removal and finalize) | The proposed meta-only save is unsafe on HPOS with compatibility sync. Only its disclosure was done (T3): preflight reports that each order is saved once. |
 | A6-06 (PHPStan scope and stubs) | No runtime defect. Stubs change `composer.json`/`composer.lock` and trigger every workflow, so they come as one tooling PR. Batch 4 attempted it and stopped under its own rule (no level drop, no large baseline): with `php-stubs/wordpress-stubs` 6.9.4 and `php-stubs/woocommerce-stubs` 10.8.1 at level 5, the current scope alone reports 70 errors and all of `src/` reports about 200, mostly defensive checks the real stubs prove redundant, in PaymentLifecycle, CheckoutOrchestrator, CustomerTokenIdentity and Scheduler. The run also surfaced one real H12 defect, recorded as a new finding below. |
-| A6-08 (Classic lists a dead option) | It changes Classic gateway listing behaviour that FunnelKit and the compatibility cells exercise. After A6-01 it fails closed with one notice. To be revisited at the revamp. Batch 5 re-verified and stopped it: the only fix (drop the gateway on a cached invalid availability state) changes the Classic listing for a settings-valid store, and the R6 browser cell (`certification-key`, live mode, the provider refuses, no last-known-good) asserts that Classic shows UPayments on its second render; the listing would also flip with the 65 s cache. |
+| A6-08 (Classic lists a dead option) | **Closed by design** (batch 5). The Classic listing follows settings eligibility by contract. A dead option fails closed at place-order with one notice (A6-01). It carries into the revamp checkout redesign as a design input. Batch 5 re-verified it before closing: the only fix (drop the gateway on a cached invalid availability state) changes the Classic listing for a settings-valid store, and the R6 browser cell (`certification-key`, live mode, the provider refuses, no last-known-good) asserts that Classic shows UPayments on its second render; the listing would also flip with the 65 s cache. |
 | A5-01 Scheduler divergence hold | It must land with any future gate-opening change. While the A1-01 gate is closed, `Scheduler::process_parent_order()` sends nothing. |
 | A3-07 autoload change | It touches the raw-SQL CAS writers and the `alloptions` invalidation. One non-autoloaded `SELECT` is not worth that risk. The decode memo was fixed (#219). |
 | A6-07 deletion | Only the `@deprecated` docblocks were done. Deleting the compatibility methods is recorded for Sub-project 5. |
@@ -142,12 +142,12 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 | Customer retries add duplicate merchant notes | A1-03 (#220) review | Fixed in batch 4: one note per order for the same currency and decimals (`_supcheckout_minor_unit_noted_v1`). |
 | Lock release deletes the lock without a token check | A1-01 (#216) review | Fixed in batch 4: compare-and-delete of the holder's own record (`OrderLock::delete_if_current()`). |
 | Unreadable stored total under the lock gave `binding_changed_under_lock` | OL-1 + R-1 review | Resolved in batch 2 by final-review M-1: it is now retryable on both paths. |
-| A lost event freezes the retry budget (N-1) | U2 review | Fixed in batch 5: the sweep unschedules an event overdue by more than an hour, and the bounded scheduling resumes from the stored attempt count. |
+| A lost event freezes the retry budget (N-1) | U2 review | Fixed in batch 5: the sweep unschedules an event overdue by more than an hour, and the bounded scheduling resumes from the stored attempt count. A refused unschedule is not logged as removed; the sweep still re-checks the order. Note: under WP-Cron starvation, a WP-Cron run that loaded its event list before the sweep removed the event then unschedules an event that is already gone; the cron option write changes nothing, so core may log one harmless `could_not_set` cron error for that event. No payment state is involved, and the reconcile path's rate gates still apply. |
 | A transient gateway miss skips the A1-09 note forever (N-2) | U2 review | Fixed in batch 4: the flag is set only on permanent outcomes. |
 | The snapshot harness counts by hook name (N-3) | U2 review | Fixed in batch 4: attributed by callback. |
 | A third party that renders `payment_fields()` in the same request as `process_payment()` reuses the display availability (up to 10 min old) | U5 report | WooCommerce's Classic and Blocks flows don't do this. Same behaviour as before, with older freshness. |
 | Per-order reconcile events are kept on deactivation | U8 ruling | Removing them would orphan queued one-shot secondary checks. |
-| A4-05 rest (physical offsets, chevron, save-card switch) | U6 | Fixed in batch 5: logical properties in every front-end stylesheet, template and the Blocks script, a mirrored chevron and an inline-axis switch; the template harness bars physical left/right. |
+| A4-05 rest (physical offsets, chevron, save-card switch) | U6 | Fixed in batch 5: logical properties in every front-end stylesheet, template and the Blocks script, and an inline-axis switch; the template harness bars physical left/right. The chevron needed no change: it is U+203A, which Unicode marks bidi-mirrored, so browsers already draw it mirrored in RTL. A `scaleX(-1)` rule added in batch 5 turned it backwards and was removed in review (I-1); the harness now requires U+203A at all six sites and no transform on `.upay-chevron`. |
 | Other front-end assets still version by `Identity::VERSION` | final-review M-5 | Fixed in batch 4: every front-end enqueue site uses `CheckoutAssets::asset_version()`. The wp-admin gateway-settings assets keep the plugin version. |
 
 ## Owner manual and staging items
