@@ -112,8 +112,7 @@ foreach (array(
 
 q4_assert(q4_contains($http_fixture, 'supcheckout_test_http_calls'), 'HTTP fixture records exact outbound calls');
 q4_assert(q4_contains($http_fixture, 'SUPCheckout_Test_WP_Error'), 'HTTP fixture exposes deterministic network failure');
-q4_assert(q4_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare bounded WordPress HTTP transport (A6-06: official stubs)');
-q4_assert(q4_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare WordPress error classification (A6-06: official stubs)');
+q4_assert(q4_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare wp_remote_get() and is_wp_error() (A6-06 retired the wordpress-option hand stub)');
 
 q4_assert(q4_contains($workflow, 'quality-platform-authenticated-status-harness.php'), 'Q4 harness is mandatory in Quality Gates');
 q4_assert(q4_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -38,7 +38,7 @@ $playbook = q12_read($q12_root, 'docs/project/MASTER-ENGINEERING-PLAYBOOK.md');
 
 q12_assert(q12_contains($phpstan, 'src/Subscription/WCProductCustomType.php'), 'PHPStan owns subscription product type');
 q12_assert(q12_contains($phpcs, 'src/Subscription/WCProductCustomType.php'), 'PHPCS owns subscription product type');
-q12_assert(q12_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-product-type hand stub)');
+q12_assert(q12_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-product-type hand stub)');
 q12_assert(!q12_contains($phpstan, 'baseline'), 'Q12 remains baseline-free');
 q12_assert(!q12_contains($phpstan, 'ignoreErrors'), 'Q12 introduces no ignored analyzer errors');
 
@@ -76,7 +76,7 @@ q12_assert(q12_contains($tests, "assertSame('custom_type'"), 'exact custom produ
 q12_assert(substr_count($base_fixture, 'class WC_Product_Simple') === 1, 'base fixture declares the exact global WooCommerce parent');
 q12_assert(substr_count($existing_fixture, 'class WCProductCustomType') === 1, 'pre-existing fixture declares the exact global compatibility class');
 q12_assert(q12_contains($existing_fixture, "return 'existing_type';"), 'pre-existing fixture exposes a distinguishable preserved behavior');
-q12_assert(q12_contains($phpstan, 'vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php'), 'analysis stubs declare only the WooCommerce parent boundary (A6-06: official stubs)');
+q12_assert(q12_contains($phpstan, '- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php'), 'PHPStan scans the official WooCommerce stubs, which declare WC_Product_Simple (A6-06)');
 q12_assert(!q12_contains((string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/external-symbols-stubs.php') . (string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/stub-corrections.stub'), 'WCProductCustomType'), 'analysis stubs do not mask the production child class (A6-06)');
 
 q12_assert(q12_git_blob_sha($q12_root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3', 'protected Scheduler blob remains exact');

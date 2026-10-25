@@ -74,6 +74,9 @@ abstract class WC_Abstract_Order extends \WC_Abstract_Legacy_Order
     /**
      * The default 'line_item' type returns product line items
      * (WC_Order_Factory::get_order_item() for the line_item type).
+     * Third-party code can still change the result through the
+     * woocommerce_order_get_items filter, so callers that need a product item
+     * should check instanceof WC_Order_Item_Product.
      *
      * @param string|string[] $types
      * @return ($types is 'line_item' ? array<int|string,\WC_Order_Item_Product> : array<int|string,\WC_Order_Item>)

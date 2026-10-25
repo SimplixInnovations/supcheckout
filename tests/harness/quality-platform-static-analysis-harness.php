@@ -213,7 +213,15 @@ foreach (array(
     q2_assert(q2_contains($phpstan, '- ' . $q2_stub), "PHPStan scans the official stub: {$q2_stub}");
 }
 q2_assert(q2_contains($phpstan, 'treatPhpDocTypesAsCertain: false'), 'PHPStan keeps defensive runtime checks on untrusted data (PHPDoc types not certain)');
-q2_assert(!q2_contains($phpstan, 'ignoreErrors'), 'PHPStan config has no ignoreErrors block');
+// No suppression or scope escape hatches: no baseline, no ignoreErrors, no excludePaths and
+// no includes (no include is needed; the stubs and the extension are wired directly).
+foreach (array('ignoreErrors', 'baseline', 'excludePaths', 'includes:') as $q2_forbidden_key) {
+    q2_assert(!q2_contains($phpstan, $q2_forbidden_key), "PHPStan config has no {$q2_forbidden_key}");
+}
+q2_assert(
+    q2_contains($phpstan, "dynamicConstantNames:\n        - SUPCHECKOUT_PLUGIN_URL\n        - SUPCHECKOUT_PLUGIN_PATH\n"),
+    'runtime-defined plugin constants are dynamic, so their placeholder stub values are never treated as known'
+);
 foreach (array(
     'php-stubs/wordpress-stubs' => '6.9.4',
     'php-stubs/woocommerce-stubs' => '10.8.1',
@@ -242,7 +250,8 @@ q2_assert(q2_contains($phpstan, '- tests/phpstan/external-symbols-stubs.php'), '
 q2_assert(q2_contains($phpstan, "stubFiles:\n        - tests/phpstan/stub-corrections.stub"), 'PHPStan applies the documented official-stub corrections');
 q2_assert(q2_contains($phpstan, 'phpstan.methods.alwaysUsedMethodExtension'), 'PHPStan registers the reflection-seam extension');
 // The reflection-seam allowlist must not rot into a blanket unused-method ignore:
-// every listed method is still private in its class and still named by a test.
+// every listed method is still private in its class and still invoked through
+// reflection by a test (ReflectionMethod, getMethod() or the H12 upay_call_* helpers).
 $q2_seam_source = q2_read($q2_root, 'tests/phpstan/ReflectionSeamMethods.php');
 $q2_test_corpus = '';
 foreach (array('tests/harness', 'tests/unit', 'tests/provider') as $q2_test_dir) {
@@ -275,8 +284,8 @@ foreach ($q2_seam_classes as $q2_seam_class => $q2_seam_path) {
             "reflection seam is still a private method: {$q2_seam_path}::{$q2_seam_method}"
         );
         q2_assert(
-            q2_contains($q2_test_corpus, "'" . $q2_seam_method . "'"),
-            "reflection seam is still called by a test: {$q2_seam_method}"
+            preg_match('/(?:upay_call_static\([^,]+, |upay_call_instance\([^,]+, |getMethod\(|ReflectionMethod\([^,]+, )\'' . $q2_seam_method . '\'/', $q2_test_corpus) === 1,
+            "reflection seam is still invoked through reflection by a test: {$q2_seam_method}"
         );
     }
 }

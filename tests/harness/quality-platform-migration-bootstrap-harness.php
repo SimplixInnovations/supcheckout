@@ -33,7 +33,7 @@ $playbook = q10_read($q10_root, 'docs/project/MASTER-ENGINEERING-PLAYBOOK.md');
 
 q10_assert(q10_contains($phpstan, 'src/Migration/MigrationBootstrap.php'), 'PHPStan owns migration bootstrap');
 q10_assert(q10_contains($phpcs, 'src/Migration/MigrationBootstrap.php'), 'PHPCS owns migration bootstrap');
-q10_assert(q10_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the migration-bootstrap hand stub)');
+q10_assert(q10_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the migration-bootstrap hand stub)');
 q10_assert(!q10_contains($phpstan, 'baseline'), 'Q10 remains baseline-free');
 q10_assert(!q10_contains($phpstan, 'ignoreErrors'), 'Q10 introduces no ignored analyzer errors');
 

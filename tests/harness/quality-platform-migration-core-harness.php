@@ -43,7 +43,7 @@ foreach (array('src/Migration/MigrationPreflight.php','src/Migration/MigrationBa
     q16_assert(q16_has($phpstan, $path), 'PHPStan owns migration core: ' . $path);
     q16_assert(q16_has($phpcs, $path), 'PHPCS owns migration core: ' . $path);
 }
-q16_assert(q16_has($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the migration-core hand stub)');
+q16_assert(q16_has($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the migration-core hand stub)');
 q16_assert(!q16_has($phpstan, 'baseline'), 'Q16 remains baseline-free');
 q16_assert(!q16_has($phpstan, 'ignoreErrors'), 'Q16 has no ignored analyzer errors');
 
@@ -77,7 +77,7 @@ foreach (array('invalid_inputs_fail_closed_before_history_access','fresh_user_is
 foreach (array('user_id_parser_preserves_exact_canonical_contract','bounded_clean_page_writes_redacted_checkpoint_and_resumes','trailing_newline_reason_cannot_be_reused_as_durable_checkpoint','invalid_windows_fail_before_execution_or_checkpoint_mutation') as $name) q16_assert(q16_has($batch_tests, $name), 'batch test: ' . $name);
 foreach (array('clean_user_is_idempotent_without_lock_or_mutation','dry_run_migratable_user_performs_no_identity_mutation','existing_secret_legacy_orphan_migrates_to_exact_legacy_provenance','invalid_inputs_fail_closed_before_preflight') as $name) q16_assert(q16_has($executor_tests, $name), 'executor test: ' . $name);
 q16_assert(q16_has($fixture, 'SUPCheckout_Test_Migration_Core_WPDB'), 'fixture models deterministic DB boundary');
-q16_assert(q16_has($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'stub models H12 namespace (A6-06: official stubs)');
+q16_assert(q16_has($phpstan, '- src/Token/CustomerTokenIdentity.php'), 'PHPStan analyses the real H12 class src/Token/CustomerTokenIdentity.php (A6-06 retired its stand-in stub)');
 q16_assert(q16_has($bootstrap, "require __DIR__ . '/support/wordpress-migration-core.php';"), 'PHPUnit bootstrap loads migration fixture');
 
 q16_assert(q16_blob($root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3', 'protected Scheduler blob remains exact');

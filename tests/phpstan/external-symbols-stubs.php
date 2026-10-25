@@ -12,7 +12,7 @@ define('OBJECT', 'OBJECT');
 define('ARRAY_A', 'ARRAY_A');
 define('ARRAY_N', 'ARRAY_N');
 
-// Plugin bootstrap constants: Simplixi\SUPCheckout\Plugin::define_constants()
+// Plugin bootstrap constants: Simplixi\SUPCheckout\Plugin::load_runtime()
 // defines them at runtime from the main file path, so PHPStan cannot read a
 // literal value.
 define('SUPCHECKOUT_PLUGIN_URL', '');

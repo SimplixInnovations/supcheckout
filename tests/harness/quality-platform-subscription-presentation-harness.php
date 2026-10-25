@@ -39,7 +39,7 @@ $agents = q15_read($q15_root, 'AGENTS.md');
 $q14_harness = q15_read($q15_root, 'tests/harness/quality-platform-migration-admin-harness.php');
 
 q15_assert(q15_contains($phpstan, 'src/Subscription/Presentation.php'), 'PHPStan owns subscription presentation');
-q15_assert(q15_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-presentation hand stub)');
+q15_assert(q15_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-presentation hand stub)');
 q15_assert(q15_contains($phpcs, 'src/Subscription/Presentation.php'), 'PHPCS owns subscription presentation');
 q15_assert(!q15_contains($phpstan, 'baseline'), 'Q15 remains baseline-free');
 q15_assert(!q15_contains($phpstan, 'ignoreErrors'), 'Q15 introduces no ignored analyzer errors');
@@ -119,7 +119,7 @@ q15_assert(
     q15_contains($runtime, "namespace Simplixi\\SUPCheckout\\Gateway {") && q15_contains($runtime, 'class Gateway {'),
     'runtime fixture isolates the gateway summary delegate'
 );
-q15_assert(q15_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stub models the scheduler boundary without running it (A6-06: official stubs)');
+q15_assert(q15_contains($phpstan, '- src/Subscription/Cron/Scheduler.php'), 'PHPStan analyses the real scheduler src/Subscription/Cron/Scheduler.php (A6-06 retired its stand-in stub)');
 q15_assert(q15_contains($bootstrap, "require __DIR__ . '/support/wordpress-subscription-presentation.php';"), 'PHPUnit bootstrap loads the presentation fixture');
 
 foreach (array(

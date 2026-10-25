@@ -75,7 +75,7 @@ q9_assert(q9_contains($tests, "'must-never-escape'"), 'redaction explicitly test
 q9_assert(q9_contains($tests, "'must-never-escape-' . str_repeat('x', 4096)"), 'redaction tests secret-bearing unbounded retained fields');
 q9_assert(q9_contains($tests, 'assertStringNotContainsString($sentinel, serialize($redacted))'), 'redaction proves retained fields cannot emit the sentinel');
 q9_assert(q9_contains($fixture, 'function get_option('), 'unit fixture provides deterministic option reads');
-q9_assert(q9_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare the bounded option read (A6-06: official stubs)');
+q9_assert(q9_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare get_option() (A6-06 retired the wordpress-option hand stub)');
 
 q9_assert(q9_contains($workflow, 'quality-platform-migration-settings-harness.php'), 'Q9 harness is mandatory in Quality Gates');
 q9_assert(q9_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

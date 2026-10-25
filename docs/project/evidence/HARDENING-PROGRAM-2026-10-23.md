@@ -149,6 +149,7 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 | Per-order reconcile events are kept on deactivation | U8 ruling | Removing them would orphan queued one-shot secondary checks. |
 | A4-05 rest (physical offsets, chevron, save-card switch) | U6 | Fixed in batch 5: logical properties in every front-end stylesheet, template and the Blocks script, and an inline-axis switch; the template harness bars physical left/right. The chevron needed no change: it is U+203A, which Unicode marks bidi-mirrored, so browsers already draw it mirrored in RTL. A `scaleX(-1)` rule added in batch 5 turned it backwards and was removed in review (I-1); the harness now requires U+203A at all six sites and no transform on `.upay-chevron`. |
 | Other front-end assets still version by `Identity::VERSION` | final-review M-5 | Fixed in batch 4: every front-end enqueue site uses `CheckoutAssets::asset_version()`. The wp-admin gateway-settings assets keep the plugin version. |
+| Renewal and enrollment line-item reads call `get_product()` without an `instanceof WC_Order_Item_Product` guard (`Scheduler.php:1022`, `:1327`, `HistoricalEnrollment.php:185`) | Batch 6 review (A6-06 stub run) | LOW, pre-existing. `get_items('line_item')` returns product items, but the `woocommerce_order_get_items` filter lets third-party code change that. The auto-deduct path stays gated by A1-01, so none of these lines can send a charge. The `src/` lines were left unchanged in batch 6, which was static analysis only. |
 
 ## Owner manual and staging items
 

@@ -12,6 +12,11 @@ parameters:
         # Symbols the official stubs lack (WP-CLI, cache-plugin purge APIs, wpdb
         # output constants, runtime-defined plugin constants).
         - tests/phpstan/external-symbols-stubs.php
+    # Plugin::load_runtime() sets these at runtime from the main file path; the
+    # placeholder values in external-symbols-stubs.php must never be taken as known.
+    dynamicConstantNames:
+        - SUPCHECKOUT_PLUGIN_URL
+        - SUPCHECKOUT_PLUGIN_PATH
     # PHPDoc corrections where the official stubs misstate the runtime contract.
     stubFiles:
         - tests/phpstan/stub-corrections.stub

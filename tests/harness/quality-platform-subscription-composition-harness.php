@@ -44,7 +44,7 @@ q11_assert(q11_contains($phpstan, 'src/Subscription/Composition.php'), 'PHPStan 
 q11_assert(q11_contains($phpcs, 'src/Subscription/Composition.php'), 'PHPCS owns subscription composition');
 q11_assert(q11_contains($phpstan, 'src/Subscription/ProductTypeHooks.php'), 'PHPStan owns subscription product-type hooks');
 q11_assert(q11_contains($phpcs, 'src/Subscription/ProductTypeHooks.php'), 'PHPCS owns subscription product-type hooks');
-q11_assert(q11_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-composition hand stub)');
+q11_assert(q11_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-composition hand stub)');
 q11_assert(!q11_contains($phpstan, 'baseline'), 'Q11 remains baseline-free');
 q11_assert(!q11_contains($phpstan, 'ignoreErrors'), 'Q11 introduces no ignored analyzer errors');
 

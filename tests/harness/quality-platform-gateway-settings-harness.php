@@ -148,8 +148,7 @@ q6_assert(q6_contains($fixture, 'function supcheckout_test_reset_gateway_setting
 q6_assert(q6_contains($fixture, 'function wp_enqueue_style('), 'unit fixture records enqueued styles');
 q6_assert(q6_contains($fixture, 'function wp_enqueue_script('), 'unit fixture records enqueued scripts');
 q6_assert(q6_contains($fixture, 'function wp_add_inline_style('), 'unit fixture records inline styles');
-q6_assert(q6_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare bounded sanitization (A6-06: official stubs)');
-q6_assert(q6_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare bounded admin assets (A6-06: official stubs)');
+q6_assert(q6_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare sanitize_text_field() and wp_enqueue_script() (A6-06 retired the wordpress-option hand stub)');
 
 q6_assert(q6_contains($workflow, 'quality-platform-gateway-settings-harness.php'), 'Q6 harness is mandatory in Quality Gates');
 q6_assert(q6_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

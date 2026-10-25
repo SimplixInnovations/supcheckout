@@ -52,7 +52,7 @@ foreach (array('src/Payment/CheckoutOrchestrator.php', 'src/Payment/PaymentLifec
     q17_assert(q17_has($phpstan, $path), 'PHPStan owns payment runtime: ' . $path);
     q17_assert(q17_has($phpcs, $path), 'PHPCS owns payment runtime: ' . $path);
 }
-q17_assert(q17_has($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the payment-runtime hand stub)');
+q17_assert(q17_has($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the payment-runtime hand stub)');
 q17_assert(!q17_has($phpstan, 'baseline'), 'Q17 remains baseline-free');
 q17_assert(!q17_has($phpstan, 'ignoreErrors'), 'Q17 has no ignored analyzer errors');
 
@@ -105,7 +105,7 @@ q17_assert(
     && q17_has($checkout_tests, '$requests = array();'),
     'runtime fixture exposes deterministic Woo/provider observation'
 );
-q17_assert(q17_has($phpstan, 'vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php'), 'payment-runtime stubs model checkout URL boundary (A6-06: official stubs)');
+q17_assert(q17_has($phpstan, '- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php'), 'PHPStan scans the official WooCommerce stubs, which declare wc_get_checkout_url() (A6-06)');
 
 q17_assert(q17_has($lifecycle, "preg_match('/^[1-9][0-9]*\\\\z/', \$value)"), 'lifecycle order IDs use absolute end anchor');
 q17_assert(q17_has($lifecycle, 'merge_request_value('), 'callback preserves presence-aware GET/POST merge');

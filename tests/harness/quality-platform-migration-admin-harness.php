@@ -39,7 +39,7 @@ $q13_harness = q14_read($q14_root, 'tests/harness/quality-platform-migration-cli
 
 q14_assert(q14_contains($phpstan, 'src/Migration/MigrationAdmin.php'), 'PHPStan owns migration admin adapter');
 q14_assert(q14_contains($phpcs, 'src/Migration/MigrationAdmin.php'), 'PHPCS owns migration admin adapter');
-q14_assert(q14_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the migration-admin hand stub)');
+q14_assert(q14_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare wp_die() with its never return (A6-06 retired the migration-admin hand stub)');
 q14_assert(!q14_contains($phpstan, 'baseline'), 'Q14 remains baseline-free');
 q14_assert(!q14_contains($phpstan, 'ignoreErrors'), 'Q14 introduces no ignored analyzer errors');
 
@@ -118,7 +118,6 @@ q14_assert(q14_contains($tests, "'&quot;reason&quot;: &quot;batch_complete&quot;
 q14_assert(q14_contains($fixture, "'capability_calls'"), 'admin fixture records capability checks');
 q14_assert(q14_contains($fixture, "'nonce_checks'"), 'admin fixture records nonce checks');
 q14_assert(q14_contains($fixture, "'submenu_calls'"), 'admin fixture records submenu registration');
-q14_assert(q14_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stub models terminating wp_die boundary (A6-06: official stubs)');
 q14_assert(q14_contains($bootstrap, "require __DIR__ . '/support/wordpress-migration-admin.php';"), 'PHPUnit bootstrap loads admin fixture');
 
 q14_assert(q14_git_blob_sha($q14_root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3', 'protected Scheduler blob remains exact');

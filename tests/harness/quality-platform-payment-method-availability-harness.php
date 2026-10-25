@@ -111,9 +111,7 @@ q5_assert(q5_contains($fixture, "strpos(\$statement['query'], 'SELECT GET_LOCK('
 q5_assert(q5_contains($fixture, "strpos(\$statement['query'], 'SELECT RELEASE_LOCK(') === 0"), 'unit fixture executes advisory-lock release semantics');
 q5_assert(q5_contains($fixture, 'function get_transient(') && q5_contains($fixture, 'function set_transient('), 'unit fixture provides deterministic transient persistence');
 q5_assert(q5_contains($option_fixture, 'supcheckout_test_update_option_result'), 'option fixture exposes deterministic gate-write failure');
-q5_assert(q5_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare the bounded wpdb prefix (A6-06: official stubs)');
-q5_assert(q5_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare transient reads (A6-06: official stubs)');
-q5_assert(q5_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare multisite lock scope (A6-06: official stubs)');
+q5_assert(q5_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare wpdb::$prefix, get_transient() and get_current_blog_id() (A6-06 retired the wordpress-option hand stub)');
 
 q5_assert(q5_contains($workflow, 'quality-platform-payment-method-availability-harness.php'), 'Q5 harness is mandatory in Quality Gates');
 q5_assert(q5_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');
