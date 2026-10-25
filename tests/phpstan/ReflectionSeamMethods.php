@@ -7,7 +7,7 @@
  * rule cannot see their callers. Only these exact methods are treated as used;
  * every other private method is still checked. The static-analysis harness
  * fails if a listed method stops existing, stops being private, or is no longer
- * named by a file under tests/.
+ * invoked through reflection by a file under tests/.
  */
 
 namespace Simplixi\SUPCheckout\Tests\PHPStan;
