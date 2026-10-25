@@ -4,6 +4,7 @@ namespace Simplixi\SUPCheckout\Payment;
 
 use Simplixi\SUPCheckout\Admin\GatewaySettings;
 use Simplixi\SUPCheckout\Provider\MultiMerchantContract;
+use Simplixi\SUPCheckout\Subscription\Helpers\Utils;
 use Simplixi\SUPCheckout\Takeover\Keys;
 use Simplixi\SUPCheckout\Takeover\TakeoverState;
 use Simplixi\SUPCheckout\Token\CustomerTokenIdentity;
@@ -296,9 +297,7 @@ class CheckoutOrchestrator {
                     $cart_has_custom_product = true;
                     $order_has_subscription_product = true;
                     $product_id = (int) $item->get_product_id();
-                    if ($product_id > 0
-                        && Keys::read_post_meta($product_id, '_upay_disable_subscription') === 'yes'
-                    ) {
+                    if (Utils::productDisablesSubscription($product_id)) {
                         $order_has_subscription_restricted_product = true;
                     }
                 } else {

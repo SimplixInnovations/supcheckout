@@ -34,6 +34,15 @@ function WC() {
     return new Q19Woo($GLOBALS['q19_items']);
 }
 
+// WPML's wpml_original_element_id filter (A4-08): translated product ID => original ID.
+$GLOBALS['q19_wpml_originals'] = array();
+function apply_filters($hook, $value, ...$args) {
+    if ($hook === 'wpml_original_element_id' && isset($args[0], $args[1]) && $args[1] === 'post_product') {
+        return isset($GLOBALS['q19_wpml_originals'][$args[0]]) ? $GLOBALS['q19_wpml_originals'][$args[0]] : $value;
+    }
+    return $value;
+}
+
 function get_post_meta($product_id, $key, $single = false) {
     return isset($GLOBALS['q19_meta'][$product_id][$key])
         ? $GLOBALS['q19_meta'][$product_id][$key]
@@ -125,6 +134,34 @@ $GLOBALS['q19_meta'] = array(
 );
 q19_assert(Utils::cartHasRestrictedProducts() === true, 'one explicitly opted-out product restricts the mixed cart');
 
+// A4-08 (batch 5): WCML puts the translated product ID in the cart. With WPML's
+// "Don't translate" custom-field preference the translation lacks the opt-out, so it is
+// also read on the original product. The fallback only ever adds a restriction.
+q19_set_cart(array(202));
+$GLOBALS['q19_meta'] = array(
+    101 => array('_upay_disable_subscription' => 'yes'),
+);
+$GLOBALS['q19_wpml_originals'] = array(202 => '101');
+q19_assert(Utils::cartHasRestrictedProducts() === true, 'a WPML translation whose original product opted out is restricted');
+q19_assert(Utils::productDisablesSubscription(202) === true, 'the shared opt-out reader follows the WPML original');
+
+$GLOBALS['q19_meta'] = array(
+    101 => array('_upay_disable_subscription' => 'no'),
+);
+q19_assert(Utils::cartHasRestrictedProducts() === false, 'a WPML translation whose original did not opt out stays eligible');
+
+$GLOBALS['q19_meta'] = array(
+    202 => array('_upay_disable_subscription' => 'yes'),
+);
+q19_assert(Utils::cartHasRestrictedProducts() === true, 'a translation with its own opt-out is restricted');
+
+$GLOBALS['q19_meta'] = array(
+    101 => array('_upay_disable_subscription' => 'yes'),
+);
+$GLOBALS['q19_wpml_originals'] = array();
+q19_assert(Utils::cartHasRestrictedProducts() === false, 'without WPML only the cart product own opt-out counts');
+q19_assert(Utils::productDisablesSubscription(0) === false, 'a missing product ID is never opted out');
+
 $root = dirname(__DIR__, 2);
 $utils_source = file_get_contents($root . '/src/Subscription/Helpers/Utils.php');
 $fields_source = file_get_contents($root . '/src/Subscription/Checkout/Fields.php');
@@ -160,7 +197,8 @@ q19_assert(
 );
 q19_assert(
     is_string($checkout_source)
-    && strpos($checkout_source, "_upay_disable_subscription") !== false
+    // A4-08 (batch 5): the orchestrator reads the opt-out through the shared reader.
+    && strpos($checkout_source, "Utils::productDisablesSubscription(\$product_id)") !== false
     && strpos($checkout_source, "Subscription plan rejected: product-level opt-out.") !== false,
     'payment orchestrator enforces product opt-out server-side'
 );
