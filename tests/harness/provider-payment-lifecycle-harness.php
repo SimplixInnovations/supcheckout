@@ -2184,6 +2184,37 @@ namespace {
     same(array($due->get_status(), $due->payment_complete_calls), array('pending', 0), 'U2 review M-3 S5c the order with a pending event is left to that event');
     same(array($lost_event->get_status(), $lost_event->payment_complete_calls), array('processing', 1), 'U2 review M-3 S5c the order whose event was lost is completed once by the sweep (skipped at cf2a31b)');
 
+    // S5e (batch 5, U2 N-1): a lost event used to stay scheduled, so schedule_reconciliation()
+    // kept answering "already scheduled" and the order's retry budget froze; only the 6 h
+    // sweep re-checked it. The sweep now unschedules the lost event, and the order's normal
+    // bounded scheduling resumes from its stored attempt count.
+    $gateway = $u2_reset();
+    $frozen = $u2_order(842);
+    $u2_unverified($frozen, 'track-frozen');
+    $frozen->meta['_simplixpay_upayments_reconcile_attempt_v1'] = 1;
+    $lost_at = time() - 2 * 3600;
+    \Simplixi\SUPCheckout\Payment\state()['scheduled']['simplixpay_upayments_reconcile_order|[842]'] = $lost_at;
+    $u2_provider(array('track-frozen' => transaction_for($frozen, 'PENDING', 'track-frozen', null)));
+    same($u2_sweep(), array('track-frozen'), 'batch 5 N-1 S5e the order whose event was lost is looked up once');
+    $resumed_at = \Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_order', array(842));
+    ok($resumed_at !== false && $resumed_at !== $lost_at && $resumed_at >= time() + 100 && $resumed_at <= time() + 125, 'batch 5 N-1 S5e the lost event is replaced by the next bounded check (attempt 2, 120 s)');
+    same((int) $frozen->get_meta('_simplixpay_upayments_reconcile_attempt_v1'), 2, 'batch 5 N-1 S5e the retry budget advances again (it stayed at 1 before batch 5)');
+    same(array($frozen->get_status(), $frozen->payment_complete_calls), array('pending', 0), 'batch 5 N-1 S5e a non-terminal result changes no payment state');
+    same($u2_sweep(), array(), 'batch 5 N-1 S5e the resumed check owns the order; the next sweep makes no lookup');
+
+    // At the end of the budget a lost event ends in the one-time exhausted note, never a
+    // fifth check.
+    $gateway = $u2_reset();
+    $spent = $u2_order(843);
+    $u2_unverified($spent, 'track-spent');
+    $spent->meta['_simplixpay_upayments_reconcile_attempt_v1'] = 4;
+    \Simplixi\SUPCheckout\Payment\state()['scheduled']['simplixpay_upayments_reconcile_order|[843]'] = time() - 2 * 3600;
+    $u2_provider(array('track-spent' => transaction_for($spent, 'PENDING', 'track-spent', null)));
+    same($u2_sweep(), array('track-spent'), 'batch 5 N-1 S5e an exhausted order with a lost event is looked up once');
+    same(\Simplixi\SUPCheckout\Payment\wp_next_scheduled('simplixpay_upayments_reconcile_order', array(843)), false, 'batch 5 N-1 S5e no check beyond the bounded budget is scheduled');
+    same(array((int) $spent->get_meta('_simplixpay_upayments_reconcile_attempt_v1'), $spent->get_meta('_simplixpay_upayments_reconcile_exhausted_v1')), array(4, 1), 'batch 5 N-1 S5e the budget stays at its bound and the order is marked exhausted');
+    same(array($spent->get_status(), $spent->payment_complete_calls), array('pending', 0), 'batch 5 N-1 S5e exhaustion changes no payment state');
+
     // S6 (A6-04): one order whose save() throws (for example an ERP-sync hook) no
     // longer aborts the sweep, and a throwing callback still returns an outcome.
     $gateway = $u2_reset();

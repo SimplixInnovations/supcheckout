@@ -205,9 +205,34 @@ final class PaymentLifecycle {
             ) {
                 return;
             }
+            if ($scheduled !== false) {
+                // U2 N-1: a lost event left scheduled makes schedule_reconciliation() answer
+                // "already scheduled" forever, freezing the retry budget. Remove it, so the
+                // order's normal bounded scheduling resumes from its stored attempt count.
+                self::unschedule_lost_reconciliation($order_id);
+            }
             self::reconcile_order($order_id);
         } catch (\Throwable $e) {
             self::log('sweep_order_exception', 'warning');
+        }
+    }
+
+    /**
+     * Unschedules only this order's reconcile events overdue by more than
+     * SWEEP_LOST_EVENT_SECONDS; a pending event is never touched.
+     *
+     * @param int $order_id WooCommerce order ID.
+     * @return void
+     */
+    private static function unschedule_lost_reconciliation($order_id) {
+        $args = array((int) $order_id);
+        for ($i = 0; $i < 2 * (self::MAX_RECONCILE_ATTEMPTS + 2); $i++) {
+            $next = self::next_scheduled(self::RECONCILE_HOOK, $args);
+            if ($next === false || $next[0] >= time() - self::SWEEP_LOST_EVENT_SECONDS) {
+                return;
+            }
+            wp_unschedule_event($next[0], $next[1], $args);
+            self::log('reconcile_lost_event_unscheduled', 'info');
         }
     }
 
