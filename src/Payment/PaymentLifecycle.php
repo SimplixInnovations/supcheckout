@@ -219,7 +219,8 @@ final class PaymentLifecycle {
 
     /**
      * Unschedules only this order's reconcile events overdue by more than
-     * SWEEP_LOST_EVENT_SECONDS; a pending event is never touched.
+     * SWEEP_LOST_EVENT_SECONDS; a pending event is never touched. A refused unschedule
+     * (false or a WP_Error) ends the loop unlogged; the sweep still re-checks the order.
      *
      * @param int $order_id WooCommerce order ID.
      * @return void
@@ -231,7 +232,9 @@ final class PaymentLifecycle {
             if ($next === false || $next[0] >= time() - self::SWEEP_LOST_EVENT_SECONDS) {
                 return;
             }
-            wp_unschedule_event($next[0], $next[1], $args);
+            if (wp_unschedule_event($next[0], $next[1], $args) !== true) {
+                return;
+            }
             self::log('reconcile_lost_event_unscheduled', 'info');
         }
     }
