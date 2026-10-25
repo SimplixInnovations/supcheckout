@@ -24,8 +24,27 @@ final class SchedulingCorrectionTest extends TestCase
         require_once dirname(__DIR__, 3) . '/src/Subscription/Scheduling/LifecycleScheduler.php';
     }
 
+    /** @var mixed The $wpdb installed before this test, restored in tearDown(). */
+    private $saved_wpdb;
+
+    /** @var mixed The option store before this test, restored in tearDown(). */
+    private $saved_options;
+
+    protected function tearDown(): void
+    {
+        $GLOBALS['wpdb'] = $this->saved_wpdb;
+        $GLOBALS['supcheckout_test_options'] = $this->saved_options;
+    }
+
     protected function setUp(): void
     {
+        // Own $wpdb double (the shared option store): the paused-parent note lock is an
+        // INSERT IGNORE / compare-and-delete on wp_options, so these tests must not lean on a
+        // $wpdb some earlier test file happened to leave behind.
+        $this->saved_wpdb = $GLOBALS['wpdb'] ?? null;
+        $this->saved_options = $GLOBALS['supcheckout_test_options'] ?? null;
+        \supcheckout_test_reset_wp_options();
+
         $GLOBALS['supcheckout_test_status_orders'] = array();
         $GLOBALS['supcheckout_as_calls'] = array(
             'scheduled' => array(),
@@ -33,7 +52,7 @@ final class SchedulingCorrectionTest extends TestCase
             'unscheduled_all' => array(),
             'did_action' => array(),
         );
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         HistoricalEnrollment::reset_cursor();
     }
 
@@ -66,20 +85,34 @@ final class SchedulingCorrectionTest extends TestCase
 
     public function test_is_ready_false_when_functions_only_or_uninitialized(): void
     {
-        \Action_Scheduler::$initialized = false;
+        \ActionScheduler::$initialized = false;
         $GLOBALS['supcheckout_as_calls']['did_action'] = array();
         self::assertFalse(
             ActionSchedulerBridge::is_ready(),
             'functions present but datastore not initialized must be false'
         );
 
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         self::assertTrue(ActionSchedulerBridge::is_ready());
+    }
+
+    public function test_is_ready_reads_the_real_action_scheduler_class_without_the_init_hook(): void
+    {
+        // Bundled Action Scheduler's class is ActionScheduler; Action_Scheduler does not exist.
+        self::assertFalse(class_exists('Action_Scheduler', false), 'no Action_Scheduler stand-in hides the real class name');
+        self::assertTrue(class_exists('ActionScheduler', false));
+
+        $GLOBALS['supcheckout_as_calls']['did_action'] = array();
+        \ActionScheduler::$initialized = true;
+        self::assertTrue(ActionSchedulerBridge::is_ready(), 'an initialized ActionScheduler datastore is ready without the init-hook fallback');
+
+        \ActionScheduler::$initialized = false;
+        self::assertFalse(ActionSchedulerBridge::is_ready(), 'an uninitialized ActionScheduler datastore without the init hook is not ready');
     }
 
     public function test_is_ready_uses_action_scheduler_init_hook_fallback(): void
     {
-        \Action_Scheduler::$initialized = false;
+        \ActionScheduler::$initialized = false;
         $GLOBALS['supcheckout_as_calls']['did_action'] = array('action_scheduler_init' => 1);
         self::assertTrue(ActionSchedulerBridge::is_ready());
     }

@@ -40,7 +40,7 @@ final class AutoDeductDispatchGateTest extends TestCase {
         $GLOBALS['supcheckout_test_status_orders'] = array();
         $GLOBALS['supcheckout_as_calls'] = array('scheduled' => array(), 'unscheduled' => array(), 'unscheduled_all' => array(), 'did_action' => array());
         $GLOBALS['supcheckout_test_logged'] = array();
-        \Action_Scheduler::$initialized = true;
+        \ActionScheduler::$initialized = true;
         HistoricalEnrollment::reset_cursor();
         \update_option('woocommerce_upayments_settings', array('enabled' => 'yes', 'enable_subscriptions' => 'yes'));
         \update_option('upay_billing_cycle_schema_version', '2');
@@ -73,9 +73,10 @@ final class AutoDeductDispatchGateTest extends TestCase {
         self::assertSame(array(), $GLOBALS['supcheckout_test_http_calls'], 'no retrieve-customer-cards and no auto-deduct request');
         foreach ($GLOBALS['supcheckout_test_wpdb_queries'] as $statement) {
             // Only the read-only unconfirmed-charge lookup behind the note (review I1) and the
-            // note's option-row lock (review round 2 M1): no cycle-claim write, no claim row.
+            // note's option-row lock (review round 2 M1) with its compare-and-delete release
+            // (batch 4): no cycle-claim write, no claim row.
             self::assertMatchesRegularExpression(
-                '/^(get_var \{"query":"(SHOW TABLES|SELECT COUNT)|query \{"query":"(INSERT IGNORE INTO|UPDATE) wp_options )/',
+                '/^(get_var \{"query":"(SHOW TABLES|SELECT COUNT)|query \{"query":"(INSERT IGNORE INTO|UPDATE) wp_options |query \{"query":"DELETE FROM wp_options WHERE option_name = %s AND CAST)/',
                 $statement
             );
         }
@@ -179,6 +180,53 @@ final class AutoDeductDispatchGateTest extends TestCase {
         self::assertNotSame($stale, $GLOBALS['supcheckout_test_options'][$lock]);
     }
 
+    // --- Batch 4: the note lock is released only by its own holder (token check). ---
+
+    public function test_a_holder_never_deletes_a_lock_a_stealer_took_over_during_its_pass(): void {
+        $lock = LifecycleScheduler::NOTE_LOCK_PREFIX . self::PARENT_ID;
+        $stealer = (string) time() . ':5ea1e75ea1e75ea1';
+        // While this pass writes its note, its lock is taken over: a slow pass outlived
+        // NOTE_LOCK_TTL and another pass stole the lock with its own token.
+        $parent = new class() extends \WC_Order {
+            /** @var string */
+            public $lock_name = '';
+            /** @var string */
+            public $stealer_record = '';
+            public function add_order_note($note, $is_customer_note = 0, $added_by_user = false): int {
+                $GLOBALS['supcheckout_test_options'][$this->lock_name] = $this->stealer_record;
+                return parent::add_order_note($note, $is_customer_note, $added_by_user);
+            }
+        };
+        $parent->lock_name = $lock;
+        $parent->stealer_record = $stealer;
+        $parent->set_id(self::PARENT_ID);
+        $parent->set_status('processing');
+        $parent->set_payment_method('upayments');
+        $parent->set_total('10.000');
+        $parent->set_currency('KWD');
+        $parent->set_meta(self::legacy_meta());
+        $parent->set_items(array(array('type' => 'custom_type')));
+        $GLOBALS['supcheckout_test_status_orders'][self::PARENT_ID] = $parent;
+
+        self::assertTrue(LifecycleScheduler::note_auto_renewal_paused($parent));
+
+        self::assertCount(1, $parent->notes);
+        self::assertSame($stealer, \get_option($lock), "the stealer's lock survives the original holder's release");
+    }
+
+    public function test_a_holder_still_releases_its_own_lock_by_token(): void {
+        $parent = self::parent(self::PARENT_ID, self::legacy_meta());
+
+        self::assertTrue(LifecycleScheduler::note_auto_renewal_paused($parent));
+
+        self::assertFalse(\get_option(LifecycleScheduler::NOTE_LOCK_PREFIX . self::PARENT_ID));
+        $deletes = array_values(array_filter($GLOBALS['supcheckout_test_wpdb_queries'], static function ($statement) {
+            return strpos($statement, 'query {"query":"DELETE ') === 0;
+        }));
+        self::assertCount(1, $deletes, 'the release is one compare-and-delete statement');
+        self::assertStringContainsString('CAST(option_value AS BINARY) = CAST(%s AS BINARY)', $deletes[0]);
+    }
+
     // --- Review round 2 N1: a failing table probe is unreadable, not "no history". ---
 
     public function test_a_billing_table_probe_error_fails_closed_to_the_check_the_dashboard_note(): void {
@@ -204,7 +252,7 @@ final class AutoDeductDispatchGateTest extends TestCase {
         if (PHP_VERSION_ID < 80100) {
             $method->setAccessible(true);
         }
-        return (bool) $method->invoke(null, $parent_id);
+        return $method->invoke(null, $parent_id) !== null;
     }
 
     // --- Review M4: outcome first, note only when subscriptions are on, note isolated. ---

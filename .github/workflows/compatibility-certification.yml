@@ -230,6 +230,9 @@ jobs:
       - name: Verify saved-card and tokenization runtime boundaries
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/SavedCardRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 
+      - name: Verify historical order meta cardinality on real WooCommerce meta (H12-META)
+        run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/HistoricalMetaCardinalityRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
+
       - name: Verify subscription eligibility and pre-dispatch boundaries
         run: /tmp/wp-cli.phar eval-file "$GITHUB_WORKSPACE/tests/integration/SubscriptionRuntimeTest.php" --path="$RUNNER_TEMP/wordpress"
 

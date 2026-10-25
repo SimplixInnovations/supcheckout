@@ -1255,10 +1255,14 @@ class CustomerTokenIdentity {
             return array('status' => self::META_DUPLICATE_OR_INVALID, 'value' => null);
         }
 
-        // Extract value from the single WC_Meta_Data entry.
-        $entry = $all_meta[0];
+        // Extract value from the single WC_Meta_Data entry. WC_Data::get_meta($key, false)
+        // keeps each row's position in the order's whole meta list, so the one entry is
+        // at index 0 only when it is the order's first meta row: take it with reset().
+        // WC_Meta_Data has no get_value(); it exposes the stored value through __get
+        // (the same ->value WC_Data::get_meta($key, true) returns).
+        $entry = reset($all_meta);
         if ($entry instanceof \WC_Meta_Data) {
-            $value = $entry->get_value();
+            $value = $entry->value;
         } elseif (is_array($entry) && isset($entry['value'])) {
             $value = $entry['value'];
         } else {

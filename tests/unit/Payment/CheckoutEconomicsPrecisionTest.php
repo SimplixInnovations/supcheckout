@@ -167,6 +167,86 @@ final class CheckoutEconomicsPrecisionTest extends TestCase {
         self::assertSame(array(), $order->notes);
     }
 
+    /**
+     * A1-03 residual: an order whose meta reads only what save_meta_data()
+     * persisted, and whose total can change between customer retries.
+     */
+    private function retryableOrder(string $currency, string $total) {
+        \supcheckout_test_reset_wp_options();
+        $order = new class(
+            42,
+            $currency,
+            $total,
+            array(new \WC_Order_Item_Product(new \WC_Product('simple', 801), 1, $total, 'Retry line'))
+        ) extends \WC_Order {
+            public $retry_total = null;
+            public $pending_meta = array();
+            public $saved_meta = array();
+            public function is_paid() { return false; }
+            public function get_total() { return $this->retry_total !== null ? $this->retry_total : parent::get_total(); }
+            public function get_meta($key) { return array_key_exists($key, $this->saved_meta) ? $this->saved_meta[$key] : ''; }
+            public function update_meta_data($key, $value) { $this->pending_meta[$key] = $value; }
+            public function save_meta_data() { $this->saved_meta = array_merge($this->saved_meta, $this->pending_meta); $this->pending_meta = array(); }
+        };
+        $GLOBALS['supcheckout_test_status_orders'][42] = $order;
+        return $order;
+    }
+
+    private function retryCheckout(): array {
+        $GLOBALS['supcheckout_test_subscription_presentation']['notices'] = array();
+        $requests = array();
+        $orchestrator = new CheckoutOrchestrator(
+            new CheckoutEconomicsPrecisionGateway(),
+            static function () { return ''; },
+            static function ($route, $method, $body) use (&$requests) {
+                $requests[] = array($route, $method, $body);
+                return array();
+            },
+            supcheckout_test_callback_url_resolver()
+        );
+        return array($orchestrator->process(42), $requests);
+    }
+
+    public function test_a1_03_customer_retries_add_the_minor_unit_note_once_per_currency_and_decimals(): void {
+        $order = $this->retryableOrder('AED', '18.045');
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            list($result, $requests) = $this->retryCheckout();
+            self::assertSame('failure', $result['result'], "Attempt $attempt still fails closed.");
+            self::assertSame(array(), $requests, "Attempt $attempt makes no provider call.");
+            self::assertSame(
+                array(array('Payment request could not be completed. Please try again.', 'error')),
+                $GLOBALS['supcheckout_test_subscription_presentation']['notices'],
+                "Attempt $attempt shows the shopper the same failure notice."
+            );
+        }
+        self::assertCount(1, $order->notes, 'Three refused retries leave one merchant note.');
+        self::assertSame('AED:3', $order->saved_meta['_supcheckout_minor_unit_noted_v1'], 'The flag is persisted through HPOS CRUD.');
+
+        // A different number of decimals (the merchant changed the store setting) is a new fact.
+        $order->retry_total = '18.0455';
+        $this->retryCheckout();
+        $this->retryCheckout();
+        self::assertCount(2, $order->notes, 'A new decimals count adds exactly one more note.');
+        self::assertSame('AED:4', $order->saved_meta['_supcheckout_minor_unit_noted_v1']);
+    }
+
+    public function test_a1_03_an_unsupported_currency_is_noted_once_across_retries(): void {
+        $order = $this->retryableOrder('GBP', '10.00');
+
+        $this->retryCheckout();
+        list($result, $requests) = $this->retryCheckout();
+
+        self::assertSame('failure', $result['result']);
+        self::assertSame(array(), $requests);
+        self::assertSame(
+            array(array('Payment request could not be completed. Please try again.', 'error')),
+            $GLOBALS['supcheckout_test_subscription_presentation']['notices']
+        );
+        self::assertCount(1, $order->notes);
+        self::assertStringContainsString('GBP', $order->notes[0]);
+    }
+
     public function test_unknown_currency_fails_closed_before_the_charge(): void {
         list($result, $requests) = $this->executeAcceptedSingleLineOrder('GBP', '10.00', 1);
 

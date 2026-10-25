@@ -45,9 +45,10 @@ final class ActionSchedulerBridge
             return false;
         }
 
-        if (class_exists('\\Action_Scheduler')
-            && method_exists('\\Action_Scheduler', 'is_initialized')
-            && \Action_Scheduler::is_initialized()
+        // Bundled Action Scheduler's class is ActionScheduler (there is no Action_Scheduler).
+        if (class_exists('\\ActionScheduler')
+            && method_exists('\\ActionScheduler', 'is_initialized')
+            && \ActionScheduler::is_initialized()
         ) {
             return true;
         }

@@ -45,7 +45,7 @@ final class OrderPresentation {
                 );
                 if (!empty($upayment_id)) {
                     $new_total_rows['upayment_id'] = array(
-                        'label' => __('UPayment ID:', 'supcheckout'),
+                        'label' => __('UPayments payment ID:', 'supcheckout'),
                         'value' => $upayment_id,
                     );
                 }

@@ -636,15 +636,15 @@ class Gateway extends \WC_Payment_Gateway {
         if ( ! is_checkout() || ! $this->is_available() ) {
             return;
         }
-        wp_enqueue_style('supcheckout-customer', $plugin_url . 'assets/css/customer.css', array(), SUPCHECKOUT_VERSION );
+        wp_enqueue_style('supcheckout-customer', $plugin_url . 'assets/css/customer.css', array(), CheckoutAssets::asset_version('assets/css/customer.css'));
 
         // Checkout must not depend on third-party font/icon CDNs.
         // Use site/system typography and plugin-local presentation only.
 
         if (is_checkout() && !is_wc_endpoint_url()) {
             if ($this->get_option('use_new_design') == 'yes') {
-                wp_enqueue_style('supcheckout-checkout-new-style', $plugin_url . 'assets/css/new-design.css', array(), SUPCHECKOUT_VERSION );
-                wp_enqueue_script('supcheckout-checkout-new-script', $plugin_url . 'assets/js/new-upay.js', array('jquery'), SUPCHECKOUT_VERSION, true );
+                wp_enqueue_style('supcheckout-checkout-new-style', $plugin_url . 'assets/css/new-design.css', array(), CheckoutAssets::asset_version('assets/css/new-design.css'));
+                wp_enqueue_script('supcheckout-checkout-new-script', $plugin_url . 'assets/js/new-upay.js', array('jquery'), CheckoutAssets::asset_version('assets/js/new-upay.js'), true);
                 wp_localize_script('supcheckout-checkout-new-script', 'supCheckoutI18n', CheckoutAssets::new_design_i18n());
             }
 
@@ -705,7 +705,7 @@ class Gateway extends \WC_Payment_Gateway {
                                 </td>
                             </tr>
                             <tr>
-                <td class="label"><h3 style="margin:0"><?php esc_html_e('UPayment ID', 'supcheckout'); ?>:</h3></td>
+                <td class="label"><h3 style="margin:0"><?php esc_html_e('UPayments payment ID', 'supcheckout'); ?>:</h3></td>
                 <td width="1%"></td>
                 <td class="total">
                                     <span class="woocommerce-Price-amount amount">

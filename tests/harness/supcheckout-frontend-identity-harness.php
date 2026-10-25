@@ -97,9 +97,13 @@ foreach (array(
 ) as $path => $source) {
     sufi_assert(strpos($source, "'3.0.0'") === false, 'first-party asset cache version is not frozen in ' . $path);
 }
-sufi_assert(strpos($gateway, 'SUPCHECKOUT_VERSION') !== false, 'classic checkout assets bind to canonical SUPCheckout version');
+// Batch 4 (M-5 rest): front-end assets are versioned by CheckoutAssets::asset_version(),
+// the canonical SUPCheckout version plus a content hash.
+sufi_assert(strpos($gateway, "CheckoutAssets::asset_version('assets/css/customer.css')") !== false
+    && strpos($gateway, "CheckoutAssets::asset_version('assets/css/new-design.css')") !== false
+    && strpos($gateway, "CheckoutAssets::asset_version('assets/js/new-upay.js')") !== false, 'classic checkout assets bind to canonical SUPCheckout version plus content');
 sufi_assert(strpos($settings, '\\Simplixi\\SUPCheckout\\Release\\Identity::VERSION') !== false, 'admin assets bind to canonical SUPCheckout release identity');
-sufi_assert(strpos($blocks, '\\Simplixi\\SUPCheckout\\Release\\Identity::VERSION') !== false, 'Blocks asset binds to canonical SUPCheckout release identity');
+sufi_assert(strpos($blocks, "\\Simplixi\\SUPCheckout\\Gateway\\CheckoutAssets::asset_version('assets/js/upayments-block.js')") !== false, 'Blocks asset binds to canonical SUPCheckout release identity plus content');
 
 sufi_assert(strpos($new_template, 'supcheckout') !== false, 'new checkout template exposes canonical SUPCheckout root');
 sufi_assert(strpos($old_template, 'supcheckout') !== false, 'legacy checkout template exposes canonical SUPCheckout root');

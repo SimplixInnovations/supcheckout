@@ -175,7 +175,7 @@ $gateway_sites = array(
         'upayments' => array('legacy_text_domain', 'logger_source'),
     ),
     'src/Migration/MigrationSettings.php' => array('woocommerce_upayments_settings' => array('compat_constant')),
-    'src/Payment/CheckoutPayload.php' => array('upayments' => array('payment_type_sentinel')),
+    'src/Payment/CheckoutPayload.php' => array('upayments' => array('payment_type_sentinel', 'provider_host')),
     'src/Payment/PaymentLifecycle.php' => array(
         'woocommerce_api_wc_upayments' => array('callback_route'),
     ),

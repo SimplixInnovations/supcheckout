@@ -94,6 +94,22 @@ final class TranslationFilesConsistencyTest extends TestCase {
         return false;
     }
 
+    /**
+     * Owner staging observation O4 (batch 4): the order and thank-you label reads
+     * "UPayments payment ID", in Arabic and in the compiled catalogue.
+     */
+    public function test_the_payment_id_label_reads_upayments_payment_id_in_arabic(): void {
+        $po = self::read_po(self::path('languages/supcheckout-ar.po'));
+        $mo = self::read_mo(self::path('languages/supcheckout-ar.mo'));
+        foreach (array('UPayments payment ID' => 'معرّف دفع يوبيمنتس', 'UPayments payment ID:' => 'معرّف دفع يوبيمنتس:') as $msgid => $arabic) {
+            self::assertArrayHasKey($msgid, $po, $msgid);
+            self::assertSame($arabic, $po[$msgid]['msgstr'], $msgid);
+            self::assertSame($arabic, $mo[$msgid] ?? null, $msgid . ' (.mo)');
+        }
+        self::assertArrayNotHasKey('UPayment ID', $po);
+        self::assertArrayNotHasKey('UPayment ID:', $po);
+    }
+
     public function test_the_po_has_exactly_the_msgids_of_the_pot(): void {
         $pot = array_keys(self::read_po(self::path('languages/supcheckout.pot')));
         $po = array_keys(self::read_po(self::path('languages/supcheckout-ar.po')));

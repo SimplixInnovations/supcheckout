@@ -28,6 +28,8 @@ class CheckoutOrchestrator {
     // Bounded wait for the per-order lock after a successful Charge (about one second).
     private const ATTEMPT_LOCK_TRIES = 5;
     private const ATTEMPT_LOCK_WAIT_MICROSECONDS = 200000;
+    // The currency/decimals fact of the last minor-unit refusal note (A1-03 residual).
+    private const MINOR_UNIT_NOTED_META = '_supcheckout_minor_unit_noted_v1';
 
     private $gateway;
     private $requestBodyReader;
@@ -117,7 +119,9 @@ class CheckoutOrchestrator {
      * Whether a validated plain-decimal amount fits the currency's ISO 4217
      * minor units once trailing fractional zeros are ignored ("18.040" fits AED,
      * "18.045" does not). On a refusal the merchant gets one private order note
-     * naming the currency, so the store's currency decimals can be fixed.
+     * naming the currency, so the store's currency decimals can be fixed. Customer
+     * retries refuse again with the same shopper notice, but the note is added at
+     * most once per order for the same currency and decimals (MINOR_UNIT_NOTED_META).
      *
      * @param mixed  $order      WooCommerce order.
      * @param string $amount_str Amount already matching the plain-decimal grammar.
@@ -128,7 +132,7 @@ class CheckoutOrchestrator {
         $allowed = GatewaySettings::currency_minor_units($currency);
         if ($allowed === null) {
             $this->gateway->log('Charge refused: the order currency has no known minor units.', 'warning');
-            if (is_object($order) && method_exists($order, 'add_order_note')) {
+            if ($this->claim_minor_unit_note($order, $currency . ':unsupported')) {
                 $order->add_order_note(sprintf(
                     /* translators: %s: ISO 4217 currency code. */
                     __('SUPCheckout did not start this payment: UPayments does not support the order currency %s.', 'supcheckout'),
@@ -145,7 +149,7 @@ class CheckoutOrchestrator {
         }
 
         $this->gateway->log('Charge refused: the order total has more decimals than its currency allows.', 'warning');
-        if (is_object($order) && method_exists($order, 'add_order_note')) {
+        if ($this->claim_minor_unit_note($order, $currency . ':' . strlen($fraction))) {
             $order->add_order_note(sprintf(
                 /* translators: 1: ISO 4217 currency code, 2: number of decimal places the currency allows. */
                 __('SUPCheckout did not start this payment: the order total has more decimal places than %1$s allows (%2$d). Set %1$s to %2$d decimals in the WooCommerce or WooCommerce Multilingual currency settings.', 'supcheckout'),
@@ -154,6 +158,32 @@ class CheckoutOrchestrator {
             ));
         }
         return false;
+    }
+
+    /**
+     * Claim the once-per-order minor-unit note for one currency/decimals fact.
+     * The flag is written through HPOS-safe order CRUD before the note, so a
+     * retry that races this one adds at most one extra note, never a loop.
+     *
+     * @param mixed  $order WooCommerce order.
+     * @param string $fact  "<currency>:<decimals>" or "<currency>:unsupported".
+     * @return bool True when the caller should add the note now.
+     */
+    private function claim_minor_unit_note($order, $fact) {
+        if (!is_object($order) || !method_exists($order, 'add_order_note')) {
+            return false;
+        }
+        if (!method_exists($order, 'get_meta') || !method_exists($order, 'update_meta_data')
+            || !method_exists($order, 'save_meta_data')
+        ) {
+            return true;
+        }
+        if ((string) $order->get_meta(self::MINOR_UNIT_NOTED_META) === $fact) {
+            return false;
+        }
+        $order->update_meta_data(self::MINOR_UNIT_NOTED_META, $fact);
+        $order->save_meta_data();
+        return true;
     }
 
     /**
@@ -1564,10 +1594,14 @@ class CheckoutOrchestrator {
                     }
 
                     // E. Determine redirect URL: prefer data.link, fallback to data.transactionData.redirect_url.
+                    // Live mode accepts only https payment pages, upgrading http UPayments
+                    // links (A2-02, Q12). Only an explicit sandbox setting keeps http links;
+                    // an unknown mode counts as live.
                     $redirect_url = null;
+                    $live_mode = !(method_exists($gateway, 'getMode') && $gateway->getMode() === true);
 
                     if (isset($result['data']['link']) && is_string($result['data']['link'])) {
-                        $redirect_url = CheckoutPayload::normalize_upayments_redirect_url($result['data']['link']);
+                        $redirect_url = CheckoutPayload::normalize_upayments_redirect_url($result['data']['link'], $live_mode);
                     }
 
                     if ($redirect_url === null
@@ -1576,7 +1610,7 @@ class CheckoutOrchestrator {
                         && isset($result['data']['transactionData']['redirect_url'])
                         && is_string($result['data']['transactionData']['redirect_url'])
                     ) {
-                        $redirect_url = CheckoutPayload::normalize_upayments_redirect_url($result['data']['transactionData']['redirect_url']);
+                        $redirect_url = CheckoutPayload::normalize_upayments_redirect_url($result['data']['transactionData']['redirect_url'], $live_mode);
                     }
 
                     // Require a valid redirect URL.
