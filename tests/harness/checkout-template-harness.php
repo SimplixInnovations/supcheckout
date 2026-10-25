@@ -8,6 +8,8 @@
  * button, the order's own total and currency on the pay-for-order page (the cart is
  * empty there), prices in the store's own format (U6, A4-06), and the merchant's
  * description with bidi isolation in both designs (U6, A4-05, A4-07).
+ * The old checkout UI is RTL-safe: logical properties in every front-end stylesheet,
+ * template and script, a mirrored chevron and an inline-axis save-card switch (A4-05 rest).
  *
  * The Blocks scenario runs the real PaymentMethodType::get_payment_method_data() and
  * asserts that it localizes the gateway's filtered title and description (U6, A4-03).
@@ -145,6 +147,73 @@ template_assert(
         && strpos($icon_source, 'padding-inline-start:4px') !== false
         && strpos($icon_source, 'padding-left') === false,
     'the "Pay securely with" logo uses logical (RTL-safe) spacing'
+);
+
+// A4-05 rest (batch 5): the old Classic and Blocks checkout UI is RTL-safe. Rendered
+// markup and every front-end stylesheet, template and the Blocks script use logical
+// properties; physical left/right survives only where CSS has no logical form.
+template_assert(
+    strpos($hosted['html'], 'margin-right') === false && strpos($hosted['html'], 'margin-inline-end: 5px;') !== false,
+    'the hosted button logos are spaced with margin-inline-end, not margin-right'
+);
+$rtl_allowed = array(
+    // background-position has no logical keywords; the [dir="rtl"] rule beside it mirrors it.
+    'assets/css/customer.css' => array(
+        'no-repeat right 10px center;',
+        'background-position: left 10px center;',
+    ),
+);
+$rtl_violations = array();
+$rtl_files = array_merge(
+    glob($root . '/assets/css/*.css') ?: array(),
+    glob($root . '/templates/*.php') ?: array(),
+    array($root . '/assets/js/upayments-block.js', $root . '/assets/js/new-upay.js', $root . '/assets/js/subscription-checkout.js')
+);
+foreach ($rtl_files as $rtl_file) {
+    $relative = ltrim(substr(str_replace('\\', '/', $rtl_file), strlen(str_replace('\\', '/', $root))), '/');
+    if ($relative === 'assets/css/admin-style.css') {
+        continue; // wp-admin gateway settings screen, not the checkout.
+    }
+    $source = (string) file_get_contents($rtl_file);
+    $source = (string) preg_replace('#/\*.*?\*/#s', '', $source);
+    foreach (preg_split('/\R/', $source) as $number => $line) {
+        $physical = preg_match('/(?<![\w-])(?:margin|padding|border)-(?:left|right)\b/', $line) === 1
+            || preg_match('/(?<![\w-])(?:left|right)\s*:/', $line) === 1
+            || preg_match('/\b(?:float|clear|text-align)\s*:\s*[\'"]?(?:left|right)\b/i', $line) === 1
+            || preg_match('/\b(?:margin|padding)(?:Left|Right)\b|\b(?:textAlign|float)\s*:\s*[\'"](?:left|right)[\'"]/', $line) === 1
+            || (substr($relative, -4) === '.css' && preg_match('/:[^;{]*\b(?:left|right)\b/', $line) === 1);
+        if (!$physical) {
+            continue;
+        }
+        $allowed = false;
+        foreach ($rtl_allowed[$relative] ?? array() as $needle) {
+            $allowed = $allowed || strpos($line, $needle) !== false;
+        }
+        if (!$allowed) {
+            $rtl_violations[] = $relative . ':' . ($number + 1) . ': ' . trim($line);
+        }
+    }
+}
+template_assert($rtl_violations === array(), 'no physical left/right property remains in the checkout CSS, templates or scripts' . ($rtl_violations === array() ? '' : ":\n  " . implode("\n  ", $rtl_violations)));
+
+$new_design_css = (string) file_get_contents($root . '/assets/css/new-design.css');
+$customer_css = (string) file_get_contents($root . '/assets/css/customer.css');
+template_assert(
+    preg_match('/\.switch\s*\{[^}]*float:\s*inline-end;/', $new_design_css) === 1,
+    'the save-card switch floats to the inline end, after its label in RTL too'
+);
+template_assert(
+    preg_match('/input:checked \+ \.slider:before\s*\{[^}]*inset-inline-start:\s*23px;/', $new_design_css) === 1
+        && strpos($new_design_css, 'translateX(26px)') === false,
+    'the save-card switch knob moves along the inline axis, so it slides the right way in RTL'
+);
+template_assert(
+    preg_match('/\[dir="rtl"\] \.upay-chevron\s*\{[^}]*display:\s*inline-block;[^}]*transform:\s*scaleX\(-1\);/', $customer_css) === 1,
+    'the "next" chevron is mirrored on an RTL checkout (Classic and Blocks share customer.css)'
+);
+template_assert(
+    preg_match('/\[dir="rtl"\] \.upay-orders-filter select\s*\{[^}]*background-position: left 10px center;/', $customer_css) === 1,
+    'the subscription filter select arrow sits at the inline end in RTL'
 );
 
 // A4-03: Blocks receives the gateway's filtered title and description.

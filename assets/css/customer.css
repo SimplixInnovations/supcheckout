@@ -107,12 +107,18 @@
 
     border: 1px solid #b7e4c7;
     border-radius: 8px;
-    padding: 8px 34px 8px 12px;
+    padding-block: 8px;
+    padding-inline: 12px 34px;
     font-size: 15px;
     font-weight: 600;
     color: #242927;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+/* background-position has no logical keywords: mirror the arrow for RTL (A4-05). */
+[dir="rtl"] .upay-orders-filter select {
+    background-position: left 10px center;
 }
 
 /* Hover */
@@ -145,7 +151,7 @@
 
 .upay-subscription-badge {
     top: 10px;
-    right: 10px;
+    inset-inline-end: 10px;
     background: #ffb703; 
     color: #000;
     padding: 6px 10px;
@@ -156,6 +162,12 @@
     border-radius: 3px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
+/* The "next" chevron points along the reading direction (A4-05). */
+[dir="rtl"] .upay-chevron {
+    display: inline-block;
+    transform: scaleX(-1);
+}
+
 /** UPayments order-received status */
 .supcheckout-payment-status {
     display: flex;
@@ -179,7 +191,7 @@
     height: 20px;
     flex: 0 0 20px;
     border: 2px solid currentColor;
-    border-right-color: transparent;
+    border-inline-end-color: transparent;
     border-radius: 50%;
     animation: supcheckout-status-spin 0.8s linear infinite;
 }
@@ -197,6 +209,6 @@
 @media (prefers-reduced-motion: reduce) {
     .supcheckout-payment-status__spinner {
         animation: none;
-        border-right-color: currentColor;
+        border-inline-end-color: currentColor;
     }
 }

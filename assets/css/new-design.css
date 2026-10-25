@@ -52,7 +52,7 @@
     position: relative;
     width: 45px;
     height: 25px;
-    float: right;
+    float: inline-end;
 }
 
 .switch-border {
@@ -71,10 +71,7 @@
 .slider {
     position: absolute;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background-color: #ccc;
     -webkit-transition: .4s;
     transition: .4s;
@@ -83,7 +80,7 @@
 .slider:before {
     position: absolute;
     content: "";
-    left: 4px;
+    inset-inline-start: 4px;
     top: 3px;
     height: 18px;
     width: 18px;
@@ -101,11 +98,9 @@ input:focus + .slider {
     box-shadow: 0 0 1px #2196F3;
 }
 
+/* The knob moves along the inline axis, so it slides toward the inline end in RTL too (A4-05). */
 input:checked + .slider:before {
-    -webkit-transform: translateX(26px);
-    -ms-transform: translateX(26px);
-    transform: translateX(26px);
-    left: -3px;
+    inset-inline-start: 23px;
     top: 3px;
 }
 
@@ -122,7 +117,7 @@ input:checked + .slider:before {
 .wc-toast {
     position: fixed;
     top: 30px;
-    right: 30px;
+    inset-inline-end: 30px;
     background: #F23232;
     color: #fff;
     padding: 12px 18px;
