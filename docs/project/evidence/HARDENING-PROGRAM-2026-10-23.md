@@ -121,19 +121,19 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 
 | Item | Reason |
 |---|---|
-| A1-08 (new-card subscriptions never renew) | Moot under the A1-01 gate. It must be part of any design that opens the gate. |
-| A3-04 (historical enrollment scans every paid order with OFFSET) | Moot under the A1-01 gate, which gates enrollment. Re-raise to MEDIUM in the gate-opening design. |
+| A1-08 (new-card subscriptions never renew) | **Waiting on provider answers (subscriptions stay gated by A1-01).** Moot under the A1-01 gate. It must be part of any design that opens the gate. |
+| A3-04 (historical enrollment scans every paid order with OFFSET) | **Waiting on provider answers (subscriptions stay gated by A1-01).** Moot under the A1-01 gate, which gates enrollment. Re-raise to MEDIUM in the gate-opening design. |
 | A1-11 | Fixed in batch 5 (owner instruction 2026-10-25): the field default is `no`, so only a genuinely fresh install (no settings option) sends paid orders to Processing. A stored option keeps its value; one without the key keeps the official 3.1.1 `yes`, shown as such on the settings screen. No stored value changes meaning. A whole-array settings write (the settings screen's Save, or code that saves the gateway settings array) stores that `yes` explicitly. Upgraded and taken-over stores are unchanged. |
-| A3-05 | The proposed lazy gateway resolution is unsafe: the gateway constructor registers runtime hooks, and Blocks `initialize()` guarantees the gateway exists on every request. A compatibility-sensitive refactor for a few ms. |
-| A3-09 | The `wp_cache_flush()` after raw-SQL option writes is a deliberate correctness measure. It is rare and owner-initiated. "Run off-peak" copy goes to the revamp. |
+| A3-05 | **Closed by design.** The proposed lazy gateway resolution is unsafe: the gateway constructor registers runtime hooks, and Blocks `initialize()` guarantees the gateway exists on every request. A compatibility-sensitive refactor for a few ms. |
+| A3-09 | **Closed by design.** The `wp_cache_flush()` after raw-SQL option writes is a deliberate correctness measure. It is rare and owner-initiated. "Run off-peak" copy goes to the revamp. |
 | A4-08 | Fixed in batch 5 with no new packaged file: one restrict-only reader, `Utils::productDisablesSubscription()`, also reads the opt-out on the WPML original product (`wpml_original_element_id`). No `wpml-config.xml`. |
 | A4-09 | The owner deferred it to the revamp. |
-| A5-03 (full `save()` during copy, removal and finalize) | The proposed meta-only save is unsafe on HPOS with compatibility sync. Only its disclosure was done (T3): preflight reports that each order is saved once. |
+| A5-03 (full `save()` during copy, removal and finalize) | **Closed by design.** The proposed meta-only save is unsafe on HPOS with compatibility sync. Only its disclosure was done (T3): preflight reports that each order is saved once. |
 | A6-06 (PHPStan scope and stubs) | **Fixed in batch 6** (owner instruction 2026-10-25). PHPStan now analyses all 118 `src/` files at level 5 against `php-stubs/wordpress-stubs` 6.9.4 and `php-stubs/woocommerce-stubs` 10.8.1 (exact `require-dev` pins at the WP 6.9 / WC 10.8 floors), with `treatPhpDocTypesAsCertain: false`, no baseline and no `ignoreErrors`. Batch 4 measured 70 errors on the old scope and about 200 on all of `src/`. With the flag set and the 15 hand-written stubs retired, the start point was **89 errors**. The final count is **0**. The 89 were cleared as follows. 21 came from upstream stub gaps and are cleared by eight documented PHPDoc corrections (`tests/phpstan/stub-corrections.stub`). 12 were missing third-party symbols and runtime-defined constants (`tests/phpstan/external-symbols-stubs.php`). 17 were private seams that harnesses call through reflection; a reviewed allowlist extension clears them, and the harness keeps the allowlist honest. 3 were genuinely dead private `Gateway` delegates, now removed. 15 were analyser-proven redundant conditions, removed with no runtime change. 11 needed precise PHPDoc (`@phpstan-impure`, by-reference closure variables) or an explicit string cast. The last 10 are covered by 8 one-line `@phpstan-ignore` comments, each with a reason; with the existing one there are 9 in `src/` (ceiling 15). No real defect beyond the batch 4 H12-META was found. The static-analysis harness fails if a `src/` file is not analysed. |
 | A6-08 (Classic lists a dead option) | **Closed by design** (batch 5). The Classic listing follows settings eligibility by contract. A dead option fails closed at place-order with one notice (A6-01). It carries into the revamp checkout redesign as a design input. Batch 5 re-verified it before closing: the only fix (drop the gateway on a cached invalid availability state) changes the Classic listing for a settings-valid store, and the R6 browser cell (`certification-key`, live mode, the provider refuses, no last-known-good) asserts that Classic shows UPayments on its second render; the listing would also flip with the 65 s cache. |
-| A5-01 Scheduler divergence hold | It must land with any future gate-opening change. While the A1-01 gate is closed, `Scheduler::process_parent_order()` sends nothing. |
-| A3-07 autoload change | It touches the raw-SQL CAS writers and the `alloptions` invalidation. One non-autoloaded `SELECT` is not worth that risk. The decode memo was fixed (#219). |
-| A6-07 deletion | Only the `@deprecated` docblocks were done. Deleting the compatibility methods is recorded for Sub-project 5. |
+| A5-01 Scheduler divergence hold | **Waiting on provider answers (subscriptions stay gated by A1-01).** It must land with any future gate-opening change. While the A1-01 gate is closed, `Scheduler::process_parent_order()` sends nothing. |
+| A3-07 autoload change | **Closed by design.** It touches the raw-SQL CAS writers and the `alloptions` invalidation. One non-autoloaded `SELECT` is not worth that risk. The decode memo was fixed (#219). |
+| A6-07 deletion | **Closed by design.** `getAPIUrlForRetreiveCards()` is a protected public compatibility wrapper (`AGENTS.md`), so only the `@deprecated` docblocks were done; removing the compatibility methods is scheduled for Sub-project 5. |
 
 ### Recorded LOW residuals
 
@@ -146,7 +146,7 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 | A transient gateway miss skips the A1-09 note forever (N-2) | U2 review | Fixed in batch 4: the flag is set only on permanent outcomes. |
 | The snapshot harness counts by hook name (N-3) | U2 review | Fixed in batch 4: attributed by callback. |
 | A third party that renders `payment_fields()` in the same request as `process_payment()` reuses the display availability (up to 10 min old) | U5 report | WooCommerce's Classic and Blocks flows don't do this. Same behaviour as before, with older freshness. |
-| Per-order reconcile events are kept on deactivation | U8 ruling | Removing them would orphan queued one-shot secondary checks. |
+| Per-order reconcile events are kept on deactivation | U8 ruling | **Closed by design.** Removing them would orphan queued one-shot secondary checks. |
 | A4-05 rest (physical offsets, chevron, save-card switch) | U6 | Fixed in batch 5: logical properties in every front-end stylesheet, template and the Blocks script, and an inline-axis switch; the template harness bars physical left/right. The chevron needed no change: it is U+203A, which Unicode marks bidi-mirrored, so browsers already draw it mirrored in RTL. A `scaleX(-1)` rule added in batch 5 turned it backwards and was removed in review (I-1); the harness now requires U+203A at all six sites and no transform on `.upay-chevron`. |
 | Other front-end assets still version by `Identity::VERSION` | final-review M-5 | Fixed in batch 4: every front-end enqueue site uses `CheckoutAssets::asset_version()`. The wp-admin gateway-settings assets keep the plugin version. |
 | Renewal and enrollment line-item reads call `get_product()` without an `instanceof WC_Order_Item_Product` guard (`Scheduler.php:1022`, `:1327`, `HistoricalEnrollment.php:185`) | Batch 6 review (A6-06 stub run) | LOW, pre-existing. `get_items('line_item')` returns product items, but the `woocommerce_order_get_items` filter lets third-party code change that. The auto-deduct path stays gated by A1-01, so none of these lines can send a charge. The `src/` lines were left unchanged in batch 6, which was static analysis only. |
@@ -163,7 +163,15 @@ None. A2-02 was the only parked finding, and batch 4 fixed it.
 
 Other observations carried to the revamp: O7 (FunnelKit upsell support, a payment-sensitive feature that needs owner approval). O4 ("UPayments payment ID" copy) is fixed in batch 4.
 
-## Package at the batch 4 head
+## Package at the batches 5 and 6 head
+
+`supcheckout-0.1.0.zip`: **233 files**, SHA-256 `1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f`.
+
+- **Build:** `bash scripts/build-release.sh` from Git Bash, run twice at the `hardening/batch-5` head. The two archives are byte-identical, and `scripts/verify-release.sh` verified the archive.
+- **Last commit that changes distributable bytes:** `b6e438a` (batch 6, A6-06). Batches 5 and 6 add no file. The bytes change in `src/`, `assets/css/`, `assets/js/upayments-block.js` and `templates/new-design-form.php`.
+- **Acceptance:** not owner accepted. Release Candidate 1 remains the owner-accepted technical baseline. Publication is NOT AUTHORIZED.
+
+## Package at the batch 4 head (historical)
 
 `supcheckout-0.1.0.zip`: **233 files**, SHA-256 `2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db`.
 

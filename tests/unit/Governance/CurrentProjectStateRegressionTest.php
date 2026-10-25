@@ -37,9 +37,11 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const HARDENING_DONE = 'Hardening program (repository-executable fix loop) — **DONE / VERIFIED**';
     /** The hardening program evidence record. */
     private const HARDENING_EVIDENCE = 'docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md';
-    /** Deterministic package at the hardening close (batch 4 head; built twice, byte-identical). */
+    /** Deterministic package at the batches 5 and 6 head (built twice, byte-identical). */
     private const HARDENING_PACKAGE_FILES = 233;
-    private const HARDENING_PACKAGE_SHA256 = '2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db';
+    private const HARDENING_PACKAGE_SHA256 = '1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f';
+    /** The batch 4 package (#226); historical once batches 5 and 6 changed distributable bytes. */
+    private const BATCH_4_PACKAGE_SHA256 = '2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db';
     /** The batch 3 package (#223) the owner verified on staging; historical once batch 4 changed distributable bytes. */
     private const STAGING_VERIFIED_PACKAGE_SHA256 = 'f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8';
     /** Sub-project 1 status in every living record. */
@@ -772,6 +774,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             '#215', '376c482', '#221', 'e3884ca', '#222', '3575721', '1302568', '97/97', 'hardening/batch-3', 'R1-1', 'R1-2',
             // Batch 4: the last fixable residuals.
             'hardening/batch-4', 'A1-03', 'N-2', 'N-3', 'M-5', 'O4',
+            // Batches 5 and 6 (one PR): the safe "left on purpose" items and PHPStan with the real stubs.
+            'hardening/batch-5', 'A4-05 rest', 'Fixed in batch 6', 'closed by design',
             // Findings raised during the fix loop.
             'OL-1', 'R-1', 'H12-META', 'AS-1',
             // Owner decisions.
@@ -792,9 +796,14 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         // The package record sits next to the historical ones; the SP1 record stays.
         $release = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
         self::assertStringContainsString(
-            'Hardening program (batch 4): **' . self::HARDENING_PACKAGE_FILES . ' files**, SHA-256 `' . self::HARDENING_PACKAGE_SHA256 . '`',
+            'Hardening program (batches 5 and 6): **' . self::HARDENING_PACKAGE_FILES . ' files**, SHA-256 `' . self::HARDENING_PACKAGE_SHA256 . '`',
             $release
         );
+        self::assertStringContainsString(
+            'Historical hardening batch 4 package (#226, superseded by batches 5 and 6): **233 files**, SHA-256 `' . self::BATCH_4_PACKAGE_SHA256 . '`',
+            $release
+        );
+        self::assertStringNotContainsString('Hardening program (batch 4): **', $release);
         self::assertStringContainsString(
             'Historical hardening batch 3 package (#223, superseded by batch 4): **233 files**, SHA-256 `' . self::STAGING_VERIFIED_PACKAGE_SHA256 . '`',
             $release
@@ -807,6 +816,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             // Batch 4 and its H12 historical-meta repair are recorded; batch 3 is merged, not a pending branch.
             self::assertStringContainsString('hardening/batch-4', $content, $living);
             self::assertStringContainsString('H12-META', $content, $living);
+            // Batch 4 is merged (#226); batches 5 and 6 are recorded on their branch; A6-06 is no longer backlog.
+            self::assertStringContainsString('#226', $content, $living);
+            self::assertStringContainsString('hardening/batch-5', $content, $living);
+            self::assertStringContainsString('A6-06', $content, $living);
+            self::assertStringNotContainsString('(`hardening/batch-4`, PR open)', $content, $living);
+            self::assertStringNotContainsString('batch 4 on `hardening/batch-4` (PR open)', $content, $living);
+            self::assertStringNotContainsString('stays recorded as tooling backlog', $content, $living);
             self::assertStringNotContainsString('batch 3 on `hardening/batch-3`', $content, $living);
             self::assertStringNotContainsString('batch 3 (`hardening/batch-3`)', $content, $living);
         }
@@ -818,6 +834,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('    hardening_package_sha256: ' . self::HARDENING_PACKAGE_SHA256, $contract);
         self::assertStringContainsString('    hardening_batch_3_merged_main: f3e207d3686a16fe4ef3b41d5736a33ad7a1c8d8', $contract);
         self::assertStringContainsString('    hardening_batch_4_branch: hardening/batch-4', $contract);
+        self::assertStringContainsString('    hardening_batch_4_merged_main: eed5bbde1c983b89dfd47b348ac8f3e89b6f08d6', $contract);
+        self::assertStringContainsString('    hardening_batch_4_package_sha256: ' . self::BATCH_4_PACKAGE_SHA256, $contract);
+        self::assertStringContainsString('    hardening_batch_5_6_branch: hardening/batch-5', $contract);
+        self::assertStringContainsString('    hardening_tooling_backlog: none', $contract);
         self::assertStringContainsString('    hardening_parked: none', $contract);
         self::assertStringNotContainsString('a2_02_https_only_live_redirect_waits_on_provider_question_12', $contract);
     }
