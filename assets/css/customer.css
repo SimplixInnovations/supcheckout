@@ -162,11 +162,6 @@
     border-radius: 3px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
-/* The "next" chevron points along the reading direction (A4-05). */
-[dir="rtl"] .upay-chevron {
-    display: inline-block;
-    transform: scaleX(-1);
-}
 
 /** UPayments order-received status */
 .supcheckout-payment-status {

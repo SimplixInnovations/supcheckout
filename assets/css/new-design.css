@@ -52,7 +52,7 @@
     position: relative;
     width: 45px;
     height: 25px;
-    float: inline-end;
+    float: right; float: inline-end;
 }
 
 .switch-border {
