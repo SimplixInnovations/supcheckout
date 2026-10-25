@@ -376,6 +376,7 @@ final class ReactivationGuard {
         $existing = isset($queued[$reason]) && is_array($queued[$reason]) ? $queued[$reason] : array();
         $queued[$reason] = array_values(array_unique(array_merge($existing, $refused)));
         set_transient(self::NOTICE_TRANSIENT, $queued, self::NOTICE_TTL);
+        // @phpstan-ignore function.alreadyNarrowedType (WP_CLI is a third-party runtime class; a stand-in without warning() must not fatal the notice path)
         if (defined('WP_CLI') && constant('WP_CLI') && class_exists('\WP_CLI') && method_exists('\WP_CLI', 'warning')) {
             \WP_CLI::warning(self::heading($reason) . ' ' . self::explanation($reason));
         }

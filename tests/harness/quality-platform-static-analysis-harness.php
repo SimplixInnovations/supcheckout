@@ -184,6 +184,106 @@ foreach (array(
 }
 q2_assert(!q2_contains($phpstan, 'baseline'), 'Q2 expansion remains baseline-free');
 
+// A6-06 (hardening batch 6): PHPStan analyses every src/ file against the real
+// WordPress and WooCommerce stubs, with no baseline and no blanket ignores.
+$q2_phpstan_paths = array();
+if (preg_match('/^    paths:\R((?:        - [^\r\n]+\R)+)/m', $phpstan, $q2_paths_block) === 1) {
+    preg_match_all('/^        - ([^\r\n]+)$/m', $q2_paths_block[1], $q2_path_lines);
+    $q2_phpstan_paths = array_map('trim', $q2_path_lines[1]);
+}
+$q2_src_files = array();
+$q2_src_iterator = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($q2_root . '/src', FilesystemIterator::SKIP_DOTS)
+);
+foreach ($q2_src_iterator as $q2_src_file) {
+    if ($q2_src_file->isFile() && strtolower($q2_src_file->getExtension()) === 'php') {
+        $q2_src_files[] = 'src/' . str_replace('\\', '/', substr($q2_src_file->getPathname(), strlen($q2_root . '/src/')));
+    }
+}
+sort($q2_src_files);
+$q2_unlisted = array_values(array_diff($q2_src_files, $q2_phpstan_paths));
+q2_assert(count($q2_src_files) > 100, 'src/ PHP inventory is discoverable');
+q2_assert($q2_unlisted === array(), 'PHPStan paths list every src/ PHP file (unlisted: ' . implode(', ', $q2_unlisted) . ')');
+q2_assert(array_diff($q2_phpstan_paths, $q2_src_files) === array(), 'PHPStan paths name only existing src/ PHP files');
+foreach (array(
+    'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php',
+    'vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php',
+    'vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php',
+) as $q2_stub) {
+    q2_assert(q2_contains($phpstan, '- ' . $q2_stub), "PHPStan scans the official stub: {$q2_stub}");
+}
+q2_assert(q2_contains($phpstan, 'treatPhpDocTypesAsCertain: false'), 'PHPStan keeps defensive runtime checks on untrusted data (PHPDoc types not certain)');
+q2_assert(!q2_contains($phpstan, 'ignoreErrors'), 'PHPStan config has no ignoreErrors block');
+foreach (array(
+    'php-stubs/wordpress-stubs' => '6.9.4',
+    'php-stubs/woocommerce-stubs' => '10.8.1',
+) as $q2_stub_package => $q2_stub_version) {
+    q2_assert(
+        isset($composer['require-dev'][$q2_stub_package]) && $composer['require-dev'][$q2_stub_package] === $q2_stub_version,
+        "official stub is pinned to the plugin floor: {$q2_stub_package} {$q2_stub_version}"
+    );
+}
+$q2_ignores = array();
+$q2_bad_ignores = array();
+foreach ($q2_src_files as $q2_src_relative) {
+    $q2_src_lines = file($q2_root . '/' . $q2_src_relative);
+    foreach (is_array($q2_src_lines) ? $q2_src_lines : array() as $q2_index => $q2_line) {
+        if (strpos($q2_line, '@phpstan-ignore') === false) {
+            continue;
+        }
+        $q2_where = $q2_src_relative . ':' . ($q2_index + 1);
+        $q2_ignores[] = $q2_where;
+        if (preg_match('/@phpstan-ignore [a-zA-Z]+\.[a-zA-Z.]+(, [a-zA-Z]+\.[a-zA-Z.]+)* \([^)]+\)/', $q2_line) !== 1) {
+            $q2_bad_ignores[] = $q2_where;
+        }
+    }
+}
+q2_assert(q2_contains($phpstan, '- tests/phpstan/external-symbols-stubs.php'), 'PHPStan scans the external-symbols stub for symbols the official stubs lack');
+q2_assert(q2_contains($phpstan, "stubFiles:\n        - tests/phpstan/stub-corrections.stub"), 'PHPStan applies the documented official-stub corrections');
+q2_assert(q2_contains($phpstan, 'phpstan.methods.alwaysUsedMethodExtension'), 'PHPStan registers the reflection-seam extension');
+// The reflection-seam allowlist must not rot into a blanket unused-method ignore:
+// every listed method is still private in its class and still named by a test.
+$q2_seam_source = q2_read($q2_root, 'tests/phpstan/ReflectionSeamMethods.php');
+$q2_test_corpus = '';
+foreach (array('tests/harness', 'tests/unit', 'tests/provider') as $q2_test_dir) {
+    if (!is_dir($q2_root . '/' . $q2_test_dir)) {
+        continue;
+    }
+    $q2_test_iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($q2_root . '/' . $q2_test_dir, FilesystemIterator::SKIP_DOTS));
+    foreach ($q2_test_iterator as $q2_test_file) {
+        if ($q2_test_file->isFile() && strtolower($q2_test_file->getExtension()) === 'php') {
+            $q2_test_corpus .= (string) file_get_contents($q2_test_file->getPathname());
+        }
+    }
+}
+$q2_seam_classes = array(
+    'Simplixi\\\\SUPCheckout\\\\Gateway\\\\Gateway' => 'src/Gateway/Gateway.php',
+    'Simplixi\\\\SUPCheckout\\\\Token\\\\CustomerTokenIdentity' => 'src/Token/CustomerTokenIdentity.php',
+);
+$q2_seam_count = 0;
+foreach ($q2_seam_classes as $q2_seam_class => $q2_seam_path) {
+    $q2_class_source = q2_read($q2_root, $q2_seam_path);
+    if (preg_match("/'" . preg_quote($q2_seam_class, '/') . "' => array\\(([^)]*)\\)/", $q2_seam_source, $q2_seam_block) !== 1) {
+        q2_assert(false, "reflection-seam allowlist names {$q2_seam_path}");
+        continue;
+    }
+    preg_match_all("/'([a-z_]+)'/", $q2_seam_block[1], $q2_seam_methods);
+    foreach ($q2_seam_methods[1] as $q2_seam_method) {
+        ++$q2_seam_count;
+        q2_assert(
+            preg_match('/private (?:static )?function ' . $q2_seam_method . '\(/', $q2_class_source) === 1,
+            "reflection seam is still a private method: {$q2_seam_path}::{$q2_seam_method}"
+        );
+        q2_assert(
+            q2_contains($q2_test_corpus, "'" . $q2_seam_method . "'"),
+            "reflection seam is still called by a test: {$q2_seam_method}"
+        );
+    }
+}
+q2_assert($q2_seam_count === 17, 'reflection-seam allowlist holds exactly the 17 reviewed methods (found ' . $q2_seam_count . ')');
+q2_assert($q2_bad_ignores === array(),'every @phpstan-ignore names an identifier and a reason (bad: ' . implode(', ', $q2_bad_ignores) . ')');
+q2_assert(count($q2_ignores) <= 15, 'PHPStan inline ignores stay within the batch 6 ceiling of 15 (found ' . count($q2_ignores) . ')');
+
 foreach (array(
     '@param mixed $a First defensive boundary value.',
     '@param mixed $amount_str Defensive boundary input;',

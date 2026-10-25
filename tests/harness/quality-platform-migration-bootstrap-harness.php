@@ -23,7 +23,6 @@ $phpcs = q10_read($q10_root, 'phpcs.xml.dist');
 $source = q10_read($q10_root, 'src/Migration/MigrationBootstrap.php');
 $tests = q10_read($q10_root, 'tests/unit/Migration/MigrationBootstrapTest.php');
 $fixture = q10_read($q10_root, 'tests/support/wordpress-migration-bootstrap.php');
-$stubs = q10_read($q10_root, 'tests/phpstan/migration-bootstrap-stubs.php');
 $test_bootstrap = q10_read($q10_root, 'tests/bootstrap.php');
 $workflow = q10_read($q10_root, '.github/workflows/quality-gates.yml');
 $quality = q10_read($q10_root, 'docs/project/QUALITY-PLATFORM.md');
@@ -34,7 +33,7 @@ $playbook = q10_read($q10_root, 'docs/project/MASTER-ENGINEERING-PLAYBOOK.md');
 
 q10_assert(q10_contains($phpstan, 'src/Migration/MigrationBootstrap.php'), 'PHPStan owns migration bootstrap');
 q10_assert(q10_contains($phpcs, 'src/Migration/MigrationBootstrap.php'), 'PHPCS owns migration bootstrap');
-q10_assert(q10_contains($phpstan, 'tests/phpstan/migration-bootstrap-stubs.php'), 'analysis loads bounded bootstrap stubs');
+q10_assert(q10_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the migration-bootstrap hand stub)');
 q10_assert(!q10_contains($phpstan, 'baseline'), 'Q10 remains baseline-free');
 q10_assert(!q10_contains($phpstan, 'ignoreErrors'), 'Q10 introduces no ignored analyzer errors');
 
@@ -78,7 +77,7 @@ q10_assert(q10_contains($tests, "array('simplixpay-upayments migration', Migrati
 q10_assert(q10_contains($fixture, 'function is_admin()'), 'unit fixture provides deterministic admin context');
 q10_assert(q10_contains($fixture, 'function add_action('), 'unit fixture records admin hooks');
 q10_assert(q10_contains($fixture, 'final class WP_CLI'), 'unit fixture records CLI commands');
-q10_assert(q10_contains($stubs, 'class WP_CLI'), 'analysis stubs declare the CLI boundary');
+q10_assert(q10_contains($phpstan, 'tests/phpstan/external-symbols-stubs.php') && q10_contains((string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/external-symbols-stubs.php'), 'class WP_CLI'), 'analysis stubs declare the CLI boundary (A6-06: external-symbols stub)');
 q10_assert(q10_contains($test_bootstrap, "wordpress-migration-bootstrap.php"), 'unit bootstrap loads migration context fixtures');
 
 q10_assert(q10_contains($workflow, 'quality-platform-migration-bootstrap-harness.php'), 'Q10 harness is mandatory in Quality Gates');

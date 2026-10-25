@@ -148,6 +148,7 @@ class Scheduler
             }
         } catch (\Throwable $e) {
             // Per-parent isolation: never crash the Action Scheduler runner.
+            // @phpstan-ignore identical.alwaysTrue (process_one_order() can set self::$last_outcome and then throw; the throw-point scope predates that write)
             if (self::$last_outcome === self::OUTCOME_NOT_ELIGIBLE) {
                 self::$last_outcome = self::OUTCOME_PRE_DISPATCH_NO_ATTEMPT;
             }
@@ -261,8 +262,13 @@ class Scheduler
             return;
         }
 
+        // The cleanup closures capture these by reference, so they read the
+        // values assigned later in this method, not these initial ones.
+        /** @var string|null $cycle_key */
         $cycle_key        = null;
+        /** @var string|null $owner_token */
         $owner_token      = null;
+        /** @var bool $claim_owned */
         $claim_owned      = false;
         $dispatch_started = false;
 
@@ -1375,13 +1381,7 @@ class Scheduler
         if (!$start) {
             return null;
         }
-        if (is_string($start)) {
-            $date = new DateTime($start);
-        } elseif ($start instanceof DateTimeInterface) {
-            $date = clone $start;
-        } else {
-            return null;
-        }
+        $date = clone $start;
 
         switch ($plan) {
             case 'daily':

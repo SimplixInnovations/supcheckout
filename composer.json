@@ -7,6 +7,8 @@
         "php": ">=7.4"
     },
     "require-dev": {
+        "php-stubs/woocommerce-stubs": "10.8.1",
+        "php-stubs/wordpress-stubs": "6.9.4",
         "phpstan/phpstan": "^2.2.13",
         "phpunit/phpunit": "^13.3",
         "squizlabs/php_codesniffer": "^3.13.6",
@@ -19,7 +21,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Simplixi\\SUPCheckout\\Tests\\": "tests/unit/"
+            "Simplixi\\SUPCheckout\\Tests\\": "tests/unit/",
+            "Simplixi\\SUPCheckout\\Tests\\PHPStan\\": "tests/phpstan/"
         }
     },
     "scripts": {
@@ -27,7 +30,7 @@
         "test:checkout-js": "node tests/harness/e1-classic-subscription-state-harness.js && node tests/harness/e1-classic-place-order-lifecycle-harness.js && node tests/harness/e1-classic-handler-coexistence-harness.js && node tests/harness/e1-blocks-live-props-harness.js && node tests/harness/e3-classic-delayed-script-harness.js",
         "test:ecosystem-analytics-return": "php tests/harness/e3-analytics-return-harness.php",
         "test:http-diagnostics": "bash tests/harness/http-server-diagnostics-harness.sh",
-        "analyse": "phpstan analyse --configuration=phpstan.neon.dist --no-progress --memory-limit=512M",
+        "analyse": "phpstan analyse --configuration=phpstan.neon.dist --no-progress --memory-limit=2G",
         "lint:phpcs": "phpcs --standard=phpcs.xml.dist",
         "quality": [
             "@test:unit",

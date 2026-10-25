@@ -47,6 +47,7 @@ final class ActionSchedulerBridge
 
         // Bundled Action Scheduler's class is ActionScheduler (there is no Action_Scheduler).
         if (class_exists('\\ActionScheduler')
+            // @phpstan-ignore function.alreadyNarrowedType (an older Action Scheduler copy loaded first by another plugin may lack is_initialized())
             && method_exists('\\ActionScheduler', 'is_initialized')
             && \ActionScheduler::is_initialized()
         ) {

@@ -401,7 +401,7 @@ final class Presentation {
                 <p><?php esc_html_e('Are you sure you want to unsubscribe? This stops future scheduled renewals for this subscription.', 'supcheckout'); ?></p>
                 <form method="post" class="upay-subscription-actions" action="<?php echo esc_url($form_action); ?>">
                     <input type="hidden" name="upay_action" value="unsubscribe" />
-                    <input type="hidden" name="order_id" value="<?php echo esc_attr($order->get_id()); ?>" />
+                    <input type="hidden" name="order_id" value="<?php echo esc_attr((string) $order->get_id()); ?>" />
                     <?php wp_nonce_field('upay_unsubscribe_' . $order->get_id(), '_wpnonce', false); ?>
                     <button type="submit" class="button upay-unsubscribe-confirm-button"><?php esc_html_e('Confirm unsubscribe', 'supcheckout'); ?></button>
                 </form>
@@ -409,7 +409,7 @@ final class Presentation {
         </details>
         <form method="post" class="upay-subscription-actions" action="<?php echo esc_url($form_action); ?>">
             <input type="hidden" name="upay_action" value="<?php echo esc_attr($action); ?>" />
-            <input type="hidden" name="order_id" value="<?php echo esc_attr($order->get_id()); ?>" />
+            <input type="hidden" name="order_id" value="<?php echo esc_attr((string) $order->get_id()); ?>" />
             <?php wp_nonce_field('upay_' . $action . '_' . $order->get_id(), '_wpnonce', false); ?>
             <button type="submit" class="button upay-pause-resume-button"><?php echo esc_html($label); ?></button>
         </form>
@@ -543,6 +543,7 @@ final class Presentation {
             return false;
         }
         $screen = get_current_screen();
+        // @phpstan-ignore isset.property (the global current screen can be any object another plugin set, so a missing id must read as no screen)
         $screen_id = is_object($screen) && isset($screen->id) ? $screen->id : null;
         if (!is_string($screen_id)) {
             return false;

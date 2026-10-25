@@ -152,7 +152,7 @@ namespace {
     q18_assert(
         is_string($phpstan_source)
         && strpos($phpstan_source, 'src/Blocks/PaymentMethodType.php') !== false
-        && strpos($phpstan_source, 'tests/phpstan/blocks-availability-stubs.php') !== false,
+        && strpos($phpstan_source, 'vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php') !== false,
         'PHPStan owns Blocks adapter without a baseline'
     );
     q18_assert(

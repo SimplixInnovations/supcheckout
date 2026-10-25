@@ -38,7 +38,6 @@ $multi_merchant_contract = q17_read($root, 'src/Provider/MultiMerchantContract.p
 $checkout_tests = q17_read($root, 'tests/unit/Payment/CheckoutOrchestratorTest.php');
 $lifecycle_tests = q17_read($root, 'tests/unit/Payment/PaymentLifecycleTest.php');
 $runtime_fixture = q17_read($root, 'tests/support/wordpress-payment-runtime.php');
-$runtime_stubs = q17_read($root, 'tests/phpstan/payment-runtime-stubs.php');
 $bootstrap = q17_read($root, 'tests/bootstrap.php');
 $workflow = q17_read($root, '.github/workflows/quality-gates.yml');
 $quality = q17_read($root, 'docs/project/QUALITY-PLATFORM.md');
@@ -53,7 +52,7 @@ foreach (array('src/Payment/CheckoutOrchestrator.php', 'src/Payment/PaymentLifec
     q17_assert(q17_has($phpstan, $path), 'PHPStan owns payment runtime: ' . $path);
     q17_assert(q17_has($phpcs, $path), 'PHPCS owns payment runtime: ' . $path);
 }
-q17_assert(q17_has($phpstan, 'tests/phpstan/payment-runtime-stubs.php'), 'PHPStan loads bounded payment-runtime stubs');
+q17_assert(q17_has($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the payment-runtime hand stub)');
 q17_assert(!q17_has($phpstan, 'baseline'), 'Q17 remains baseline-free');
 q17_assert(!q17_has($phpstan, 'ignoreErrors'), 'Q17 has no ignored analyzer errors');
 
@@ -106,7 +105,7 @@ q17_assert(
     && q17_has($checkout_tests, '$requests = array();'),
     'runtime fixture exposes deterministic Woo/provider observation'
 );
-q17_assert(q17_has($runtime_stubs, 'function wc_get_checkout_url'), 'payment-runtime stubs model checkout URL boundary');
+q17_assert(q17_has($phpstan, 'vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php'), 'payment-runtime stubs model checkout URL boundary (A6-06: official stubs)');
 
 q17_assert(q17_has($lifecycle, "preg_match('/^[1-9][0-9]*\\\\z/', \$value)"), 'lifecycle order IDs use absolute end anchor');
 q17_assert(q17_has($lifecycle, 'merge_request_value('), 'callback preserves presence-aware GET/POST merge');
@@ -158,11 +157,11 @@ q17_assert(
 );
 
 q17_assert(
-    q17_blob($root . '/src/Subscription/Cron/Scheduler.php') === '9a5994bbc27fc59983950ba42ef4330d9dd5f854',
+    q17_blob($root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3',
     'protected Scheduler blob remains exact'
 );
 q17_assert(
-    q17_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '66b42899a97a6423bcd4d54ac8bf96554373d150',
+    q17_blob($root . '/src/Subscription/Cron/CycleClaim.php') === '34974720b22b668d230e045b2313ca4ec0cc20cc',
     'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening'
 );
 

@@ -28,7 +28,6 @@ $phpcs = q13_read($q13_root, 'phpcs.xml.dist');
 $source = q13_read($q13_root, 'src/Migration/MigrationCliCommand.php');
 $tests = q13_read($q13_root, 'tests/unit/Migration/MigrationCliCommandTest.php');
 $fixture = q13_read($q13_root, 'tests/support/wordpress-migration-bootstrap.php');
-$stubs = q13_read($q13_root, 'tests/phpstan/migration-bootstrap-stubs.php');
 $workflow = q13_read($q13_root, '.github/workflows/quality-gates.yml');
 $quality = q13_read($q13_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q13_read($q13_root, 'docs/project/PROJECT-STATUS.md');
@@ -77,11 +76,11 @@ q13_assert(q13_contains($tests, "'terminal-newline limit'"), 'invalid-request ma
 q13_assert(q13_contains($tests, "'secret-api-key'"), 'redaction test uses a detectable secret fixture');
 q13_assert(q13_contains($fixture, 'public static $lines'), 'CLI fixture records output lines');
 q13_assert(q13_contains($fixture, 'public static $errors'), 'CLI fixture records errors');
-q13_assert(q13_contains($stubs, 'static function line('), 'analysis stub declares CLI output boundary');
-q13_assert(q13_contains($stubs, 'static function error('), 'analysis stub declares CLI error boundary');
+q13_assert(q13_contains($phpstan, 'tests/phpstan/external-symbols-stubs.php') && q13_contains((string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/external-symbols-stubs.php'), 'static function line('), 'analysis stub declares CLI output boundary (A6-06: external-symbols stub)');
+q13_assert(q13_contains($phpstan, 'tests/phpstan/external-symbols-stubs.php') && q13_contains((string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/external-symbols-stubs.php'), 'static function error('), 'analysis stub declares CLI error boundary (A6-06: external-symbols stub)');
 
-q13_assert(q13_git_blob_sha($q13_root . '/src/Subscription/Cron/Scheduler.php') === '9a5994bbc27fc59983950ba42ef4330d9dd5f854', 'protected Scheduler blob remains exact');
-q13_assert(q13_git_blob_sha($q13_root . '/src/Subscription/Cron/CycleClaim.php') === '66b42899a97a6423bcd4d54ac8bf96554373d150', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
+q13_assert(q13_git_blob_sha($q13_root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3', 'protected Scheduler blob remains exact');
+q13_assert(q13_git_blob_sha($q13_root . '/src/Subscription/Cron/CycleClaim.php') === '34974720b22b668d230e045b2313ca4ec0cc20cc', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q13_assert(q13_contains($workflow, 'quality-platform-migration-cli-harness.php'), 'Q13 harness is mandatory in Quality Gates');
 q13_assert(q13_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -73,10 +73,6 @@ class Gateway extends \WC_Payment_Gateway {
         return CheckoutPayload::parse_payment_source_strict($value);
     }
 
-    private static function compare_nonnegative_decimal_strings($a, $b) {
-        return CheckoutPayload::compare_nonnegative_decimal_strings($a, $b);
-    }
-
     private static function build_amount_json_token($amount_str) {
         return CheckoutPayload::build_amount_json_token($amount_str);
     }
@@ -99,10 +95,6 @@ class Gateway extends \WC_Payment_Gateway {
 
     private static function parse_interval($value): int {
         return CheckoutPayload::parse_interval($value);
-    }
-
-    private static function is_valid_subscription_interval(string $plan, int $interval): bool {
-        return CheckoutPayload::is_valid_subscription_interval($plan, $interval);
     }
 
     private function normalize_upayments_redirect_url($value) {
@@ -354,7 +346,7 @@ class Gateway extends \WC_Payment_Gateway {
         $status = (string) $order->get_status();
         $state = 'pending';
 
-        if (method_exists($order, 'is_paid') && $order->is_paid()) {
+        if ($order->is_paid()) {
             $state = 'success';
             $message = __('Your payment is successful with UPayments.', 'supcheckout');
         } elseif ($status === 'failed') {
@@ -500,6 +492,7 @@ class Gateway extends \WC_Payment_Gateway {
         }
         // Historical browser callers populate GET callback fields (page marker optional).
         // phpcs:disable WordPress.Security.NonceVerification.Recommended -- External UPayments browser return cannot carry a WordPress nonce; identifiers are sanitized and paid-state authority requires authenticated provider status verification.
+        // @phpstan-ignore isset.variable, function.alreadyNarrowedType (another plugin can unset or overwrite $_GET; PHPStan models superglobals as always-set arrays)
         $get_bag = (isset($_GET) && is_array($_GET)) ? $_GET : array();
         // phpcs:enable WordPress.Security.NonceVerification.Recommended
         \Simplixi\SUPCheckout\Payment\PaymentLifecycle::handle_compat_callback('browser', $get_bag);
@@ -520,6 +513,7 @@ class Gateway extends \WC_Payment_Gateway {
         // Historical direct webhooks populated $_REQUEST only (often not $_POST).
         // Forward only canonical callback keys — never cookies or the raw bag.
         // phpcs:disable WordPress.Security.NonceVerification.Recommended -- External provider webhook cannot carry a WordPress nonce; identifiers are sanitized and paid-state authority requires authenticated provider status verification.
+        // @phpstan-ignore isset.variable, function.alreadyNarrowedType (another plugin can unset or overwrite $_REQUEST; PHPStan models superglobals as always-set arrays)
         $request = (isset($_REQUEST) && is_array($_REQUEST)) ? $_REQUEST : array();
         // phpcs:enable WordPress.Security.NonceVerification.Recommended
         $primary = array();
@@ -646,7 +640,7 @@ class Gateway extends \WC_Payment_Gateway {
         // Checkout must not depend on third-party font/icon CDNs.
         // Use site/system typography and plugin-local presentation only.
 
-        if (is_checkout() && !is_wc_endpoint_url()) {
+        if (!is_wc_endpoint_url()) {
             if ($this->get_option('use_new_design') == 'yes') {
                 wp_enqueue_style('supcheckout-checkout-new-style', $plugin_url . 'assets/css/new-design.css', array(), CheckoutAssets::asset_version('assets/css/new-design.css'));
                 wp_enqueue_script('supcheckout-checkout-new-script', $plugin_url . 'assets/js/new-upay.js', array('jquery'), CheckoutAssets::asset_version('assets/js/new-upay.js'), true);
@@ -1233,14 +1227,6 @@ class Gateway extends \WC_Payment_Gateway {
         }
         $cc_value = $payment_data['payment']['cc'];
         return is_string($cc_value) && $cc_value !== '';
-    }
-
-    /**
-     * UTF-8 safe provider text truncation.
-     * PHP 7.2 compatible, no mandatory mbstring dependency.
-     */
-    private function truncate_provider_text($value, $max_chars) {
-        return CheckoutPayload::truncate_provider_text($value, $max_chars);
     }
 
     public function getPaymentIcons()

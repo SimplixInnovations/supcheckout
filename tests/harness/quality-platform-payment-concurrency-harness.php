@@ -34,7 +34,6 @@ $order_lock = q3_read($q3_root, 'src/Payment/OrderLock.php');
 $rate_tests = q3_read($q3_root, 'tests/unit/Payment/StatusRateGateTest.php');
 $lock_tests = q3_read($q3_root, 'tests/unit/Payment/OrderLockTest.php');
 $option_fixture = q3_read($q3_root, 'tests/support/wordpress-option-store.php');
-$analysis_stubs = q3_read($q3_root, 'tests/phpstan/wordpress-option-stubs.php');
 $workflow = q3_read($q3_root, '.github/workflows/quality-gates.yml');
 $quality_record = q3_read($q3_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q3_read($q3_root, 'docs/project/PROJECT-STATUS.md');
@@ -49,7 +48,7 @@ foreach (array(
     q3_assert(q3_contains($phpstan, $path), "PHPStan owns Q3 payment-safety module: {$path}");
     q3_assert(q3_contains($phpcs, $path), "PHPCS owns Q3 payment-safety module: {$path}");
 }
-q3_assert(q3_contains($phpstan, 'tests/phpstan/wordpress-option-stubs.php'), 'PHPStan scans the bounded WordPress option symbols');
+q3_assert(q3_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the wordpress-option hand stub)');
 q3_assert(!q3_contains($phpstan, 'baseline'), 'Q3 remains baseline-free');
 q3_assert(!q3_contains($phpstan, 'ignoreErrors'), 'Q3 introduces no ignored analyzer errors');
 
@@ -112,9 +111,9 @@ q3_assert(q3_contains($order_lock, 'private const MAX_CLOCK_AHEAD = 3600;'), 'im
 q3_assert(q3_contains($option_fixture, 'class SUPCheckout_Test_WPDB'), 'unit fixture provides a deterministic wpdb compare-and-swap seam');
 q3_assert(q3_contains($option_fixture, "strpos(\$statement['query'], 'UPDATE ') === 0"), 'unit fixture executes conditional update semantics');
 q3_assert(q3_contains($option_fixture, "strpos(\$statement['query'], 'DELETE ') === 0"), 'unit fixture executes conditional delete semantics');
-q3_assert(q3_contains($analysis_stubs, 'class wpdb'), 'analysis stubs declare the bounded wpdb surface');
-q3_assert(q3_contains($analysis_stubs, 'function add_option('), 'analysis stubs declare atomic option acquisition');
-q3_assert(q3_contains($analysis_stubs, 'function wp_cache_delete('), 'analysis stubs declare option-cache invalidation');
+q3_assert(q3_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare the bounded wpdb surface (A6-06: official stubs)');
+q3_assert(q3_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare atomic option acquisition (A6-06: official stubs)');
+q3_assert(q3_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare option-cache invalidation (A6-06: official stubs)');
 
 q3_assert(q3_contains($workflow, 'quality-platform-payment-concurrency-harness.php'), 'Q3 harness is mandatory in Quality Gates');
 q3_assert(q3_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

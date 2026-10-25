@@ -302,8 +302,11 @@ a4_assert(strpos($composition, 'register_presentation_hooks') !== false && strpo
 // earlier: #71 bfadff3). This harness exited silently before reaching these pins, so they
 // still named the #67 / pre-#71 blobs; they now match the pins in the H12, Q13, Q14, Q16
 // and Q17 harnesses.
-a4_same('9a5994bbc27fc59983950ba42ef4330d9dd5f854', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
-a4_same('66b42899a97a6423bcd4d54ac8bf96554373d150', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
+// Hardening batch 6 (A6-06) re-pinned both after runtime-neutral PHPStan edits: PHPDoc on
+// the by-reference cleanup variables, one reasoned @phpstan-ignore, and the removal of
+// branches the native ?DateTime / array parameter types make unreachable.
+a4_same('8a82256fcbddd3b52b6abc825685eaa1f45a34b3', a4_git_blob_sha($root . '/src/Subscription/Cron/Scheduler.php'), 'protected Scheduler blob matches the reviewed blob');
+a4_same('34974720b22b668d230e045b2313ca4ec0cc20cc', a4_git_blob_sha($root . '/src/Subscription/Cron/CycleClaim.php'), 'protected CycleClaim blob remains exact');
 
 echo "\nArchitecture Subscription Presentation: {$pass} PASS / {$fail} FAIL\n";
 echo 'HARNESS-COMPLETE: ' . basename(__FILE__) . "\n";

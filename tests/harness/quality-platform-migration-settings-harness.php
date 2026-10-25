@@ -23,7 +23,6 @@ $phpcs = q9_read($q9_root, 'phpcs.xml.dist');
 $source = q9_read($q9_root, 'src/Migration/MigrationSettings.php');
 $tests = q9_read($q9_root, 'tests/unit/Migration/MigrationSettingsTest.php');
 $fixture = q9_read($q9_root, 'tests/support/wordpress-option-store.php');
-$stubs = q9_read($q9_root, 'tests/phpstan/wordpress-option-stubs.php');
 $workflow = q9_read($q9_root, '.github/workflows/quality-gates.yml');
 $quality = q9_read($q9_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q9_read($q9_root, 'docs/project/PROJECT-STATUS.md');
@@ -76,7 +75,7 @@ q9_assert(q9_contains($tests, "'must-never-escape'"), 'redaction explicitly test
 q9_assert(q9_contains($tests, "'must-never-escape-' . str_repeat('x', 4096)"), 'redaction tests secret-bearing unbounded retained fields');
 q9_assert(q9_contains($tests, 'assertStringNotContainsString($sentinel, serialize($redacted))'), 'redaction proves retained fields cannot emit the sentinel');
 q9_assert(q9_contains($fixture, 'function get_option('), 'unit fixture provides deterministic option reads');
-q9_assert(q9_contains($stubs, 'function get_option('), 'analysis stubs declare the bounded option read');
+q9_assert(q9_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'analysis stubs declare the bounded option read (A6-06: official stubs)');
 
 q9_assert(q9_contains($workflow, 'quality-platform-migration-settings-harness.php'), 'Q9 harness is mandatory in Quality Gates');
 q9_assert(q9_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -1,120 +1,145 @@
 parameters:
     level: 5
     phpVersion: 70400
+    # A6-06 (hardening batch 6): defensive runtime checks on external or
+    # untrusted data stay in the code ("never trust external data", "fail
+    # closed"), so PHPDoc types narrow analysis but are not treated as proof.
+    treatPhpDocTypesAsCertain: false
     scanFiles:
-        - tests/phpstan/wordpress-option-stubs.php
-        - tests/phpstan/migration-bootstrap-stubs.php
-        - tests/phpstan/subscription-composition-stubs.php
-        - tests/phpstan/subscription-product-type-stubs.php
-        - tests/phpstan/migration-admin-stubs.php
-        - tests/phpstan/migration-core-stubs.php
-        - tests/phpstan/subscription-presentation-stubs.php
-        - tests/phpstan/payment-runtime-stubs.php
-        - tests/phpstan/blocks-availability-stubs.php
-        - tests/phpstan/gateway-availability-stubs.php
-        - tests/phpstan/gateway-order-presentation-stubs.php
-        - tests/phpstan/takeover-preflight-stubs.php
-        - tests/phpstan/takeover-copy-stubs.php
-        - tests/phpstan/rest-api-stubs.php
-        - tests/phpstan/admin-assets-stubs.php
+        - vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
+        # Symbols the official stubs lack (WP-CLI, cache-plugin purge APIs, wpdb
+        # output constants, runtime-defined plugin constants).
+        - tests/phpstan/external-symbols-stubs.php
+    # PHPDoc corrections where the official stubs misstate the runtime contract.
+    stubFiles:
+        - tests/phpstan/stub-corrections.stub
+    # Every src/ PHP file is listed; the static-analysis harness fails when a
+    # src/ file is missing from this list.
     paths:
-        - src/Payment/CheckoutPayload.php
-        - src/Payment/OrderLock.php
-        - src/Payment/ProviderResult.php
-        - src/Payment/StatusRateGate.php
-        - src/Payment/StatusVerifier.php
-        - src/Payment/CheckoutOrchestrator.php
-        - src/Payment/ProviderErrorSummary.php
-        - src/Payment/PaymentLifecycle.php
-        - src/Payment/ReconciliationSweep.php
-        - src/Provider/EndpointResolver.php
-        - src/Provider/PaymentMethodAvailability.php
-        - src/Admin/GatewaySettings.php
+        - src/Account/SubscriptionActions.php
         - src/Admin/AdminAssets.php
-        - src/Gateway/Availability.php
-        - src/Gateway/CheckoutAssets.php
-        - src/Gateway/OrderPresentation.php
-        - src/Gateway/OfficialPluginConflict.php
-        - src/Gateway/GatewayRegistration.php
-        - src/Security/PublicOrderStatus.php
-        - src/Release/Identity.php
+        - src/Admin/GatewaySettings.php
         - src/Autoloader.php
-        - src/Plugin.php
+        - src/Blocks/PaymentMethodRegistration.php
+        - src/Blocks/PaymentMethodType.php
         - src/Bootstrap/BasenameMigration.php
         - src/Bootstrap/Deactivation.php
         - src/Bootstrap/Requirements.php
+        - src/Bootstrap/Translations.php
         - src/Bootstrap/WooCommerceDeclarations.php
-        - src/Blocks/PaymentMethodRegistration.php
-        - src/Account/SubscriptionActions.php
-        - src/Subscription/ProductTypeHooks.php
-        - src/Subscription/SchedulerBootstrap.php
-        - src/Migration/MigrationSettings.php
-        - src/Migration/MigrationBootstrap.php
-        - src/Subscription/Composition.php
-        - src/Subscription/WCProductCustomType.php
-        - src/Migration/MigrationCliCommand.php
+        - src/Gateway/Availability.php
+        - src/Gateway/CheckoutAssets.php
+        - src/Gateway/Gateway.php
+        - src/Gateway/GatewayRegistration.php
+        - src/Gateway/OfficialPluginConflict.php
+        - src/Gateway/OrderPresentation.php
         - src/Migration/MigrationAdmin.php
-        - src/Migration/MigrationPreflight.php
         - src/Migration/MigrationBatch.php
+        - src/Migration/MigrationBootstrap.php
+        - src/Migration/MigrationCliCommand.php
         - src/Migration/MigrationExecutor.php
-        - src/Subscription/Presentation.php
-        - src/Blocks/PaymentMethodType.php
+        - src/Migration/MigrationPreflight.php
+        - src/Migration/MigrationSettings.php
+        - src/Payment/CheckoutOrchestrator.php
+        - src/Payment/CheckoutPayload.php
+        - src/Payment/OrderLock.php
+        - src/Payment/PaymentLifecycle.php
+        - src/Payment/ProviderErrorSummary.php
+        - src/Payment/ProviderResult.php
+        - src/Payment/ReconciliationSweep.php
+        - src/Payment/SavedCardDisplayCache.php
+        - src/Payment/SavedCardPresentation.php
+        - src/Payment/SavedCardSelection.php
+        - src/Payment/StatusRateGate.php
+        - src/Payment/StatusVerifier.php
+        - src/Plugin.php
+        - src/Provider/EndpointResolver.php
+        - src/Provider/MultiMerchantContract.php
+        - src/Provider/PaymentMethodAvailability.php
+        - src/Release/Identity.php
+        - src/Rest/OnboardingController.php
+        - src/Rest/RequestGuard.php
+        - src/Rest/Responses.php
+        - src/Rest/Routes.php
+        - src/Rest/SetupController.php
+        - src/Security/PublicOrderStatus.php
+        - src/Subscription/AutoDeductResultVerifier.php
         - src/Subscription/Checkout/Fields.php
+        - src/Subscription/Composition.php
+        - src/Subscription/Cron/CycleClaim.php
+        - src/Subscription/Cron/Scheduler.php
+        - src/Subscription/CycleEconomics.php
         - src/Subscription/Helpers/Utils.php
-        - src/Takeover/Keys.php
-        - src/Takeover/TakeoverState.php
-        - src/Takeover/Journal.php
-        - src/Takeover/Environment.php
-        - src/Takeover/Preflight.php
-        - src/Takeover/OfficialFootprint.php
-        - src/Takeover/OrderCopier.php
-        - src/Takeover/CopyStore.php
-        - src/Takeover/WordPressCopyStore.php
-        - src/Takeover/UserMetaCopier.php
-        - src/Takeover/BillingTableCopier.php
-        - src/Takeover/CopyRunner.php
-        - src/Takeover/LegacyCallbackListener.php
-        - src/Takeover/Quiesce.php
-        - src/Takeover/SettingsCopier.php
-        - src/Takeover/ThirdPartyTranslator.php
-        - src/Takeover/CronRescheduler.php
-        - src/Takeover/CutoverSystem.php
-        - src/Takeover/WordPressCutoverSystem.php
-        - src/Takeover/Cutover.php
-        - src/Takeover/StaleClaimStore.php
-        - src/Takeover/StaleClaims.php
-        - src/Takeover/WordPressStaleClaimStore.php
-        - src/Takeover/CliCommands.php
-        - src/Takeover/Cli.php
-        - src/Takeover/PausedBoot.php
-        - src/Takeover/RollbackStore.php
-        - src/Takeover/RollbackSystem.php
-        - src/Takeover/BudgetedSystem.php
-        - src/Takeover/QuiesceLease.php
+        - src/Subscription/Presentation.php
+        - src/Subscription/ProductTypeHooks.php
+        - src/Subscription/RenewalCardAuthority.php
+        - src/Subscription/SchedulerBootstrap.php
+        - src/Subscription/Scheduling/ActionSchedulerBridge.php
+        - src/Subscription/Scheduling/DueParentWorker.php
+        - src/Subscription/Scheduling/HistoricalEnrollment.php
+        - src/Subscription/Scheduling/LifecycleScheduler.php
+        - src/Subscription/WCProductCustomType.php
         - src/Takeover/BackSync.php
-        - src/Takeover/JournalReplay.php
+        - src/Takeover/BillingTableCopier.php
+        - src/Takeover/BudgetedSystem.php
+        - src/Takeover/CachePurger.php
+        - src/Takeover/Cli.php
+        - src/Takeover/CliCommands.php
         - src/Takeover/CopyRemoval.php
-        - src/Takeover/Rollback.php
-        - src/Takeover/FinalizeStore.php
-        - src/Takeover/FinalizeRemoval.php
+        - src/Takeover/CopyRunner.php
+        - src/Takeover/CopyStore.php
+        - src/Takeover/CronRescheduler.php
+        - src/Takeover/Cutover.php
+        - src/Takeover/CutoverSystem.php
+        - src/Takeover/Environment.php
         - src/Takeover/Finalize.php
         - src/Takeover/FinalizeCommand.php
-        - src/Takeover/Onboarding/Outcome.php
-        - src/Takeover/Onboarding/Onboarding.php
-        - src/Takeover/Onboarding/Lines.php
-        - src/Takeover/Onboarding/Operation.php
-        - src/Takeover/Onboarding/RateLimiter.php
+        - src/Takeover/FinalizeRemoval.php
+        - src/Takeover/FinalizeStore.php
+        - src/Takeover/Journal.php
+        - src/Takeover/JournalReplay.php
+        - src/Takeover/Keys.php
+        - src/Takeover/LegacyCallbackListener.php
+        - src/Takeover/OfficialFootprint.php
+        - src/Takeover/Onboarding/AsyncDriver.php
         - src/Takeover/Onboarding/Bounded.php
-        - src/Takeover/Onboarding/Checks.php
-        - src/Takeover/Onboarding/SelfTest.php
-        - src/Takeover/Onboarding/SetupChecks.php
         - src/Takeover/Onboarding/BudgetedWordPressSystem.php
+        - src/Takeover/Onboarding/Checks.php
         - src/Takeover/Onboarding/DriverHints.php
         - src/Takeover/Onboarding/DriverStep.php
-        - src/Takeover/Onboarding/AsyncDriver.php
-        - src/Rest/Responses.php
-        - src/Rest/RequestGuard.php
-        - src/Rest/Routes.php
-        - src/Rest/OnboardingController.php
-        - src/Rest/SetupController.php
+        - src/Takeover/Onboarding/Lines.php
+        - src/Takeover/Onboarding/Onboarding.php
+        - src/Takeover/Onboarding/Operation.php
+        - src/Takeover/Onboarding/Outcome.php
+        - src/Takeover/Onboarding/RateLimiter.php
+        - src/Takeover/Onboarding/SelfTest.php
+        - src/Takeover/Onboarding/SetupChecks.php
+        - src/Takeover/OrderCopier.php
+        - src/Takeover/PausedBoot.php
+        - src/Takeover/Preflight.php
+        - src/Takeover/Quiesce.php
+        - src/Takeover/QuiesceLease.php
+        - src/Takeover/ReactivationGuard.php
+        - src/Takeover/Rollback.php
+        - src/Takeover/RollbackStore.php
+        - src/Takeover/RollbackSystem.php
+        - src/Takeover/SettingsCopier.php
+        - src/Takeover/StaleClaimStore.php
+        - src/Takeover/StaleClaims.php
+        - src/Takeover/StaleGatewayChoice.php
+        - src/Takeover/TakeoverState.php
+        - src/Takeover/ThirdPartyTranslator.php
+        - src/Takeover/UserMetaCopier.php
+        - src/Takeover/WordPressCopyStore.php
+        - src/Takeover/WordPressCutoverSystem.php
+        - src/Takeover/WordPressStaleClaimStore.php
+        - src/Token/CustomerTokenIdentity.php
     tmpDir: .cache/phpstan
+services:
+    # Private seams reached only through ReflectionMethod by permanent harnesses.
+    -
+        class: Simplixi\SUPCheckout\Tests\PHPStan\ReflectionSeamMethods
+        tags:
+            - phpstan.methods.alwaysUsedMethodExtension

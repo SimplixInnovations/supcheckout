@@ -1,0 +1,93 @@
+<?php
+/**
+ * PHPDoc corrections to the official php-stubs/wordpress-stubs 6.9.4 and
+ * php-stubs/woocommerce-stubs 10.8.1 packages (A6-06, hardening batch 6).
+ *
+ * PHPStan reads these as stubFiles: only the PHPDoc below replaces the upstream
+ * PHPDoc; the upstream signatures stay authoritative. Each correction states the
+ * real runtime contract of WordPress 6.9 / WooCommerce 10.8, with its source.
+ */
+
+/**
+ * WordPress 6.6+ maps 'yes'/'no' to 'on'/'off' exactly like true/false
+ * (wp_determine_option_autoload_value()); the upstream stub omits the strings.
+ *
+ * @param string $option
+ * @param mixed $value
+ * @param string $deprecated
+ * @param bool|'yes'|'no'|null $autoload
+ * @return bool
+ */
+function add_option($option, $value = '', $deprecated = '', $autoload = null) {}
+
+/**
+ * Action Scheduler passes $args straight to as_unschedule_action(), where null
+ * matches the hook with any arguments (ActionScheduler_Store::query_action()).
+ *
+ * @param string $hook
+ * @param array<mixed>|null $args
+ * @param string $group
+ * @return void
+ */
+function as_unschedule_all_actions($hook, $args = array(), $group = '') {}
+
+/**
+ * 'return' => 'ids' yields order IDs, and 'paginate' => true a stdClass with
+ * orders, total and max_num_pages (WC_Order_Query::get_orders()).
+ *
+ * @param array<string,mixed> $args
+ * @return array<int,\WC_Order|int>|\stdClass
+ */
+function wc_get_orders($args) {}
+
+/**
+ * WooCommerce::__get() serves payment_gateways, shipping, mailer and checkout.
+ * session and cart stay null outside a frontend request (WooCommerce::initialize_session(),
+ * wc_load_cart()).
+ *
+ * @property-read \WC_Payment_Gateways $payment_gateways
+ */
+final class WooCommerce
+{
+    /** @var \WC_Session|\WC_Session_Handler|null */
+    public $session = null;
+
+    /** @var \WC_Cart|null */
+    public $cart = null;
+}
+
+abstract class WC_Data
+{
+    /**
+     * WooCommerce stores any scalar or array meta value (maybe_serialize()).
+     *
+     * @param string $key
+     * @param mixed $value
+     * @param int|string $meta_id
+     * @return void
+     */
+    public function update_meta_data($key, $value, $meta_id = 0) {}
+}
+
+abstract class WC_Abstract_Order extends \WC_Abstract_Legacy_Order
+{
+    /**
+     * The default 'line_item' type returns product line items
+     * (WC_Order_Factory::get_order_item() for the line_item type).
+     *
+     * @param string|string[] $types
+     * @return ($types is 'line_item' ? array<int|string,\WC_Order_Item_Product> : array<int|string,\WC_Order_Item>)
+     */
+    public function get_items($types = 'line_item') {}
+}
+
+/**
+ * WC_Meta_Data::__get() reads id, key and value from its current data.
+ *
+ * @property-read int|null $id
+ * @property-read string $key
+ * @property-read mixed $value
+ */
+class WC_Meta_Data implements \JsonSerializable
+{
+}

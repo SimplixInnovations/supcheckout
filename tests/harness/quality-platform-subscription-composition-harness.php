@@ -32,7 +32,6 @@ $source = q11_read($q11_root, 'src/Subscription/Composition.php');
 $product_type_source = q11_read($q11_root, 'src/Subscription/ProductTypeHooks.php');
 $tests = q11_read($q11_root, 'tests/unit/Subscription/CompositionTest.php');
 $fixture = q11_read($q11_root, 'tests/support/wordpress-migration-bootstrap.php');
-$stubs = q11_read($q11_root, 'tests/phpstan/subscription-composition-stubs.php');
 $workflow = q11_read($q11_root, '.github/workflows/quality-gates.yml');
 $quality = q11_read($q11_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q11_read($q11_root, 'docs/project/PROJECT-STATUS.md');
@@ -45,7 +44,7 @@ q11_assert(q11_contains($phpstan, 'src/Subscription/Composition.php'), 'PHPStan 
 q11_assert(q11_contains($phpcs, 'src/Subscription/Composition.php'), 'PHPCS owns subscription composition');
 q11_assert(q11_contains($phpstan, 'src/Subscription/ProductTypeHooks.php'), 'PHPStan owns subscription product-type hooks');
 q11_assert(q11_contains($phpcs, 'src/Subscription/ProductTypeHooks.php'), 'PHPCS owns subscription product-type hooks');
-q11_assert(q11_contains($phpstan, 'tests/phpstan/subscription-composition-stubs.php'), 'analysis loads bounded composition stubs');
+q11_assert(q11_contains($phpstan, 'vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-composition hand stub)');
 q11_assert(!q11_contains($phpstan, 'baseline'), 'Q11 remains baseline-free');
 q11_assert(!q11_contains($phpstan, 'ignoreErrors'), 'Q11 introduces no ignored analyzer errors');
 
@@ -118,8 +117,8 @@ q11_assert(q11_contains($source, 'private function __construct()'), 'composition
 q11_assert(q11_contains($product_type_source, 'private function __construct()'), 'product-type hooks are explicitly non-instantiable');
 q11_assert(preg_match("/'limit_response_size'\\s*=>\\s*1048576/", $scheduler) === 1, 'subscription provider response body is bounded to 1 MiB');
 q11_assert(preg_match('/strlen\\(\\$response\\)\\s*>=\\s*1048576/', $scheduler) === 1, 'subscription treats a response at the cap as ambiguous and fail closed');
-q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/Scheduler.php') === '9a5994bbc27fc59983950ba42ef4330d9dd5f854', 'protected Scheduler blob remains exact');
-q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/CycleClaim.php') === '66b42899a97a6423bcd4d54ac8bf96554373d150', 'protected CycleClaim reviewed blob remains exact after identifier-placeholder and warning-boundary hardening');
+q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3', 'protected Scheduler blob remains exact');
+q11_assert(q11_git_blob_sha($q11_root . '/src/Subscription/Cron/CycleClaim.php') === '34974720b22b668d230e045b2313ca4ec0cc20cc', 'protected CycleClaim reviewed blob remains exact after identifier-placeholder and warning-boundary hardening');
 
 q11_assert(substr_count($tests, 'public function test_') >= 5, 'Subscription Composition has focused PHPUnit characterization');
 foreach (array(
@@ -137,11 +136,10 @@ q11_assert(q11_contains($fixture, 'function add_action('), 'unit fixture records
 q11_assert(q11_contains($fixture, 'function add_filter('), 'unit fixture records filters');
 q11_assert(q11_contains($fixture, 'supcheckout_test_hook_calls'), 'unit fixture preserves ordered hook topology');
 q11_assert(
-    q11_contains($phpstan, 'src/Subscription/Checkout/Fields.php')
-    || q11_contains($stubs, 'namespace Simplixi\\SUPCheckout\\Subscription\\Checkout'),
-    'analysis owns checkout fields boundary directly or through bounded stubs'
+    q11_contains($phpstan, 'src/Subscription/Checkout/Fields.php'),
+    'analysis owns checkout fields boundary directly (A6-06)'
 );
-q11_assert(!q11_contains($stubs, 'class Manager'), 'analysis stubs no longer declare the removed subscription manager boundary (0b Task 7)');
+q11_assert(!q11_contains((string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/external-symbols-stubs.php') . (string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/stub-corrections.stub'), 'class Manager'), 'analysis stubs no longer declare the removed subscription manager boundary (0b Task 7) (A6-06)');
 
 q11_assert(q11_contains($workflow, 'quality-platform-subscription-composition-harness.php'), 'Q11 harness is mandatory in Quality Gates');
 q11_assert(q11_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');
