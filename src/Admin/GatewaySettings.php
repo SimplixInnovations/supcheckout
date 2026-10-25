@@ -129,7 +129,7 @@ final class GatewaySettings {
                 'title' => __('Show paid orders as "Completed"?', 'supcheckout'),
                 'type' => 'checkbox',
                 'label' => ' ',
-                'default' => 'yes',
+                'default' => 'no',
             ),
             'save_card_section_title' => array(
                 'title' => __('Card Tokenization & Design', 'supcheckout'),

@@ -147,7 +147,8 @@ a3_assert_same('', $fields['api_key']['default'], 'API key default remains empty
 a3_assert_same('password', $fields['api_key']['type'], 'API key uses a masked WooCommerce password control');
 a3_assert_same('no', $fields['debug']['default'], 'debug logging remains opt-in');
 a3_assert_same('no', $fields['test_mode']['default'], 'test mode remains opt-in');
-a3_assert_same('yes', $fields['is_order_complete']['default'], 'paid-order completed setting remains enabled by default');
+// A1-11 (batch 5): deliberately changed. A fresh install sends paid orders to Processing.
+a3_assert_same('no', $fields['is_order_complete']['default'], 'paid-order completed setting is off on a fresh install (WooCommerce standard)');
 a3_assert_same('yes', $fields['use_new_design']['default'], 'new-design setting remains enabled by default');
 a3_assert_same('yes', $fields['enable_save_card']['default'], 'save-card setting remains enabled by default');
 a3_assert_same('no', $fields['enable_multimerchant']['default'], 'multi-merchant setting remains opt-in');

@@ -60,7 +60,7 @@ return array(
         'title' => 'Show paid orders as "Completed"?',
         'type' => 'checkbox',
         'label' => ' ',
-        'default' => 'yes',
+        'default' => 'no', // A1-11 (batch 5): deliberately changed from 'yes'.
     ),
     'save_card_section_title' => array(
         'title' => 'Card Tokenization & Design',

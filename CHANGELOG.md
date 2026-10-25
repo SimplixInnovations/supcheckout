@@ -6,6 +6,10 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+### Hardening batch 5: the "left on purpose" items that are safe to fix
+
+- **"Show paid orders as Completed" is off on a fresh install (A1-11).** The setting defaulted to yes, so on a genuinely fresh install every verified payment was forced to Completed, skipping Processing and sending the "order complete" email at payment time on stores that ship goods. The field default is now **no**, the WooCommerce standard: paid physical orders go to Processing. **Fresh-install behaviour changes; nothing stored changes.** A store that has saved the setting keeps its saved value, including a store taken over from the official plugin, because the takeover copies the settings verbatim. A stored settings option that lacks the key keeps **yes**, exactly as the official 3.1.1 plugin read it (`get_option()` with a "yes" field default), and the settings screen now shows that same yes, so pressing Save does not silently flip it. The new default applies only when no gateway settings option exists at all.
+
 ### Hardening batch 4: the last fixable residuals
 
 - **One minor-unit refusal note per order (A1-03 residual).** When the order total has more decimals than its currency allows, or the currency is unsupported, SUPCheckout refuses the Charge and adds a private merchant note. Each customer retry added the same note again. The note is now added at most once per order for the same currency and decimals, through the order-meta flag `_supcheckout_minor_unit_noted_v1` (HPOS order CRUD). A different decimals count is a new fact and is noted once more. The shopper still gets the same failure notice on every attempt, and no provider call is made. The flag is never copied by the takeover.

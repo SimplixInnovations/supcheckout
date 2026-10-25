@@ -189,9 +189,14 @@ class Gateway extends \WC_Payment_Gateway {
         $this->description = $this->get_option("description");
         $this->debug = $this->get_option("debug");
         $this->apiKey = $this->get_option("api_key");
-        $this->isOrderComplete = array_key_exists('is_order_complete', $this->settings)
-          ? $this->settings['is_order_complete']
-          : 'yes';
+        // A1-11: a fresh install (no settings option) is hydrated from the field default, "no".
+        // A stored option without the key keeps "yes", as the official 3.1.1 plugin read it
+        // (the takeover copies settings verbatim). Held in memory only, so the settings screen
+        // shows the value the runtime applies; nothing stored changes.
+        if (!array_key_exists('is_order_complete', $this->settings)) {
+            $this->settings['is_order_complete'] = 'yes';
+        }
+        $this->isOrderComplete = $this->settings['is_order_complete'];
         $this->testMode = $this->get_option("test_mode");
         $this->charge = $this->get_option('charge');
         $this->fromPluginEnabled = false;
