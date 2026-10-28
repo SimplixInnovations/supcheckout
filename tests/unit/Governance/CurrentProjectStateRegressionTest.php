@@ -37,9 +37,11 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const HARDENING_DONE = 'Hardening program (repository-executable fix loop) — **DONE / VERIFIED**';
     /** The hardening program evidence record. */
     private const HARDENING_EVIDENCE = 'docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md';
-    /** Deterministic package at the batches 5 and 6 head (built twice, byte-identical). */
+    /** Deterministic package at the batches 5 and 6 head with the WordPress 6.9.11 / 7.0.8 / 7.1.4 certification (built twice, byte-identical). */
     private const HARDENING_PACKAGE_FILES = 233;
-    private const HARDENING_PACKAGE_SHA256 = '1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f';
+    private const HARDENING_PACKAGE_SHA256 = 'f16aeecbc19642324573bc6e174414d6776c16ac07a0955d0fd2d7b2e27d7ba9';
+    /** The batches 5 and 6 package before the WordPress point-release certification moved the admin-schemes provenance. */
+    private const PRE_WP_POINT_RELEASE_PACKAGE_SHA256 = '1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f';
     /** The batch 4 package (#226); historical once batches 5 and 6 changed distributable bytes. */
     private const BATCH_4_PACKAGE_SHA256 = '2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db';
     /** The batch 3 package (#223) the owner verified on staging; historical once batch 4 changed distributable bytes. */
@@ -843,6 +845,11 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             $release
         );
         self::assertStringNotContainsString('Hardening program (batch 4): **', $release);
+        // The point-release certification changed only admin-schemes.tokens.json provenance metadata.
+        foreach (array($release, $evidence) as $record) {
+            self::assertStringContainsString(self::PRE_WP_POINT_RELEASE_PACKAGE_SHA256, $record);
+            self::assertStringContainsString('`1f95267` (WordPress 6.9.11 / 7.0.8 / 7.1.4 certification)', $record);
+        }
         self::assertStringContainsString(
             'Historical hardening batch 3 package (#223, superseded by batch 4): **233 files**, SHA-256 `' . self::STAGING_VERIFIED_PACKAGE_SHA256 . '`',
             $release

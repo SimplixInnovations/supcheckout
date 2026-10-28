@@ -165,10 +165,10 @@ Other observations carried to the revamp: O7 (FunnelKit upsell support, a paymen
 
 ## Package at the batches 5 and 6 head
 
-`supcheckout-0.1.0.zip`: **233 files**, SHA-256 `1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f`.
+`supcheckout-0.1.0.zip`: **233 files**, SHA-256 `f16aeecbc19642324573bc6e174414d6776c16ac07a0955d0fd2d7b2e27d7ba9`.
 
 - **Build:** `bash scripts/build-release.sh` from Git Bash, run twice at the `hardening/batch-5` head. The two archives are byte-identical, and `scripts/verify-release.sh` verified the archive.
-- **Last commit that changes distributable bytes:** `b6e438a` (batch 6, A6-06). Batches 5 and 6 add no file. The bytes change in `src/`, `assets/css/`, `assets/js/upayments-block.js` and `templates/new-design-form.php`.
+- **Last commit that changes distributable bytes:** `1f95267` (WordPress 6.9.11 / 7.0.8 / 7.1.4 certification). It changes only the provenance metadata in `assets/admin/src/tokens/admin-schemes.tokens.json` (recorded WordPress version and the 6.9.11 delta key; no colour changes), which superseded the batches 5 and 6 package `1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f`. Before it, the last byte change was `b6e438a` (batch 6, A6-06). Batches 5 and 6 add no file. The bytes change in `src/`, `assets/css/`, `assets/js/upayments-block.js` and `templates/new-design-form.php`.
 - **Acceptance:** not owner accepted. Release Candidate 1 remains the owner-accepted technical baseline. Publication is NOT AUTHORIZED.
 
 ## Package at the batch 4 head (historical)

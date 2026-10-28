@@ -23,10 +23,10 @@ Sections below labeled Historical are retained audit evidence and are not curren
 **Accepted package:** `supcheckout-0.1.0.zip` — **62 files**, SHA-256 `8ef8869421807d0370089c03a3766964274da44213cec3a2a9729119f30bc156`
 **Historical Approach 3 (superseded):** `146d65a1c182630c1acc651cacafe30cff5f6b79` / 62 files / `0f9c4b6004b31c80b837bd1adca8cf0226abc67fc2c87d6bc3da937b1552d1dd`
 **Historical Approach 2 (superseded):** `0c883d609906676966002eb022a82a9656eeacc5` / 51 files / `58eba75019416f39a09211c87e7ccbcbb635834fb20bc890e9efbd5fec859655`
-**Revamp development package (NOT owner accepted):** Hardening program (batches 5 and 6): **233 files**, SHA-256 `1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f`.
+**Revamp development package (NOT owner accepted):** Hardening program (batches 5 and 6): **233 files**, SHA-256 `f16aeecbc19642324573bc6e174414d6776c16ac07a0955d0fd2d7b2e27d7ba9`.
 
 - **Build:** `scripts/build-release.sh`, run twice from Git Bash at the `hardening/batch-5` head (batches 5 and 6 share one branch and PR, on top of `main` `eed5bbd`). The two archives are byte-identical, and `scripts/verify-release.sh` verified the archive.
-- **Last commit that changes distributable bytes:** `b6e438a` (batch 6, A6-06). Batches 5 and 6 add no file. Batch 5 changes bytes in `src/`, `assets/css/`, `assets/js/upayments-block.js` and `templates/new-design-form.php` (A1-11, A4-05 rest, A4-08, N-1). Batch 6 changes bytes in eight `src/` files with runtime-neutral static-analysis edits (A6-06). Composer development dependencies, including the PHPStan stubs, are not in the package.
+- **Last commit that changes distributable bytes:** `1f95267` (WordPress 6.9.11 / 7.0.8 / 7.1.4 certification). It changes only the provenance metadata in `assets/admin/src/tokens/admin-schemes.tokens.json` (recorded WordPress version and the 6.9.11 delta key; no colour changes), which superseded the batches 5 and 6 package `1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f`. Before it, the last byte change was `b6e438a` (batch 6, A6-06). Batches 5 and 6 add no file. Batch 5 changes bytes in `src/`, `assets/css/`, `assets/js/upayments-block.js` and `templates/new-design-form.php` (A1-11, A4-05 rest, A4-08, N-1). Batch 6 changes bytes in eight `src/` files with runtime-neutral static-analysis edits (A6-06). Composer development dependencies, including the PHPStan stubs, are not in the package.
 - **Files added since Sub-project 1 (9):**
   - the five `languages/` translation files (A4-01);
   - `src/Bootstrap/Translations.php` (A4-01);
