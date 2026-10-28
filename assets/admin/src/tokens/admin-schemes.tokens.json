@@ -1,8 +1,8 @@
 {
-	"$description": "Contrast-verified accent ramps (palette.accent.50-900) for the nine core WordPress admin color schemes, applied through body.admin-color-<scheme> .supcheckout-admin. The scheme drives the accent only, never the mode. Each ramp is tuned in OKLCH from the scheme source color (same hue): light 600 is the source color when white text on it reaches 4.6:1, otherwise the source darkened to WCAG luminance 0.17; the other steps are luminance targets. Dark ramps target luminance 0.17 at 600 (white text at 4.5:1 and 3:1 against the raised surface), and 900 (the dark accent tint) is the lightest tint on which the dark strong border still reaches 3:1. wpAdminThemeColor records --wp-admin-theme-color at WordPress 7.1.3 (@wordpress/base-styles wordpress-admin-schemes() at the Gutenberg revision pinned by wordpress-develop 7.1.3); a real-WordPress test alarms on drift. brand.tokens.json overrides all of it.",
+	"$description": "Contrast-verified accent ramps (palette.accent.50-900) for the nine core WordPress admin color schemes, applied through body.admin-color-<scheme> .supcheckout-admin. The scheme drives the accent only, never the mode. Each ramp is tuned in OKLCH from the scheme source color (same hue): light 600 is the source color when white text on it reaches 4.6:1, otherwise the source darkened to WCAG luminance 0.17; the other steps are luminance targets. Dark ramps target luminance 0.17 at 600 (white text at 4.5:1 and 3:1 against the raised surface), and 900 (the dark accent tint) is the lightest tint on which the dark strong border still reaches 3:1. wpAdminThemeColor records --wp-admin-theme-color at WordPress 7.1.4 (@wordpress/base-styles wordpress-admin-schemes() at the Gutenberg revision pinned by wordpress-develop 7.1.4); a real-WordPress test alarms on drift. brand.tokens.json overrides all of it.",
 	"$wpAdminThemeColorDeltas": {
-		"$description": "Metadata, never rendered: where another WordPress version in the browser matrix defines a different --wp-admin-theme-color than the WordPress 7.1.3 value recorded in schemes.*.wpAdminThemeColor. Observed in real wp-admin by tests/admin-ui/browser/admin-schemes.spec.ts, which asserts the mismatches equal exactly this list.",
-		"6.9.10": {
+		"$description": "Metadata, never rendered: where another WordPress version in the browser matrix defines a different --wp-admin-theme-color than the WordPress 7.1.4 value recorded in schemes.*.wpAdminThemeColor. Observed in real wp-admin by tests/admin-ui/browser/admin-schemes.spec.ts, which asserts the mismatches equal exactly this list.",
+		"6.9.11": {
 			"light": "#0085ba",
 			"blue": "#096484",
 			"coffee": "#46403c",
@@ -14,7 +14,7 @@
 	},
 	"schemes": {
 		"fresh": {
-			"$description": "Fresh. wordpress-develop 7.1.3 has no src/wp-admin/css/colors/fresh/colors.scss (Fresh is compiled into the core admin CSS); the source color #2271b1 is the Fresh highlight registered in src/wp-includes/general-template.php register_admin_color_schemes() and used by src/wp-admin/css/common.css. Fresh has no body.admin-color-fresh rule in wp-base-styles, so --wp-admin-theme-color is the @wordpress/base-styles :root default #007cba where defined. Also the fallback ramp for unknown and custom schemes.",
+			"$description": "Fresh. wordpress-develop 7.1.4 has no src/wp-admin/css/colors/fresh/colors.scss (Fresh is compiled into the core admin CSS); the source color #2271b1 is the Fresh highlight registered in src/wp-includes/general-template.php register_admin_color_schemes() and used by src/wp-admin/css/common.css. Fresh has no body.admin-color-fresh rule in wp-base-styles, so --wp-admin-theme-color is the @wordpress/base-styles :root default #007cba where defined. Also the fallback ramp for unknown and custom schemes.",
 			"sourceColor": {
 				"$value": "#2271b1",
 				"$type": "color"
@@ -109,7 +109,7 @@
 			}
 		},
 		"light": {
-			"$description": "Light. wordpress-develop 7.1.3 src/wp-admin/css/colors/light/colors.scss $highlight-color #007cba.",
+			"$description": "Light. wordpress-develop 7.1.4 src/wp-admin/css/colors/light/colors.scss $highlight-color #007cba.",
 			"sourceColor": {
 				"$value": "#007cba",
 				"$type": "color"
@@ -204,7 +204,7 @@
 			}
 		},
 		"modern": {
-			"$description": "Modern (the WordPress 7 default). wordpress-develop 7.1.3 src/wp-admin/css/colors/modern/colors.scss $highlight-color #3858e9.",
+			"$description": "Modern (the WordPress 7 default). wordpress-develop 7.1.4 src/wp-admin/css/colors/modern/colors.scss $highlight-color #3858e9.",
 			"sourceColor": {
 				"$value": "#3858e9",
 				"$type": "color"
@@ -299,7 +299,7 @@
 			}
 		},
 		"blue": {
-			"$description": "Blue. wordpress-develop 7.1.3 src/wp-admin/css/colors/blue/colors.scss $highlight-color #437aa8.",
+			"$description": "Blue. wordpress-develop 7.1.4 src/wp-admin/css/colors/blue/colors.scss $highlight-color #437aa8.",
 			"sourceColor": {
 				"$value": "#437aa8",
 				"$type": "color"
@@ -394,7 +394,7 @@
 			}
 		},
 		"coffee": {
-			"$description": "Coffee. wordpress-develop 7.1.3 src/wp-admin/css/colors/coffee/colors.scss $highlight-color #916745.",
+			"$description": "Coffee. wordpress-develop 7.1.4 src/wp-admin/css/colors/coffee/colors.scss $highlight-color #916745.",
 			"sourceColor": {
 				"$value": "#916745",
 				"$type": "color"
@@ -489,7 +489,7 @@
 			}
 		},
 		"ectoplasm": {
-			"$description": "Ectoplasm. wordpress-develop 7.1.3 src/wp-admin/css/colors/ectoplasm/colors.scss $highlight-color #646c3e.",
+			"$description": "Ectoplasm. wordpress-develop 7.1.4 src/wp-admin/css/colors/ectoplasm/colors.scss $highlight-color #646c3e.",
 			"sourceColor": {
 				"$value": "#646c3e",
 				"$type": "color"
@@ -584,7 +584,7 @@
 			}
 		},
 		"midnight": {
-			"$description": "Midnight. wordpress-develop 7.1.3 src/wp-admin/css/colors/midnight/colors.scss $highlight-color #cf4339.",
+			"$description": "Midnight. wordpress-develop 7.1.4 src/wp-admin/css/colors/midnight/colors.scss $highlight-color #cf4339.",
 			"sourceColor": {
 				"$value": "#cf4339",
 				"$type": "color"
@@ -679,7 +679,7 @@
 			}
 		},
 		"ocean": {
-			"$description": "Ocean. wordpress-develop 7.1.3 src/wp-admin/css/colors/ocean/colors.scss $highlight-color #567958.",
+			"$description": "Ocean. wordpress-develop 7.1.4 src/wp-admin/css/colors/ocean/colors.scss $highlight-color #567958.",
 			"sourceColor": {
 				"$value": "#567958",
 				"$type": "color"
@@ -774,7 +774,7 @@
 			}
 		},
 		"sunrise": {
-			"$description": "Sunrise. wordpress-develop 7.1.3 src/wp-admin/css/colors/sunrise/colors.scss $highlight-color #ad631e.",
+			"$description": "Sunrise. wordpress-develop 7.1.4 src/wp-admin/css/colors/sunrise/colors.scss $highlight-color #ad631e.",
 			"sourceColor": {
 				"$value": "#ad631e",
 				"$type": "color"

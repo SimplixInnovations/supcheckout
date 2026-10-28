@@ -6,6 +6,8 @@ The project is still in pre-release engineering hardening. Entries below are eng
 
 ## [Unreleased]
 
+- Certified WordPress 6.9.11, 7.0.8 and 7.1.4.
+
 ### Hardening batch 6: PHPStan with the real WordPress and WooCommerce stubs (A6-06)
 
 - **PHPStan now analyses all of `src/` against the official stubs, at level 5, with no baseline.** Before, it covered about 78% of `src/` against 15 hand-written stub files, so the most payment-sensitive files (`Gateway.php`, `CustomerTokenIdentity.php`, `Scheduler.php`, `CycleClaim.php`, `SavedCardSelection.php`, `MultiMerchantContract.php` and others) were never checked, and method calls on orders went unchecked. Development only: `php-stubs/wordpress-stubs` 6.9.4 and `php-stubs/woocommerce-stubs` 10.8.1 are exact `require-dev` pins matching the WordPress 6.9 and WooCommerce 10.8 floors, and the shipped package is unchanged. `treatPhpDocTypesAsCertain: false` keeps the defensive checks on untrusted data. The 15 hand-written stubs are retired. They duplicated the official symbols or stood in for real `src/` classes. In their place are one file of symbols the official stubs lack (WP-CLI, four cache-plugin purge functions, the wpdb output constants, two runtime-defined plugin constants) and one `stubFiles` file that corrects eight upstream PHPDoc contracts, each with its WordPress or WooCommerce source. A small PHPStan extension tells the unused-method rule about 17 private seams that the permanent harnesses call through reflection. The static-analysis harness fails if a `src/` file is missing from the analysed paths, if a seam stops being private or stops being called by a test, if a `@phpstan-ignore` lacks an identifier and a reason, or if there are more than 15 ignores.

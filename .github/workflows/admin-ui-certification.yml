@@ -123,9 +123,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - wordpress: '6.9.10'
+          - wordpress: '6.9.11'
             woocommerce: '10.8.1'
-          - wordpress: '7.1.3'
+          - wordpress: '7.1.4'
             woocommerce: '11.1.2'
     env:
       WP_CLI_BIN: /tmp/wp-cli.phar
@@ -253,7 +253,7 @@ jobs:
           retention-days: 14
 
   visual:
-    name: Visual regression — WordPress 7.1.3 / WooCommerce 11.1.2 (Linux baselines)
+    name: Visual regression — WordPress 7.1.4 / WooCommerce 11.1.2 (Linux baselines)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -265,7 +265,7 @@ jobs:
       SUP_UI_ADMIN_PASSWORD: cert-password-not-production
       SUP_UI_AR_USER: sup-ar
       SUP_UI_AR_PASSWORD: sup-ar-password-not-production
-      SUP_UI_WP_VERSION: '7.1.3'
+      SUP_UI_WP_VERSION: '7.1.4'
       SUP_UI_WC_VERSION: '11.1.2'
       UPDATE_VISUAL_BASELINES: ${{ github.event_name == 'workflow_dispatch' && inputs.update_visual_baselines && 'true' || 'false' }}
     steps:
@@ -309,7 +309,7 @@ jobs:
           chmod +x /tmp/wp-cli.phar
           /tmp/wp-cli.phar --version
 
-      - name: Install real WordPress 7.1.3 and WooCommerce 11.1.2
+      - name: Install real WordPress 7.1.4 and WooCommerce 11.1.2
         shell: bash
         env:
           SUPCHECKOUT_DB_NAME: wordpress

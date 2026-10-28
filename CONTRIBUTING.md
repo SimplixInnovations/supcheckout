@@ -59,7 +59,7 @@ npm run test:unit:react19   # the same component tests on React 19
 
 ### Visual-regression policy
 
-The Admin UI Certification `visual` lane compares every gallery specimen in four modes (light and dark, LTR and RTL) on WP 7.1.3 / WC 11.1.2.
+The Admin UI Certification `visual` lane compares every gallery specimen in four modes (light and dark, LTR and RTL) on WP 7.1.4 / WC 11.1.2.
 
 - Comparison is exact: `threshold 0` and `maxDiffPixels 0`, on a pinned `ubuntu-24.04` runner.
 - A red visual run is investigated, never retried or loosened blindly. Download the `admin-ui-visual-diffs` artifact and find the cause.

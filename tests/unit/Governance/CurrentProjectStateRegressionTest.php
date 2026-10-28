@@ -77,6 +77,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     /** The superseded Task 8 package; no living record may still present it as current. */
     private const SUPERSEDED_TASK_8_PACKAGE_SHA256 = '67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac';
     private const SUPERSEDED_GATE ='Current executable gate: **external certification & release readiness**.';
+    /** WordPress point releases certified by every runtime workflow cell (re-certified 2026-10-29). */
+    private const CERTIFIED_WP_POINT_RELEASES = array('6.9.11', '7.0.8', '7.1.4');
+    /** The superseded WordPress point releases; no workflow cell or currentness pin may still run them. */
+    private const SUPERSEDED_WP_POINT_RELEASES = array('6.9.10', '7.0.7', '7.1.3');
 
     /**
      * Canonical living records that a fresh chat/agent may use to establish the
@@ -668,8 +672,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('| GHSA-gfr2-rv44-r23c |', $release, 'markdown-it was adopted in #208');
         self::assertStringNotContainsString('| GHSA-vfj7-8cjw-p6xm |', $release, 'the braces allow-list entry was removed');        foreach (array(
             'Playwright 1.64.0',
-            'WP 6.9.10 / WC 10.8.1',
-            'WP 7.1.3 / WC 11.1.2',
+            'WP 6.9.11 / WC 10.8.1',
+            'WP 7.1.4 / WC 11.1.2',
             'React 18.3.1',
             'React 19',
             'NVDA',
@@ -678,6 +682,41 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             'foundations-arabic',
         ) as $boundary) {
             self::assertStringContainsString($boundary, $compatibility, 'admin UI boundary missing: ' . $boundary);
+        }
+    }
+
+    public function test_the_current_wordpress_point_releases_are_certified_everywhere(): void {
+        list($wp69, $wp70, $wp71) = self::CERTIFIED_WP_POINT_RELEASES;
+        $pins = array(
+            '.github/workflows/compatibility-certification.yml' => array("wordpress: '$wp69'", "wordpress: '$wp70'", "wordpress: '$wp71'"),
+            '.github/workflows/ecosystem-certification.yml' => array('"' . $wp71 . '"'),
+            '.github/workflows/release-artifact.yml' => array("wordpress: '$wp69'", "wordpress: '$wp71'", "install-wp-test-environment.sh $wp71 11.1.2", "Packaged WP $wp71 / WC 11.1.2"),
+            '.github/workflows/admin-ui-certification.yml' => array("wordpress: '$wp69'", "wordpress: '$wp71'", "SUP_UI_WP_VERSION: '$wp71'", "WordPress $wp71 / WooCommerce 11.1.2"),
+            '.github/workflows/takeover-migration-matrix.yml' => array("WP_VERSION: '$wp71'"),
+            '.github/workflows/r6-final-evidence.yml' => array("install-wp-test-environment.sh $wp71 11.1.2"),
+            '.github/workflows/r6-large-store-benchmark.yml' => array("install-wp-test-environment.sh $wp71 11.1.2"),
+            '.github/workflows/release-upstream-currentness.yml' => array("--wp-certified $wp69,$wp70,$wp71"),
+            'scripts/check-release-upstream-currentness.sh' => array("CERTIFIED_WP=\"$wp69,$wp70,$wp71\""),
+            'scripts/check-release-upstream-currentness.py' => array("--wp-certified $wp69,$wp70,$wp71"),
+            'docs/COMPATIBILITY.md' => array("WP $wp69 / WC 10.8.1", "WP $wp71 / WC 11.1.2", "recorded at WP $wp71"),
+            'CONTRIBUTING.md' => array("WP $wp71 / WC 11.1.2"),
+            'UX-CONTRACT.md' => array("WP $wp69 and $wp71"),
+            'assets/admin/src/tokens/admin-schemes.tokens.json' => array("at WordPress $wp71", '"' . $wp69 . '": {'),
+        );
+        foreach ($pins as $path => $needles) {
+            $content = self::read_repository_file($path);
+            foreach ($needles as $needle) {
+                self::assertStringContainsString($needle, $content, $path . ' must certify ' . $needle);
+            }
+            foreach (self::SUPERSEDED_WP_POINT_RELEASES as $stale) {
+                self::assertStringNotContainsString($stale, $content, $path . ' still names superseded WordPress ' . $stale);
+            }
+        }
+
+        // The fail-closed currentness gate keeps every outcome; only the pins moved.
+        $tool = self::read_repository_file('scripts/check-release-upstream-currentness.py');
+        foreach (array('STALE_UPSTREAM_CERTIFICATION', 'UNKNOWN_UPSTREAM', 'PRERELEASE') as $outcome) {
+            self::assertStringContainsString($outcome, $tool);
         }
     }
 

@@ -7,7 +7,7 @@ established (network/malformed). Never used in ordinary PR CI.
 
 Usage:
   python3 scripts/check-release-upstream-currentness.py \
-    --wp-certified 6.9.10,7.0.7,7.1.3 \
+    --wp-certified 6.9.11,7.0.8,7.1.4 \
     --wc-certified 10.8.1,11.0.1,11.1.2 \
     [--offline-wp-file fixtures.json] [--offline-wc-file fixtures.json]
 
