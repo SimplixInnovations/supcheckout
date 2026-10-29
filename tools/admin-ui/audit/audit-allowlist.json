@@ -47,5 +47,12 @@
 		"severity": "low",
 		"expires": "2026-11-15",
 		"reason": "Dev-only tooling, not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); the fixed release is younger than the 14-day release-age floor; owner decision 2026-10-24: allow-list until the fix ages, then upgrade and remove this entry."
+	},
+	{
+		"id": "GHSA-gcqx-w48m-w2h4",
+		"package": "deepmerge",
+		"severity": "low",
+		"expires": "2026-11-15",
+		"reason": "Dev-only tooling (@svgr/plugin-svgo via @wordpress/scripts, and jest-config), not shipped in the plugin package (the bundled audit, npm audit --omit=dev, is clean); no fixed deepmerge release exists (affected <= 4.3.1, the latest); owner decision 2026-10-24: allow-list dev-only advisories until a fix ages, then upgrade and remove this entry."
 	}
 ]
