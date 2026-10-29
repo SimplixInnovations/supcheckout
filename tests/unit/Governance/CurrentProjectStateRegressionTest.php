@@ -37,9 +37,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     private const HARDENING_DONE = 'Hardening program (repository-executable fix loop) — **DONE / VERIFIED**';
     /** The hardening program evidence record. */
     private const HARDENING_EVIDENCE = 'docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md';
-    /** Deterministic package at the hardening close (batch 4 head; built twice, byte-identical). */
+    /** Deterministic package at the batches 5 and 6 head with the WordPress 6.9.11 / 7.0.8 / 7.1.4 certification (built twice, byte-identical). */
     private const HARDENING_PACKAGE_FILES = 233;
-    private const HARDENING_PACKAGE_SHA256 = '2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db';
+    private const HARDENING_PACKAGE_SHA256 = 'f16aeecbc19642324573bc6e174414d6776c16ac07a0955d0fd2d7b2e27d7ba9';
+    /** The batches 5 and 6 package before the WordPress point-release certification moved the admin-schemes provenance. */
+    private const PRE_WP_POINT_RELEASE_PACKAGE_SHA256 = '1b7a5aca04ee09a79fae816cf2d18e34177c55f63a851bb95f0a113d9e91812f';
+    /** The batch 4 package (#226); historical once batches 5 and 6 changed distributable bytes. */
+    private const BATCH_4_PACKAGE_SHA256 = '2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db';
     /** The batch 3 package (#223) the owner verified on staging; historical once batch 4 changed distributable bytes. */
     private const STAGING_VERIFIED_PACKAGE_SHA256 = 'f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8';
     /** Sub-project 1 status in every living record. */
@@ -75,6 +79,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
     /** The superseded Task 8 package; no living record may still present it as current. */
     private const SUPERSEDED_TASK_8_PACKAGE_SHA256 = '67beb72db5e829af5557a258db11c022312312589c11f156b6ce7665e0ed65ac';
     private const SUPERSEDED_GATE ='Current executable gate: **external certification & release readiness**.';
+    /** WordPress point releases certified by every runtime workflow cell (re-certified 2026-10-29). */
+    private const CERTIFIED_WP_POINT_RELEASES = array('6.9.11', '7.0.8', '7.1.4');
+    /** The superseded WordPress point releases; no workflow cell or currentness pin may still run them. */
+    private const SUPERSEDED_WP_POINT_RELEASES = array('6.9.10', '7.0.7', '7.1.3');
 
     /**
      * Canonical living records that a fresh chat/agent may use to establish the
@@ -666,8 +674,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringNotContainsString('| GHSA-gfr2-rv44-r23c |', $release, 'markdown-it was adopted in #208');
         self::assertStringNotContainsString('| GHSA-vfj7-8cjw-p6xm |', $release, 'the braces allow-list entry was removed');        foreach (array(
             'Playwright 1.64.0',
-            'WP 6.9.10 / WC 10.8.1',
-            'WP 7.1.3 / WC 11.1.2',
+            'WP 6.9.11 / WC 10.8.1',
+            'WP 7.1.4 / WC 11.1.2',
             'React 18.3.1',
             'React 19',
             'NVDA',
@@ -676,6 +684,41 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             'foundations-arabic',
         ) as $boundary) {
             self::assertStringContainsString($boundary, $compatibility, 'admin UI boundary missing: ' . $boundary);
+        }
+    }
+
+    public function test_the_current_wordpress_point_releases_are_certified_everywhere(): void {
+        list($wp69, $wp70, $wp71) = self::CERTIFIED_WP_POINT_RELEASES;
+        $pins = array(
+            '.github/workflows/compatibility-certification.yml' => array("wordpress: '$wp69'", "wordpress: '$wp70'", "wordpress: '$wp71'"),
+            '.github/workflows/ecosystem-certification.yml' => array('"' . $wp71 . '"'),
+            '.github/workflows/release-artifact.yml' => array("wordpress: '$wp69'", "wordpress: '$wp71'", "install-wp-test-environment.sh $wp71 11.1.2", "Packaged WP $wp71 / WC 11.1.2"),
+            '.github/workflows/admin-ui-certification.yml' => array("wordpress: '$wp69'", "wordpress: '$wp71'", "SUP_UI_WP_VERSION: '$wp71'", "WordPress $wp71 / WooCommerce 11.1.2"),
+            '.github/workflows/takeover-migration-matrix.yml' => array("WP_VERSION: '$wp71'"),
+            '.github/workflows/r6-final-evidence.yml' => array("install-wp-test-environment.sh $wp71 11.1.2"),
+            '.github/workflows/r6-large-store-benchmark.yml' => array("install-wp-test-environment.sh $wp71 11.1.2"),
+            '.github/workflows/release-upstream-currentness.yml' => array("--wp-certified $wp69,$wp70,$wp71"),
+            'scripts/check-release-upstream-currentness.sh' => array("CERTIFIED_WP=\"$wp69,$wp70,$wp71\""),
+            'scripts/check-release-upstream-currentness.py' => array("--wp-certified $wp69,$wp70,$wp71"),
+            'docs/COMPATIBILITY.md' => array("WP $wp69 / WC 10.8.1", "WP $wp71 / WC 11.1.2", "recorded at WP $wp71"),
+            'CONTRIBUTING.md' => array("WP $wp71 / WC 11.1.2"),
+            'UX-CONTRACT.md' => array("WP $wp69 and $wp71"),
+            'assets/admin/src/tokens/admin-schemes.tokens.json' => array("at WordPress $wp71", '"' . $wp69 . '": {'),
+        );
+        foreach ($pins as $path => $needles) {
+            $content = self::read_repository_file($path);
+            foreach ($needles as $needle) {
+                self::assertStringContainsString($needle, $content, $path . ' must certify ' . $needle);
+            }
+            foreach (self::SUPERSEDED_WP_POINT_RELEASES as $stale) {
+                self::assertStringNotContainsString($stale, $content, $path . ' still names superseded WordPress ' . $stale);
+            }
+        }
+
+        // The fail-closed currentness gate keeps every outcome; only the pins moved.
+        $tool = self::read_repository_file('scripts/check-release-upstream-currentness.py');
+        foreach (array('STALE_UPSTREAM_CERTIFICATION', 'UNKNOWN_UPSTREAM', 'PRERELEASE') as $outcome) {
+            self::assertStringContainsString($outcome, $tool);
         }
     }
 
@@ -772,6 +815,8 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             '#215', '376c482', '#221', 'e3884ca', '#222', '3575721', '1302568', '97/97', 'hardening/batch-3', 'R1-1', 'R1-2',
             // Batch 4: the last fixable residuals.
             'hardening/batch-4', 'A1-03', 'N-2', 'N-3', 'M-5', 'O4',
+            // Batches 5 and 6 (one PR): the safe "left on purpose" items and PHPStan with the real stubs.
+            'hardening/batch-5', 'A4-05 rest', 'Fixed in batch 6', 'closed by design',
             // Findings raised during the fix loop.
             'OL-1', 'R-1', 'H12-META', 'AS-1',
             // Owner decisions.
@@ -792,9 +837,19 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         // The package record sits next to the historical ones; the SP1 record stays.
         $release = self::read_repository_file('docs/project/RELEASE-ENGINEERING.md');
         self::assertStringContainsString(
-            'Hardening program (batch 4): **' . self::HARDENING_PACKAGE_FILES . ' files**, SHA-256 `' . self::HARDENING_PACKAGE_SHA256 . '`',
+            'Hardening program (batches 5 and 6): **' . self::HARDENING_PACKAGE_FILES . ' files**, SHA-256 `' . self::HARDENING_PACKAGE_SHA256 . '`',
             $release
         );
+        self::assertStringContainsString(
+            'Historical hardening batch 4 package (#226, superseded by batches 5 and 6): **233 files**, SHA-256 `' . self::BATCH_4_PACKAGE_SHA256 . '`',
+            $release
+        );
+        self::assertStringNotContainsString('Hardening program (batch 4): **', $release);
+        // The point-release certification changed only admin-schemes.tokens.json provenance metadata.
+        foreach (array($release, $evidence) as $record) {
+            self::assertStringContainsString(self::PRE_WP_POINT_RELEASE_PACKAGE_SHA256, $record);
+            self::assertStringContainsString('`1f95267` (WordPress 6.9.11 / 7.0.8 / 7.1.4 certification)', $record);
+        }
         self::assertStringContainsString(
             'Historical hardening batch 3 package (#223, superseded by batch 4): **233 files**, SHA-256 `' . self::STAGING_VERIFIED_PACKAGE_SHA256 . '`',
             $release
@@ -807,6 +862,13 @@ final class CurrentProjectStateRegressionTest extends TestCase {
             // Batch 4 and its H12 historical-meta repair are recorded; batch 3 is merged, not a pending branch.
             self::assertStringContainsString('hardening/batch-4', $content, $living);
             self::assertStringContainsString('H12-META', $content, $living);
+            // Batch 4 is merged (#226); batches 5 and 6 are recorded on their branch; A6-06 is no longer backlog.
+            self::assertStringContainsString('#226', $content, $living);
+            self::assertStringContainsString('hardening/batch-5', $content, $living);
+            self::assertStringContainsString('A6-06', $content, $living);
+            self::assertStringNotContainsString('(`hardening/batch-4`, PR open)', $content, $living);
+            self::assertStringNotContainsString('batch 4 on `hardening/batch-4` (PR open)', $content, $living);
+            self::assertStringNotContainsString('stays recorded as tooling backlog', $content, $living);
             self::assertStringNotContainsString('batch 3 on `hardening/batch-3`', $content, $living);
             self::assertStringNotContainsString('batch 3 (`hardening/batch-3`)', $content, $living);
         }
@@ -818,6 +880,10 @@ final class CurrentProjectStateRegressionTest extends TestCase {
         self::assertStringContainsString('    hardening_package_sha256: ' . self::HARDENING_PACKAGE_SHA256, $contract);
         self::assertStringContainsString('    hardening_batch_3_merged_main: f3e207d3686a16fe4ef3b41d5736a33ad7a1c8d8', $contract);
         self::assertStringContainsString('    hardening_batch_4_branch: hardening/batch-4', $contract);
+        self::assertStringContainsString('    hardening_batch_4_merged_main: eed5bbde1c983b89dfd47b348ac8f3e89b6f08d6', $contract);
+        self::assertStringContainsString('    hardening_batch_4_package_sha256: ' . self::BATCH_4_PACKAGE_SHA256, $contract);
+        self::assertStringContainsString('    hardening_batch_5_6_branch: hardening/batch-5', $contract);
+        self::assertStringContainsString('    hardening_tooling_backlog: none', $contract);
         self::assertStringContainsString('    hardening_parked: none', $contract);
         self::assertStringNotContainsString('a2_02_https_only_live_redirect_waits_on_provider_question_12', $contract);
     }

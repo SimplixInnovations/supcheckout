@@ -23,7 +23,6 @@ $phpcs = q7_read($q7_root, 'phpcs.xml.dist');
 $source = q7_read($q7_root, 'src/Security/PublicOrderStatus.php');
 $tests = q7_read($q7_root, 'tests/unit/Security/PublicOrderStatusTest.php');
 $fixture = q7_read($q7_root, 'tests/support/wordpress-public-order-status.php');
-$stubs = q7_read($q7_root, 'tests/phpstan/wordpress-option-stubs.php');
 $workflow = q7_read($q7_root, '.github/workflows/quality-gates.yml');
 $quality = q7_read($q7_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q7_read($q7_root, 'docs/project/PROJECT-STATUS.md');
@@ -71,11 +70,10 @@ q7_assert(q7_contains($fixture, 'class SUPCheckout_Test_Json_Response'), 'fixtur
 q7_assert(q7_contains($fixture, 'function wc_get_order('), 'fixture provides deterministic order lookup');
 q7_assert(q7_contains($fixture, 'function is_user_logged_in('), 'fixture provides deterministic login state');
 q7_assert(q7_contains($fixture, 'function wp_send_json('), 'fixture captures WordPress JSON dispatch');
-q7_assert(q7_contains($stubs, 'function sanitize_text_field('), 'analysis stubs declare request-method sanitation');
+q7_assert(q7_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare sanitize_text_field() and wp_send_json() (A6-06 retired the wordpress-option hand stub)');
 q7_assert(q7_contains($source, '$sanitized_method === $raw_method'), 'malformed request methods cannot become GET through sanitation');
 q7_assert(q7_contains($tests, "'G\\\\ET'"), 'authorized-order regression covers backslash method normalization bypass');
-q7_assert(q7_contains($stubs, 'function wp_send_json('), 'analysis stubs declare public JSON dispatch');
-q7_assert(q7_contains($stubs, 'function wc_get_order('), 'analysis stubs declare bounded order lookup');
+q7_assert(q7_contains($phpstan, '- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php'), 'PHPStan scans the official WooCommerce stubs, which declare wc_get_order() (A6-06)');
 
 q7_assert(q7_contains($workflow, 'quality-platform-public-order-status-harness.php'), 'Q7 harness is mandatory in Quality Gates');
 q7_assert(q7_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -189,7 +189,7 @@ const handleSubscriptionChange = (plan, interval) => {
                 'aria-live': 'polite',
                 'aria-atomic': 'true',
                 style: {
-                    position: 'fixed', top: '30px', right: '30px', background: '#F23232',
+                    position: 'fixed', top: '30px', insetInlineEnd: '30px', background: '#F23232',
                     color: '#fff', padding: '12px 18px', borderRadius: '6px', zIndex: 99999,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'all 0.3s ease'
                 }
@@ -296,9 +296,9 @@ const handleSubscriptionChange = (plan, interval) => {
                                     ),
                                     createElement('span', {
                                         style: {
-                                            marginLeft: '10px',
+                                            marginInlineStart: '10px',
                                             flexGrow: 1,
-                                            textAlign: 'left',
+                                            textAlign: 'start',
                                             fontSize: '14px'
                                         }
                                     }, brand ? `${label} (${brand})` : label),
@@ -306,7 +306,7 @@ const handleSubscriptionChange = (plan, interval) => {
                               className: 'upay-chevron',
                               'aria-hidden': 'true',
                               style: {
-                                  marginLeft: '10px',
+                                  marginInlineStart: '10px',
                                   fontSize: '20px',
                                   lineHeight: '1'
                               }
@@ -355,7 +355,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                                     alt: '',
                                                     style: {
                                                         height: '24px',
-                                                        marginRight: '5px'
+                                                        marginInlineEnd: '5px'
                                                     }
                                                 }),
                                                 createElement('img', {
@@ -375,7 +375,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                                     alt: '',
                                                     style: {
                                                         height: '24px',
-                                                        marginRight: '5px'
+                                                        marginInlineEnd: '5px'
                                                     }
                                                 }),
                                                 createElement('img', {
@@ -399,7 +399,7 @@ const handleSubscriptionChange = (plan, interval) => {
                                 ),
                                 createElement('span', {
                                     style: {
-                                        marginLeft: '10px',
+                                        marginInlineStart: '10px',
                                         fontWeight: '600'
                                     }
                                 }, label),
@@ -407,7 +407,7 @@ const handleSubscriptionChange = (plan, interval) => {
                               className: 'upay-chevron',
                               'aria-hidden': 'true',
                               style: {
-                                  marginLeft: '10px',
+                                  marginInlineStart: '10px',
                                   fontSize: '20px',
                                   lineHeight: '1'
                               }
@@ -453,7 +453,7 @@ const handleSubscriptionChange = (plan, interval) => {
                             style: { display: 'flex', width: '100%', padding: '15px', alignItems: 'center', border: '1px solid #ccc', borderRadius: '4px', background: '#fff', cursor: 'default', boxSizing: 'border-box' }
                         },
                             Object.keys(payment_icons).map(key => (
-                                key !== 'apple-pay-knet' && createElement('span', { key, style: { marginRight: '8px' } },
+                                key !== 'apple-pay-knet' && createElement('span', { key, style: { marginInlineEnd: '8px' } },
                                     createElement('img', { src: `${plugin_url}assets/images/${key}.png`, alt: '', style: { height: '22px' } })
                                 )
                             )),
@@ -461,7 +461,7 @@ const handleSubscriptionChange = (plan, interval) => {
                               className: 'upay-chevron',
                               'aria-hidden': 'true',
                               style: {
-                                  marginLeft: 'auto',
+                                  marginInlineStart: 'auto',
                                   fontSize: '20px',
                                   lineHeight: '1'
                               }

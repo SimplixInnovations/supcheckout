@@ -63,7 +63,7 @@ permissions:
 
 env:
   MATRIX_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-  WP_VERSION: '7.1.3'
+  WP_VERSION: '7.1.4'
   WC_VERSION: '11.1.2'
   # Last main commit before Sub-project 0b Task 1 (#173): the last pre-0b SUPCheckout.
   PRE_0B_SHA: '0cef28dbcf35d3ec5e669f3c0b46f580069c4c31'

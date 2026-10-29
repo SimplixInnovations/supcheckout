@@ -44,6 +44,9 @@ final class GatewaySettingsTest extends TestCase {
         self::assertSame(GatewaySettings::default_checkout_description(), $fields['description']['default']);
         self::assertSame('', $fields['api_key']['default']);
         self::assertSame('password', $fields['api_key']['type']);
+        // A1-11 (batch 5): deliberately changed from 'yes'. A fresh install sends paid orders
+        // to Processing (the WooCommerce standard); stored settings keep their value.
+        self::assertSame('no', $fields['is_order_complete']['default']);
         self::assertSame('yes', $fields['enable_save_card']['default']);
         self::assertSame('no', $fields['enable_multimerchant']['default']);
         self::assertSame('multimerchant_repeater', $fields['multimerchant_accounts']['type']);

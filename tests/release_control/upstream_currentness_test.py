@@ -13,6 +13,10 @@ TOOL = ROOT / "scripts" / "check-release-upstream-currentness.py"
 
 FAILS = []
 
+# The certified pins (re-certified 2026-10-29). Every pin below must equal these.
+CERTIFIED_WP = "6.9.11,7.0.8,7.1.4"
+CERTIFIED_WC = "10.8.1,11.0.1,11.1.2"
+
 
 def check(cond: bool, label: str) -> None:
     print(("PASS: " if cond else "FAIL: ") + label)
@@ -20,7 +24,7 @@ def check(cond: bool, label: str) -> None:
         FAILS.append(label)
 
 
-def run(wp_payload, wc_payload, wp_cert="6.9.9,7.0.6,7.1.2", wc_cert="10.8.1,11.0.1,11.1.2"):
+def run(wp_payload, wc_payload, wp_cert=CERTIFIED_WP, wc_cert=CERTIFIED_WC):
     with tempfile.TemporaryDirectory() as td:
         wpp = Path(td) / "wp.json"
         wcp = Path(td) / "wc.json"
@@ -45,7 +49,7 @@ def run(wp_payload, wc_payload, wp_cert="6.9.9,7.0.6,7.1.2", wc_cert="10.8.1,11.
         return proc.returncode, proc.stdout + proc.stderr
 
 
-WP_BASE = {"offers": [{"version": "6.9.9"}, {"version": "7.0.6"}, {"version": "7.1.2"}]}
+WP_BASE = {"offers": [{"version": v} for v in CERTIFIED_WP.split(",")]}
 WC_BASE = [
     {"tag_name": "10.8.1"},
     {"tag_name": "11.0.1"},
@@ -54,13 +58,29 @@ WC_BASE = [
 ]
 
 
+def check_pins_in_sync() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release-upstream-currentness.yml").read_text(encoding="utf-8")
+    check(f"--wp-certified {CERTIFIED_WP} \\" in workflow, "currentness workflow pins the certified WP releases")
+    check(f"--wc-certified {CERTIFIED_WC} \\" in workflow, "currentness workflow pins the certified WC releases")
+    shell = (ROOT / "scripts" / "check-release-upstream-currentness.sh").read_text(encoding="utf-8")
+    check(f'CERTIFIED_WP="{CERTIFIED_WP}"' in shell, "shell pin check certifies the same WP releases")
+    check(f'CERTIFIED_WC="{CERTIFIED_WC}"' in shell, "shell pin check certifies the same WC releases")
+    tool = TOOL.read_text(encoding="utf-8")
+    check(f"--wp-certified {CERTIFIED_WP} \\" in tool, "tool usage names the certified WP releases")
+    matrix = (ROOT / ".github" / "workflows" / "compatibility-certification.yml").read_text(encoding="utf-8")
+    for version in CERTIFIED_WP.split(","):
+        check(f"wordpress: '{version}'" in matrix, f"compatibility matrix runs certified WP {version}")
+
+
 def main() -> int:
+    check_pins_in_sync()
+
     rc, out = run(WP_BASE, WC_BASE)
     check(rc == 0 and "CURRENT" in out, "exact match → PASS")
 
-    wp_new = {"offers": [{"version": "6.9.9"}, {"version": "7.0.6"}, {"version": "7.1.3"}]}
+    wp_new = {"offers": [{"version": "6.9.11"}, {"version": "7.0.8"}, {"version": "7.1.5"}]}
     rc, out = run(wp_new, WC_BASE)
-    check(rc == 2 and "STALE_UPSTREAM_CERTIFICATION" in out and "7.1.3" in out, "new WP patch → STALE")
+    check(rc == 2 and "STALE_UPSTREAM_CERTIFICATION" in out and "7.1.5" in out, "new WP patch → STALE")
 
     wc_new = WC_BASE + [{"tag_name": "11.1.3"}]
     rc, out = run(WP_BASE, wc_new)

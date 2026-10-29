@@ -481,8 +481,7 @@ class CycleClaim
      */
     public static function has_dispatchable_snapshot(array $row): bool
     {
-        if (!is_array($row)
-            || !isset(
+        if (!isset(
                 $row['expected_amount'],
                 $row['expected_currency'],
                 $row['cycle_key'],

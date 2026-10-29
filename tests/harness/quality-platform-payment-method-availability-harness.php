@@ -33,7 +33,6 @@ $availability = q5_read($q5_root, 'src/Provider/PaymentMethodAvailability.php');
 $tests = q5_read($q5_root, 'tests/unit/Provider/PaymentMethodAvailabilityTest.php');
 $fixture = q5_read($q5_root, 'tests/support/wordpress-availability.php');
 $option_fixture = q5_read($q5_root, 'tests/support/wordpress-option-store.php');
-$analysis_stubs = q5_read($q5_root, 'tests/phpstan/wordpress-option-stubs.php');
 $workflow = q5_read($q5_root, '.github/workflows/quality-gates.yml');
 $quality_record = q5_read($q5_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q5_read($q5_root, 'docs/project/PROJECT-STATUS.md');
@@ -112,9 +111,7 @@ q5_assert(q5_contains($fixture, "strpos(\$statement['query'], 'SELECT GET_LOCK('
 q5_assert(q5_contains($fixture, "strpos(\$statement['query'], 'SELECT RELEASE_LOCK(') === 0"), 'unit fixture executes advisory-lock release semantics');
 q5_assert(q5_contains($fixture, 'function get_transient(') && q5_contains($fixture, 'function set_transient('), 'unit fixture provides deterministic transient persistence');
 q5_assert(q5_contains($option_fixture, 'supcheckout_test_update_option_result'), 'option fixture exposes deterministic gate-write failure');
-q5_assert(q5_contains($analysis_stubs, 'public $prefix;'), 'analysis stubs declare the bounded wpdb prefix');
-q5_assert(q5_contains($analysis_stubs, 'function get_transient('), 'analysis stubs declare transient reads');
-q5_assert(q5_contains($analysis_stubs, 'function get_current_blog_id('), 'analysis stubs declare multisite lock scope');
+q5_assert(q5_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare wpdb::$prefix, get_transient() and get_current_blog_id() (A6-06 retired the wordpress-option hand stub)');
 
 q5_assert(q5_contains($workflow, 'quality-platform-payment-method-availability-harness.php'), 'Q5 harness is mandatory in Quality Gates');
 q5_assert(q5_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

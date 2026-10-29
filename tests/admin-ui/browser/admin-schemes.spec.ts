@@ -4,10 +4,10 @@
  *   WordPress version in the matrix;
  * - the recorded `--wp-admin-theme-color` of each scheme
  *   (admin-schemes.tokens.json `wpAdminThemeColor`, recorded at WordPress
- *   7.1.3) still matches WordPress 7.1.3, and every other version differs by
- *   exactly its `$wpAdminThemeColorDeltas` entry (WordPress 6.9.10 still
+ *   7.1.4) still matches WordPress 7.1.4, and every other version differs by
+ *   exactly its `$wpAdminThemeColorDeltas` entry (WordPress 6.9.11 still
  *   defines the pre-7.0 highlights for seven schemes, such as `#0085ba` for
- *   Light where 7.1.3 defines `#007cba`).
+ *   Light where 7.1.4 defines `#007cba`).
  *
  * The gallery's `sup_admin_color` query (test mu-plugin) picks the scheme for
  * one request, so no user setting is changed.
@@ -28,7 +28,7 @@ import {
 } from './support/modes';
 
 /** The WordPress version `wpAdminThemeColor` was recorded at. */
-const FIXTURE_WP_VERSION = '7.1.3';
+const FIXTURE_WP_VERSION = '7.1.4';
 
 interface SchemeEntry {
 	wpAdminThemeColor: { $value: string };

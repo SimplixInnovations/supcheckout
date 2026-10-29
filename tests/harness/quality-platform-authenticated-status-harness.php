@@ -32,7 +32,6 @@ $phpcs = q4_read($q4_root, 'phpcs.xml.dist');
 $verifier = q4_read($q4_root, 'src/Payment/StatusVerifier.php');
 $tests = q4_read($q4_root, 'tests/unit/Payment/StatusVerifierTest.php');
 $http_fixture = q4_read($q4_root, 'tests/support/wordpress-http.php');
-$analysis_stubs = q4_read($q4_root, 'tests/phpstan/wordpress-option-stubs.php');
 $workflow = q4_read($q4_root, '.github/workflows/quality-gates.yml');
 $quality_record = q4_read($q4_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q4_read($q4_root, 'docs/project/PROJECT-STATUS.md');
@@ -113,8 +112,7 @@ foreach (array(
 
 q4_assert(q4_contains($http_fixture, 'supcheckout_test_http_calls'), 'HTTP fixture records exact outbound calls');
 q4_assert(q4_contains($http_fixture, 'SUPCheckout_Test_WP_Error'), 'HTTP fixture exposes deterministic network failure');
-q4_assert(q4_contains($analysis_stubs, 'function wp_remote_get('), 'analysis stubs declare bounded WordPress HTTP transport');
-q4_assert(q4_contains($analysis_stubs, 'function is_wp_error('), 'analysis stubs declare WordPress error classification');
+q4_assert(q4_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare wp_remote_get() and is_wp_error() (A6-06 retired the wordpress-option hand stub)');
 
 q4_assert(q4_contains($workflow, 'quality-platform-authenticated-status-harness.php'), 'Q4 harness is mandatory in Quality Gates');
 q4_assert(q4_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -273,7 +273,7 @@ describe( 'token source', () => {
 			}
 			const entry = source.schemes[ scheme ];
 			expect( entry.$description ).toMatch( /wordpress-develop/ );
-			expect( entry.$description ).toMatch( /7\.1\.3/ );
+			expect( entry.$description ).toMatch( /7\.1\.4/ );
 			expect( entry.sourceColor.$value ).toMatch( /^#[0-9a-f]{6}$/ );
 			expect( entry.wpAdminThemeColor.$value ).toMatch(
 				/^#[0-9a-f]{6}$/
@@ -287,10 +287,10 @@ describe( 'token source', () => {
 		);
 		const deltas = source.$wpAdminThemeColorDeltas;
 		expect( deltas ).toEqual( {
-			$description: expect.stringMatching( /7\.1\.3/ ),
-			// Observed in real wp-admin on WordPress 6.9.10 (Admin UI
+			$description: expect.stringMatching( /7\.1\.4/ ),
+			// Observed in real wp-admin on WordPress 6.9.11 (Admin UI
 			// Certification browser lane): the pre-7.0 scheme highlights.
-			'6.9.10': {
+			'6.9.11': {
 				light: '#0085ba',
 				blue: '#096484',
 				coffee: '#46403c',
@@ -305,7 +305,7 @@ describe( 'token source', () => {
 				continue;
 			}
 			expect( version ).toMatch( /^\d+\.\d+\.\d+$/ );
-			expect( version ).not.toBe( '7.1.3' );
+			expect( version ).not.toBe( '7.1.4' );
 			for ( const [ scheme, color ] of Object.entries( schemes ) ) {
 				expect( SCHEME_NAMES ).toContain( scheme );
 				expect( color ).toMatch( /^#[0-9a-f]{6}$/ );
@@ -318,7 +318,7 @@ describe( 'token source', () => {
 		expect( JSON.stringify( loadTokens() ) ).not.toContain( '#0085ba' );
 	} );
 
-	test( 'each scheme records the --wp-admin-theme-color that WordPress 7.1.3 ships', () => {
+	test( 'each scheme records the --wp-admin-theme-color that WordPress 7.1.4 ships', () => {
 		const source = readJson(
 			'assets/admin/src/tokens/admin-schemes.tokens.json'
 		);

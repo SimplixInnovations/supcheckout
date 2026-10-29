@@ -33,7 +33,6 @@ $settings = q6_read($q6_root, 'src/Admin/GatewaySettings.php');
 $gateway = q6_read($q6_root, 'supcheckout.php') . "\n" . q6_read($q6_root, 'src/Gateway/Gateway.php');
 $tests = q6_read($q6_root, 'tests/unit/Admin/GatewaySettingsTest.php');
 $fixture = q6_read($q6_root, 'tests/support/wordpress-gateway-settings.php');
-$analysis_stubs = q6_read($q6_root, 'tests/phpstan/wordpress-option-stubs.php');
 $workflow = q6_read($q6_root, '.github/workflows/quality-gates.yml');
 $quality_record = q6_read($q6_root, 'docs/project/QUALITY-PLATFORM.md');
 $status = q6_read($q6_root, 'docs/project/PROJECT-STATUS.md');
@@ -149,8 +148,7 @@ q6_assert(q6_contains($fixture, 'function supcheckout_test_reset_gateway_setting
 q6_assert(q6_contains($fixture, 'function wp_enqueue_style('), 'unit fixture records enqueued styles');
 q6_assert(q6_contains($fixture, 'function wp_enqueue_script('), 'unit fixture records enqueued scripts');
 q6_assert(q6_contains($fixture, 'function wp_add_inline_style('), 'unit fixture records inline styles');
-q6_assert(q6_contains($analysis_stubs, 'function sanitize_text_field('), 'analysis stubs declare bounded sanitization');
-q6_assert(q6_contains($analysis_stubs, 'function wp_enqueue_script('), 'analysis stubs declare bounded admin assets');
+q6_assert(q6_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare sanitize_text_field() and wp_enqueue_script() (A6-06 retired the wordpress-option hand stub)');
 
 q6_assert(q6_contains($workflow, 'quality-platform-gateway-settings-harness.php'), 'Q6 harness is mandatory in Quality Gates');
 q6_assert(q6_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -1360,12 +1360,12 @@ class CustomerTokenIdentity {
             }
 
             // Page number must not continue beyond expected_max_pages.
-            if ($expected_max_pages !== null && $page > $expected_max_pages && !empty($orders->orders)) {
+            if ($page > $expected_max_pages && !empty($orders->orders)) {
                 return array('classification' => self::HISTORY_INDETERMINATE, 'reason' => 'page_beyond_max');
             }
 
             // Scanned count must not exceed expected_total.
-            if ($expected_total !== null && $scanned_unique_count + count($orders->orders) > $expected_total) {
+            if ($scanned_unique_count + count($orders->orders) > $expected_total) {
                 return array('classification' => self::HISTORY_INDETERMINATE, 'reason' => 'scanned_exceeds_total');
             }
 
@@ -1475,15 +1475,7 @@ class CustomerTokenIdentity {
                     continue;
                 }
 
-                // Check for duplicate snapshot metadata.
-                if ($kind_card['status'] === self::META_DUPLICATE_OR_INVALID
-                    || $scope_card['status'] === self::META_DUPLICATE_OR_INVALID
-                    || $gen_card['status'] === self::META_DUPLICATE_OR_INVALID
-                ) {
-                    $has_malformed = true;
-                    continue;
-                }
-
+                // Duplicate snapshot metadata was already rejected in Section P.
                 $valid_kinds = array(self::KIND_CANONICAL, self::KIND_LEGACY_COMPAT);
                 if (!in_array($kind_str, $valid_kinds, true)) {
                     $has_malformed = true;
@@ -1526,6 +1518,7 @@ class CustomerTokenIdentity {
 
         // Completeness: genuinely scanned all expected orders.
         // Safety cap does NOT mean scan was complete — only expected_total <= cap AND scanned >= expected_total.
+        // @phpstan-ignore notIdentical.alwaysTrue (fail-closed guard: keeps the scan incomplete if the loop ever runs zero times)
         $is_complete = ($expected_total !== null)
             && ($expected_total <= self::HISTORY_MAX_ORDERS)
             && ($scanned_unique_count >= $expected_total);
@@ -1660,10 +1653,10 @@ class CustomerTokenIdentity {
             if (count($orders->orders) > $page_size) {
                 return array('classification' => self::HISTORY_INDETERMINATE, 'reason' => 'oversized_page');
             }
-            if ($expected_max_pages !== null && $page > $expected_max_pages && !empty($orders->orders)) {
+            if ($page > $expected_max_pages && !empty($orders->orders)) {
                 return array('classification' => self::HISTORY_INDETERMINATE, 'reason' => 'page_beyond_max');
             }
-            if ($expected_total !== null && $scanned_unique_count + count($orders->orders) > $expected_total) {
+            if ($scanned_unique_count + count($orders->orders) > $expected_total) {
                 return array('classification' => self::HISTORY_INDETERMINATE, 'reason' => 'scanned_exceeds_total');
             }
             if (empty($orders->orders) && $scanned_unique_count < $expected_total) {
@@ -1729,12 +1722,13 @@ class CustomerTokenIdentity {
             // false "total_changed" blocker for legitimate customers with
             // clean UPayments order history. This mirrors the established
             // bounded-pagination termination used by inspect_customer_history().
-            if ($expected_total !== null && $scanned_unique_count >= $expected_total) {
+            if ($scanned_unique_count >= $expected_total) {
                 break;
             }
         }
 
         // Bootstrap completion: scan must be complete (not just the cap).
+        // @phpstan-ignore notIdentical.alwaysTrue (fail-closed guard: keeps the scan incomplete if the loop ever runs zero times)
         $is_complete = ($expected_total !== null)
             && ($expected_total <= self::HISTORY_MAX_ORDERS)
             && ($scanned_unique_count >= $expected_total);

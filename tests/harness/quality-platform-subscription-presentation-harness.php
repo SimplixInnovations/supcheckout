@@ -29,7 +29,6 @@ $source = q15_read($q15_root, 'src/Subscription/Presentation.php');
 $tests = q15_read($q15_root, 'tests/unit/Subscription/PresentationTest.php');
 $fixture = q15_read($q15_root, 'tests/support/wordpress-subscription-presentation.php');
 $runtime = q15_read($q15_root, 'tests/fixtures/subscription-presentation-runtime.php');
-$stubs = q15_read($q15_root, 'tests/phpstan/subscription-presentation-stubs.php');
 $bootstrap = q15_read($q15_root, 'tests/bootstrap.php');
 $workflow = q15_read($q15_root, '.github/workflows/quality-gates.yml');
 $quality = q15_read($q15_root, 'docs/project/QUALITY-PLATFORM.md');
@@ -40,7 +39,7 @@ $agents = q15_read($q15_root, 'AGENTS.md');
 $q14_harness = q15_read($q15_root, 'tests/harness/quality-platform-migration-admin-harness.php');
 
 q15_assert(q15_contains($phpstan, 'src/Subscription/Presentation.php'), 'PHPStan owns subscription presentation');
-q15_assert(q15_contains($phpstan, 'tests/phpstan/subscription-presentation-stubs.php'), 'PHPStan loads bounded presentation stubs');
+q15_assert(q15_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-presentation hand stub)');
 q15_assert(q15_contains($phpcs, 'src/Subscription/Presentation.php'), 'PHPCS owns subscription presentation');
 q15_assert(!q15_contains($phpstan, 'baseline'), 'Q15 remains baseline-free');
 q15_assert(!q15_contains($phpstan, 'ignoreErrors'), 'Q15 introduces no ignored analyzer errors');
@@ -120,7 +119,7 @@ q15_assert(
     q15_contains($runtime, "namespace Simplixi\\SUPCheckout\\Gateway {") && q15_contains($runtime, 'class Gateway {'),
     'runtime fixture isolates the gateway summary delegate'
 );
-q15_assert(q15_contains($stubs, 'namespace Simplixi\\SUPCheckout\\Subscription\\Cron'), 'analysis stub models the scheduler boundary without running it');
+q15_assert(q15_contains($phpstan, '- src/Subscription/Cron/Scheduler.php'), 'PHPStan analyses the real scheduler src/Subscription/Cron/Scheduler.php (A6-06 retired its stand-in stub)');
 q15_assert(q15_contains($bootstrap, "require __DIR__ . '/support/wordpress-subscription-presentation.php';"), 'PHPUnit bootstrap loads the presentation fixture');
 
 foreach (array(
@@ -134,8 +133,8 @@ foreach (array(
     q15_assert(!q15_contains($source, $forbidden), "presentation excludes unrelated runtime ownership: {$forbidden}");
 }
 
-q15_assert(q15_git_blob_sha($q15_root . '/src/Subscription/Cron/Scheduler.php') === '9a5994bbc27fc59983950ba42ef4330d9dd5f854', 'protected Scheduler blob remains exact');
-q15_assert(q15_git_blob_sha($q15_root . '/src/Subscription/Cron/CycleClaim.php') === '66b42899a97a6423bcd4d54ac8bf96554373d150', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
+q15_assert(q15_git_blob_sha($q15_root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3', 'protected Scheduler blob remains exact');
+q15_assert(q15_git_blob_sha($q15_root . '/src/Subscription/Cron/CycleClaim.php') === '34974720b22b668d230e045b2313ca4ec0cc20cc', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q15_assert(q15_contains($workflow, 'tests/harness/quality-platform-subscription-presentation-harness.php'), 'Q15 harness remains mandatory in Quality Gates');
 q15_assert(q15_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -27,7 +27,6 @@ $phpstan = q12_read($q12_root, 'phpstan.neon.dist');
 $phpcs = q12_read($q12_root, 'phpcs.xml.dist');
 $source = q12_read($q12_root, 'src/Subscription/WCProductCustomType.php');
 $tests = q12_read($q12_root, 'tests/unit/Subscription/WCProductCustomTypeTest.php');
-$stubs = q12_read($q12_root, 'tests/phpstan/subscription-product-type-stubs.php');
 $base_fixture = q12_read($q12_root, 'tests/fixtures/subscription-product-type-base.php');
 $existing_fixture = q12_read($q12_root, 'tests/fixtures/subscription-product-type-existing.php');
 $workflow = q12_read($q12_root, '.github/workflows/quality-gates.yml');
@@ -39,7 +38,7 @@ $playbook = q12_read($q12_root, 'docs/project/MASTER-ENGINEERING-PLAYBOOK.md');
 
 q12_assert(q12_contains($phpstan, 'src/Subscription/WCProductCustomType.php'), 'PHPStan owns subscription product type');
 q12_assert(q12_contains($phpcs, 'src/Subscription/WCProductCustomType.php'), 'PHPCS owns subscription product type');
-q12_assert(q12_contains($phpstan, 'tests/phpstan/subscription-product-type-stubs.php'), 'analysis loads bounded product-type stubs');
+q12_assert(q12_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs (A6-06 retired the subscription-product-type hand stub)');
 q12_assert(!q12_contains($phpstan, 'baseline'), 'Q12 remains baseline-free');
 q12_assert(!q12_contains($phpstan, 'ignoreErrors'), 'Q12 introduces no ignored analyzer errors');
 
@@ -77,11 +76,11 @@ q12_assert(q12_contains($tests, "assertSame('custom_type'"), 'exact custom produ
 q12_assert(substr_count($base_fixture, 'class WC_Product_Simple') === 1, 'base fixture declares the exact global WooCommerce parent');
 q12_assert(substr_count($existing_fixture, 'class WCProductCustomType') === 1, 'pre-existing fixture declares the exact global compatibility class');
 q12_assert(q12_contains($existing_fixture, "return 'existing_type';"), 'pre-existing fixture exposes a distinguishable preserved behavior');
-q12_assert(q12_contains($stubs, 'class WC_Product_Simple'), 'analysis stubs declare only the WooCommerce parent boundary');
-q12_assert(!q12_contains($stubs, 'WCProductCustomType'), 'analysis stubs do not mask the production child class');
+q12_assert(q12_contains($phpstan, '- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php'), 'PHPStan scans the official WooCommerce stubs, which declare WC_Product_Simple (A6-06)');
+q12_assert(!q12_contains((string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/external-symbols-stubs.php') . (string) file_get_contents(dirname(__DIR__, 2) . '/tests/phpstan/stub-corrections.stub'), 'WCProductCustomType'), 'analysis stubs do not mask the production child class (A6-06)');
 
-q12_assert(q12_git_blob_sha($q12_root . '/src/Subscription/Cron/Scheduler.php') === '9a5994bbc27fc59983950ba42ef4330d9dd5f854', 'protected Scheduler blob remains exact');
-q12_assert(q12_git_blob_sha($q12_root . '/src/Subscription/Cron/CycleClaim.php') === '66b42899a97a6423bcd4d54ac8bf96554373d150', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
+q12_assert(q12_git_blob_sha($q12_root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3', 'protected Scheduler blob remains exact');
+q12_assert(q12_git_blob_sha($q12_root . '/src/Subscription/Cron/CycleClaim.php') === '34974720b22b668d230e045b2313ca4ec0cc20cc', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q12_assert(q12_contains($workflow, 'quality-platform-subscription-product-type-harness.php'), 'Q12 harness is mandatory in Quality Gates');
 q12_assert(q12_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

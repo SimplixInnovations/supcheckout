@@ -1707,6 +1707,13 @@
     {
         "kind": "schedule_reference",
         "function": "wp_unschedule_event",
+        "hook": "<dynamic:$next[1]>",
+        "args": "[0:int]",
+        "contexts": "static"
+    },
+    {
+        "kind": "schedule_reference",
+        "function": "wp_unschedule_event",
         "hook": "<dynamic:(string)$hook>",
         "args": "<param:array $args>",
         "contexts": "static"

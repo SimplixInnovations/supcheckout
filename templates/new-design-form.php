@@ -221,7 +221,7 @@ defined( 'ABSPATH' ) || exit;
                     $key_attr = esc_attr($key_string);
                     $value_attr = esc_attr($value_string);
     ?>
-                <span class="payment-method-icon" style="margin-right: 5px;" id="upay-button-<?php echo esc_attr($key_string); ?>"><img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt=""/></span>
+                <span class="payment-method-icon" style="margin-inline-end: 5px;" id="upay-button-<?php echo esc_attr($key_string); ?>"><img src="<?php echo esc_url(SUPCHECKOUT_PLUGIN_URL . 'assets/images/' . $key_string . '.png'); ?>" alt=""/></span>
     <?php
                 }
             }

@@ -61,13 +61,13 @@ test( 'the gate also needs the browser lane and fails on its skip or cancel', ()
 	expect( gate ).toContain( '"$BROWSER_RESULT" != success' );
 } );
 
-test( 'the browser lane runs real WordPress 6.9.10/WC 10.8.1 and 7.1.3/WC 11.1.2', () => {
+test( 'the browser lane runs real WordPress 6.9.11/WC 10.8.1 and 7.1.4/WC 11.1.2', () => {
 	const browser = job( 'browser' );
 	expect( browser ).toMatch(
-		/- wordpress: '6\.9\.10'\n\s+woocommerce: '10\.8\.1'/
+		/- wordpress: '6\.9\.11'\n\s+woocommerce: '10\.8\.1'/
 	);
 	expect( browser ).toMatch(
-		/- wordpress: '7\.1\.3'\n\s+woocommerce: '11\.1\.2'/
+		/- wordpress: '7\.1\.4'\n\s+woocommerce: '11\.1\.2'/
 	);
 	expect( browser ).toContain( 'fail-fast: false' );
 	expect( browser ).toContain( "php-version: '8.3'" );
@@ -128,7 +128,7 @@ test( 'test:browser runs exactly the four browser projects', () => {
 	);
 } );
 
-test( 'the visual lane runs real WordPress 7.1.3/WC 11.1.2 on PHP 8.3 at the exact head', () => {
+test( 'the visual lane runs real WordPress 7.1.4/WC 11.1.2 on PHP 8.3 at the exact head', () => {
 	const visual = job( 'visual' );
 	// Baselines are Linux pixels of one OS image: moving it is a deliberate
 	// regeneration PR, never a silent runner-image update.
@@ -139,7 +139,7 @@ test( 'the visual lane runs real WordPress 7.1.3/WC 11.1.2 on PHP 8.3 at the exa
 	expect( visual ).toContain(
 		'test "$(git rev-parse HEAD)" = "$ADMIN_UI_SOURCE_SHA"'
 	);
-	expect( visual ).toContain( "SUP_UI_WP_VERSION: '7.1.3'" );
+	expect( visual ).toContain( "SUP_UI_WP_VERSION: '7.1.4'" );
 	expect( visual ).toContain( "SUP_UI_WC_VERSION: '11.1.2'" );
 	expect( visual ).toContain( "php-version: '8.3'" );
 	expect( visual ).toContain(

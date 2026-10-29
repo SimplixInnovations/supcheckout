@@ -28,7 +28,6 @@ $phpcs = q14_read($q14_root, 'phpcs.xml.dist');
 $source = q14_read($q14_root, 'src/Migration/MigrationAdmin.php');
 $tests = q14_read($q14_root, 'tests/unit/Migration/MigrationAdminTest.php');
 $fixture = q14_read($q14_root, 'tests/support/wordpress-migration-admin.php');
-$stubs = q14_read($q14_root, 'tests/phpstan/migration-admin-stubs.php');
 $bootstrap = q14_read($q14_root, 'tests/bootstrap.php');
 $workflow = q14_read($q14_root, '.github/workflows/quality-gates.yml');
 $quality = q14_read($q14_root, 'docs/project/QUALITY-PLATFORM.md');
@@ -40,7 +39,7 @@ $q13_harness = q14_read($q14_root, 'tests/harness/quality-platform-migration-cli
 
 q14_assert(q14_contains($phpstan, 'src/Migration/MigrationAdmin.php'), 'PHPStan owns migration admin adapter');
 q14_assert(q14_contains($phpcs, 'src/Migration/MigrationAdmin.php'), 'PHPCS owns migration admin adapter');
-q14_assert(q14_contains($phpstan, 'tests/phpstan/migration-admin-stubs.php'), 'PHPStan loads bounded admin stubs');
+q14_assert(q14_contains($phpstan, '- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php'), 'PHPStan scans the official WordPress stubs, which declare wp_die() with its never return (A6-06 retired the migration-admin hand stub)');
 q14_assert(!q14_contains($phpstan, 'baseline'), 'Q14 remains baseline-free');
 q14_assert(!q14_contains($phpstan, 'ignoreErrors'), 'Q14 introduces no ignored analyzer errors');
 
@@ -119,11 +118,10 @@ q14_assert(q14_contains($tests, "'&quot;reason&quot;: &quot;batch_complete&quot;
 q14_assert(q14_contains($fixture, "'capability_calls'"), 'admin fixture records capability checks');
 q14_assert(q14_contains($fixture, "'nonce_checks'"), 'admin fixture records nonce checks');
 q14_assert(q14_contains($fixture, "'submenu_calls'"), 'admin fixture records submenu registration');
-q14_assert(q14_contains($stubs, '/** @return never */'), 'analysis stub models terminating wp_die boundary');
 q14_assert(q14_contains($bootstrap, "require __DIR__ . '/support/wordpress-migration-admin.php';"), 'PHPUnit bootstrap loads admin fixture');
 
-q14_assert(q14_git_blob_sha($q14_root . '/src/Subscription/Cron/Scheduler.php') === '9a5994bbc27fc59983950ba42ef4330d9dd5f854', 'protected Scheduler blob remains exact');
-q14_assert(q14_git_blob_sha($q14_root . '/src/Subscription/Cron/CycleClaim.php') === '66b42899a97a6423bcd4d54ac8bf96554373d150', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
+q14_assert(q14_git_blob_sha($q14_root . '/src/Subscription/Cron/Scheduler.php') === '8a82256fcbddd3b52b6abc825685eaa1f45a34b3', 'protected Scheduler blob remains exact');
+q14_assert(q14_git_blob_sha($q14_root . '/src/Subscription/Cron/CycleClaim.php') === '34974720b22b668d230e045b2313ca4ec0cc20cc', 'protected CycleClaim reviewed blob remains exact after WordPress.org SQL/warning hardening');
 
 q14_assert(q14_contains($workflow, 'tests/harness/quality-platform-migration-admin-harness.php'), 'Q14 harness remains mandatory in Quality Gates');
 q14_assert(q14_contains($workflow, 'if: ${{ always() }}'), 'protected H12 aggregator still always runs');

@@ -245,20 +245,26 @@ tranches:
     admin_ui_gate_required_check: true
     owner_decision_2026_10_20: hardening_program_before_revamp_ia_and_branding
     hardening_status: done_verified
-    hardening_scope: repository_executable_fix_loop_batches_1_to_4
+    hardening_scope: repository_executable_fix_loop_batches_1_to_6
     hardening_batch_1_merged_main: e3884ca5317d875bcc8caaaf1d5798059a3ee3f4
     hardening_batch_2_merged_main: 3575721648e63d59c72732c02a0ca5361fd26594
     hardening_batch_3_code_commit: bab56a89b2c107e11fbb6aa8acb4fd0a347538fc
     hardening_batch_3_branch: hardening/batch-3
     hardening_batch_3_merged_main: f3e207d3686a16fe4ef3b41d5736a33ad7a1c8d8
     hardening_batch_4_branch: hardening/batch-4
+    hardening_batch_4_merged_main: eed5bbde1c983b89dfd47b348ac8f3e89b6f08d6
+    hardening_batch_4_package_sha256: 2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db
     hardening_batch_4_last_distributable_commit: 46cf129
     hardening_batch_4_scope: a1_03_note_dedupe_note_lock_token_n_2_n_3_m_5_rest_o4_a2_02_revised_h12_meta_as_1_test_isolation
     hardening_h12_meta: fixed_batch_4_owner_staging_check_deferred_until_white_label
-    hardening_tooling_backlog: a6_06_phpstan_stubs
+    hardening_batch_5_6_branch: hardening/batch-5
+    hardening_batch_5_scope: a1_11_a4_05_rest_a4_08_u2_n_1_a6_08_closed_by_design
+    hardening_batch_6_scope: a6_06_phpstan_all_src_official_wp_wc_stubs_level_5_no_baseline
+    hardening_batches_5_6_last_distributable_commit: b6e438a
+    hardening_tooling_backlog: none
     hardening_evidence: docs/project/evidence/HARDENING-PROGRAM-2026-10-23.md
     hardening_package_files: 233
-    hardening_package_sha256: 2a8e1aba7e056151a5995c9147eccfd2700efe866ac7b8c36ed87f2b17def6db
+    hardening_package_sha256: f16aeecbc19642324573bc6e174414d6776c16ac07a0955d0fd2d7b2e27d7ba9
     hardening_batch_3_package_sha256_owner_staging_verified: f86744833a196a6eef7bcff5f79bd179face94dd0ad42b7f90bb5c6d091502d8
     hardening_package_owner_accepted: false
     hardening_parked: none

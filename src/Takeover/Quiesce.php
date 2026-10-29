@@ -116,6 +116,7 @@ final class Quiesce {
      *
      * @param int|null $now Current time.
      * @return bool
+     * @phpstan-impure
      */
     public static function is_active($now = null) {
         $now = $now === null ? time() : (int) $now;
